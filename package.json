@@ -18,7 +18,11 @@
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
     "test:e2e": "jest --config ./test/jest-e2e.json",
-    "db:merge-migrate": "node scripts/merge-and-migrate.js"
+    "db:merge-migrate": "node scripts/merge-and-migrate.js",
+    "openapi:build": "ts-node -r tsconfig-paths/register -T scripts/generate-openapi.ts",
+    "sdk:gen": "openapi --input openapi/openapi.json --output sdk --client axios --useUnionTypes",
+    "sdk": "npm run openapi:build && npm run sdk:gen",
+    "sdk:release": "bash scripts/release-sdk.sh"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
@@ -27,6 +31,7 @@
     "@nestjs/jwt": "^11.0.0",
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
+    "@nestjs/swagger": "^11.2.0",
     "@prisma/client": "^6.13.0",
     "argon2": "^0.43.1",
     "class-transformer": "^0.5.1",
@@ -37,7 +42,8 @@
     "passport-jwt": "^4.0.1",
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
-    "rxjs": "^7.8.1"
+    "rxjs": "^7.8.1",
+    "swagger-ui-express": "^5.0.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.2.0",
@@ -45,6 +51,7 @@
     "@nestjs/cli": "^11.0.0",
     "@nestjs/schematics": "^11.0.0",
     "@nestjs/testing": "^11.0.1",
+    "@openapitools/openapi-generator-cli": "^2.21.4",
     "@types/express": "^5.0.0",
     "@types/jest": "^30.0.0",
     "@types/node": "^22.10.7",
@@ -58,6 +65,7 @@
     "eslint-plugin-prettier": "^5.2.2",
     "globals": "^16.0.0",
     "jest": "^30.0.0",
+    "openapi-typescript-codegen": "^0.29.0",
     "prettier": "^3.4.2",
     "prisma": "^6.13.0",
     "source-map-support": "^0.5.21",
