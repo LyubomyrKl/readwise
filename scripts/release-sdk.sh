@@ -5,18 +5,45 @@ API_URL="${API_URL:-http://localhost:3000/api/docs-json}"
 REPO_SSH="git@github.com:SatoruSatoshi/summarize-api-sdk.git"
 PKG_NAME="@satoru-satoshi/summarize-api-sdk"
 
-# paths
-GEN_DIR=".sdk-gen"        # clean, regenerated each run
-REPO_DIR="sdk"            # persistent git repo checkout
+GEN_DIR=".sdk-gen"    # temp generation
+REPO_DIR="sdk"        # persistent repo checkout
+SPEC_JSON="$GEN_DIR-spec.json"
 
-# 0) Tools check
-command -v jq >/dev/null || { echo "jq required"; exit 1; }
+# -------- 0) optional: make Nest produce clean operationIds --------
+# In your NestJS swagger bootstrap (recommended):
+# SwaggerModule.createDocument(app, config, {
+#   operationIdFactory: (_controllerKey, methodKey) => methodKey,
+# });
 
-# 1) Generate SDK into a TEMP folder (never a git repo)
+# -------- 1) fetch spec and normalize operationIds (safety net) ----
+mkdir -p "$GEN_DIR"
+curl -sS "$API_URL" > "$SPEC_JSON"
+
+# remove typical controller prefixes like "UsersController_updateMe" -> "updateMe"
+# and "UsersController.updateMe" -> "updateMe"
+jq '
+  .paths |= with_entries(
+    .value |= with_entries(
+      .value |= if has("operationId") then
+        .operationId |= (
+          gsub("^[A-Za-z]+Controller[_\\.]"; "") |
+          gsub("^[A-Za-z]+Service[_\\.]"; "")
+        )
+      else . end
+    )
+  )
+' "$SPEC_JSON" > "$SPEC_JSON.tmp" && mv "$SPEC_JSON.tmp" "$SPEC_JSON"
+
+# -------- 2) generate into a TEMP folder ---------------------------
 rm -rf "$GEN_DIR"
-npx openapi-generator-cli generate -i "$API_URL" -g typescript-axios -o "$GEN_DIR" --skip-validate-spec
+npx openapi-generator-cli generate \
+  -i "$SPEC_JSON" \
+  -g typescript-axios \
+  -o "$GEN_DIR" \
+  --skip-validate-spec \
+  --additional-properties=removeOperationIdPrefix=true,modelPropertyNaming=camelCase,useSingleRequestParameter=true
 
-# 2) Compute spec hash from generated sources only
+# -------- 3) compute hash from generated sources -------------------
 SPEC_HASH="$(
   { find "$GEN_DIR" -type f \
       ! -path "$GEN_DIR/node_modules/*" \
@@ -24,12 +51,10 @@ SPEC_HASH="$(
       ! -path "$GEN_DIR/.openapi-generator/*" \
       ! -name 'openapitools.json' \
       ! -name 'package-lock.json' \
-      -print0 \
-    | sort -z \
-    | xargs -0 shasum | shasum; } | awk '{print $1}'
+      -print0 | sort -z | xargs -0 shasum | shasum; } | awk '{print $1}'
 )"
 
-# 3) Ensure we have a cloned repo with history (never delete .git)
+# -------- 4) ensure repo checkout with history ---------------------
 if [ ! -d "$REPO_DIR/.git" ]; then
   git clone "$REPO_SSH" "$REPO_DIR"
 else
@@ -38,15 +63,14 @@ else
   git -C "$REPO_DIR" reset --hard origin/main
 fi
 
-# 4) Skip if same spec
 PREV_HASH="$(cat "$REPO_DIR/.spec-hash" 2>/dev/null || true)"
 if [ "$SPEC_HASH" = "$PREV_HASH" ]; then
   echo "No SDK changes. Skip release."
-  rm -rf "$GEN_DIR"
+  rm -rf "$GEN_DIR" "$SPEC_JSON"
   exit 0
 fi
 
-# 5) Rsync generated files INTO repo working tree (preserve history)
+# -------- 5) sync into repo without losing history -----------------
 rsync -a --delete \
   --exclude '.git' \
   --exclude 'node_modules' \
@@ -56,15 +80,15 @@ rsync -a --delete \
 
 pushd "$REPO_DIR" >/dev/null
 
-# 6) package.json and tsconfig (idempotent)
+# -------- 6) package scaffolding + build ---------------------------
 [ -f package.json ] || npm init -y >/dev/null
 jq --arg name "$PKG_NAME" '
-  .name = $name
-| .type = "module"
-| .main = "dist/index.js"
-| .types = "dist/index.d.ts"
-| .files = ["dist","README.md","LICENSE"]
-| .scripts.build = "tsc"
+  .name=$name
+| .type="module"
+| .main="dist/index.js"
+| .types="dist/index.d.ts"
+| .files=["dist","README.md","LICENSE"]
+| .scripts.build="tsc"
 | del(.scripts.prepare)
 ' package.json > package.tmp && mv package.tmp package.json
 
@@ -86,14 +110,13 @@ jq --arg name "$PKG_NAME" '
 }
 JSON
 
-# 7) Build dist so consumers can install from tarball/git
-git config user.email "${GIT_EMAIL:-nakamura.saturu.cony@gmail.com}"
-git config user.name  "${GIT_NAME:-nakamura-satoru}"
+git config user.email "${GIT_EMAIL:-ci@example.com}"
+git config user.name  "${GIT_NAME:-ci-bot}"
 npm pkg set devDependencies.typescript="^5" >/dev/null
 npm install --silent
 npm run build
 
-# 8) Version and commit
+# -------- 7) version, commit, tag, push (no --force) --------------
 STAMP="$(date -u +%Y%m%dT%H%M%S)"
 SUFFIX="${STAMP}+${SPEC_HASH:0:8}"
 BASE_VER="$(node -e "p=require('./package.json');v=p.version||'0.1.0';console.log(v.split('-')[0])")"
@@ -105,15 +128,12 @@ printf '%s\n' 'node_modules' '.openapi-generator' 'openapitools.json' > .gitigno
 
 git add -A
 git commit -m "release: ${NEW_VER} (spec ${SPEC_HASH:0:12})"
-
-# 9) Tag and push WITHOUT force (history preserved)
 git tag -a "v${NEW_VER}" -m "v${NEW_VER}" || true
 git push origin main
 git push origin "v${NEW_VER}" || true
 
 popd >/dev/null
-rm -rf "$GEN_DIR"
+rm -rf "$GEN_DIR" "$SPEC_JSON"
 
 echo "Released v${NEW_VER}"
-echo "Repo: $REPO_SSH"
 echo "Install: npm i $PKG_NAME"
