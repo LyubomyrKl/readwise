@@ -27,3 +27,24 @@ export class UserDto {
   @ApiProperty({ example: '2025-08-11T17:22:31.000Z' })
   createdAt: string;
 }
+export class UpdateUserDto {
+  @ApiPropertyOptional({ example: 'Anna' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ example: 'en-US' })
+  @IsOptional()
+  @IsString()
+  locale?: string;
+
+  @ApiPropertyOptional({ example: 'America/New_York' })
+  @IsOptional()
+  @IsString()
+  timezone?: string;
+
+  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
+  @IsOptional()
+  @IsString()
+  avatarUrl?: string;
+}

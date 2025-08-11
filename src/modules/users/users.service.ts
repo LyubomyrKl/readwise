@@ -39,4 +39,18 @@ export class UsersService {
       },
     });
   }
+
+  async update(userId: string, dto: Partial<User>): Promise<PublicUser> {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: dto,
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+  }
 }
