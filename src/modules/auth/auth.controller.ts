@@ -4,12 +4,10 @@ import {
   Get,
   Post,
   Req,
-  UseGuards,
   HttpCode,
   HttpStatus,
+  UnauthorizedException,
 } from '@nestjs/common';
-import { AuthGuard } from '@nestjs/passport';
-import { Request } from 'express';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshDto } from './auth.dto';
 import {
@@ -28,9 +26,6 @@ import {
   ApiBadRequestResponse,
 } from '@nestjs/swagger';
 
-type LocalReq = Request & { user: { id: string; email: string } };
-type JwtReq = Request & { user: MePayload };
-
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
@@ -41,11 +36,7 @@ export class AuthController {
   @ApiCreatedResponse({ description: 'User registered', type: AuthBundle })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   async register(@Body() dto: RegisterDto): Promise<AuthBundle> {
-    const result = await this.auth.register(
-      dto.email,
-      dto.password,
-      dto.name,
-    );
+    const result = await this.auth.register(dto.email, dto.password, dto.name);
     return {
       user: result.user,
       tokens: {
@@ -55,13 +46,18 @@ export class AuthController {
     };
   }
 
-  @UseGuards(AuthGuard('local'))
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ description: 'Login successful', type: AuthBundle })
-  async login(@Req() req: LocalReq): Promise<AuthBundle> {
-    const result = await this.auth.login(req.user.id);
+  async login(@Body() dto: LoginDto): Promise<AuthBundle> {
+    const user = await this.auth.validateUser(dto.email, dto.password);
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
+
+    const result = await this.auth.login(dto.email);
     return {
       user: result.user,
       tokens: {
@@ -87,7 +83,7 @@ export class AuthController {
   @Authenticated()
   @Get('me')
   @ApiOkResponse({ description: 'Current user', type: MePayload })
-  me(@Req() req: JwtReq): MePayload {
+  me(@Req() req: { user: { userId: string; email: string } }): MePayload {
     return req.user;
   }
 
@@ -95,7 +91,9 @@ export class AuthController {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOkResponse({ description: 'Logged out', type: LogoutResult })
-  async logout(@Req() req: JwtReq): Promise<LogoutResult> {
+  async logout(
+    @Req() req: { user: { userId: string; email: string } },
+  ): Promise<LogoutResult> {
     await this.auth.logout(req.user.userId);
     return { success: true };
   }

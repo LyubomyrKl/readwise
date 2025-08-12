@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, InternalServerErrorException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  InternalServerErrorException,
+  ConflictException,
+} from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -30,6 +35,7 @@ export class AuthService {
     name?: string,
   ): Promise<AuthBundle> {
     const existingUser = await this.users.findByEmail(email);
+
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
     }
@@ -48,17 +54,20 @@ export class AuthService {
     return ok ? user : null;
   }
 
-  async login(userId: string): Promise<AuthBundle> {
-    const user = await this.users.findById(userId);
+  async login(email: string): Promise<AuthBundle> {
+    const user = await this.users.findByEmail(email);
 
-    if (!user) throw new UnauthorizedException();
+    if (!user) throw new UnauthorizedException('Invalid credentials');
+
     const tokens = await this.issueTokens(user.id, user.email);
-
     const safe = this.mapToSafeUser(user);
     return { user: safe, tokens };
   }
 
-  private async issueTokens(userId: string, email: string): Promise<ServiceTokens> {
+  private async issueTokens(
+    userId: string,
+    email: string,
+  ): Promise<ServiceTokens> {
     const access = await this.jwt.signAsync(
       { sub: userId, email },
       {
@@ -109,7 +118,9 @@ export class AuthService {
   private getJwtAccessSecret(): string {
     const secret = process.env.JWT_ACCESS_SECRET;
     if (!secret) {
-      throw new InternalServerErrorException('JWT_ACCESS_SECRET not configured');
+      throw new InternalServerErrorException(
+        'JWT_ACCESS_SECRET not configured',
+      );
     }
     return secret;
   }
@@ -117,7 +128,9 @@ export class AuthService {
   private getJwtRefreshSecret(): string {
     const secret = process.env.JWT_REFRESH_SECRET;
     if (!secret) {
-      throw new InternalServerErrorException('JWT_REFRESH_SECRET not configured');
+      throw new InternalServerErrorException(
+        'JWT_REFRESH_SECRET not configured',
+      );
     }
     return secret;
   }
@@ -130,7 +143,11 @@ export class AuthService {
     return process.env.JWT_REFRESH_TTL || '7d';
   }
 
-  private mapToSafeUser(user: { id: string; email: string; name: string | null }): SafeUser {
+  private mapToSafeUser(user: {
+    id: string;
+    email: string;
+    name: string | null;
+  }): SafeUser {
     return {
       id: user.id,
       email: user.email,
