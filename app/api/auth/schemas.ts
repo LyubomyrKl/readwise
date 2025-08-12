@@ -3,13 +3,13 @@ import { z } from "zod";
 import { Registry } from "../api.types";
 
 export const LoginReq = z.object({
-  email: z.string().email(),
+  email: z.email(),
   password: z.string().min(8),
 });
 
 export const User = z.object({
   id: z.string(),
-  email: z.string().email(),
+  email: z.email(),
   name: z.string().nullable().optional(),
 });
 

@@ -74,7 +74,11 @@ export default function Register() {
 
     startTransition(async () => {
       try {
-        const r = await apiFetch("POST", "/api/auth/register", values);
+        const r = await apiFetch("POST", "/api/auth/register", {
+          name: values.name,
+          email: values.email,
+          password: values.password,
+        });
 
         if (!r) {
           setServerError("Invalid response from server");

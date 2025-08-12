@@ -42,6 +42,7 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
     method: method as string,
     headers: { "content-type": "application/json", ...(init?.headers || {}) },
     body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
+    credentials: "include",
     ...init,
   });
 
