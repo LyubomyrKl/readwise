@@ -1,9 +1,9 @@
 "use client";
 import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
-import { AppSidebar, Section } from "@/app/components/AppSidebar";
+import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
 import { Library, UploadCloud, FolderOpen, Sparkles } from "lucide-react";
 import { useRef, useEffect } from "react";
-import { ROUTES } from "../consts/pages";
+import { ROUTES } from "../(consts)/pages";
 
 const nav: Section[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },

@@ -27,6 +27,7 @@ import React from "react";
 import { books } from "@/stub";
 import { BookCard, Stat } from "./components";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
+import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 
 const lastBook = {
   id: "clean-code",
@@ -77,6 +78,8 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = React.useState<
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
+
+  const { enabled } = useMotion();
 
   const progress = (
     book: { pageCount: number; pagePassCount: number },
@@ -137,6 +140,9 @@ export default function LibraryPage() {
 
   const dynamicBg = useCoverGradient(lastBook.cover);
 
+  const Wrapper: any = enabled ? motion.div : "div";
+  const Child: any = enabled ? motion.div : "div";
+
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-[65vh] -z-10">
@@ -171,7 +177,7 @@ export default function LibraryPage() {
           </Button>
         </div>
 
-        <motion.div
+        <Wrapper
           initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.35 }}
@@ -268,7 +274,7 @@ export default function LibraryPage() {
               <Stat label="Highlights" value="73" />
             </CardFooter>
           </Card>
-        </motion.div>
+        </Wrapper>
 
         {/* Book list */}
 
@@ -341,7 +347,7 @@ export default function LibraryPage() {
         </div>
 
         {/* Books grid */}
-        <motion.div
+        <Child
           initial="hidden"
           animate="show"
           variants={{
@@ -353,7 +359,7 @@ export default function LibraryPage() {
           {filtered.map((b) => (
             <BookCard key={b.id} book={b} />
           ))}
-        </motion.div>
+        </Child>
       </section>
     </div>
   );

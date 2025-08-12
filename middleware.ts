@@ -1,7 +1,7 @@
 // middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ROUTES } from "./app/consts/pages";
+import { ROUTES } from "./app/(consts)/pages";
 
 const PROTECTED = new Set<string>([
   ROUTES.reader.library,
@@ -11,13 +11,12 @@ const PROTECTED = new Set<string>([
   ROUTES.reader.ingest.uploadFiles,
   ROUTES.reader.ingest.webImport,
   ROUTES.reader.aiWorkbench,
+  ROUTES.settings,
 ]);
 
 function needsAuth(path: string) {
   if (PROTECTED.has(path)) return true;
-  // allow section-wide protection
-  if (path.startsWith("/collections/")) return true;
-  if (path.startsWith("/ingest/")) return true;
+
   return false;
 }
 
@@ -27,7 +26,7 @@ export function middleware(req: NextRequest) {
 
   const token = req.cookies.get("access_token")?.value;
   if (!token) {
-    const url = new URL("/login", req.url);
+    const url = new URL(ROUTES.auth.login, req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
@@ -37,26 +36,15 @@ export function middleware(req: NextRequest) {
     const [, payload] = token.split(".");
     const { exp } = JSON.parse(Buffer.from(payload, "base64").toString());
     if (!exp || Date.now() > exp * 1000) {
-      const url = new URL("/login", req.url);
+      const url = new URL(ROUTES.auth.login, req.url);
       url.searchParams.set("next", pathname);
       return NextResponse.redirect(url);
     }
   } catch {
-    const url = new URL("/login", req.url);
+    const url = new URL(ROUTES.auth.login, req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }
 
   return NextResponse.next();
 }
-
-// protect exact pages and section roots
-export const config = {
-  matcher: [
-    ROUTES.reader.library,
-    ROUTES.reader.collections.all,
-    ROUTES.reader.ingest.uploadFiles,
-    ROUTES.reader.ingest.webImport,
-    ROUTES.reader.aiWorkbench,
-  ],
-};

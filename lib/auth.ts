@@ -1,4 +1,4 @@
-// lib/auth.ts
+"use server";
 import { cookies } from "next/headers";
 import * as jose from "jose";
 

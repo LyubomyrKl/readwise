@@ -25,8 +25,6 @@ export function BookCard({ book }: { book: IBookDetail }) {
     setTruncated(isTrunc);
   }, [book.title]);
 
-  console.log(truncated, book.title);
-
   return (
     <motion.div
       variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}

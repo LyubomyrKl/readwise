@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { ROUTES } from "../(consts)/pages";
 export default function Index() {
-  redirect("/library"); // or "/about"
+  redirect(ROUTES.reader.library);
 }

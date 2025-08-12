@@ -5,8 +5,7 @@ import { setAccessCookie, setRefreshCookie } from "@/lib/cookies";
 
 export async function POST(req: Request) {
   const body = await req.json(); // { email, password, name? }
-  // adjust to your SDK method, e.g. authControllerRegister
-  const { data } = await authApi.authControllerRegister({ registerDto: body });
+  const { data } = await authApi.register({ registerDto: body });
   const { user, tokens } = data; // { accessToken, refreshToken }
   const res = NextResponse.json({ user }, { status: 201 });
   setAccessCookie(res, tokens.accessToken);
