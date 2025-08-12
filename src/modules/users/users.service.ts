@@ -1,5 +1,5 @@
 // src/modules/users/users.service.ts
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 
@@ -54,7 +54,12 @@ export class UsersService {
     });
   }
 
-  async update(userId: string, dto: Partial<User>): Promise<PublicUser> {
+  async update(userId: string, dto: { name?: string }): Promise<PublicUser> {
+    const user = await this.findById(userId);
+    if (!user) {
+      throw new NotFoundException('User not found');
+    }
+
     return this.prisma.user.update({
       where: { id: userId },
       data: dto,

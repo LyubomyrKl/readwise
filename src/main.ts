@@ -1,32 +1,47 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import 'reflect-metadata';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const logger = new Logger('Bootstrap');
+  
+  try {
+    const app = await NestFactory.create(AppModule);
 
-  app.setGlobalPrefix('api');
-  app.enableCors();
-  app.useGlobalPipes(
-    new ValidationPipe({
-      whitelist: true,
-      forbidNonWhitelisted: true,
-      transform: true,
-    }),
-  );
+    app.setGlobalPrefix('api');
+    app.enableCors({
+      origin: process.env.CORS_ORIGIN || true,
+      credentials: true,
+    });
+    
+    app.useGlobalPipes(
+      new ValidationPipe({
+        whitelist: true,
+        forbidNonWhitelisted: true,
+        transform: true,
+        disableErrorMessages: process.env.NODE_ENV === 'production',
+      }),
+    );
 
-  const config = new DocumentBuilder()
-    .setTitle('Summarizer API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
+    const config = new DocumentBuilder()
+      .setTitle('Summarizer API')
+      .setVersion('1.0')
+      .setDescription('API for the Summarizer Gateway service')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, config);
+    SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
 
-  await app.listen(5173);
+    const port = process.env.PORT || 5173;
+    await app.listen(port);
 
-  console.log(`Application is running on: ${await app.getUrl()}/api`);
+    logger.log(`Application is running on: ${await app.getUrl()}/api`);
+    logger.log(`Swagger documentation available at: ${await app.getUrl()}/api/docs`);
+  } catch (error) {
+    logger.error('Failed to start application', error);
+    process.exit(1);
+  }
 }
 void bootstrap();

@@ -18,8 +18,6 @@ import {
   RefreshBundle,
   MePayload,
   LogoutResult,
-  ServiceTokens,
-  SafeUser,
 } from './auth.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 import {
@@ -43,22 +41,18 @@ export class AuthController {
   @ApiCreatedResponse({ description: 'User registered', type: AuthBundle })
   @ApiBadRequestResponse({ description: 'Validation failed' })
   async register(@Body() dto: RegisterDto): Promise<AuthBundle> {
-    // assume service returns { user, tokens } or { id,email,name } + tokens separately
-    const { user, tokens } = await this.auth.register(
+    const result = await this.auth.register(
       dto.email,
       dto.password,
       dto.name,
     );
-    const safe: SafeUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name ?? null,
+    return {
+      user: result.user,
+      tokens: {
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+      },
     };
-    const t: Tokens = {
-      accessToken: tokens.accessToken,
-      refreshToken: tokens.refreshToken,
-    };
-    return { user: safe, tokens: t };
   }
 
   @UseGuards(AuthGuard('local'))
@@ -67,17 +61,14 @@ export class AuthController {
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ description: 'Login successful', type: AuthBundle })
   async login(@Req() req: LocalReq): Promise<AuthBundle> {
-    const out = await this.auth.login(req.user.id);
-    const safe: SafeUser = {
-      id: out.user.id,
-      email: out.user.email,
-      name: out.user.name ?? null,
+    const result = await this.auth.login(req.user.id);
+    return {
+      user: result.user,
+      tokens: {
+        accessToken: result.tokens.accessToken,
+        refreshToken: result.tokens.refreshToken,
+      },
     };
-    const t: Tokens = {
-      accessToken: out.tokens.accessToken,
-      refreshToken: out.tokens.refreshToken,
-    };
-    return { user: safe, tokens: t };
   }
 
   @Post('refresh')
@@ -86,7 +77,7 @@ export class AuthController {
   @ApiOkResponse({ description: 'Tokens refreshed', type: Tokens })
   async refresh(@Body() dto: RefreshDto): Promise<RefreshBundle> {
     const raw = String(dto.refreshToken).replace(/^Bearer\s+/i, '');
-    const tokens: ServiceTokens = await this.auth.refresh(raw);
+    const tokens = await this.auth.refresh(raw);
     return {
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,

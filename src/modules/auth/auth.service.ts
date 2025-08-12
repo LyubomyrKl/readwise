@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, InternalServerErrorException, ConflictException } from '@nestjs/common';
 import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
@@ -11,9 +11,9 @@ interface RefreshPayload {
   typ?: string;
 }
 
-export type Tokens = { accessToken: string; refreshToken: string };
+export type ServiceTokens = { accessToken: string; refreshToken: string };
 export type SafeUser = { id: string; email: string; name?: string | null };
-export type AuthBundle = { user: SafeUser; tokens: Tokens };
+export type AuthBundle = { user: SafeUser; tokens: ServiceTokens };
 export type LogoutResult = { success: true };
 
 @Injectable()
@@ -29,14 +29,15 @@ export class AuthService {
     password: string,
     name?: string,
   ): Promise<AuthBundle> {
+    const existingUser = await this.users.findByEmail(email);
+    if (existingUser) {
+      throw new ConflictException('User with this email already exists');
+    }
+
     const hash = await argon2.hash(password);
     const user = await this.users.create(email, hash, name);
     const tokens = await this.issueTokens(user.id, user.email);
-    const safe: SafeUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name ?? null,
-    };
+    const safe = this.mapToSafeUser(user);
     return { user: safe, tokens };
   }
 
@@ -53,27 +54,23 @@ export class AuthService {
     if (!user) throw new UnauthorizedException();
     const tokens = await this.issueTokens(user.id, user.email);
 
-    const safe: SafeUser = {
-      id: user.id,
-      email: user.email,
-      name: user.name ?? null,
-    };
+    const safe = this.mapToSafeUser(user);
     return { user: safe, tokens };
   }
 
-  private async issueTokens(userId: string, email: string): Promise<Tokens> {
+  private async issueTokens(userId: string, email: string): Promise<ServiceTokens> {
     const access = await this.jwt.signAsync(
       { sub: userId, email },
       {
-        secret: process.env.JWT_ACCESS_SECRET,
-        expiresIn: process.env.JWT_ACCESS_TTL,
+        secret: this.getJwtAccessSecret(),
+        expiresIn: this.getJwtAccessTtl(),
       },
     );
     const refresh = await this.jwt.signAsync(
       { sub: userId, email, typ: 'refresh' },
       {
-        secret: process.env.JWT_REFRESH_SECRET,
-        expiresIn: process.env.JWT_REFRESH_TTL,
+        secret: this.getJwtRefreshSecret(),
+        expiresIn: this.getJwtRefreshTtl(),
       },
     );
     await this.prisma.refreshToken.create({
@@ -86,7 +83,7 @@ export class AuthService {
     return { accessToken: access, refreshToken: refresh };
   }
 
-  async rotate(userId: string, refreshToken: string): Promise<Tokens> {
+  async rotate(userId: string, refreshToken: string): Promise<ServiceTokens> {
     const tokens = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null },
     });
@@ -109,9 +106,41 @@ export class AuthService {
     return this.issueTokens(user.id, user.email);
   }
 
-  async refresh(token: string): Promise<Tokens> {
+  private getJwtAccessSecret(): string {
+    const secret = process.env.JWT_ACCESS_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException('JWT_ACCESS_SECRET not configured');
+    }
+    return secret;
+  }
+
+  private getJwtRefreshSecret(): string {
+    const secret = process.env.JWT_REFRESH_SECRET;
+    if (!secret) {
+      throw new InternalServerErrorException('JWT_REFRESH_SECRET not configured');
+    }
+    return secret;
+  }
+
+  private getJwtAccessTtl(): string {
+    return process.env.JWT_ACCESS_TTL || '15m';
+  }
+
+  private getJwtRefreshTtl(): string {
+    return process.env.JWT_REFRESH_TTL || '7d';
+  }
+
+  private mapToSafeUser(user: { id: string; email: string; name: string | null }): SafeUser {
+    return {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+    };
+  }
+
+  async refresh(token: string): Promise<ServiceTokens> {
     const payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
-      secret: process.env.JWT_REFRESH_SECRET,
+      secret: this.getJwtRefreshSecret(),
     });
     return this.rotate(payload.sub, token);
   }
