@@ -4,7 +4,7 @@ import { execSync } from 'child_process';
 
 // Paths
 const prismaDir = path.resolve('prisma');
-const modelsDir = path.resolve('src/prisma/models'); // NEW location
+const modelsDir = path.resolve('src/models'); // NEW location
 const outFile = path.join(prismaDir, 'schema.prisma');
 
 // Header (datasource + generator)

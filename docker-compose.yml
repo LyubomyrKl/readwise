@@ -1,15 +1,14 @@
-version: '3.9'
-services:
-  db:
-    image: postgres:16
-    container_name: summarizer-db
-    environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: appdb
-    ports:
-      - '5432:5432'
-    volumes:
-      - pg:/var/lib/postgresql/data
-volumes:
-  pg:
+# version: '3.9'
+
+# networks:
+#   summarizer_net: # Declare the network
+#     external: true # Means: don't create it, use the one from infra
+
+# services:
+#   gateway:
+#     build: . # Build from Dockerfile in current repo
+#     ports: ['3000:3000'] # Map local 3000 to container's 3000
+#     networks: [summarizer_net] # Join the same network as Postgres, RabbitMQ, etc.
+#     environment:
+#       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/appdb?schema=public
+#       # The hostname "db" comes from infra's compose service name for Postgres
