@@ -13,7 +13,7 @@ export async function POST(req: Request) {
   }
   const { data } = await authApi.login({ loginDto: body });
   const { user, tokens } = data;
-  const res = NextResponse.json({ user }, { status: 200 });
+  const res = NextResponse.json({ ...user }, { status: 200 });
 
   setAccessCookie(res, tokens.accessToken);
   setRefreshCookie(res, tokens.refreshToken);

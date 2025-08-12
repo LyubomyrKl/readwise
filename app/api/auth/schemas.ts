@@ -18,14 +18,12 @@ export const Tokens = z.object({
   refreshToken: z.string(),
 });
 
-export const AuthBundle = z.object({ user: User, tokens: Tokens });
-
 export const AuthApiRegistry = {
   POST: {
-    "/api/auth/login": { req: LoginReq, res: AuthBundle },
+    "/api/auth/login": { req: LoginReq, res: User },
     "/api/auth/register": {
       req: LoginReq.extend({ name: z.string().optional() }),
-      res: AuthBundle,
+      res: User,
     },
     "/api/auth/refresh": { req: z.object({}), res: Tokens },
     "/api/auth/logout": { req: z.object({}), res: z.void() },

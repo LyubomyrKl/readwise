@@ -30,7 +30,6 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
   body?: ReqOf<M, P>,
   init?: RequestInit
 ): Promise<ResOf<M, P>> {
-  // runtime def, narrowed locally
   const def = (AuthApiRegistry as any)[method][path] as {
     req?: z.ZodTypeAny;
     res: z.ZodTypeAny;
@@ -49,8 +48,20 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
   if (r.status === 204) {
     return {} as ResOf<M, P>;
   }
-  if (!r.ok) throw new Error(`${r.status}`);
+  if (!r.ok) {
+    const errorMessage = await safeMsg(r);
+    throw new Error(errorMessage || "Request failed");
+  }
 
   const json = await r.json();
   return def.res.parse(json) as ResOf<M, P>;
+}
+
+async function safeMsg(r: Response): Promise<string | null> {
+  try {
+    const data = await r.json();
+    return data?.message || data?.error || null;
+  } catch {
+    return null;
+  }
 }

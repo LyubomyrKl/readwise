@@ -87,7 +87,8 @@ export default function Register() {
 
         router.replace(ROUTES.home);
       } catch (e) {
-        setServerError("Network error");
+        const errorMessage = e instanceof Error ? e.message : "Network error";
+        setServerError(errorMessage);
       }
     });
   }

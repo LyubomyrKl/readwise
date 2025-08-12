@@ -15,9 +15,15 @@ export async function POST() {
     const { data } = await authApi.refresh({
       refreshDto: { refreshToken: `Bearer ${rt}` },
     });
-    const res = new NextResponse(null, { status: 204 });
+
+    const res = NextResponse.json(
+      { accessToken: data.accessToken, refreshToken: data.refreshToken },
+      { status: 200 }
+    );
+
     setAccessCookie(res, data.accessToken);
     setRefreshCookie(res, data.refreshToken);
+
     return res;
   } catch {
     const res = new NextResponse(null, { status: 401 });

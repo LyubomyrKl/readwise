@@ -69,8 +69,8 @@ export default function Login() {
 
       router.replace(ROUTES.home); // or router.push
     } catch (e) {
-      console.error(e);
-      setServerError("Network error");
+      const errorMessage = e instanceof Error ? e.message : "Network error";
+      setServerError(errorMessage);
     }
   }
 
