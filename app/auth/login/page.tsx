@@ -37,6 +37,7 @@ import { Separator } from "@/components/ui/separator";
 import { ROUTES } from "@/app/(consts)/pages";
 import { useRouter } from "next/navigation";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { apiFetch } from "@/lib/fetcher";
 
 const LoginSchema = z.object({
   email: z.email("Invalid email"),
@@ -60,17 +61,9 @@ export default function Login() {
   async function onSubmit(values: LoginValues) {
     setServerError(null);
     try {
-      const r = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(values),
-        // credentials not needed for same-origin, add if cross-origin:
-        // credentials: "include",
-      });
-
-      if (!r.ok) {
-        const msg = await safeMsg(r);
-        setServerError(msg || "Sign in failed");
+      const r = await apiFetch("POST", "/api/auth/login", values);
+      if (!r) {
+        setServerError("Invalid credentials");
         return;
       }
 
@@ -238,13 +231,4 @@ export default function Login() {
       </Wrapper>
     </div>
   );
-}
-
-async function safeMsg(r: Response) {
-  try {
-    const data = await r.json();
-    return data?.message || data?.error;
-  } catch {
-    return null;
-  }
 }

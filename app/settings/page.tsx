@@ -22,6 +22,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { ROUTES } from "../(consts)/pages";
+import { apiFetch } from "@/lib/fetcher";
+import { toast } from "sonner";
 
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
@@ -50,10 +52,16 @@ export default function SettingsPage() {
 
   async function logout() {
     start(async () => {
-      const r = await fetch("/api/auth/logout", { method: "POST" });
-      // should be location.assign(ROUTES.auth.login);
-      // but this is a workaround for Next.js middware redirect issue
-      if (r.ok) location.assign(ROUTES.auth.login);
+      try {
+        await apiFetch("POST", "/api/auth/logout");
+
+        location.assign(ROUTES.auth.login);
+      } catch (e) {
+        toast.error("Logout failed", {
+          description: "Please try again later.",
+          duration: 3000,
+        });
+      }
     });
   }
 

@@ -39,6 +39,7 @@ import { Separator } from "@/components/ui/separator";
 import { ROUTES } from "@/app/(consts)/pages";
 import { useRouter } from "next/navigation";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { apiFetch } from "@/lib/fetcher";
 
 const RegisterSchema = z
   .object({
@@ -70,23 +71,21 @@ export default function Register() {
 
   async function onSubmit(values: RegisterValues) {
     setServerError(null);
-    try {
-      const r = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(values),
-      });
 
-      if (!r.ok) {
-        const msg = await safeMsg(r);
-        setServerError(msg || "Sign in failed");
-        return;
+    startTransition(async () => {
+      try {
+        const r = await apiFetch("POST", "/api/auth/register", values);
+
+        if (!r) {
+          setServerError("Invalid response from server");
+          return;
+        }
+
+        router.replace(ROUTES.home);
+      } catch (e) {
+        setServerError("Network error");
       }
-
-      router.replace(ROUTES.home);
-    } catch (e) {
-      setServerError("Network error");
-    }
+    });
   }
 
   const Wrapper: any = enabled ? motion.div : "div";
