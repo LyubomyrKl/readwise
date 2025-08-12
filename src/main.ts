@@ -25,6 +25,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
 
-  await app.listen(3000);
+  await app.listen(5173);
+
+  console.log(`Application is running on: ${await app.getUrl()}/api`);
 }
 void bootstrap();

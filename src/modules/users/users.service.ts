@@ -23,6 +23,20 @@ export class UsersService {
     });
   }
 
+  async findById(id: string): Promise<User | null> {
+    return this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        passwordHash: true,
+      },
+    });
+  }
+
   async create(
     email: string,
     passwordHash: string,

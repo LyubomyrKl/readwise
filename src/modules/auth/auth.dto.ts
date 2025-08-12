@@ -1,31 +1,19 @@
-import { IsEmail, IsString, MinLength, IsOptional } from 'class-validator';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class RegisterDto {
-  @ApiProperty({
-    example: 'anna@example.com',
-    description: 'Valid email address',
-  })
+  @ApiProperty({ example: 'anna@example.com' })
   @IsEmail()
   email!: string;
 
-  @ApiProperty({
-    example: 'S3curePass1',
-    minLength: 8,
-    description: 'Password with at least 8 characters',
-  })
+  @ApiProperty({ minLength: 8, example: 'S3curePass1' })
   @IsString()
   @MinLength(8)
   password!: string;
 
-  @ApiPropertyOptional({
-    example: 'Anna',
-    minLength: 2,
-    description: 'Full name of the user',
-  })
+  @ApiProperty({ required: false, example: 'Anna' })
   @IsOptional()
   @IsString()
-  @MinLength(2)
   name?: string;
 }
 
@@ -34,14 +22,14 @@ export class LoginDto {
   @IsEmail()
   email!: string;
 
-  @ApiProperty({ example: 'S3curePass1', minLength: 8 })
+  @ApiProperty({ minLength: 8, example: 'S3curePass1' })
   @IsString()
   @MinLength(8)
   password!: string;
 }
 
 export class RefreshDto {
-  @ApiProperty({ example: 'eyJhbGciOiJIUzI1NiIsInR5cCI...' })
+  @ApiProperty({ example: 'Bearer eyJhbGciOi...' })
   @IsString()
   refreshToken!: string;
 }

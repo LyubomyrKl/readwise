@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${API_URL:-http://localhost:3000/api/docs-json}"
+API_URL="${API_URL:-http://localhost:5173/api/docs-json}"
 REPO_SSH="git@github.com:SatoruSatoshi/summarize-api-sdk.git"
 PKG_NAME="@satoru-satoshi/summarize-api-sdk"
 

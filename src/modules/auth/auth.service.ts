@@ -11,6 +11,11 @@ interface RefreshPayload {
   typ?: string;
 }
 
+export type Tokens = { accessToken: string; refreshToken: string };
+export type SafeUser = { id: string; email: string; name?: string | null };
+export type AuthBundle = { user: SafeUser; tokens: Tokens };
+export type LogoutResult = { success: true };
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -19,10 +24,20 @@ export class AuthService {
     private prisma: PrismaService,
   ) {}
 
-  async register(email: string, password: string, name?: string) {
+  async register(
+    email: string,
+    password: string,
+    name?: string,
+  ): Promise<AuthBundle> {
     const hash = await argon2.hash(password);
     const user = await this.users.create(email, hash, name);
-    return this.issueTokens(user.id, email);
+    const tokens = await this.issueTokens(user.id, user.email);
+    const safe: SafeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+    };
+    return { user: safe, tokens };
   }
 
   async validateUser(email: string, password: string) {
@@ -32,11 +47,21 @@ export class AuthService {
     return ok ? user : null;
   }
 
-  async login(userId: string, email: string) {
-    return this.issueTokens(userId, email);
+  async login(userId: string): Promise<AuthBundle> {
+    const user = await this.users.findById(userId);
+
+    if (!user) throw new UnauthorizedException();
+    const tokens = await this.issueTokens(user.id, user.email);
+
+    const safe: SafeUser = {
+      id: user.id,
+      email: user.email,
+      name: user.name ?? null,
+    };
+    return { user: safe, tokens };
   }
 
-  private async issueTokens(userId: string, email: string) {
+  private async issueTokens(userId: string, email: string): Promise<Tokens> {
     const access = await this.jwt.signAsync(
       { sub: userId, email },
       {
@@ -61,7 +86,7 @@ export class AuthService {
     return { accessToken: access, refreshToken: refresh };
   }
 
-  async rotate(userId: string, refreshToken: string) {
+  async rotate(userId: string, refreshToken: string): Promise<Tokens> {
     const tokens = await this.prisma.refreshToken.findMany({
       where: { userId, revokedAt: null },
     });
@@ -71,29 +96,31 @@ export class AuthService {
           ? t
           : Promise.reject(new Error()),
       ),
-    );
+    ).catch(() => null);
     if (!match) throw new UnauthorizedException();
+
     await this.prisma.refreshToken.update({
       where: { id: match.id },
       data: { revokedAt: new Date() },
     });
+
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user) throw new UnauthorizedException();
     return this.issueTokens(user.id, user.email);
   }
 
-  async logout(userId: string) {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    return { ok: true };
-  }
-
-  async refresh(token: string) {
+  async refresh(token: string): Promise<Tokens> {
     const payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
       secret: process.env.JWT_REFRESH_SECRET,
     });
     return this.rotate(payload.sub, token);
+  }
+
+  async logout(userId: string): Promise<LogoutResult> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { success: true };
   }
 }

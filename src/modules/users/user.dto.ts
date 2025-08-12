@@ -23,10 +23,12 @@ export class UserDto {
 
   @ApiProperty({ example: 'anna@example.com' })
   email: string;
+  
 
   @ApiProperty({ example: '2025-08-11T17:22:31.000Z' })
   createdAt: string;
 }
+
 export class UpdateUserDto {
   @ApiPropertyOptional({ example: 'Anna' })
   @IsOptional()
