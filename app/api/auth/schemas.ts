@@ -13,6 +13,10 @@ export const User = z.object({
   name: z.string().nullable().optional(),
 });
 
+export const registerReqSchema = LoginReq.extend({
+  name: z.string().min(1, "Name is required").optional(),
+});
+
 export const Tokens = z.object({
   accessToken: z.string(),
   refreshToken: z.string(),

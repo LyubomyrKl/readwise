@@ -1,11 +1,15 @@
-import { NextResponse } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { authApi } from "@/lib/sdk";
 import { setAccessCookie, setRefreshCookie } from "@/lib/cookies";
+import { registerReqSchema } from "../schemas";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { data } = await authApi.register({ registerDto: body });
+
+    const registerDto = registerReqSchema.parse(body);
+
+    const { data } = await authApi.register({ registerDto });
     const { user, tokens } = data;
     const res = NextResponse.json(
       {

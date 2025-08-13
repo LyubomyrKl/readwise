@@ -3,6 +3,7 @@ import {
   AuthApi,
   AppApi,
   UsersApi,
+  BooksApi,
 } from "@satoru-satoshi/summarize-api-sdk";
 import { apiAxios } from "./http";
 
@@ -18,3 +19,4 @@ const cfg = new Configuration({
 export const authApi = new AuthApi(cfg, undefined, apiAxios);
 export const appApi = new AppApi(cfg, undefined, apiAxios);
 export const userApi = new UsersApi(cfg, undefined, apiAxios);
+export const booksApi = new BooksApi(cfg, undefined, apiAxios);
