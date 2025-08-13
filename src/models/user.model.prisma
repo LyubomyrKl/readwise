@@ -6,4 +6,6 @@ model User {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
+
+  books         Book[]         // relation to uploaded books
 }
