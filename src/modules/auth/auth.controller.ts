@@ -4,7 +4,6 @@ import {
   Get,
   Post,
   Req,
-  UnauthorizedException,
 } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshDto } from './auth.dto';
@@ -24,33 +23,12 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<AuthBundle> {
-    const result = await this.auth.register(dto.email, dto.password, dto.name);
-    return {
-      user: result.user,
-      tokens: {
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
-      },
-    };
+    return await this.auth.register(dto.email, dto.password, dto.name);
   }
 
   @Post('login')
   async login(@Body() dto: LoginDto): Promise<AuthBundle> {
-    const user = await this.auth.validateUser(dto.email, dto.password);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
-
-    const result = await this.auth.login(dto.email);
-
-    return {
-      user: result.user,
-      tokens: {
-        accessToken: result.tokens.accessToken,
-        refreshToken: result.tokens.refreshToken,
-      },
-    };
+    return await this.auth.login(dto);
   }
 
   @Post('refresh')
@@ -60,8 +38,8 @@ export class AuthController {
 
   @Authenticated()
   @Get('me')
-  me(@Req() req: { user: { userId: string; email: string } }): MePayload {
-    return req.user;
+  async me(@Req() req: { user: { userId: string; email: string } }): Promise<MePayload> {
+    return await this.auth.me(req.user.userId);
   }
 
   @Authenticated()
@@ -69,8 +47,6 @@ export class AuthController {
   async logout(
     @Req() req: { user: { userId: string; email: string } },
   ): Promise<LogoutResult> {
-    await this.auth.logout(req.user.userId);
-
-    return { success: true };
+    return await this.auth.logout(req.user.userId);
   }
 }

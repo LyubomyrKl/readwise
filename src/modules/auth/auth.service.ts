@@ -4,7 +4,6 @@ import {
   InternalServerErrorException,
   ConflictException,
 } from '@nestjs/common';
-import { UsersService } from '../users/users.service';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
@@ -25,7 +24,6 @@ export type LogoutResult = { success: true };
 @Injectable()
 export class AuthService {
   constructor(
-    private users: UsersService,
     private jwt: JwtService,
     private prisma: PrismaService,
   ) {}
@@ -48,11 +46,22 @@ export class AuthService {
     });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException('User with this email is  already exists');
     }
 
     const hash = await argon2.hash(password);
-    const user = await this.users.create(email, hash, name);
+    const user = await this.prisma.user.create({
+      data: {
+        email,
+        passwordHash: hash,
+        name,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+      },
+    });
     const tokens = await this.issueTokens(user.id, user.email);
     const safe = this.mapToSafeUser(user);
     return { user: safe, tokens };
@@ -78,20 +87,12 @@ export class AuthService {
     return ok ? user : null;
   }
 
-  async login(email: string): Promise<AuthBundle> {
-    const user = await this.prisma.user.findUnique({
-      where: { email },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        createdAt: true,
-        updatedAt: true,
-        passwordHash: true,
-      },
-    });
+  async login(dto: { email: string; password: string }): Promise<AuthBundle> {
+    const user = await this.validateUser(dto.email, dto.password);
 
-    if (!user) throw new UnauthorizedException('Invalid credentials');
+    if (!user) {
+      throw new UnauthorizedException('Invalid credentials');
+    }
 
     const tokens = await this.issueTokens(user.id, user.email);
     const safe = this.mapToSafeUser(user);
@@ -105,6 +106,22 @@ export class AuthService {
       secret: this.getJwtRefreshSecret(),
     });
     return this.rotate(payload.sub, token);
+  }
+
+  async me(userId: string): Promise<{ userId: string; email: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('User not found');
+    }
+
+    return { userId: user.id, email: user.email };
   }
 
   async logout(userId: string): Promise<LogoutResult> {
