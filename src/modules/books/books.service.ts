@@ -97,6 +97,37 @@ export class BooksService {
     };
   }
 
+  async getAllBooks(userId: string): Promise<BookResponse[]> {
+    const books = await this.prisma.book.findMany({
+      where: {
+        userId,
+        status: {
+          notIn: ['pending', 'error'],
+        },
+      },
+      orderBy: {
+        updatedAt: 'desc',
+      },
+    });
+
+    return books.map(book => ({
+      id: book.id,
+      title: book.title,
+      author: book.author,
+      cover: book.cover || undefined,
+      spentHours: book.spentHours,
+      pageCount: book.pageCount || undefined,
+      pagePassCount: book.pagePassCount,
+      isFinished: book.isFinished,
+      isFavorite: book.isFavorite,
+      mime: book.mime,
+      sizeBytes: book.sizeBytes.toString(),
+      status: book.status,
+      createdAt: book.createdAt,
+      updatedAt: book.updatedAt,
+    }));
+  }
+
   async getBook(userId: string, bookId: string): Promise<BookResponse> {
     const book = await this.prisma.book.findFirst({
       where: {

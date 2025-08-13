@@ -1,5 +1,13 @@
 import { ApiProperty } from '@nestjs/swagger';
 
+export class UploadInfo {
+  @ApiProperty()
+  url!: string;
+
+  @ApiProperty()
+  headers!: Record<string, string>;
+}
+
 export class PresignResponse {
   @ApiProperty()
   bookId!: string;
@@ -7,11 +15,8 @@ export class PresignResponse {
   @ApiProperty()
   storageKey!: string;
 
-  @ApiProperty()
-  upload!: {
-    url: string;
-    headers: Record<string, string>;
-  };
+  @ApiProperty({ type: UploadInfo })
+  upload!: UploadInfo;
 }
 
 export class FinalizeResponse {

@@ -41,6 +41,15 @@ export class BooksController {
   }
 
   @Authenticated()
+  @Get()
+  @ApiOperation({ summary: 'Get all books excluding pending and error statuses' })
+  async getAllBooks(
+    @Req() req: { user: { userId: string } },
+  ): Promise<BookResponse[]> {
+    return await this.booksService.getAllBooks(req.user.userId);
+  }
+
+  @Authenticated()
   @Get(':id')
   @ApiOperation({ summary: 'Get book metadata' })
   async getBook(
