@@ -12,7 +12,6 @@ export class Tokens {
   @ApiProperty({ example: 'jwt...' }) refreshToken!: string;
 }
 
-// prefer alias, not empty interface extending
 export type RefreshBundle = Tokens;
 
 export class AuthBundle {
@@ -29,5 +28,4 @@ export class LogoutResult {
   @ApiProperty({ example: true }) success!: true;
 }
 
-// service return shapes you currently have
 export type ServiceTokens = { accessToken: string; refreshToken: string };

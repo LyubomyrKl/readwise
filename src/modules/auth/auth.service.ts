@@ -9,6 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '../../infrastructure/prisma/prisma.service';
 import { add } from 'date-fns';
+import { RefreshDto } from './auth.dto';
 
 interface RefreshPayload {
   sub: string;
@@ -34,7 +35,17 @@ export class AuthService {
     password: string,
     name?: string,
   ): Promise<AuthBundle> {
-    const existingUser = await this.users.findByEmail(email);
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        passwordHash: true,
+      },
+    });
 
     if (existingUser) {
       throw new ConflictException('User with this email already exists');
@@ -48,20 +59,60 @@ export class AuthService {
   }
 
   async validateUser(email: string, password: string) {
-    const user = await this.users.findByEmail(email);
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        passwordHash: true,
+      },
+    });
+
     if (!user) return null;
+
     const ok = await argon2.verify(user.passwordHash, password);
+
     return ok ? user : null;
   }
 
   async login(email: string): Promise<AuthBundle> {
-    const user = await this.users.findByEmail(email);
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        createdAt: true,
+        updatedAt: true,
+        passwordHash: true,
+      },
+    });
 
     if (!user) throw new UnauthorizedException('Invalid credentials');
 
     const tokens = await this.issueTokens(user.id, user.email);
     const safe = this.mapToSafeUser(user);
     return { user: safe, tokens };
+  }
+
+  async refresh(dto: RefreshDto): Promise<ServiceTokens> {
+    const token = String(dto.refreshToken).replace(/^Bearer\s+/i, '');
+
+    const payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
+      secret: this.getJwtRefreshSecret(),
+    });
+    return this.rotate(payload.sub, token);
+  }
+
+  async logout(userId: string): Promise<LogoutResult> {
+    await this.prisma.refreshToken.updateMany({
+      where: { userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { success: true };
   }
 
   private async issueTokens(
@@ -153,20 +204,5 @@ export class AuthService {
       email: user.email,
       name: user.name ?? null,
     };
-  }
-
-  async refresh(token: string): Promise<ServiceTokens> {
-    const payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
-      secret: this.getJwtRefreshSecret(),
-    });
-    return this.rotate(payload.sub, token);
-  }
-
-  async logout(userId: string): Promise<LogoutResult> {
-    await this.prisma.refreshToken.updateMany({
-      where: { userId, revokedAt: null },
-      data: { revokedAt: new Date() },
-    });
-    return { success: true };
   }
 }

@@ -1,6 +1,6 @@
 import { Controller, Patch, Body, Req } from '@nestjs/common';
 import { Request } from 'express';
-import { ApiTags, ApiOkResponse, ApiBody } from '@nestjs/swagger';
+import { ApiTags } from '@nestjs/swagger';
 import { UsersService } from './users.service';
 import { Authenticated } from '@/common/authenticated.decorator';
 import { UpdateUserDto } from './user.dto';
@@ -15,8 +15,6 @@ export class UsersController {
   // Profile updates useful for the summarizer UI (name, locale, timezone, avatar)
   @Authenticated()
   @Patch('me')
-  @ApiBody({ type: UpdateUserDto })
-  @ApiOkResponse({ description: 'Updated current user profile' })
   updateMe(@Req() req: JwtReq, @Body() dto: UpdateUserDto) {
     return this.users.update(req.user.userId, dto);
   }

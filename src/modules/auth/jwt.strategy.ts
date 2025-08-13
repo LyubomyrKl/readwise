@@ -7,21 +7,6 @@ export interface JwtPayload {
   email: string;
 }
 
-// This is a simplified version of the passport-jwt strategy
-// function JwtStrategy(options, verify) {
-//   if (!options || !options.jwtFromRequest) {
-//     throw new TypeError('jwtFromRequest is required');
-//   }
-
-//   this._jwtFromRequest = options.jwtFromRequest;
-//   this._secretOrKey = options.secretOrKey;
-//   this._ignoreExpiration = !!options.ignoreExpiration;
-
-//   passport.Strategy.call(this);
-//   this.name = 'jwt';
-//   this._verify = () => verify(JwtPayload);
-// }
-
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor() {

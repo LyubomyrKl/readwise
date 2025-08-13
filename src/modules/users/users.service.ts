@@ -56,6 +56,7 @@ export class UsersService {
 
   async update(userId: string, dto: { name?: string }): Promise<PublicUser> {
     const user = await this.findById(userId);
+
     if (!user) {
       throw new NotFoundException('User not found');
     }
