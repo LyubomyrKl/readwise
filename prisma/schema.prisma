@@ -33,8 +33,7 @@ model Book {
 }
 
 enum BookStatus {
-  pending // presigned but not finalized
-  uploaded // finalized, ready for download
+  pending // presigned but not ready
   processing // if later you trigger a pipeline
   ready // some job is done, like OCR
   error // failed during some stage
