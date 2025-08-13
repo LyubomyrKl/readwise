@@ -1,0 +1,94 @@
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { S3Client, GetObjectCommand, HeadObjectCommand, PutObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+import { EnvironmentVariables } from '@/config/env.validation';
+
+@Injectable()
+export class S3Service {
+  private readonly client: S3Client;
+  private readonly bucketName: string;
+
+  constructor(private readonly config: ConfigService<EnvironmentVariables>) {
+    const endpoint = this.config.get('S3_ENDPOINT', { infer: true })!;
+    const region = this.config.get('S3_REGION', { infer: true })!;
+    const accessKeyId = this.config.get('S3_ACCESS_KEY_ID', { infer: true })!;
+    const secretAccessKey = this.config.get('S3_SECRET_ACCESS_KEY', { infer: true })!;
+    this.bucketName = this.config.get('S3_BUCKET_NAME', { infer: true })!;
+
+    this.client = new S3Client({
+      endpoint,
+      region,
+      credentials: {
+        accessKeyId,
+        secretAccessKey,
+      },
+      forcePathStyle: true, // Required for MinIO
+    });
+  }
+
+  async generatePresignedUploadUrl(
+    key: string,
+    contentType: string,
+    contentLength: number,
+  ): Promise<{ url: string; headers: Record<string, string> }> {
+    const command = new PutObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    });
+
+    // Generate presigned PUT URL
+    const url = await getSignedUrl(this.client, command, {
+      expiresIn: 3600, // 1 hour
+    });
+
+    return {
+      url,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': contentLength.toString(),
+      },
+    };
+  }
+
+  async generatePresignedDownloadUrl(key: string): Promise<string> {
+    const command = new GetObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    return await getSignedUrl(this.client, command, {
+      expiresIn: 3600, // 1 hour
+    });
+  }
+
+  async objectExists(key: string): Promise<boolean> {
+    try {
+      await this.client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucketName,
+          Key: key,
+        }),
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getObjectMetadata(key: string) {
+    const command = new HeadObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+
+    return await this.client.send(command);
+  }
+
+  generateStorageKey(userId: string, filename: string, sha256: string): string {
+    // Generate a unique storage key based on user, filename, and hash
+    return `books/${userId}/${sha256}-${filename}`;
+  }
+}
