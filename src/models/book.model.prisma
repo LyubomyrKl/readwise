@@ -3,6 +3,7 @@ model Book {
   userId         String
   title          String
   author         String
+  description    String?
   cover          String?
   spentHours     Int      @default(0)
   pageCount      Int?
