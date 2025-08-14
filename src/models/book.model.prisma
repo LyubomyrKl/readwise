@@ -16,7 +16,8 @@ model Book {
   sha256         String
   storageKey     String
   status         BookStatus @default(pending)
-
+  
+  lastAccessed   DateTime? @default(now())
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 

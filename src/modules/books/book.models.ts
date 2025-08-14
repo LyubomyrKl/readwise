@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { BookStatus } from '@prisma/client';
 
 export class UploadInfo {
   @ApiProperty()
@@ -24,7 +25,7 @@ export class FinalizeResponse {
   bookId!: string;
 
   @ApiProperty()
-  status!: string;
+  status!: BookStatus;
 }
 
 export class BookResponse {
@@ -77,7 +78,7 @@ export interface DownloadHeaders {
   'Content-Disposition': string;
   'Content-Length': string;
   'Content-Range'?: string;
-  'Location': string;
+  Location: string;
 }
 
 export class DownloadResponse {
