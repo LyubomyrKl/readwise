@@ -6,10 +6,14 @@ export async function GET(_: NextRequest) {
   try {
     const data = await booksApi.getAllBooks();
 
-    const books = GetAllBooksRes.parse(data);
+    console.log("Books API response:", data);
+
+    const booksArray = data?.data ?? [];
+    const books = GetAllBooksRes.parse(booksArray);
 
     return NextResponse.json(books);
   } catch (error) {
+    console.error("Books API error:", error);
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

@@ -29,6 +29,7 @@ import { useCoverGradient } from "@/hooks/useCoverGradient";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 import { apiFetch } from "@/lib/fetcher";
 import { IBook } from "../types";
+import { ROUTES } from "@/app/(consts)/pages";
 
 const lastBook = {
   id: "clean-code",
@@ -390,7 +391,7 @@ export default function LibraryPage() {
             </p>
             {books.length === 0 && (
               <Button asChild>
-                <Link href="/ingest/upload">
+                <Link href={ROUTES.reader.ingest.uploadFiles}>
                   <Sparkles className="mr-2 h-4 w-4" /> Add your first book
                 </Link>
               </Button>
