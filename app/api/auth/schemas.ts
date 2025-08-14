@@ -35,4 +35,4 @@ export const AuthApiRegistry = {
   GET: {
     "/api/auth/me": { req: undefined, res: User },
   },
-} as const satisfies Registry;
+} satisfies Registry;

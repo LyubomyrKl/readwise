@@ -24,10 +24,11 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import React from "react";
-import { books } from "@/stub";
 import { BookCard, Stat } from "./components";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { apiFetch } from "@/lib/fetcher";
+import { IBook } from "../types";
 
 const lastBook = {
   id: "clean-code",
@@ -46,18 +47,6 @@ const lastBook = {
   description:
     "Practical principles for writing maintainable, readable code. Focuses on naming, functions, classes, error handling, and tests with real refactoring examples.",
 };
-
-export interface IBookDetail {
-  id: string;
-  title: string;
-  author: string;
-  cover: string;
-  spentHours: number;
-  pageCount: number;
-  pagePassCount: number;
-  isFinished: boolean;
-  isFavorite: boolean;
-}
 
 function prettyDate(iso: string) {
   const d = new Date(iso);
@@ -78,11 +67,32 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = React.useState<
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
+  const [books, setBooks] = React.useState<IBook[]>([]);
+  const [loading, setLoading] = React.useState(true);
+  const [error, setError] = React.useState<string | null>(null);
 
   const { enabled } = useMotion();
 
+  // Fetch books on component mount
+  React.useEffect(() => {
+    const fetchBooks = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await apiFetch("GET", "/api/books");
+        setBooks(data);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Failed to fetch books");
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBooks();
+  }, []);
+
   const progress = (
-    book: { pageCount: number; pagePassCount: number },
+    book: { pageCount?: number; pagePassCount: number },
     round?: boolean
   ) => {
     const value = book.pageCount
@@ -120,12 +130,14 @@ export default function LibraryPage() {
 
   const getMinutesLeft = (
     book: {
-      pageCount: number;
+      pageCount?: number;
       pagePassCount: number;
       spentHours: number;
     },
     format: "short" | "long"
   ) => {
+    if (!book.pageCount) return "Unknown time left";
+
     const pagesLeft = book.pageCount - book.pagePassCount;
     const avgTimePerPage =
       (book.spentHours * 60) / book.pagePassCount
@@ -347,19 +359,58 @@ export default function LibraryPage() {
         </div>
 
         {/* Books grid */}
-        <Child
-          initial="hidden"
-          animate="show"
-          variants={{
-            hidden: { opacity: 0 },
-            show: { opacity: 1, transition: { staggerChildren: 0.05 } },
-          }}
-          className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
-        >
-          {filtered.map((b) => (
-            <BookCard key={b.id} book={b} />
-          ))}
-        </Child>
+        {loading ? (
+          <div className="mt-8 flex justify-center">
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+              <p className="text-muted-foreground">Loading your books...</p>
+            </div>
+          </div>
+        ) : error ? (
+          <div className="mt-8 text-center">
+            <p className="text-red-500 mb-4">Error: {error}</p>
+            <Button onClick={() => window.location.reload()} variant="outline">
+              Try again
+            </Button>
+          </div>
+        ) : filtered.length === 0 ? (
+          <div className="mt-8 text-center">
+            <div className="mx-auto w-64 h-48 mb-6 flex items-center justify-center bg-muted rounded-lg">
+              <BookOpen className="h-16 w-16 text-muted-foreground" />
+            </div>
+            <h3 className="text-lg font-semibold mb-2">
+              {books.length === 0
+                ? "No books in your library"
+                : "No books match your filters"}
+            </h3>
+            <p className="text-muted-foreground mb-6">
+              {books.length === 0
+                ? "Start building your digital library by adding your first book."
+                : "Try adjusting your search or filter criteria."}
+            </p>
+            {books.length === 0 && (
+              <Button asChild>
+                <Link href="/ingest/upload">
+                  <Sparkles className="mr-2 h-4 w-4" /> Add your first book
+                </Link>
+              </Button>
+            )}
+          </div>
+        ) : (
+          <Child
+            initial="hidden"
+            animate="show"
+            variants={{
+              hidden: { opacity: 0 },
+              show: { opacity: 1, transition: { staggerChildren: 0.05 } },
+            }}
+            className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+          >
+            {filtered.map((b) => (
+              <BookCard key={b.id} book={b} />
+            ))}
+          </Child>
+        )}
       </section>
     </div>
   );

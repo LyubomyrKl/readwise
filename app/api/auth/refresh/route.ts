@@ -10,7 +10,9 @@ import {
 
 export async function POST() {
   const rt = (await cookies()).get("refresh_token")?.value;
+
   if (!rt) return new NextResponse(null, { status: 401 });
+
   try {
     const { data } = await authApi.refresh({
       refreshDto: { refreshToken: `Bearer ${rt}` },

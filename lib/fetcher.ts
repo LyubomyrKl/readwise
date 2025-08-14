@@ -1,11 +1,10 @@
-// lib/api/fetcher.ts
-import { AuthApiRegistry } from "@/app/api/auth/schemas";
+import { ApiRegistry } from "@/app/api/api.types";
 import { z } from "zod";
 
-type Methods = keyof typeof AuthApiRegistry;
-type Paths<M extends Methods> = keyof NonNullable<(typeof AuthApiRegistry)[M]>;
+type Methods = keyof typeof ApiRegistry;
+type Paths<M extends Methods> = keyof NonNullable<(typeof ApiRegistry)[M]>;
 type DefOf<M extends Methods, P extends Paths<M>> = NonNullable<
-  (typeof AuthApiRegistry)[M]
+  (typeof ApiRegistry)[M]
 >[P];
 
 type ReqOf<M extends Methods, P extends Paths<M>> = DefOf<M, P> extends {
@@ -30,7 +29,7 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
   body?: ReqOf<M, P>,
   init?: RequestInit
 ): Promise<ResOf<M, P>> {
-  const def = (AuthApiRegistry as any)[method][path] as {
+  const def = (ApiRegistry as any)[method][path] as {
     req?: z.ZodTypeAny;
     res: z.ZodTypeAny;
   };

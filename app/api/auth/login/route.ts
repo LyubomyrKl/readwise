@@ -3,10 +3,11 @@ import { NextResponse } from "next/server";
 import { authApi } from "@/lib/sdk";
 import { setAccessCookie, setRefreshCookie } from "../../../../lib/cookies";
 import { LoginReq } from "../schemas";
+import z from "zod";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json(); // { email, password }
+    const body = (await req.json()) as z.infer<typeof LoginReq>;
 
     const loginDto = LoginReq.parse(body);
 

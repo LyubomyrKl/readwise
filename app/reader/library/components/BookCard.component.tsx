@@ -9,11 +9,11 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { IBookDetail } from "../page";
-import Image from "next/image";
 import { useRef, useState, useEffect } from "react";
+import { IBook } from "../../types";
+import { BookCover } from "./BookCover.component";
 
-export function BookCard({ book }: { book: IBookDetail }) {
+export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [truncated, setTruncated] = useState(false);
 
@@ -32,12 +32,10 @@ export function BookCard({ book }: { book: IBookDetail }) {
       <Card className="group relative overflow-hidden border-0 shadow-lg ring-1 ring-border/50 pt-3 gap-0">
         <CardContent className="p-0">
           <div className="relative aspect-[2/3] w-full overflow-hidden">
-            <Image
-              src={book.cover}
-              alt={`${book.title} cover`}
-              fill
-              className="object-cover transition-transform duration-300 group-hover:scale-105"
-              sizes="(max-width:768px) 100vw, 25vw"
+            <BookCover
+              title={book.title}
+              author={book.author}
+              cover={book.cover}
             />
             <div className="absolute left-2 top-2 flex gap-2">
               {book.isFavorite && (
@@ -71,16 +69,25 @@ export function BookCard({ book }: { book: IBookDetail }) {
           <p className="text-xs text-muted-foreground line-clamp-1">
             {book.author}
           </p>
-          <Progress
-            value={(book.pagePassCount / book.pageCount) * 100}
-            className="h-1"
-          />
-          <div className="flex justify-between text-[11px] text-muted-foreground">
-            <span>
-              {book.pagePassCount}/{book.pageCount} pages
-            </span>
-            <span>{book.spentHours}h spent</span>
-          </div>
+          {book.pageCount && (
+            <>
+              <Progress
+                value={(book.pagePassCount / book.pageCount) * 100}
+                className="h-1"
+              />
+              <div className="flex justify-between text-[11px] text-muted-foreground">
+                <span>
+                  {book.pagePassCount}/{book.pageCount} pages
+                </span>
+                <span>{book.spentHours}h spent</span>
+              </div>
+            </>
+          )}
+          {!book.pageCount && (
+            <div className="flex justify-end text-[11px] text-muted-foreground">
+              <span>{book.spentHours}h spent</span>
+            </div>
+          )}
         </CardContent>
       </Card>
     </motion.div>

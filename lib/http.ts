@@ -24,7 +24,7 @@ class AuthenticatedHttpClient {
           config.headers.Authorization = `Bearer ${accessToken}`;
         }
       } catch (error) {
-        // Server-side only, ignore on client side
+        // Server-side only,   on client side
       }
       return config;
     });
@@ -35,12 +35,35 @@ class AuthenticatedHttpClient {
       async (error) => {
         const originalRequest = error.config;
 
-        console.error("API request failed:", error);
-        // Handle 401 errors globally
-        if (error.response?.status === 401 && !originalRequest._retry) {
+        console.error("API request failed:", {
+          status: error.response?.status,
+          statusText: error.response?.statusText,
+          data: error.response?.data,
+          message: error.message,
+          code: error.code,
+        });
+
+        console.error("originalRequest:", originalRequest);
+
+        // Check if we have a 401 error (NestJS UnauthorizedException)
+        if (
+          (error.response?.data?.statusCode === 401 ||
+            error.response?.status === 401) &&
+          originalRequest &&
+          !originalRequest._retry
+        ) {
           originalRequest._retry = true;
 
           try {
+            // Check if we have a refresh token before attempting refresh
+            const refreshToken = (await cookies()).get("refresh_token")?.value;
+            
+            if (!refreshToken) {
+              // No refresh token available, redirect to login
+              this.redirectToLogin();
+              return Promise.reject(error);
+            }
+
             // Try to refresh token
             const refreshResponse = await fetch("/api/auth/refresh", {
               method: "POST",
@@ -51,7 +74,7 @@ class AuthenticatedHttpClient {
               const { accessToken } = await refreshResponse.json();
 
               // Update the Authorization header for the retry
-              if (accessToken) {
+              if (accessToken && originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${accessToken}`;
               }
 

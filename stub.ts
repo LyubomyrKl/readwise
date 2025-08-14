@@ -157,7 +157,7 @@ export const books = [
     isFinished: true,
     isFavorite: false,
   },
-] as IBookDetail[];
+];
 
 export const quotesStub: IQuote[] = [
   {

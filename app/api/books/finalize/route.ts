@@ -1,28 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FinalizeReq } from "../schemas";
+import { booksApi } from "@/lib/sdk";
+import z from "zod";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
+    const body = (await request.json()) as z.infer<typeof FinalizeReq>;
+
     const validatedData = FinalizeReq.parse(body);
-    
-    // TODO: Implement finalize logic
-    // - Verify file exists in storage
-    // - Update book status in database to 'ready'
-    // - Potentially trigger post-processing tasks
-    
+
+    const data = await booksApi.finalize({
+      finalizeBookDto: {
+        bookId: validatedData.bookId,
+      },
+    });
+
+    if (!data.data.bookId || data.data.status === "pending") {
+      return NextResponse.json(
+        { error: "Book is not finalized or still pending." },
+        { status: 400 }
+      );
+    }
+
     const response = {
-      bookId: validatedData.bookId,
-      status: "ready" as const,
+      bookId: data.data.bookId,
+      status: data.data.status,
+      message: "Book finalized successfully.",
     };
 
     return NextResponse.json(response);
   } catch (error) {
     if (error instanceof Error) {
-      return NextResponse.json(
-        { error: error.message },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: error.message }, { status: 400 });
     }
     return NextResponse.json(
       { error: "Internal server error" },
