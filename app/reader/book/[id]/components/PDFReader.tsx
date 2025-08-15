@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useEffect, useState } from "react";
+import { useMemo, useRef, useEffect } from "react";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
@@ -90,18 +90,31 @@ export default function VirtualPDFReader({ book }: Props) {
     ];
   }, [url, book.id]);
 
-  // Ctrl/⌘ + wheel zoom. Pinch on trackpads usually sends the same wheel+ctrl gesture in modern browsers.
+  // Enhanced wheel and trackpad zoom support
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
+
     const onWheel = (e: WheelEvent) => {
-      // useZoom works only inside <EmbedPDF>; we dispatch a custom event and let a child handler consume it
-      if (e.ctrlKey || e.metaKey) {
+      // Detect different types of zoom gestures
+      const isModifierZoom = e.ctrlKey || e.metaKey;
+
+      if (isModifierZoom) {
         e.preventDefault();
-        const detail = { dy: e.deltaY, clientY: e.clientY };
+
+        // Pass detailed information about the wheel event
+        const detail = {
+          dy: e.deltaY,
+          clientY: e.clientY,
+          deltaMode: e.deltaMode,
+          ctrlKey: e.ctrlKey,
+          metaKey: e.metaKey,
+        };
+
         el.dispatchEvent(new CustomEvent("epdf-zoom-wheel", { detail }));
       }
     };
+
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel as any);
   }, []);
@@ -166,31 +179,126 @@ export default function VirtualPDFReader({ book }: Props) {
 }
 
 // Component must live inside <EmbedPDF> to access useZoom()
+// Inside your file, replace ZoomWheelBridge with this:
+
+// 2) Use this ZoomWheelBridge:
+
 function ZoomWheelBridge() {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const { provides, state } = useZoom();
 
+  const baseZoomRef = useRef(1);
+  const startDistRef = useRef<number | null>(null);
+  const pointers = useRef(new Map<number, { x: number; y: number }>());
+
   useEffect(() => {
     if (!hostRef.current || !provides) return;
-    const el = hostRef.current.parentElement as HTMLElement; // Viewport div
 
-    const onWheelCustom = (evt: Event) => {
-      const { dy } = (evt as CustomEvent).detail as {
-        dy: number;
-        clientY: number;
-      };
-      const factor = dy > 0 ? 1 / 1.1 : 1.1;
-      const next = Math.min(
-        Math.max((state?.currentZoomLevel || 1) * factor, 0.25),
-        5
-      );
+    // The immediate parent is the <Viewport> host element.
+    const el = hostRef.current.parentElement as HTMLElement;
+
+    const clamp = (z: number) => Math.min(Math.max(z, 0.25), 5);
+
+    // --- Chrome/Edge/Firefox trackpad pinch -> wheel+ctrl ---
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+
+      // Smooth exponential scaling. Negative deltaY = zoom in.
+      const k = 1.0015;
+      const factor = Math.pow(k, -e.deltaY);
+      const next = clamp((state?.currentZoomLevel ?? 1) * factor);
       provides.requestZoom(next);
     };
 
-    el.addEventListener("epdf-zoom-wheel", onWheelCustom as any);
-    return () =>
-      el.removeEventListener("epdf-zoom-wheel", onWheelCustom as any);
+    // --- Safari trackpad pinch (non-standard gesture events) ---
+    const onGestureStart = (e: any) => {
+      e.preventDefault();
+      baseZoomRef.current = state?.currentZoomLevel ?? 1;
+    };
+    const onGestureChange = (e: any) => {
+      e.preventDefault();
+      const next = clamp(baseZoomRef.current * (e.scale || 1));
+      provides.requestZoom(next);
+    };
+
+    // --- Touchscreen pinch (PointerEvents) ---
+    const dist = () => {
+      const pts = Array.from(pointers.current.values());
+      if (pts.length < 2) return 0;
+      const dx = pts[0].x - pts[1].x;
+      const dy = pts[0].y - pts[1].y;
+      return Math.hypot(dx, dy);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 2) {
+        baseZoomRef.current = state?.currentZoomLevel ?? 1;
+        startDistRef.current = dist();
+        (el.style as any).touchAction = "none";
+      }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!pointers.current.has(e.pointerId)) return;
+      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pointers.current.size === 2 && startDistRef.current) {
+        const s = startDistRef.current;
+        const c = dist();
+        if (s > 0 && c > 0) {
+          const scale = c / s;
+          const next = clamp(baseZoomRef.current * scale);
+          provides.requestZoom(next);
+        }
+      }
+    };
+
+    const endPinch = () => {
+      if (pointers.current.size < 2) {
+        startDistRef.current = null;
+        (el.style as any).touchAction = "";
+      }
+    };
+    const onPointerUp = (e: PointerEvent) => {
+      pointers.current.delete(e.pointerId);
+      endPinch();
+    };
+    const onPointerCancel = (e: PointerEvent) => {
+      pointers.current.delete(e.pointerId);
+      endPinch();
+    };
+
+    // Bind listeners
+    el.addEventListener("wheel", onWheel as any, { passive: false } as any);
+    el.addEventListener(
+      "gesturestart",
+      onGestureStart as any,
+      { passive: false } as any
+    );
+    el.addEventListener(
+      "gesturechange",
+      onGestureChange as any,
+      { passive: false } as any
+    );
+    el.addEventListener("pointerdown", onPointerDown as any);
+    el.addEventListener("pointermove", onPointerMove as any);
+    el.addEventListener("pointerup", onPointerUp as any);
+    el.addEventListener("pointercancel", onPointerCancel as any);
+    el.addEventListener("pointerleave", onPointerUp as any);
+
+    return () => {
+      el.removeEventListener("wheel", onWheel as any);
+      el.removeEventListener("gesturestart", onGestureStart as any);
+      el.removeEventListener("gesturechange", onGestureChange as any);
+      el.removeEventListener("pointerdown", onPointerDown as any);
+      el.removeEventListener("pointermove", onPointerMove as any);
+      el.removeEventListener("pointerup", onPointerUp as any);
+      el.removeEventListener("pointercancel", onPointerCancel as any);
+      el.removeEventListener("pointerleave", onPointerUp as any);
+    };
   }, [provides, state?.currentZoomLevel]);
 
+  // Empty child anchors us inside <Viewport>
   return <div ref={hostRef} />;
 }
