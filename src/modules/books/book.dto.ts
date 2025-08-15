@@ -164,10 +164,4 @@ export class FinalizeCoverDto {
   @IsString()
   @IsNotEmpty()
   bookId!: string;
-
-  @ApiProperty({ description: 'Storage key of uploaded cover file' })
-  @IsString()
-  @IsNotEmpty()
-  @Length(1, BOOK_CONSTRAINTS.MAX_STORAGE_KEY_LENGTH)
-  storageKey!: string;
 }

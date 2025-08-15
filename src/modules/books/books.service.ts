@@ -16,7 +16,6 @@ import {
   BookResponse,
   DownloadResponse,
   DownloadHeaders,
-  CoverPresignResponse,
   PresignInfo,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
@@ -79,17 +78,15 @@ export class BooksService {
     userId: string,
     filename: string,
     mime: string,
-    sizeBytes: number,
   ): Promise<{
     storageKey: string;
     presignInfo: PresignInfo;
   }> {
     const storageKey = this.s3.generateCoverStorageKey(userId, filename);
-
+    this.logger.log(`Generating presigned URL for custom cover: ${storageKey}`);
     const presignInfo = await this.s3.generatePresignedCoverUploadUrl(
       storageKey,
       mime,
-      sizeBytes,
     );
 
     if (!presignInfo) {
@@ -98,6 +95,28 @@ export class BooksService {
 
     return { storageKey, presignInfo };
   }
+
+  generateBookFilePresign = async (
+    userId: string,
+    filename: string,
+    mime: string,
+  ): Promise<{ storageKey: string; presignInfo: PresignInfo }> => {
+    const temporaryStorageKey = this.s3.generateStorageKey(userId, filename);
+    this.logger.log(
+      `Generating presigned URL for book file: ${temporaryStorageKey}`,
+    );
+    const presignUploadInfo = await this.s3.generatePresignedUploadUrl(
+      temporaryStorageKey,
+      mime,
+    );
+    if (!presignUploadInfo) {
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.PRESIGN_FAILED);
+    }
+    return {
+      storageKey: temporaryStorageKey,
+      presignInfo: presignUploadInfo,
+    };
+  };
 
   private async validateFileExists(
     storageKey: string,
@@ -138,10 +157,10 @@ export class BooksService {
     userId: string,
     dto: CreateBookDto,
   ): Promise<PresignResponse> {
-    const temporaryStorageKey = this.s3.generateStorageKey(
+    const bookFilePresignInfo = await this.generateBookFilePresign(
       userId,
       dto.filename,
-      'temp',
+      dto.mime,
     );
 
     let customCover:
@@ -151,17 +170,11 @@ export class BooksService {
         }
       | undefined;
 
-    // Handle custom cover upload if provided
-    if (
-      dto.customCoverFilename &&
-      dto.customCoverMime &&
-      dto.customCoverSizeBytes
-    ) {
+    if (dto.customCoverFilename && dto.customCoverMime) {
       customCover = await this.generateCustomCoverPresign(
         userId,
         dto.customCoverFilename,
         dto.customCoverMime,
-        dto.customCoverSizeBytes,
       );
     }
 
@@ -172,30 +185,24 @@ export class BooksService {
           title: dto.title,
           author: dto.author,
           customCoverStorageKey: customCover?.storageKey,
+          customCoverSizeBytes: dto.customCoverSizeBytes
+            ? BigInt(dto.customCoverSizeBytes)
+            : null,
+          spentHours: 0,
           description: dto.description,
           mime: dto.mime,
           sizeBytes: BigInt(dto.sizeBytes),
-          fileStorageKey: temporaryStorageKey,
+          fileStorageKey: bookFilePresignInfo.storageKey,
           status: BOOK_STATUS.PENDING,
         },
       });
-
-      const presignUploadInfo = await this.s3.generatePresignedUploadUrl(
-        temporaryStorageKey,
-        dto.mime,
-        dto.sizeBytes,
-      );
-
-      if (!presignUploadInfo) {
-        throw new BadRequestException(BOOK_ERROR_MESSAGES.PRESIGN_FAILED);
-      }
 
       this.logger.log(`Created book ${book.id} for user ${userId}`);
 
       return {
         bookId: book.id,
-        storageKey: temporaryStorageKey,
-        presignUploadInfo,
+        storageKey: bookFilePresignInfo.storageKey,
+        presignUploadInfo: bookFilePresignInfo.presignInfo,
         customCoverStorageKey: customCover?.storageKey,
         customCoverPresignInfo: customCover?.presignInfo,
       };
@@ -271,7 +278,6 @@ export class BooksService {
     const finalStorageKey = this.s3.generateStorageKey(
       userId,
       originalFilename,
-      sha256,
     );
 
     // Move file to final location if different
@@ -435,29 +441,6 @@ export class BooksService {
     }
   }
 
-  async generateCoverPresignUrl(
-    userId: string,
-    bookId: string,
-    filename: string,
-    mime: string,
-    sizeBytes: number,
-  ): Promise<CoverPresignResponse> {
-    // Verify book exists
-    await this.findBookByIdAndUser(bookId, userId);
-
-    const { storageKey, presignInfo } = await this.generateCustomCoverPresign(
-      userId,
-      filename,
-      mime,
-      sizeBytes,
-    );
-
-    return {
-      presignUploadInfo: presignInfo,
-      storageKey,
-    };
-  }
-
   async finalizeFile(
     userId: string,
     bookId: string,
@@ -512,10 +495,7 @@ export class BooksService {
     await this.validateFileExists(book.customCoverStorageKey, true);
 
     // Process cover file similar to processBookFile
-    const { finalCoverStorageKey } = await this.processCoverFile(
-      book,
-      userId,
-    );
+    const { finalCoverStorageKey } = await this.processCoverFile(book, userId);
 
     // Update book with final cover storage key
     await this.prisma.book.update({
@@ -550,7 +530,10 @@ export class BooksService {
 
     // Move cover to final location if different
     if (finalCoverStorageKey !== book.customCoverStorageKey) {
-      await this.s3.copyCoverObject(book.customCoverStorageKey, finalCoverStorageKey);
+      await this.s3.copyCoverObject(
+        book.customCoverStorageKey,
+        finalCoverStorageKey,
+      );
       await this.s3.deleteCoverObject(book.customCoverStorageKey);
     }
 

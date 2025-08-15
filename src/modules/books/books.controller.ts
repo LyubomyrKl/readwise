@@ -19,18 +19,8 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { BooksService } from './books.service';
-import {
-  CreateBookDto,
-  FinalizeBookDto,
-  CoverUploadDto,
-  FinalizeCoverDto,
-} from './book.dto';
-import {
-  PresignResponse,
-  FinalizeResponse,
-  BookResponse,
-  CoverPresignResponse,
-} from './book.models';
+import { CreateBookDto, FinalizeBookDto, FinalizeCoverDto } from './book.dto';
+import { PresignResponse, FinalizeResponse, BookResponse } from './book.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 
 @ApiTags('books')
@@ -57,33 +47,6 @@ export class BooksController {
     @Body() dto: CreateBookDto,
   ): Promise<PresignResponse> {
     return this.booksService.createBookAndPresign(req.user.userId, dto);
-  }
-
-  @Authenticated()
-  @Post('cover/presign')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Generate presigned URL for cover upload',
-    description:
-      'Generates a presigned URL for uploading a custom cover for an existing book',
-  })
-  @ApiResponse({
-    status: 200,
-    description: 'Presigned URL generated successfully',
-    type: CoverPresignResponse,
-  })
-  @ApiResponse({ status: 404, description: 'Book not found' })
-  async generateCoverPresignUrl(
-    @Req() req: { user: { userId: string } },
-    @Body() dto: CoverUploadDto,
-  ): Promise<CoverPresignResponse> {
-    return this.booksService.generateCoverPresignUrl(
-      req.user.userId,
-      dto.bookId,
-      dto.filename,
-      dto.mime,
-      dto.sizeBytes,
-    );
   }
 
   @Authenticated()
