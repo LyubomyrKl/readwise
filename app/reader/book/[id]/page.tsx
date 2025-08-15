@@ -2,10 +2,23 @@
 
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
 
 import { Loader2 } from "lucide-react";
-import VirtualPDFReader from "./components/PDFReader";
 import { IBook } from "../../types";
+
+// Dynamic import to avoid SSR issues with PDF.js
+const VirtualPDFReader = dynamic(() => import("./components/PDFReader"), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen">
+      <div className="flex items-center gap-2">
+        <Loader2 className="h-6 w-6 animate-spin" />
+        <span>Loading PDF viewer...</span>
+      </div>
+    </div>
+  ),
+});
 
 export default function BookReaderPage() {
   const params = useParams();
