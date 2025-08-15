@@ -4,13 +4,14 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Loader2 } from "lucide-react";
-import PDFReader from "./components/PDFReader";
+import VirtualPDFReader from "./components/PDFReader";
+import { IBook } from "../../types";
 
 export default function BookReaderPage() {
   const params = useParams();
   const bookId = params.id as string;
 
-  const [book, setBook] = useState<any | null>(null);
+  const [book, setBook] = useState<IBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,9 @@ export default function BookReaderPage() {
         }
 
         const bookData = await response.json();
+
+        console.log("Fetched book data:", bookData);
+
         setBook(bookData.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
@@ -62,6 +66,8 @@ export default function BookReaderPage() {
     );
   }
 
+  console.log("Book data:", book);
+
   if (!book) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -75,5 +81,5 @@ export default function BookReaderPage() {
     );
   }
 
-  return <PDFReader book={book} />;
+  return <VirtualPDFReader key={book.id} book={book} />;
 }
