@@ -10,35 +10,50 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { apiFetch } from "@/lib/fetcher";
+import { useUpload, UploadFile } from "@/app/(providers)/UploadProvider";
 
-interface FileWithMetadata extends File {
+interface PendingFile {
   id: string;
+  file: File;
   title: string;
   author: string;
   description: string;
-  progress: number;
-  status: "pending" | "uploading" | "processing" | "completed" | "error";
-  error?: string;
-  bookId?: string;
+  coverFile?: File;
+  coverPreview?: string;
 }
 
 export default function UploadPage() {
-  const [files, setFiles] = useState<FileWithMetadata[]>([]);
+  const { uploads, addUploads, removeUpload } = useUpload();
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
-    const newFiles: FileWithMetadata[] = acceptedFiles.map((file) => ({
-      ...file,
-      id: Math.random().toString(36).slice(2, 11),
-      title: file.name.replace(/\.[^/.]+$/, ""), // Remove extension
-      author: "",
-      description: "",
-      progress: 0,
-      status: "pending" as const,
-    }));
-    
-    setFiles((prev) => [...prev, ...newFiles]);
-  }, []);
+  // Local state for files before upload
+  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+  
+  // Filter uploads to show only those from this session
+  const [sessionUploads, setSessionUploads] = useState<string[]>([]);
+  const currentUploads = uploads.filter((upload) =>
+    sessionUploads.includes(upload.id)
+  );
+
+  const onDrop = useCallback(
+    (acceptedFiles: File[]) => {
+      // Add files to local pending state for editing
+      const newPendingFiles: PendingFile[] = acceptedFiles.map((file) => {
+        const fileName = file.name;
+        const baseName = fileName.replace(/\.[^/.]+$/, "");
+
+        return {
+          id: crypto.randomUUID(),
+          file,
+          title: baseName,
+          author: "",
+          description: "",
+        };
+      });
+
+      setPendingFiles((prev) => [...prev, ...newPendingFiles]);
+    },
+    []
+  );
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -50,101 +65,72 @@ export default function UploadPage() {
     multiple: true,
   });
 
-  const removeFile = (fileId: string) => {
-    setFiles((prev) => prev.filter((f) => f.id !== fileId));
+  const removePendingFile = (fileId: string) => {
+    setPendingFiles((prev) => prev.filter((file) => file.id !== fileId));
   };
 
-  const updateFileMetadata = (
-    fileId: string, 
-    field: keyof Pick<FileWithMetadata, "title" | "author" | "description">, 
-    value: string
+  const removeUploadedFile = (fileId: string) => {
+    removeUpload(fileId);
+    setSessionUploads((prev) => prev.filter((id) => id !== fileId));
+  };
+
+  const updatePendingFile = (
+    fileId: string,
+    field: keyof PendingFile,
+    value: string | File
   ) => {
-    setFiles((prev) =>
-      prev.map((f) => (f.id === fileId ? { ...f, [field]: value } : f))
+    setPendingFiles((prev) =>
+      prev.map((file) =>
+        file.id === fileId ? { ...file, [field]: value } : file
+      )
     );
   };
 
-  const uploadFile = async (file: FileWithMetadata) => {
-    if (!file.title.trim() || !file.author.trim()) {
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? { ...f, status: "error", error: "Title and author are required" }
-            : f
-        )
+  const handleCoverUpload = (fileId: string, coverFile: File) => {
+    const coverPreview = URL.createObjectURL(coverFile);
+    setPendingFiles((prev) =>
+      prev.map((file) =>
+        file.id === fileId ? { ...file, coverFile, coverPreview } : file
+      )
+    );
+  };
+
+  const uploadFile = async (pendingFile: PendingFile) => {
+    const uploadFile: UploadFile = {
+      title: pendingFile.title,
+      author: pendingFile.author,
+      description: pendingFile.description,
+      fileName: pendingFile.file.name,
+      mime: pendingFile.file.type,
+      sizeBytes: pendingFile.file.size,
+      file: pendingFile.file,
+      ...(pendingFile.coverFile && {
+        customCoverFilename: pendingFile.coverFile.name,
+        customCoverMime: pendingFile.coverFile.type,
+        customCoverSizeBytes: pendingFile.coverFile.size,
+        coverFile: pendingFile.coverFile,
+      }),
+    };
+
+    addUploads([uploadFile]);
+    
+    // Track this upload and remove from pending
+    setTimeout(() => {
+      const newUploads = uploads.filter(upload => 
+        upload.name === pendingFile.file.name
       );
-      return;
-    }
-
-    try {
-      // Update status to uploading
-      setFiles((prev) =>
-        prev.map((f) => (f.id === file.id ? { ...f, status: "uploading", progress: 10 } : f))
-      );
-
-      // Get presigned URL
-      const presignResponse = await apiFetch("POST", "/api/books/presign", {
-        title: file.title,
-        author: file.author,
-        description: file.description,
-        filename: file.name,
-        mime: file.type,
-        sizeBytes: file.size,
-        sha256: "placeholder", // In real implementation, calculate SHA256
-      });
-
-      // Update progress
-      setFiles((prev) =>
-        prev.map((f) => (f.id === file.id ? { ...f, progress: 30 } : f))
-      );
-
-      // Upload file to presigned URL
-      const uploadResponse = await fetch(presignResponse.upload.url, {
-        method: "PUT",
-        headers: presignResponse.upload.headers,
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Upload failed");
-      }
-
-      // Update progress
-      setFiles((prev) =>
-        prev.map((f) => (f.id === file.id ? { ...f, progress: 70, status: "processing" } : f))
-      );
-
-      // Finalize the upload
-      await apiFetch("POST", "/api/books/finalize", {
-        bookId: presignResponse.bookId,
-      });
-
-      // Mark as completed
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? { ...f, progress: 100, status: "completed", bookId: presignResponse.bookId }
-            : f
-        )
-      );
-    } catch (error) {
-      setFiles((prev) =>
-        prev.map((f) =>
-          f.id === file.id
-            ? {
-                ...f,
-                status: "error",
-                error: error instanceof Error ? error.message : "Upload failed",
-              }
-            : f
-        )
-      );
-    }
+      setSessionUploads(prev => [...prev, ...newUploads.map(u => u.id)]);
+    }, 100);
+    
+    removePendingFile(pendingFile.id);
   };
 
   const uploadAll = async () => {
-    const pendingFiles = files.filter((f) => f.status === "pending");
-    for (const file of pendingFiles) {
+    const validFiles = pendingFiles.filter(
+      (file) => file.title.trim() && file.author.trim() && file.description.trim()
+    );
+    
+    for (const file of validFiles) {
       await uploadFile(file);
     }
   };
@@ -187,23 +173,134 @@ export default function UploadPage() {
         </CardContent>
       </Card>
 
-      {/* File List */}
-      {files.length > 0 && (
+      {/* Pending Files for Editing */}
+      {pendingFiles.length > 0 && (
         <div className="space-y-4">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-medium">
-              Files to Upload ({files.length})
+              Files to Upload ({pendingFiles.length})
             </h2>
-            <Button 
+            <Button
               onClick={uploadAll}
-              disabled={files.every((f) => f.status !== "pending")}
+              disabled={!pendingFiles.some(f => f.title.trim() && f.author.trim() && f.description.trim())}
             >
               Upload All
             </Button>
           </div>
 
           <div className="space-y-4">
-            {files.map((file) => (
+            {pendingFiles.map((file) => (
+              <Card key={file.id}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-3">
+                      <FileText className="h-8 w-8 text-muted-foreground" />
+                      <div>
+                        <CardTitle className="text-base">{file.file.name}</CardTitle>
+                        <p className="text-sm text-muted-foreground">
+                          {(file.file.size / 1024 / 1024).toFixed(2)} MB
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => removePendingFile(file.id)}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </CardHeader>
+
+                <CardContent className="space-y-4">
+                  {/* Cover Upload/Preview */}
+                  <div className="flex justify-center">
+                    <div className="relative w-24 h-32 rounded-lg overflow-hidden border bg-muted">
+                      {file.coverPreview ? (
+                        <img
+                          src={file.coverPreview}
+                          alt={`${file.title} cover`}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center">
+                          <FileText className="h-8 w-8 text-muted-foreground" />
+                        </div>
+                      )}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => {
+                          const coverFile = e.target.files?.[0];
+                          if (coverFile) {
+                            handleCoverUpload(file.id, coverFile);
+                          }
+                        }}
+                        className="absolute inset-0 opacity-0 cursor-pointer"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Metadata Form */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor={`title-${file.id}`}>Title *</Label>
+                      <Input
+                        id={`title-${file.id}`}
+                        value={file.title}
+                        onChange={(e) =>
+                          updatePendingFile(file.id, "title", e.target.value)
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`author-${file.id}`}>Author *</Label>
+                      <Input
+                        id={`author-${file.id}`}
+                        value={file.author}
+                        onChange={(e) =>
+                          updatePendingFile(file.id, "author", e.target.value)
+                        }
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <Label htmlFor={`description-${file.id}`}>Description *</Label>
+                    <Textarea
+                      id={`description-${file.id}`}
+                      value={file.description}
+                      onChange={(e) =>
+                        updatePendingFile(file.id, "description", e.target.value)
+                      }
+                      rows={2}
+                    />
+                  </div>
+
+                  {/* Upload Button */}
+                  <Button
+                    onClick={() => uploadFile(file)}
+                    disabled={!file.title.trim() || !file.author.trim() || !file.description.trim()}
+                    className="w-full"
+                  >
+                    Upload This Book
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Upload Status */}
+      {currentUploads.length > 0 && (
+        <div className="space-y-4">
+          <h2 className="text-lg font-medium">
+            Upload Status ({currentUploads.length})
+          </h2>
+
+          <div className="space-y-4">
+            {currentUploads.map((file) => (
               <Card key={file.id}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
@@ -223,11 +320,20 @@ export default function UploadPage() {
                       {file.status === "error" && (
                         <AlertCircle className="h-5 w-5 text-red-500" />
                       )}
+                      {file.status === "uploading" && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      )}
+                      {file.status === "processing" && (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      )}
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => removeFile(file.id)}
-                        disabled={file.status === "uploading" || file.status === "processing"}
+                        onClick={() => removeUploadedFile(file.id)}
+                        disabled={
+                          file.status === "uploading" ||
+                          file.status === "processing"
+                        }
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -236,45 +342,32 @@ export default function UploadPage() {
                 </CardHeader>
 
                 <CardContent className="space-y-4">
-                  {/* Metadata Form */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor={`title-${file.id}`}>Title *</Label>
-                      <Input
-                        id={`title-${file.id}`}
-                        value={file.title}
-                        onChange={(e) => updateFileMetadata(file.id, "title", e.target.value)}
-                        disabled={file.status !== "pending"}
-                      />
+                  {/* Status Display */}
+                  <div className="flex items-center justify-center py-4">
+                    <div className="text-center">
+                      <div className="text-lg font-medium mb-2">
+                        {file.status === "pending" && "Preparing..."}
+                        {file.status === "processing" && "Processing..."}
+                        {file.status === "uploading" && "Uploading..."}
+                        {file.status === "completed" &&
+                          "Successfully uploaded!"}
+                        {file.status === "error" && "Upload failed"}
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Title: {file.title}
+                      </div>
                     </div>
-                    <div>
-                      <Label htmlFor={`author-${file.id}`}>Author *</Label>
-                      <Input
-                        id={`author-${file.id}`}
-                        value={file.author}
-                        onChange={(e) => updateFileMetadata(file.id, "author", e.target.value)}
-                        disabled={file.status !== "pending"}
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <Label htmlFor={`description-${file.id}`}>Description</Label>
-                    <Textarea
-                      id={`description-${file.id}`}
-                      value={file.description}
-                      onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => updateFileMetadata(file.id, "description", e.target.value)}
-                      disabled={file.status !== "pending"}
-                      rows={2}
-                    />
                   </div>
 
                   {/* Progress */}
-                  {(file.status === "uploading" || file.status === "processing") && (
+                  {(file.status === "uploading" ||
+                    file.status === "processing") && (
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
                         <span>
-                          {file.status === "uploading" ? "Uploading..." : "Processing..."}
+                          {file.status === "uploading"
+                            ? "Uploading..."
+                            : "Processing..."}
                         </span>
                         <span>{file.progress}%</span>
                       </div>
@@ -295,20 +388,10 @@ export default function UploadPage() {
                     <Alert>
                       <CheckCircle className="h-4 w-4" />
                       <AlertDescription>
-                        Book uploaded successfully! View it in your library.
+                        Book uploaded and finalized successfully! View it in
+                        your library.
                       </AlertDescription>
                     </Alert>
-                  )}
-
-                  {/* Upload Button */}
-                  {file.status === "pending" && (
-                    <Button 
-                      onClick={() => uploadFile(file)}
-                      disabled={!file.title.trim() || !file.author.trim()}
-                      className="w-full"
-                    >
-                      Upload This Book
-                    </Button>
                   )}
                 </CardContent>
               </Card>

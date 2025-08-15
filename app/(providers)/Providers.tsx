@@ -1,5 +1,6 @@
 import { ThemeProvider } from "next-themes";
 import { MotionProvider } from "./MotionProvider";
+import { UploadProvider } from "./UploadProvider";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -9,7 +10,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       enableSystem
       disableTransitionOnChange
     >
-      <MotionProvider>{children}</MotionProvider>
+      <MotionProvider>
+        <UploadProvider>{children}</UploadProvider>
+      </MotionProvider>
     </ThemeProvider>
   );
 }

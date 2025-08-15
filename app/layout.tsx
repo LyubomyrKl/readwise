@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 import { ModeToggle } from "./(components)/ModeToggle";
+import { UploadWidget } from "./(components)/UploadWidget";
 import { ThemeProvider } from "./(providers)";
 import { Providers } from "./(providers)/Providers";
 
@@ -36,6 +37,7 @@ export default function RootLayout({
           <div className="fixed top-2 right-2 z-50">
             <ModeToggle />
           </div>
+          <UploadWidget />
         </Providers>
       </body>
     </html>

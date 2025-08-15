@@ -3,12 +3,14 @@ import { Registry } from "../api.types";
 
 export const PresignReq = z.object({
   title: z.string().min(1),
-  description: z.string().optional(),
   author: z.string().min(1),
   filename: z.string().min(1),
+  description: z.string().min(1),
   mime: z.string().min(1),
   sizeBytes: z.number().positive(),
   sha256: z.string().min(1),
+  cover: z.string().optional(),
+  pageCount: z.number().min(1).optional(),
 });
 
 export const PresignRes = z.object({
@@ -18,6 +20,13 @@ export const PresignRes = z.object({
     url: z.url(),
     headers: z.record(z.string(), z.string()),
   }),
+  coverStorageKey: z.string().optional(),
+  coverUpload: z
+    .object({
+      url: z.url(),
+      headers: z.record(z.string(), z.string()),
+    })
+    .optional(),
 });
 
 export const FinalizeReq = z.object({
@@ -26,7 +35,16 @@ export const FinalizeReq = z.object({
 
 export const FinalizeRes = z.object({
   bookId: z.string(),
-  status: z.literal("ready"),
+  status: z.literal("ready").or(z.literal("pending")).or(z.literal("failed")),
+});
+
+export const FinalizeCoverReq = z.object({
+  bookId: z.string(),
+});
+
+export const FinalizeCoverRes = z.object({
+  bookId: z.string(),
+  status: z.literal("ready").or(z.literal("pending")).or(z.literal("failed")),
 });
 
 export const BookResponse = z.object({
@@ -51,8 +69,12 @@ export const GetAllBooksRes = z.array(BookResponse);
 
 export const BooksApiRegistry = {
   POST: {
-    "/api/books/presign": { req: PresignReq, res: PresignRes },
+    "/api/books/createBookAndPresign": { req: PresignReq, res: PresignRes },
     "/api/books/finalize": { req: FinalizeReq, res: FinalizeRes },
+    "/api/books/finalizeCover": {
+      req: FinalizeCoverReq,
+      res: FinalizeCoverRes,
+    },
   },
   GET: {
     "/api/books": { req: undefined, res: GetAllBooksRes },

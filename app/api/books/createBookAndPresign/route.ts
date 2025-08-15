@@ -6,21 +6,29 @@ import z from "zod";
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as z.infer<typeof PresignReq>;
-    const validatedData = PresignReq.parse(body);
+    console.log("createBookAndPresign received body:", body);
 
-    const data = await booksApi.presign({ createBookDto: validatedData });
+    const validatedData = PresignReq.parse(body);
+    console.log("createBookAndPresign validation passed:", validatedData);
+
+    const data = await booksApi.createBookAndPresign({
+      createBookDto: validatedData,
+    });
 
     const response = {
       bookId: data.data.bookId,
       storageKey: data.data.storageKey,
       upload: {
-        url: data.data.upload.url,
-        headers: data.data.upload.headers,
+        url: data.data.presignUploadInfo.url,
+        headers: data.data.presignUploadInfo.headers,
       },
+      coverStorageKey: data.data.customCoverStorageKey,
+      coverUpload: data.data.customCoverPresignInfo,
     };
 
     return NextResponse.json(response);
   } catch (error) {
+    console.error("createBookAndPresign error:", error);
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

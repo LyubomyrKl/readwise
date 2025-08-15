@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FinalizeReq } from "../schemas";
+import { FinalizeReq, FinalizeRes } from "../schemas";
 import { booksApi } from "@/lib/sdk";
 import z from "zod";
 
@@ -9,24 +9,23 @@ export async function POST(request: NextRequest) {
 
     const validatedData = FinalizeReq.parse(body);
 
-    const data = await booksApi.finalize({
+    const data = await booksApi.finalizeBook({
       finalizeBookDto: {
         bookId: validatedData.bookId,
       },
     });
 
-    if (!data.data.bookId || data.data.status === "pending") {
+    if (!data.data.bookId || data.data.status !== "ready") {
       return NextResponse.json(
         { error: "Book is not finalized or still pending." },
         { status: 400 }
       );
     }
 
-    const response = {
+    const response = FinalizeRes.parse({
       bookId: data.data.bookId,
       status: data.data.status,
-      message: "Book finalized successfully.",
-    };
+    });
 
     return NextResponse.json(response);
   } catch (error) {
