@@ -24,22 +24,19 @@ export class S3Service {
     const secretAccessKey = this.config.get('S3_SECRET_ACCESS_KEY', {
       infer: true,
     })!;
-
     this.bucketName = this.config.get('S3_BOOK_BUCKET_NAME', { infer: true })!;
     this.coverBucketName = this.config.get('S3_BOOK_COVER_BUCKET_NAME', {
       infer: true,
     })!;
 
     this.client = new S3Client({
-      endpoint: this.config.get('S3_ENDPOINT', { infer: true })!,
-      region: 'us-east-1',
+      endpoint,
+      region,
       credentials: {
-        accessKeyId: this.config.get('S3_ACCESS_KEY_ID', { infer: true })!,
-        secretAccessKey: this.config.get('S3_SECRET_ACCESS_KEY', {
-          infer: true,
-        })!,
+        accessKeyId,
+        secretAccessKey,
       },
-      forcePathStyle: true,
+      forcePathStyle: true, // Required for MinIO
     });
   }
 
@@ -53,11 +50,6 @@ export class S3Service {
       ContentType: contentType,
     });
 
-    console.log(this.config.get('S3_ENDPOINT', { infer: true }));
-    console.log(this.config.get('S3_REGION', { infer: true }));
-    console.log(this.config.get('S3_ACCESS_KEY_ID', { infer: true }));
-    console.log(this.config.get('S3_SECRET_ACCESS_KEY', { infer: true }));
-    console.log(`Generating presigned URL for key: ${key}`);
     // Generate presigned PUT URL
     const url = await getSignedUrl(this.client, command, {
       expiresIn: 3600, // 1 hour
