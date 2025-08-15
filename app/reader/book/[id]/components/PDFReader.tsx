@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useEffect } from "react";
+import { useMemo, useRef, useEffect, useState } from "react";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
@@ -69,10 +69,57 @@ function TopBar({ title }: { title?: string }) {
 export default function VirtualPDFReader({ book }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const url = book.fileUrl;
+  const [renderKey, setRenderKey] = useState(0);
+  const [devicePixelRatio, setDevicePixelRatio] = useState(1);
 
   // Initialize the PDFium engine. By default, the WASM binary is loaded from the package CDN.
   // For production, host it yourself and pass { wasmUrl } to usePdfiumEngine().
   const { engine, isLoading, error } = usePdfiumEngine();
+
+  const [isScrolling, setIsScrolling] = useState(false);
+
+  useEffect(() => {
+    const root = containerRef.current;
+    if (!root) return;
+    let t: ReturnType<typeof setTimeout> | undefined;
+
+    const onScroll = () => {
+      if (!isScrolling) setIsScrolling(true);
+      if (t) clearTimeout(t);
+      t = setTimeout(() => setIsScrolling(false), 140);
+    };
+
+    root.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => {
+      root.removeEventListener("scroll", onScroll, { capture: true } as any);
+      if (t) clearTimeout(t);
+    };
+  }, []);
+
+  // 4) Make DPR watcher robust when moving between monitors
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    let mql: MediaQueryList | null = null;
+    let raf = 0;
+
+    const onChange = () => {
+      setDevicePixelRatio(window.devicePixelRatio || 1);
+      setRenderKey((k) => k + 1);
+      raf = window.requestAnimationFrame(watch); // re-arm for the new DPR
+    };
+
+    const watch = () => {
+      if (mql) mql.removeEventListener("change", onChange);
+      mql = window.matchMedia(`(resolution: ${window.devicePixelRatio}dppx)`);
+      mql.addEventListener("change", onChange);
+    };
+
+    watch();
+    return () => {
+      if (mql) mql.removeEventListener("change", onChange);
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, []);
 
   const plugins = useMemo(() => {
     if (!url) return [] as any[];
@@ -162,12 +209,21 @@ export default function VirtualPDFReader({ book }: Props) {
             }}
           >
             {/* Local handler that bridges our custom wheel event to the zoom plugin */}
-            <ZoomWheelBridge />
+            <ZoomWheelBridge
+              onZoomSettle={() => {
+                // Trigger crisp re-render with current device pixel ratio
+                setRenderKey((prev) => prev + 1);
+              }}
+            />
 
             <Scroller
               renderPage={({ width, height, pageIndex }) => (
                 <div style={{ width, height }}>
-                  <RenderLayer pageIndex={pageIndex} />
+                  <CrispRenderLayer
+                    pageIndex={pageIndex}
+                    baseDpr={devicePixelRatio}
+                    isScrolling={isScrolling}
+                  />
                 </div>
               )}
             />
@@ -178,127 +234,92 @@ export default function VirtualPDFReader({ book }: Props) {
   );
 }
 
-// Component must live inside <EmbedPDF> to access useZoom()
-// Inside your file, replace ZoomWheelBridge with this:
-
-// 2) Use this ZoomWheelBridge:
-
-function ZoomWheelBridge() {
+// Simplified zoom gesture handler
+function ZoomWheelBridge({ onZoomSettle }: { onZoomSettle?: () => void }) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const { provides, state } = useZoom();
-
-  const baseZoomRef = useRef(1);
-  const startDistRef = useRef<number | null>(null);
-  const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const zoomTimeoutRef = useRef<NodeJS.Timeout>(null);
 
   useEffect(() => {
     if (!hostRef.current || !provides) return;
-
-    // The immediate parent is the <Viewport> host element.
     const el = hostRef.current.parentElement as HTMLElement;
 
     const clamp = (z: number) => Math.min(Math.max(z, 0.25), 5);
 
-    // --- Chrome/Edge/Firefox trackpad pinch -> wheel+ctrl ---
+    // Direct wheel event handling
     const onWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
 
-      // Smooth exponential scaling. Negative deltaY = zoom in.
-      const k = 1.0015;
-      const factor = Math.pow(k, -e.deltaY);
-      const next = clamp((state?.currentZoomLevel ?? 1) * factor);
+      // Simple zoom calculation
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      const currentZoom = state?.currentZoomLevel ?? 1;
+      const next = clamp(currentZoom * factor);
+
       provides.requestZoom(next);
-    };
 
-    // --- Safari trackpad pinch (non-standard gesture events) ---
-    const onGestureStart = (e: any) => {
-      e.preventDefault();
-      baseZoomRef.current = state?.currentZoomLevel ?? 1;
-    };
-    const onGestureChange = (e: any) => {
-      e.preventDefault();
-      const next = clamp(baseZoomRef.current * (e.scale || 1));
-      provides.requestZoom(next);
-    };
-
-    // --- Touchscreen pinch (PointerEvents) ---
-    const dist = () => {
-      const pts = Array.from(pointers.current.values());
-      if (pts.length < 2) return 0;
-      const dx = pts[0].x - pts[1].x;
-      const dy = pts[0].y - pts[1].y;
-      return Math.hypot(dx, dy);
-    };
-
-    const onPointerDown = (e: PointerEvent) => {
-      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.current.size === 2) {
-        baseZoomRef.current = state?.currentZoomLevel ?? 1;
-        startDistRef.current = dist();
-        (el.style as any).touchAction = "none";
-      }
-    };
-
-    const onPointerMove = (e: PointerEvent) => {
-      if (!pointers.current.has(e.pointerId)) return;
-      pointers.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
-      if (pointers.current.size === 2 && startDistRef.current) {
-        const s = startDistRef.current;
-        const c = dist();
-        if (s > 0 && c > 0) {
-          const scale = c / s;
-          const next = clamp(baseZoomRef.current * scale);
-          provides.requestZoom(next);
+      // Trigger zoom settle callback after a delay
+      if (onZoomSettle) {
+        if (zoomTimeoutRef.current) {
+          clearTimeout(zoomTimeoutRef.current);
         }
+        zoomTimeoutRef.current = setTimeout(onZoomSettle, 300);
       }
     };
 
-    const endPinch = () => {
-      if (pointers.current.size < 2) {
-        startDistRef.current = null;
-        (el.style as any).touchAction = "";
+    // Handle custom zoom events from the outer wheel handler
+    const onZoomCustom = (evt: Event) => {
+      const detail = (evt as CustomEvent).detail;
+
+      const factor = detail.dy > 0 ? 0.9 : 1.1;
+      const currentZoom = state?.currentZoomLevel ?? 1;
+      const next = clamp(currentZoom * factor);
+
+      provides.requestZoom(next);
+
+      // Trigger zoom settle callback after a delay
+      if (onZoomSettle) {
+        if (zoomTimeoutRef.current) {
+          clearTimeout(zoomTimeoutRef.current);
+        }
+        zoomTimeoutRef.current = setTimeout(onZoomSettle, 300);
       }
     };
-    const onPointerUp = (e: PointerEvent) => {
-      pointers.current.delete(e.pointerId);
-      endPinch();
-    };
-    const onPointerCancel = (e: PointerEvent) => {
-      pointers.current.delete(e.pointerId);
-      endPinch();
-    };
 
-    // Bind listeners
-    el.addEventListener("wheel", onWheel as any, { passive: false } as any);
-    el.addEventListener(
-      "gesturestart",
-      onGestureStart as any,
-      { passive: false } as any
-    );
-    el.addEventListener(
-      "gesturechange",
-      onGestureChange as any,
-      { passive: false } as any
-    );
-    el.addEventListener("pointerdown", onPointerDown as any);
-    el.addEventListener("pointermove", onPointerMove as any);
-    el.addEventListener("pointerup", onPointerUp as any);
-    el.addEventListener("pointercancel", onPointerCancel as any);
-    el.addEventListener("pointerleave", onPointerUp as any);
+    // Add both direct wheel handling and custom event handling
+    el.addEventListener("wheel", onWheel, { passive: false });
+    el.addEventListener("epdf-zoom-wheel", onZoomCustom);
 
     return () => {
-      el.removeEventListener("wheel", onWheel as any);
-      el.removeEventListener("gesturestart", onGestureStart as any);
-      el.removeEventListener("gesturechange", onGestureChange as any);
-      el.removeEventListener("pointerdown", onPointerDown as any);
-      el.removeEventListener("pointermove", onPointerMove as any);
-      el.removeEventListener("pointerup", onPointerUp as any);
-      el.removeEventListener("pointercancel", onPointerCancel as any);
-      el.removeEventListener("pointerleave", onPointerUp as any);
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("epdf-zoom-wheel", onZoomCustom);
+      if (zoomTimeoutRef.current) {
+        clearTimeout(zoomTimeoutRef.current);
+      }
     };
-  }, [provides, state?.currentZoomLevel]);
+  }, [provides, state?.currentZoomLevel, onZoomSettle]);
 
-  // Empty child anchors us inside <Viewport>
   return <div ref={hostRef} />;
+}
+
+// 1) Replace your <RenderLayer ... dpr={devicePixelRatio} /> usage
+//    with a zoom-aware wrapper that multiplies DPR by current zoom
+function CrispRenderLayer({
+  pageIndex,
+  baseDpr,
+  isScrolling,
+}: {
+  pageIndex: number;
+  baseDpr: number;
+  isScrolling: boolean;
+}) {
+  const { state } = useZoom();
+  const zoom = state?.currentZoomLevel ?? 1;
+
+  // Low DPR during motion, higher when settled. Cap to avoid huge canvases.
+  const dpr = isScrolling
+    ? Math.min(2, Math.max(1, baseDpr)) // cheap while moving
+    : Math.min(3, Math.max(1, baseDpr * Math.min(2, zoom))); // sharper at rest
+
+  return <RenderLayer key={pageIndex} pageIndex={pageIndex} dpr={dpr} />;
 }
