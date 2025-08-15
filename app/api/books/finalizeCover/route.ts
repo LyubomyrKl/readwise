@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
 
     const validatedData = FinalizeCoverReq.parse(body);
 
-    const coverFinalize = await booksApi.finalizeCover({
+    await booksApi.finalizeCover({
       finalizeCoverDto: {
         bookId: validatedData.bookId,
       },

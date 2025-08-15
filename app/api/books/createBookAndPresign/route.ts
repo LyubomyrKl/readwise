@@ -6,10 +6,8 @@ import z from "zod";
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as z.infer<typeof PresignReq>;
-    console.log("createBookAndPresign received body:", body);
 
     const validatedData = PresignReq.parse(body);
-    console.log("createBookAndPresign validation passed:", validatedData);
 
     const data = await booksApi.createBookAndPresign({
       createBookDto: validatedData,
@@ -29,6 +27,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(response);
   } catch (error) {
     console.error("createBookAndPresign error:", error);
+
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });
     }

@@ -1,14 +1,7 @@
 "use client";
 
 import React, { createContext, useContext, useState, ReactNode } from "react";
-import * as CryptoJS from "crypto-js";
-import * as pdfjsLib from "pdfjs-dist";
-import JSZip from "jszip";
 import { apiFetch } from "@/lib/fetcher";
-import { int } from "zod";
-
-// Set worker src for PDF.js
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 export interface UploadFileMetadata {
   title: string;
@@ -74,6 +67,18 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   );
 
   const addUploads = async (files: UploadFile[]) => {
+    console.log(
+      "addUploads received files:",
+      files.map((f) => ({
+        title: f.title,
+        fileName: f.fileName,
+        customCoverFilename: f.customCoverFilename,
+        customCoverMime: f.customCoverMime,
+        customCoverSizeBytes: f.customCoverSizeBytes,
+        hasCoverFile: !!f.coverFile,
+      }))
+    );
+
     // Create initial upload progress entries
     const newUploads: UploadProgress[] = files.map((file) => ({
       id: crypto.randomUUID(),
@@ -111,27 +116,37 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
       const currentUpload = uploadData;
 
-      console.log(`[Upload ${uploadId}] Calculating SHA256 hash`);
-      // Calculate SHA256 hash
-      const sha256 = await calculateSHA256(currentUpload.file.file);
-      console.log(`[Upload ${uploadId}] SHA256 calculated: ${sha256}`);
-
       console.log(`[Upload ${uploadId}] Calling createBookAndPresign API`);
+      console.log(`[Upload ${uploadId}] Cover fields from file:`, {
+        customCoverFilename: currentUpload.file.customCoverFilename,
+        customCoverMime: currentUpload.file.customCoverMime,
+        customCoverSizeBytes: currentUpload.file.customCoverSizeBytes,
+        hasCoverFile: !!currentUpload.file.coverFile,
+      });
+
       // Call createBookAndPresign
+      const requestPayload = {
+        title: currentUpload.file.title,
+        author: currentUpload.file.author,
+        description:
+          currentUpload.file.description || "No description provided",
+        filename: currentUpload.file.fileName,
+        mime: currentUpload.file.mime,
+        sizeBytes: currentUpload.file.sizeBytes,
+        customCoverFilename: currentUpload.file.customCoverFilename,
+        customCoverMime: currentUpload.file.customCoverMime,
+        customCoverSizeBytes: currentUpload.file.customCoverSizeBytes,
+      };
+
+      console.log(
+        `[Upload ${uploadId}] Request payload:`,
+        JSON.stringify(requestPayload, null, 2)
+      );
+
       const presignResponse = await apiFetch(
         "POST",
         "/api/books/createBookAndPresign",
-        {
-          title: currentUpload.file.title,
-          author: currentUpload.file.author,
-          filename: currentUpload.file.fileName,
-          description:
-            currentUpload.file.description || "No description provided",
-          mime: currentUpload.file.mime,
-          sizeBytes: currentUpload.file.sizeBytes,
-          sha256,
-          cover: currentUpload.file.customCoverFilename,
-        }
+        requestPayload
       );
 
       console.log(
@@ -147,7 +162,10 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           headers: presignResponse.upload.headers,
         },
         coverStorageKey: presignResponse.coverStorageKey,
-        coverUpload: presignResponse.coverUpload,
+        coverUpload: {
+          url: presignResponse.coverUpload?.url,
+          headers: presignResponse.coverUpload?.headers || {},
+        },
       };
 
       // Update with presign data
@@ -166,6 +184,17 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       );
 
       console.log(`[Upload ${uploadId}] Starting file upload to storage`);
+      console.log(`[Upload ${uploadId}] Upload URL:`, response.upload.url);
+      console.log(
+        `[Upload ${uploadId}] Upload headers:`,
+        response.upload.headers
+      );
+      console.log(`[Upload ${uploadId}] File details:`, {
+        name: currentUpload.file.file.name,
+        size: currentUpload.file.file.size,
+        type: currentUpload.file.file.type,
+      });
+
       // Upload main file
       await uploadFile(
         currentUpload.file.file,
@@ -180,7 +209,7 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         console.log(`[Upload ${uploadId}] Starting cover upload`);
         await uploadFile(
           currentUpload.file.coverFile,
-          response.coverUpload.url,
+          response.coverUpload.url!,
           response.coverUpload.headers,
           uploadId,
           true
@@ -229,16 +258,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const processUpload = async (uploadId: string) => {
-    // Find upload in current state
-    const currentUpload = unfinishedUploads.find((u) => u.id === uploadId);
-    if (!currentUpload) {
-      console.error(`[Upload ${uploadId}] Upload not found in state`);
-      return;
-    }
-    await processUploadWithData(currentUpload);
-  };
-
   const uploadFile = async (
     file: File,
     url: string,
@@ -269,31 +288,58 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
       xhr.addEventListener("load", () => {
         if (xhr.status >= 200 && xhr.status < 300) {
+          console.log(`[Upload ${uploadId}] Upload successful (${xhr.status})`);
           resolve();
         } else {
+          console.error(`[Upload ${uploadId}] Upload failed:`, {
+            status: xhr.status,
+            statusText: xhr.statusText,
+            response: xhr.responseText,
+            url: url,
+            headers: headers,
+          });
+
+          // Parse XML error if it's from S3/MinIO
+          if (xhr.responseText.includes("<Error>")) {
+            try {
+              const parser = new DOMParser();
+              const xmlDoc = parser.parseFromString(
+                xhr.responseText,
+                "text/xml"
+              );
+              const code = xmlDoc.querySelector("Code")?.textContent;
+              const message = xmlDoc.querySelector("Message")?.textContent;
+              console.error(`[Upload ${uploadId}] S3/MinIO Error:`, {
+                code,
+                message,
+              });
+            } catch (e) {
+              console.error(`[Upload ${uploadId}] Failed to parse XML error`);
+            }
+          }
           reject(new Error(`Upload failed with status ${xhr.status}`));
         }
       });
 
       xhr.addEventListener("error", () => {
+        console.error(`[Upload ${uploadId}] Upload network error`);
         reject(new Error("Upload failed"));
       });
 
       xhr.open("PUT", url);
 
-      // Set headers
-      Object.entries(headers).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value);
+      // Only set headers that are provided by the presigned URL
+      Object.entries(headers).forEach(([k, v]) => {
+        console.log(`[Upload ${uploadId}] Setting header: ${k} = ${v}`);
+
+        const key = k.toLowerCase();
+        if (key === "content-length") return; // blocked by browser
+        if (key.startsWith("x-amz-checksum")) return; // not using checksum
+        xhr.setRequestHeader(k, v);
       });
 
       xhr.send(file);
     });
-  };
-
-  const calculateSHA256 = async (file: File): Promise<string> => {
-    const buffer = await file.arrayBuffer();
-    const wordArray = CryptoJS.lib.WordArray.create(buffer);
-    return CryptoJS.SHA256(wordArray).toString();
   };
 
   return (

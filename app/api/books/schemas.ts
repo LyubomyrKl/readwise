@@ -4,13 +4,13 @@ import { Registry } from "../api.types";
 export const PresignReq = z.object({
   title: z.string().min(1),
   author: z.string().min(1),
-  filename: z.string().min(1),
   description: z.string().min(1),
+  filename: z.string().min(1),
   mime: z.string().min(1),
   sizeBytes: z.number().positive(),
-  sha256: z.string().min(1),
-  cover: z.string().optional(),
-  pageCount: z.number().min(1).optional(),
+  customCoverFilename: z.string().optional(),
+  customCoverMime: z.string().optional(),
+  customCoverSizeBytes: z.number().positive().optional(),
 });
 
 export const PresignRes = z.object({
@@ -51,9 +51,9 @@ export const BookResponse = z.object({
   id: z.string(),
   title: z.string(),
   author: z.string(),
-  cover: z.string().optional(),
+  coverUrl: z.string().optional(),
   spentHours: z.number(),
-  pageCount: z.number().optional(),
+  pageCount: z.number().nullable(),
   pagePassCount: z.number(),
   isFinished: z.boolean(),
   isFavorite: z.boolean(),
