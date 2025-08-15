@@ -4,7 +4,7 @@ model Book {
   title          String
   author         String
   description    String?
-  customCoverFilePath    String?
+  customCoverStorageKey    String?
   spentHours     Int      @default(0)
   pageCount      Int?
   pagePassCount  Int      @default(0)
@@ -14,7 +14,7 @@ model Book {
   mime           String
   sizeBytes      BigInt
   sha256         String?
-  storageKey     String
+  fileStorageKey     String
   status         BookStatus @default(pending)
   
   lastAccessed   DateTime? @default(now())

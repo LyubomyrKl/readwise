@@ -9,23 +9,23 @@ generator client {
 
 // ===== book.model.prisma =====
 model Book {
-  id                  String  @id @default(uuid())
-  userId              String
-  title               String
-  author              String
-  description         String?
-  customCoverFilePath String?
-  spentHours          Int     @default(0)
-  pageCount           Int?
-  pagePassCount       Int     @default(0)
-  isFinished          Boolean @default(false)
-  isFavorite          Boolean @default(false)
+  id                    String  @id @default(uuid())
+  userId                String
+  title                 String
+  author                String
+  description           String?
+  customCoverStorageKey String?
+  spentHours            Int     @default(0)
+  pageCount             Int?
+  pagePassCount         Int     @default(0)
+  isFinished            Boolean @default(false)
+  isFavorite            Boolean @default(false)
 
-  mime       String
-  sizeBytes  BigInt
-  sha256     String?
-  storageKey String
-  status     BookStatus @default(pending)
+  mime           String
+  sizeBytes      BigInt
+  sha256         String?
+  fileStorageKey String
+  status         BookStatus @default(pending)
 
   lastAccessed DateTime? @default(now())
   createdAt    DateTime  @default(now())

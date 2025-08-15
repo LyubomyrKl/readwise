@@ -7,11 +7,24 @@ import {
   Req,
   Res,
   Headers,
+  HttpCode,
+  HttpStatus,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiParam,
+  ApiResponse,
+  ApiHeader,
+} from '@nestjs/swagger';
 import type { Response } from 'express';
 import { BooksService } from './books.service';
-import { CreateBookDto, FinalizeBookDto, CoverUploadDto } from './book.dto';
+import {
+  CreateBookDto,
+  FinalizeBookDto,
+  CoverUploadDto,
+  FinalizeCoverDto,
+} from './book.dto';
 import {
   PresignResponse,
   FinalizeResponse,
@@ -27,23 +40,46 @@ export class BooksController {
 
   @Authenticated()
   @Post('presign')
-  @ApiOperation({ summary: 'Create book record and get presigned upload URL' })
-  async presign(
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Create book record and get presigned upload URLs',
+    description:
+      'Creates a new book record and returns presigned URLs for uploading both the book file and optional custom cover',
+  })
+  @ApiResponse({
+    status: 201,
+    description: 'Book created successfully',
+    type: PresignResponse,
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data' })
+  async createBookAndPresign(
     @Req() req: { user: { userId: string } },
     @Body() dto: CreateBookDto,
   ): Promise<PresignResponse> {
-    return await this.booksService.createBookAndPresign(req.user.userId, dto);
+    return this.booksService.createBookAndPresign(req.user.userId, dto);
   }
 
   @Authenticated()
-  @Post('/cover/presign')
-  @ApiOperation({ summary: 'Generate presigned URL for cover upload' })
-  async generateCoverUploadUrl(
+  @Post('cover/presign')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Generate presigned URL for cover upload',
+    description:
+      'Generates a presigned URL for uploading a custom cover for an existing book',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Presigned URL generated successfully',
+    type: CoverPresignResponse,
+  })
+  @ApiResponse({ status: 404, description: 'Book not found' })
+  async generateCoverPresignUrl(
     @Req() req: { user: { userId: string } },
     @Body() dto: CoverUploadDto,
   ): Promise<CoverPresignResponse> {
-    return await this.booksService.generateCoverPresignUrl(
+    return this.booksService.generateCoverPresignUrl(
       req.user.userId,
+      dto.bookId,
       dto.filename,
       dto.mime,
       dto.sizeBytes,
@@ -51,45 +87,113 @@ export class BooksController {
   }
 
   @Authenticated()
+  @Post('/cover/finalize')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Finalize cover upload',
+    description: 'Verifies the uploaded cover file and links it to the book',
+  })
+  @ApiResponse({ status: 200, description: 'Cover finalized successfully' })
+  @ApiResponse({ status: 400, description: 'Cover file not found in storage' })
+  @ApiResponse({ status: 404, description: 'Book not found' })
+  async finalizeCover(
+    @Req() req: { user: { userId: string } },
+    @Param('id') bookId: string,
+    @Body() dto: FinalizeCoverDto,
+  ): Promise<{ success: boolean }> {
+    return this.booksService.finalizeCoverUpload(
+      req.user.userId,
+      bookId,
+      dto.storageKey,
+    );
+  }
+
+  @Authenticated()
   @Post('finalize')
-  @ApiOperation({ summary: 'Mark book upload as complete' })
-  async finalize(
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Finalize book upload',
+    description:
+      'Verifies uploaded files, calculates hash, and marks book as ready',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Book finalized successfully',
+    type: FinalizeResponse,
+  })
+  @ApiResponse({ status: 400, description: 'File validation failed' })
+  @ApiResponse({
+    status: 404,
+    description: 'Book not found or already finalized',
+  })
+  async finalizeBook(
     @Req() req: { user: { userId: string } },
     @Body() dto: FinalizeBookDto,
   ): Promise<FinalizeResponse> {
-    return await this.booksService.finalizeBook(req.user.userId, dto.bookId);
+    return this.booksService.finalizeBook(req.user.userId, dto.bookId);
   }
 
   @Authenticated()
   @Get()
   @ApiOperation({
-    summary: 'Get all books excluding pending and error statuses',
+    summary: 'Get all user books',
+    description:
+      'Retrieves all books for the authenticated user (excludes pending and error statuses)',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Books retrieved successfully',
+    type: [BookResponse],
   })
   async getAllBooks(
     @Req() req: { user: { userId: string } },
   ): Promise<BookResponse[]> {
-    return await this.booksService.getAllBooks(req.user.userId);
+    return this.booksService.getAllBooks(req.user.userId);
   }
 
   @Authenticated()
   @Get(':id')
-  @ApiOperation({ summary: 'Get book metadata' })
+  @ApiOperation({
+    summary: 'Get book by ID',
+    description: 'Retrieves detailed information about a specific book',
+  })
+  @ApiParam({ name: 'id', description: 'Book ID' })
+  @ApiResponse({
+    status: 200,
+    description: 'Book retrieved successfully',
+    type: BookResponse,
+  })
+  @ApiResponse({ status: 404, description: 'Book not found' })
   async getBook(
     @Req() req: { user: { userId: string } },
     @Param('id') id: string,
   ): Promise<BookResponse> {
-    return await this.booksService.getBook(req.user.userId, id);
+    return this.booksService.getBook(req.user.userId, id);
   }
 
   @Authenticated()
   @Get(':id/download')
-  @ApiOperation({ summary: 'Download book file with Range support' })
+  @ApiOperation({
+    summary: 'Download book file',
+    description:
+      'Downloads the book file with support for HTTP Range requests (partial downloads)',
+  })
+  @ApiParam({ name: 'id', description: 'Book ID' })
+  @ApiHeader({
+    name: 'Range',
+    description: 'HTTP Range header for partial downloads',
+    required: false,
+  })
+  @ApiResponse({ status: 200, description: 'Book file download started' })
+  @ApiResponse({ status: 206, description: 'Partial content (Range request)' })
+  @ApiResponse({ status: 404, description: 'Book not found or not ready' })
+  @ApiResponse({ status: 416, description: 'Range not satisfiable' })
   async downloadBook(
     @Req() req: { user: { userId: string } },
     @Param('id') id: string,
     @Headers('range') range: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    await this.booksService.downloadBook(req.user.userId, id, range, res);
+    return this.booksService.downloadBook(req.user.userId, id, range, res);
   }
 }

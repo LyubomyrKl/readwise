@@ -1,30 +1,49 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BookStatus } from '@prisma/client';
 
-export class PresignUploadInfo {
-  @ApiProperty()
+export class PresignInfo {
+  @ApiProperty({ description: 'Presigned upload URL' })
   url!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Required headers for upload' })
   headers!: Record<string, string>;
 }
 
 export class PresignResponse {
-  @ApiProperty()
+  @ApiProperty({ description: 'Created book ID' })
   bookId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ description: 'Storage key for book file' })
   storageKey!: string;
 
-  @ApiProperty({ type: PresignUploadInfo })
-  presignUploadInfo!: PresignUploadInfo;
+  @ApiProperty({
+    description: 'Presigned upload info for book file',
+    type: PresignInfo,
+  })
+  presignUploadInfo!: PresignInfo;
+
+  @ApiProperty({
+    description: 'Storage key for custom cover file',
+    required: false,
+  })
+  customCoverStorageKey?: string;
+
+  @ApiProperty({
+    description: 'Presigned upload info for custom cover',
+    type: PresignInfo,
+    required: false,
+  })
+  customCoverPresignInfo?: PresignInfo;
 }
 
 export class FinalizeResponse {
-  @ApiProperty()
+  @ApiProperty({ description: 'Book ID' })
   bookId!: string;
 
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Book status after finalization',
+    enum: ['ready'],
+  })
   status!: BookStatus;
 }
 
@@ -39,7 +58,7 @@ export class BookResponse {
   author!: string;
 
   @ApiProperty({ required: false })
-  customCoverFilePath?: string | null;
+  customStorageKey?: string | null;
 
   @ApiProperty()
   spentHours!: number;
@@ -72,15 +91,6 @@ export class BookResponse {
   updatedAt!: Date;
 }
 
-export interface DownloadHeaders {
-  'Content-Type': string;
-  'Accept-Ranges': string;
-  'Content-Disposition': string;
-  'Content-Length': string;
-  'Content-Range'?: string;
-  Location: string;
-}
-
 export class DownloadResponse {
   @ApiProperty()
   headers!: DownloadHeaders;
@@ -90,9 +100,21 @@ export class DownloadResponse {
 }
 
 export class CoverPresignResponse {
-  @ApiProperty({ type: PresignUploadInfo })
-  presignUploadInfo!: PresignUploadInfo;
+  @ApiProperty({
+    description: 'Presigned upload info for cover',
+    type: PresignInfo,
+  })
+  presignUploadInfo!: PresignInfo;
 
-  @ApiProperty()
-  storageKey: string;
+  @ApiProperty({ description: 'Storage key for cover file' })
+  storageKey!: string;
+}
+
+export interface DownloadHeaders {
+  'Content-Type': string;
+  'Accept-Ranges': string;
+  'Content-Disposition': string;
+  'Content-Length': string;
+  'Content-Range'?: string;
+  Location: string;
 }
