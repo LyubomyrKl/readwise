@@ -458,17 +458,27 @@ export class BooksService {
     };
   }
 
-  async finalizeCoverUpload(
+  async finalizeFile(
     userId: string,
     bookId: string,
-    storageKey: string,
   ): Promise<{ success: boolean }> {
     const book = await this.findBookByIdAndUser(bookId, userId);
 
-    // Verify new cover exists
-    await this.validateFileExists(storageKey, true);
+    if (!book.fileStorageKey) {
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.FILE_NOT_FOUND);
+    }
 
-    // Delete old cover if exists
+    // Delete file storage key
+    try {
+      await this.s3.deleteObject(book.fileStorageKey);
+    } catch (error) {
+      this.logger.warn(
+        `Failed to delete file object: ${book.fileStorageKey}`,
+        error,
+      );
+    }
+
+    // Delete custom cover storage key if exists
     if (
       book.customCoverStorageKey &&
       typeof book.customCoverStorageKey === 'string'
@@ -477,20 +487,73 @@ export class BooksService {
         await this.s3.deleteCoverObject(book.customCoverStorageKey);
       } catch (error) {
         this.logger.warn(
-          `Failed to delete old cover object: ${book.customCoverStorageKey}`,
+          `Failed to delete cover object: ${book.customCoverStorageKey}`,
           error,
         );
       }
     }
 
-    // Update book with new cover
-    await this.prisma.book.update({
-      where: { id: bookId },
-      data: { customCoverStorageKey: storageKey },
-    });
-
-    this.logger.log(`Updated cover for book ${bookId}`);
+    this.logger.log(`Deleted storage keys for book ${bookId}`);
 
     return { success: true };
+  }
+
+  async finalizeCoverUpload(
+    userId: string,
+    bookId: string,
+  ): Promise<{ success: boolean }> {
+    const book = await this.findBookByIdAndUser(bookId, userId);
+
+    if (!book.customCoverStorageKey) {
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.COVER_NOT_FOUND);
+    }
+
+    // Verify new cover exists
+    await this.validateFileExists(book.customCoverStorageKey, true);
+
+    // Process cover file similar to processBookFile
+    const { finalCoverStorageKey } = await this.processCoverFile(
+      book,
+      userId,
+    );
+
+    // Update book with final cover storage key
+    await this.prisma.book.update({
+      where: { id: bookId },
+      data: { customCoverStorageKey: finalCoverStorageKey },
+    });
+
+    this.logger.log(`Finalized cover for book ${bookId}`);
+
+    return { success: true };
+  }
+
+  private async processCoverFile(
+    book: Book,
+    userId: string,
+  ): Promise<{ finalCoverStorageKey: string }> {
+    if (!book.customCoverStorageKey) {
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.COVER_NOT_FOUND);
+    }
+
+    // Extract original filename from temporary key
+    const tempFilename = book.customCoverStorageKey.split('/').pop()!;
+    const originalFilename = tempFilename.substring(
+      0,
+      tempFilename.lastIndexOf('-'),
+    );
+
+    const finalCoverStorageKey = this.s3.generateCoverStorageKey(
+      userId,
+      originalFilename,
+    );
+
+    // Move cover to final location if different
+    if (finalCoverStorageKey !== book.customCoverStorageKey) {
+      await this.s3.copyCoverObject(book.customCoverStorageKey, finalCoverStorageKey);
+      await this.s3.deleteCoverObject(book.customCoverStorageKey);
+    }
+
+    return { finalCoverStorageKey };
   }
 }

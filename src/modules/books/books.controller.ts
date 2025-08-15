@@ -98,14 +98,9 @@ export class BooksController {
   @ApiResponse({ status: 404, description: 'Book not found' })
   async finalizeCover(
     @Req() req: { user: { userId: string } },
-    @Param('id') bookId: string,
     @Body() dto: FinalizeCoverDto,
   ): Promise<{ success: boolean }> {
-    return this.booksService.finalizeCoverUpload(
-      req.user.userId,
-      bookId,
-      dto.storageKey,
-    );
+    return this.booksService.finalizeCoverUpload(req.user.userId, dto.bookId);
   }
 
   @Authenticated()

@@ -33,6 +33,18 @@ export class CreateBookDto {
   )
   author!: string;
 
+  @ApiProperty({
+    description: 'Book description',
+    example: 'A classic American novel',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_DESCRIPTION_LENGTH)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  description!: string;
+
   @ApiProperty({ description: 'Original filename', example: 'book.epub' })
   @IsString()
   @IsNotEmpty()
@@ -97,18 +109,6 @@ export class CreateBookDto {
   @Min(BOOK_CONSTRAINTS.MIN_FILE_SIZE)
   @Max(BOOK_CONSTRAINTS.MAX_COVER_SIZE)
   customCoverSizeBytes?: number;
-
-  @ApiProperty({
-    description: 'Book description',
-    example: 'A classic American novel',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @Length(1, BOOK_CONSTRAINTS.MAX_DESCRIPTION_LENGTH)
-  @Transform(({ value }: { value: unknown }) =>
-    typeof value === 'string' ? value.trim() : value,
-  )
-  description!: string;
 }
 
 export class FinalizeBookDto {
@@ -157,6 +157,14 @@ export class CoverUploadDto {
 }
 
 export class FinalizeCoverDto {
+  @ApiProperty({
+    description: 'Book ID to finalize cover for',
+    example: 'uuid-here',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+
   @ApiProperty({ description: 'Storage key of uploaded cover file' })
   @IsString()
   @IsNotEmpty()

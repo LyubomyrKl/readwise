@@ -199,6 +199,16 @@ export class S3Service {
     }
   }
 
+  async copyCoverObject(sourceKey: string, destKey: string): Promise<void> {
+    const command = new CopyObjectCommand({
+      Bucket: this.coverBucketName,
+      CopySource: `${this.coverBucketName}/${sourceKey}`,
+      Key: destKey,
+    });
+
+    await this.client.send(command);
+  }
+
   async deleteCoverObject(key: string): Promise<void> {
     const command = new DeleteObjectCommand({
       Bucket: this.coverBucketName,
