@@ -12,10 +12,12 @@ import {
 import { useRef, useState, useEffect } from "react";
 import { IBook } from "../../types";
 import { BookCover } from "./BookCover.component";
+import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 
 export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [truncated, setTruncated] = useState(false);
+  const { backgroundStyle } = useBookCover();
 
   useEffect(() => {
     const el = titleRef.current;
@@ -36,6 +38,7 @@ export function BookCard({ book }: { book: IBook }) {
               title={book.title}
               author={book.author}
               cover={book.coverUrl}
+              backgroundStyle={backgroundStyle}
             />
             <div className="absolute left-2 top-2 flex gap-2">
               {book.isFavorite && (

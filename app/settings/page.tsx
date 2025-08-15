@@ -14,6 +14,8 @@ import { Separator } from "@/components/ui/separator";
 import { LogOut } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle.component";
 import { useMotion } from "../(providers)/MotionProvider/MotionProvider";
+import { useBookCover } from "../(providers)/BookCoverProvider/BookCoverProvider";
+import { BookCover } from "../reader/library/components/BookCover.component";
 import {
   Select,
   SelectTrigger,
@@ -49,6 +51,7 @@ const item: Variants = {
 export default function SettingsPage() {
   const [pending, start] = useTransition();
   const { enabled, mode, setMode } = useMotion();
+  const { backgroundStyle, setBackgroundStyle } = useBookCover();
 
   async function logout() {
     start(async () => {
@@ -93,6 +96,60 @@ export default function SettingsPage() {
             <div>
               <div className="mb-2 text-sm text-muted-foreground">Theme</div>
               <ThemeToggle />
+            </div>
+
+            <Separator />
+
+            <div>
+              <div className="mb-2 text-sm text-muted-foreground">
+                Book Cover Style
+              </div>
+              
+              <div className="grid grid-cols-2 gap-3 mb-3">
+                {/* Classic Preview */}
+                <div 
+                  className={`relative cursor-pointer rounded-lg border-2 p-2 transition-colors ${
+                    backgroundStyle === 'classic' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border hover:border-border/80'
+                  }`}
+                  onClick={() => setBackgroundStyle('classic')}
+                >
+                  <div className="aspect-[2/3] w-full">
+                    <BookCover
+                      title="Classic Novel"
+                      author="Author Name"
+                      backgroundStyle="classic"
+                      className="rounded-sm"
+                    />
+                  </div>
+                  <p className="mt-2 text-center text-xs font-medium">Classic</p>
+                </div>
+
+                {/* Modern Preview */}
+                <div 
+                  className={`relative cursor-pointer rounded-lg border-2 p-2 transition-colors ${
+                    backgroundStyle === 'modern' 
+                      ? 'border-primary bg-primary/5' 
+                      : 'border-border hover:border-border/80'
+                  }`}
+                  onClick={() => setBackgroundStyle('modern')}
+                >
+                  <div className="aspect-[2/3] w-full">
+                    <BookCover
+                      title="Example Book"
+                      author="Author Name"
+                      backgroundStyle="modern"
+                      className="rounded-sm"
+                    />
+                  </div>
+                  <p className="mt-2 text-center text-xs font-medium">Modern</p>
+                </div>
+              </div>
+              
+              <p className="text-xs text-muted-foreground">
+                Choose between classic elegance or modern clean designs for book covers without images.
+              </p>
             </div>
 
             <Separator />
