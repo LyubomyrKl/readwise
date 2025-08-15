@@ -52,6 +52,7 @@ export const BookResponse = z.object({
   title: z.string(),
   author: z.string(),
   coverUrl: z.string().optional(),
+  fileUrl: z.string(),
   spentHours: z.number(),
   pageCount: z.number().nullable(),
   pagePassCount: z.number(),

@@ -13,6 +13,7 @@ import { useRef, useState, useEffect } from "react";
 import { IBook } from "../../types";
 import { BookCover } from "./BookCover.component";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
+import Link from "next/link";
 
 export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -31,7 +32,8 @@ export function BookCard({ book }: { book: IBook }) {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
     >
-      <Card className="group relative overflow-hidden border-0 shadow-lg ring-1 ring-border/50 pt-3 gap-0">
+      <Link href={`/reader/book/${book.id}`}>
+        <Card className="group relative overflow-hidden border-0 shadow-lg ring-1 ring-border/50 pt-3 gap-0 cursor-pointer hover:shadow-xl transition-shadow duration-300">
         <CardContent className="p-0">
           <div className="relative aspect-[2/3] w-full overflow-hidden">
             <BookCover
@@ -95,7 +97,8 @@ export function BookCard({ book }: { book: IBook }) {
             </div>
           )}
         </CardContent>
-      </Card>
+        </Card>
+      </Link>
     </motion.div>
   );
 }

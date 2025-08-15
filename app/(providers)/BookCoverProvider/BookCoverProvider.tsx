@@ -1,23 +1,29 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from 'react';
+import { createContext, useContext, useEffect, useState } from "react";
 
-type BookCoverStyle = 'classic' | 'modern';
+type BookCoverStyle = "classic" | "modern";
 
 interface BookCoverContextType {
   backgroundStyle: BookCoverStyle;
   setBackgroundStyle: (style: BookCoverStyle) => void;
 }
 
-const BookCoverContext = createContext<BookCoverContextType | undefined>(undefined);
+const BookCoverContext = createContext<BookCoverContextType | undefined>(
+  undefined
+);
 
 export function BookCoverProvider({ children }: { children: React.ReactNode }) {
-  const [backgroundStyle, setBackgroundStyleState] = useState<BookCoverStyle>('classic');
+  const [backgroundStyle, setBackgroundStyleState] =
+    useState<BookCoverStyle>("classic");
 
   // Load from localStorage on mount
   useEffect(() => {
-    const saved = localStorage.getItem('bookCoverBackgroundStyle') as BookCoverStyle;
-    if (saved && (saved === 'classic' || saved === 'modern')) {
+    const saved = localStorage.getItem(
+      "bookCoverBackgroundStyle"
+    ) as BookCoverStyle;
+
+    if (saved && (saved === "classic" || saved === "modern")) {
       setBackgroundStyleState(saved);
     }
   }, []);
@@ -25,7 +31,7 @@ export function BookCoverProvider({ children }: { children: React.ReactNode }) {
   // Save to localStorage when changed
   const setBackgroundStyle = (style: BookCoverStyle) => {
     setBackgroundStyleState(style);
-    localStorage.setItem('bookCoverBackgroundStyle', style);
+    localStorage.setItem("bookCoverBackgroundStyle", style);
   };
 
   return (
@@ -38,7 +44,7 @@ export function BookCoverProvider({ children }: { children: React.ReactNode }) {
 export function useBookCover() {
   const context = useContext(BookCoverContext);
   if (context === undefined) {
-    throw new Error('useBookCover must be used within a BookCoverProvider');
+    throw new Error("useBookCover must be used within a BookCoverProvider");
   }
   return context;
 }
