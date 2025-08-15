@@ -1,4 +1,10 @@
-import { IsString, IsNotEmpty, IsNumber, IsOptional, Min } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsNumber,
+  IsOptional,
+  Min,
+} from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateBookDto {
@@ -27,21 +33,15 @@ export class CreateBookDto {
   @Min(1)
   sizeBytes!: number;
 
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  customCoverFilePath?: string;
+
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  sha256!: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsString()
-  cover?: string;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  pageCount?: number;
+  description?: string;
 }
 
 export class FinalizeBookDto {
@@ -49,4 +49,28 @@ export class FinalizeBookDto {
   @IsString()
   @IsNotEmpty()
   bookId!: string;
+}
+
+export class CoverUploadDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  filename!: string;
+
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  mime!: string;
+
+  @ApiProperty()
+  @IsNumber()
+  @Min(1)
+  sizeBytes!: number;
+}
+
+export class FinalizeCoverDto {
+  @ApiProperty()
+  @IsString()
+  @IsNotEmpty()
+  storageKey!: string;
 }

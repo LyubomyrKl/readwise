@@ -1,7 +1,7 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { BookStatus } from '@prisma/client';
 
-export class UploadInfo {
+export class PresignUploadInfo {
   @ApiProperty()
   url!: string;
 
@@ -16,8 +16,8 @@ export class PresignResponse {
   @ApiProperty()
   storageKey!: string;
 
-  @ApiProperty({ type: UploadInfo })
-  upload!: UploadInfo;
+  @ApiProperty({ type: PresignUploadInfo })
+  presignUploadInfo!: PresignUploadInfo;
 }
 
 export class FinalizeResponse {
@@ -39,13 +39,13 @@ export class BookResponse {
   author!: string;
 
   @ApiProperty({ required: false })
-  cover?: string;
+  customCoverFilePath?: string | null;
 
   @ApiProperty()
   spentHours!: number;
 
   @ApiProperty({ required: false })
-  pageCount?: number;
+  pageCount?: number | null;
 
   @ApiProperty()
   pagePassCount!: number;
@@ -87,4 +87,12 @@ export class DownloadResponse {
 
   @ApiProperty()
   statusCode!: number;
+}
+
+export class CoverPresignResponse {
+  @ApiProperty({ type: PresignUploadInfo })
+  presignUploadInfo!: PresignUploadInfo;
+
+  @ApiProperty()
+  storageKey: string;
 }

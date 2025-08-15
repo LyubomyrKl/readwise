@@ -1,5 +1,10 @@
 import { plainToInstance, Transform } from 'class-transformer';
-import { IsString, IsNotEmpty, validateSync, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  validateSync,
+  IsOptional,
+} from 'class-validator';
 
 export class EnvironmentVariables {
   @IsNotEmpty()
@@ -12,12 +17,12 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }: { value: string }) => (value) || '15m')
+  @Transform(({ value }: { value: string }) => value || '15m')
   JWT_ACCESS_TTL = '15m';
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }: { value: string }) => (value) || '7d')
+  @Transform(({ value }: { value: string }) => value || '7d')
   JWT_REFRESH_TTL = '7d';
 
   @IsNotEmpty()
@@ -38,7 +43,11 @@ export class EnvironmentVariables {
 
   @IsNotEmpty()
   @IsString()
-  S3_BUCKET_NAME!: string;
+  S3_BOOK_BUCKET_NAME!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  S3_BOOK_COVER_BUCKET_NAME!: string;
 
   @IsOptional()
   @IsString()

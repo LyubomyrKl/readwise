@@ -11,8 +11,13 @@ import {
 import { ApiTags, ApiOperation } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { BooksService } from './books.service';
-import { CreateBookDto, FinalizeBookDto } from './book.dto';
-import { PresignResponse, FinalizeResponse, BookResponse } from './book.models';
+import { CreateBookDto, FinalizeBookDto, CoverUploadDto } from './book.dto';
+import {
+  PresignResponse,
+  FinalizeResponse,
+  BookResponse,
+  CoverPresignResponse,
+} from './book.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 
 @ApiTags('books')
@@ -31,6 +36,21 @@ export class BooksController {
   }
 
   @Authenticated()
+  @Post('/cover/presign')
+  @ApiOperation({ summary: 'Generate presigned URL for cover upload' })
+  async generateCoverUploadUrl(
+    @Req() req: { user: { userId: string } },
+    @Body() dto: CoverUploadDto,
+  ): Promise<CoverPresignResponse> {
+    return await this.booksService.generateCoverPresignUrl(
+      req.user.userId,
+      dto.filename,
+      dto.mime,
+      dto.sizeBytes,
+    );
+  }
+
+  @Authenticated()
   @Post('finalize')
   @ApiOperation({ summary: 'Mark book upload as complete' })
   async finalize(
@@ -42,7 +62,9 @@ export class BooksController {
 
   @Authenticated()
   @Get()
-  @ApiOperation({ summary: 'Get all books excluding pending and error statuses' })
+  @ApiOperation({
+    summary: 'Get all books excluding pending and error statuses',
+  })
   async getAllBooks(
     @Req() req: { user: { userId: string } },
   ): Promise<BookResponse[]> {
@@ -68,11 +90,6 @@ export class BooksController {
     @Headers('range') range: string | undefined,
     @Res() res: Response,
   ): Promise<void> {
-    await this.booksService.downloadBook(
-      req.user.userId,
-      id,
-      range,
-      res,
-    );
+    await this.booksService.downloadBook(req.user.userId, id, range, res);
   }
 }
