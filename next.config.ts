@@ -14,24 +14,7 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  webpack: (config, { isServer }) => {
-    // Configure for react-pdf
-    if (!isServer) {
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        canvas: false,
-      };
-    }
-    
-    // Handle react-pdf worker
-    config.module.rules.push({
-      test: /\.mjs$/,
-      include: /node_modules/,
-      type: 'javascript/auto',
-    });
-
-    return config;
-  },
+  // Simplified config for EmbedPDF
 };
 
 export default nextConfig;
