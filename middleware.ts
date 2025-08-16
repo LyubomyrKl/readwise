@@ -16,6 +16,7 @@ const PROTECTED_EXACT = new Set<string>([
 
 const PROTECTED_PATTERNS = [
   /^\/reader\/book\/[^\/]+$/, // Matches /reader/book/{id}
+  /^\/reader\/book\/[^\/]+\/profile$/, // Matches /reader/book/{id}/profile
 ];
 
 function needsAuth(path: string) {

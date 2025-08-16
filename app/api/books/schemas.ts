@@ -96,6 +96,29 @@ export const BookResponse = z.object({
   ),
 });
 
+export const CoverPresignReq = z.object({
+  filename: z.string(),
+  mime: z.string(),
+});
+
+export const CoverPresignRes = z.object({
+  storageKey: z.string(),
+  upload: z.object({
+    url: z.string(),
+    headers: z.record(z.string(), z.string()),
+  }),
+});
+
+export const UpdateCoverFinalizeReq = z.object({
+  bookId: z.string(),
+  storageKey: z.string(),
+});
+
+export const UpdateCoverFinalizeRes = z.object({
+  bookId: z.string(),
+  status: z.literal("ready").or(z.literal("pending")).or(z.literal("failed")),
+});
+
 export const GetAllBooksRes = z.array(BookResponse);
 
 export const BooksApiRegistry = {
@@ -106,6 +129,8 @@ export const BooksApiRegistry = {
       req: FinalizeCoverReq,
       res: FinalizeCoverRes,
     },
+    "/api/books/coverPresign": { req: CoverPresignReq, res: CoverPresignRes },
+    "/api/books/updateCoverFinalize": { req: UpdateCoverFinalizeReq, res: UpdateCoverFinalizeRes },
   },
   GET: {
     "/api/books": { req: undefined, res: GetAllBooksRes },
