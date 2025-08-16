@@ -26,6 +26,7 @@ export const BOOK_ERROR_MESSAGES = {
   COVER_NOT_FOUND: 'Cover file not found in storage',
   PRESIGN_FAILED: 'Failed to generate presigned URL',
   BOOK_CREATION_FAILED: 'Failed to create book record',
+  COVER_NOT_PREPARED_FOR_UPLOAD: 'Cover not prepared for upload',
 } as const;
 
 export const BOOK_STATUS = {

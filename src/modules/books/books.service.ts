@@ -9,13 +9,15 @@ import { Book } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookFilesService } from './book.files.service';
-import { CreateBookDto } from './book.dto';
+import { CreateBookDto, PresignedUploadDto } from './book.dto';
 import {
   PresignResponse,
   FinalizeResponse,
   BookResponse,
   DownloadResponse,
   PresignInfo,
+  CoverPresignResponse,
+  CoverUpdateDto,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
 import { BOOK_WITH_RELATIONS, BookWithRelations } from './book.helpers';
@@ -237,5 +239,69 @@ export class BooksService {
     range?: string,
   ): Promise<DownloadResponse> {
     return this.bookFilesService.prepareDownload(userId, bookId, range);
+  }
+
+  async finalizeCoverUpload(
+    userId: string,
+    bookId: string,
+  ): Promise<{ success: boolean }> {
+    return this.bookFilesService.finalizeCoverUpload(userId, bookId);
+  }
+
+  async coverPresign(
+    userId: string,
+    dto: PresignedUploadDto,
+  ): Promise<CoverPresignResponse> {
+    const response = await this.bookFilesService.generateCustomCoverPresign(
+      userId,
+      dto.filename,
+      dto.mime,
+    );
+
+    return {
+      storageKey: response.storageKey,
+      presignUploadInfo: response.presignInfo,
+    };
+  }
+
+  async coverUpdateFinalize(
+    userId: string,
+    dto: CoverUpdateDto,
+  ): Promise<FinalizeResponse> {
+    const book = await this.findPendingBookByIdAndUser(dto.bookId, userId);
+
+    if (!book.customCoverStorageKey) {
+      throw new BadRequestException(
+        BOOK_ERROR_MESSAGES.COVER_NOT_PREPARED_FOR_UPLOAD,
+      );
+    }
+
+    try {
+      // Verify custom cover file exists
+      await this.bookFilesService.validateFileExists(
+        book.customCoverStorageKey,
+      );
+
+      // Update book with finalized cover details
+      await this.prisma.book.update({
+        where: { id: dto.bookId },
+        data: {
+          customCoverStorageKey: book.customCoverStorageKey,
+          status: BOOK_STATUS.READY,
+        },
+      });
+
+      this.logger.log(
+        `Finalized cover for book ${dto.bookId} for user ${userId}`,
+      );
+
+      return { bookId: dto.bookId, status: BOOK_STATUS.READY };
+    } catch (error) {
+      this.logger.error(
+        `Failed to finalize cover for book ${dto.bookId} for user ${userId}`,
+        error,
+      );
+      throw error;
+    }
   }
 }

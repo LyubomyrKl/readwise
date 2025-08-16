@@ -19,8 +19,19 @@ import {
 } from '@nestjs/swagger';
 import type { Response } from 'express';
 import { BooksService } from './books.service';
-import { CreateBookDto, FinalizeBookDto, FinalizeCoverDto } from './book.dto';
-import { PresignResponse, FinalizeResponse, BookResponse } from './book.models';
+import {
+  CreateBookDto,
+  FinalizeBookDto,
+  FinalizeCoverDto,
+  PresignedUploadDto,
+} from './book.dto';
+import {
+  PresignResponse,
+  FinalizeResponse,
+  BookResponse,
+  CoverPresignResponse,
+  CoverUpdateDto,
+} from './book.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 
 @ApiTags('books')
@@ -153,5 +164,33 @@ export class BooksController {
     @Res() res: Response,
   ): Promise<void> {
     return this.booksService.downloadBook(req.user.userId, id, range, res);
+  }
+
+  @Authenticated()
+  @Post('cover/update')
+  @ApiOperation({
+    summary: 'Prepare book cover upload',
+    description:
+      'Prepares the book cover for upload, returning necessary metadata and presigned URL',
+  })
+  async coverPresign(
+    @Req() req: { user: { userId: string } },
+    @Body() dto: PresignedUploadDto,
+  ): Promise<CoverPresignResponse> {
+    return await this.booksService.coverPresign(req.user.userId, dto);
+  }
+
+  @Authenticated()
+  @Post('cover/update/finalize')
+  @ApiOperation({
+    summary: 'Finalize book cover upload',
+    description:
+      'Finalizes the book cover upload, returning necessary metadata and presigned URL',
+  })
+  async bookPresign(
+    @Req() req: { user: { userId: string } },
+    @Body() dto: CoverUpdateDto,
+  ): Promise<FinalizeResponse> {
+    return await this.booksService.coverUpdateFinalize(req.user.userId, dto);
   }
 }

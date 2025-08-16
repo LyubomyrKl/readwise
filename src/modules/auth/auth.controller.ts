@@ -1,10 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  Post,
-  Req,
-} from '@nestjs/common';
+import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { RegisterDto, LoginDto, RefreshDto } from './auth.dto';
 import {
@@ -38,7 +32,9 @@ export class AuthController {
 
   @Authenticated()
   @Get('me')
-  async me(@Req() req: { user: { userId: string; email: string } }): Promise<MePayload> {
+  async me(
+    @Req() req: { user: { userId: string; email: string } },
+  ): Promise<MePayload> {
     return await this.auth.me(req.user.userId);
   }
 

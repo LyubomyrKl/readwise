@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import type { BookStatus, BookTag, Note, Highlight } from '@prisma/client';
+import { IsNotEmpty, IsString } from 'class-validator';
 
 export class PresignInfo {
   @ApiProperty({ description: 'Presigned upload URL' })
@@ -119,6 +120,41 @@ export class CoverPresignResponse {
   presignUploadInfo!: PresignInfo;
 
   @ApiProperty({ description: 'Storage key for cover file' })
+  storageKey!: string;
+}
+
+export class DownloadHeadersDto {
+  @ApiProperty({ description: 'Content-Type of the file' })
+  'Content-Type': string;
+
+  @ApiProperty({ description: 'Accept-Ranges header' })
+  'Accept-Ranges': string;
+
+  @ApiProperty({ description: 'Content-Disposition header' })
+  'Content-Disposition': string;
+
+  @ApiProperty({ description: 'Content-Length of the file' })
+  'Content-Length': string;
+
+  @ApiProperty({ description: 'Content-Range header', required: false })
+  'Content-Range'?: string;
+
+  @ApiProperty({ description: 'Location header for redirection' })
+  Location: string;
+}
+
+export class CoverUpdateDto {
+  @ApiProperty({
+    description: 'Book ID to update cover for',
+    example: 'uuid-here',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+
+  @ApiProperty({ description: 'Cover filename', example: 'cover.jpg' })
+  @IsString()
+  @IsNotEmpty()
   storageKey!: string;
 }
 

@@ -9,11 +9,7 @@ import type { Response } from 'express';
 import { Book } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
-import {
-  PresignInfo,
-  DownloadResponse,
-  DownloadHeaders,
-} from './book.models';
+import { PresignInfo, DownloadResponse, DownloadHeaders } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
 
 @Injectable()
@@ -49,7 +45,9 @@ export class BookFilesService {
     presignInfo: PresignInfo;
   }> {
     const storageKey = this.s3.generateCoverStorageKey(userId, filename);
+
     this.logger.log(`Generating presigned URL for custom cover: ${storageKey}`);
+
     const presignInfo = await this.s3.generatePresignedCoverUploadUrl(
       storageKey,
       mime,
@@ -84,10 +82,7 @@ export class BookFilesService {
     };
   }
 
-  async validateFileExists(
-    storageKey: string,
-    isCover = false,
-  ): Promise<void> {
+  async validateFileExists(storageKey: string, isCover = false): Promise<void> {
     const exists = isCover
       ? await this.s3.coverObjectExists(storageKey)
       : await this.s3.objectExists(storageKey);

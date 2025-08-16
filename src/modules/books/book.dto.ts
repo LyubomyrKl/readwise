@@ -165,3 +165,34 @@ export class FinalizeCoverDto {
   @IsNotEmpty()
   bookId!: string;
 }
+
+export class PresignedUploadDto {
+  @ApiProperty({ description: 'Cover filename', example: 'cover.jpg' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
+  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
+  })
+  filename!: string;
+
+  @ApiProperty({ description: 'Cover MIME type', example: 'image/jpeg' })
+  @IsString()
+  @IsNotEmpty()
+  @IsMimeType()
+  @Matches(BOOK_CONSTRAINTS.COVER_MIME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
+  })
+  mime!: string;
+}
+
+export class PresignResponse {
+  @ApiProperty({ description: 'Presigned URL for file upload' })
+  presignedUrl!: string;
+
+  @ApiProperty({ description: 'Storage key for the uploaded file' })
+  storageKey!: string;
+
+  @ApiProperty({ description: 'File size in bytes' })
+  sizeBytes!: number;
+}
