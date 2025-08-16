@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { BookStatus, BookTag, Note } from '@prisma/client';
+import type { BookStatus, BookTag, Note, Highlight } from '@prisma/client';
 
 export class PresignInfo {
   @ApiProperty({ description: 'Presigned upload URL' })
