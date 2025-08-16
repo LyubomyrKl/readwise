@@ -58,7 +58,10 @@ export class BookResponse {
   author!: string;
 
   @ApiProperty({ required: false })
-  customStorageKey?: string | null;
+  coverUrl?: string;
+
+  @ApiProperty({ required: true })
+  fileUrl!: string;
 
   @ApiProperty()
   spentHours!: number;

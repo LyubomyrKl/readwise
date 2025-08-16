@@ -1,0 +1,23 @@
+model SearchItem {
+  id        String   @id @default(cuid())
+  userId    String
+  bookId    String
+  ownerType SearchOwnerType   // 'chunk' | 'note' | 'highlight' | 'summary'
+  ownerId   String
+  text      String
+  meta      Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([ownerType, ownerId])
+  @@index([userId, bookId, ownerType])
+  @@map("search_item")
+}
+
+
+enum SearchOwnerType {
+  chunk
+  note
+  highlight
+  tag
+}

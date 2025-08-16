@@ -96,11 +96,11 @@ export class BooksService {
     return { storageKey, presignInfo };
   }
 
-  generateBookFilePresign = async (
+  private async generateBookFilePresign(
     userId: string,
     filename: string,
     mime: string,
-  ): Promise<{ storageKey: string; presignInfo: PresignInfo }> => {
+  ): Promise<{ storageKey: string; presignInfo: PresignInfo }> {
     const temporaryStorageKey = this.s3.generateStorageKey(userId, filename);
     this.logger.log(
       `Generating presigned URL for book file: ${temporaryStorageKey}`,
@@ -116,7 +116,7 @@ export class BooksService {
       storageKey: temporaryStorageKey,
       presignInfo: presignUploadInfo,
     };
-  };
+  }
 
   private async validateFileExists(
     storageKey: string,
@@ -134,12 +134,17 @@ export class BooksService {
     }
   }
 
-  private convertBookToResponse(book: Book): BookResponse {
+  private async convertBookToResponse(book: Book): Promise<BookResponse> {
     return {
       id: book.id,
       title: book.title,
       author: book.author,
-      customStorageKey: book.customCoverStorageKey,
+      coverUrl: book.customCoverStorageKey
+        ? await this.s3.generatePresignedCoverDownloadUrl(
+            book.customCoverStorageKey,
+          )
+        : undefined,
+      fileUrl: await this.s3.generatePresignedDownloadUrl(book.fileStorageKey),
       spentHours: book.spentHours,
       pageCount: book.pageCount,
       pagePassCount: book.pagePassCount,
@@ -302,7 +307,9 @@ export class BooksService {
       },
     });
 
-    return books.map((book) => this.convertBookToResponse(book));
+    return await Promise.all(
+      books.map((book) => this.convertBookToResponse(book)),
+    );
   }
 
   async getBook(userId: string, bookId: string): Promise<BookResponse> {
