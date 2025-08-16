@@ -47,20 +47,20 @@ enum BookStatus {
 }
 
 model Note {
-  id         String    @id @default(cuid())
+  id         String      @id @default(cuid())
   userId     String
   bookId     String
   body       String // markdown allowed
   anchor     Json? // selector, see below
-  isPinned   Boolean   @default(false)
-  isArchived Boolean   @default(false)
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  isPinned   Boolean     @default(false)
+  isArchived Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
   deletedAt  DateTime?
   tags       NoteTag[]
   highlights Highlight[]
-  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book       Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@index([userId, bookId, createdAt])
 }
@@ -76,10 +76,10 @@ model Highlight {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   deletedAt DateTime?
-  tags HighlightTag[]
-  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  note Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  tags      HighlightTag[]
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  note      Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
 
   @@index([userId, bookId, createdAt])
 }
@@ -134,7 +134,7 @@ model Tag {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookTags      BookTag[]
   noteTags      NoteTag[]
   highlightTags HighlightTag[]
