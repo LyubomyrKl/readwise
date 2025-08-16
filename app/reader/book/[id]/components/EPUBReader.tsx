@@ -1,377 +1,339 @@
+// components/EpubReader.tsx
 "use client";
 
-import { useEffect, useRef, useState, useCallback } from "react";
-import { ChevronLeft, ChevronRight, Settings, Bookmark } from "lucide-react";
-import { IBook } from "@/app/reader/types";
+import { useCallback, useEffect, useRef, useState } from "react";
+import {
+  Maximize2,
+  Minimize2,
+  Moon,
+  Sun,
+  ChevronLeft,
+  ChevronRight,
+  Download,
+} from "lucide-react";
 
-declare global {
-  interface Window {
-    ePub?: any;
-  }
-}
+const IconBtn = (p: any) => (
+  <button
+    {...p}
+    className={
+      "inline-flex items-center justify-center rounded-2xl px-3 py-2 text-sm border " +
+      "bg-background/80 backdrop-blur supports-[backdrop-filter]:bg-background/60 " +
+      "hover:bg-accent hover:text-accent-foreground transition"
+    }
+  />
+);
 
-type Theme = "light" | "dark" | "sepia";
-interface EPUBReaderProps {
-  book: IBook;
-} // book should have .fileStorageKey or .fileUrl to the .epub
+export type EPUBBook = {
+  id: string;
+  title?: string;
+  author?: string;
+  fileUrl: string; // presigned S3 URL
+};
 
-interface ReaderState {
-  currentLocation: string | null;
-  totalLocations: number;
-  currentPage: number;
-  progress: number;
-  bookmarks: string[];
-  fontSize: number;
-  theme: Theme;
-}
+type TocItem = { href: string; label: string; subitems?: TocItem[] };
 
-export default function EPUBReader({ book }: EPUBReaderProps) {
-  const viewerRef = useRef<HTMLDivElement>(null);
+export default function EpubReader({ book }: { book: EPUBBook }) {
+  const viewerRef = useRef<HTMLDivElement | null>(null);
   const bookRef = useRef<any>(null);
   const renditionRef = useRef<any>(null);
 
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [readerState, setReaderState] = useState<ReaderState>({
-    currentLocation: null,
-    totalLocations: 0,
-    currentPage: 1,
-    progress: 0,
-    bookmarks: [],
-    fontSize: 100,
-    theme: "light",
-  });
+  const [ready, setReady] = useState(false);
+  const [tocOpen, setTocOpen] = useState(false);
+  const [toc, setToc] = useState<TocItem[]>([]);
+  const [fontPct, setFontPct] = useState(100);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [progress, setProgress] = useState(0);
+  const [fullscreen, setFullscreen] = useState(false);
 
-  // Use proxy to avoid S3 CORS/ACL issues
-  const resolveSrc = useCallback(() => {
-    const url = book.fileUrl;
-    
-    console.log('Book fileUrl:', url);
-    
-    // If it's already a full HTTP URL, try using it directly first
-    // The blob URL approach should handle CORS issues
-    if (url.startsWith('http')) {
-      console.log('Using direct URL:', url);
-      return url;
-    }
-    
-    // Otherwise, treat it as a storage key and proxy through our API
-    const proxyUrl = `/api/files/epub?key=${encodeURIComponent(url)}`;
-    console.log('Using proxy URL:', proxyUrl);
-    return proxyUrl;
-  }, [book]);
+  const keyCfi = `epub:cfi:${book.id}`;
 
-  const loadEpubJS = useCallback(async () => {
-    if (typeof window === "undefined" || window.ePub) return;
-    const script = document.createElement("script");
-    script.src = "https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js";
-    script.async = true;
-    document.head.appendChild(script);
-    await new Promise<void>((res, rej) => {
-      script.onload = () => res();
-      script.onerror = () => rej(new Error("Failed to load ePub.js"));
-    });
-  }, []);
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      if (!viewerRef.current || !book.fileUrl) return;
 
-  const registerThemes = useCallback((theme: Theme, fontSize: number) => {
-    const r = renditionRef.current;
-    if (!r) return;
-    const t = r.themes;
-    t.register("light", {
-      body: {
-        background: "#ffffff",
-        color: "#000000",
-        "font-size": `${fontSize}%`,
-      },
-    });
-    t.register("dark", {
-      body: {
-        background: "#1a1a1a",
-        color: "#e5e5e5",
-        "font-size": `${fontSize}%`,
-      },
-    });
-    t.register("sepia", {
-      body: {
-        background: "#f4f1ea",
-        color: "#5c4b37",
-        "font-size": `${fontSize}%`,
-      },
-    });
-    t.select(theme);
-  }, []);
+      const { default: ePub } = await import("epubjs");
 
-  const initializeReader = useCallback(async () => {
-    if (!viewerRef.current) return;
-    await loadEpubJS();
-    if (!window.ePub) throw new Error("ePub.js not loaded");
-
-    setIsLoading(true);
-    setError(null);
-
-    const src = resolveSrc();
-    console.log('Loading EPUB from:', src);
-    
-    try {
-      // Download the EPUB file as a blob and create a blob URL
-      // This avoids CORS issues when ePub.js tries to access internal files
-      const response = await fetch(src, {
-        credentials: 'include'
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch EPUB: ${response.status}`);
+      // Robust fetch for S3 presigned URL. Falls back to URL if CORS allows.
+      let source: ArrayBuffer | string = book.fileUrl;
+      try {
+        const res = await fetch(book.fileUrl, {
+          referrerPolicy: "no-referrer",
+        });
+        if (res.ok) source = await res.arrayBuffer();
+      } catch {
+        // leave source as URL if direct fetch failed
       }
-      
-      const blob = await response.blob();
-      const blobUrl = URL.createObjectURL(blob);
-      
-      console.log('Created blob URL:', blobUrl);
-      
-      bookRef.current = window.ePub(blobUrl);
-      
+
+      bookRef.current = ePub(source as any);
       renditionRef.current = bookRef.current.renderTo(viewerRef.current, {
         width: "100%",
         height: "100%",
-        spread: "none",
+        spread: "auto",
+        flow: "paginated",
+        manager: "default",
       });
 
-      // Themes and font
-      registerThemes(readerState.theme, readerState.fontSize);
-      
-      // Store blob URL for cleanup
-      (renditionRef.current as any)._blobUrl = blobUrl;
-      
-    } catch (error) {
-      console.error('Error loading EPUB:', error);
-      throw error;
-    }
+      // Themes
+      renditionRef.current.themes.register("light", {
+        body: { background: "transparent", color: "inherit" },
+        "p, h1, h2, h3, h4, h5, h6": { color: "inherit" },
+      });
+      renditionRef.current.themes.register("dark", {
+        body: { background: "transparent", color: "inherit" },
+        "p, h1, h2, h3, h4, h5, h6": { color: "inherit" },
+        a: { color: "inherit" },
+      });
+      renditionRef.current.themes.select(theme);
+      renditionRef.current.themes.fontSize(`${fontPct}%`);
 
-    // First display
-    await renditionRef.current.display();
+      const startCfi = localStorage.getItem(keyCfi) || undefined;
+      await renditionRef.current.display(startCfi);
 
-    // Generate locations for progress
-    await bookRef.current.ready;
-    await bookRef.current.locations.generate(1024);
-    setReaderState((p) => ({
-      ...p,
-      totalLocations: bookRef.current.locations.total || 0,
-    }));
+      // TOC
+      const nav = await bookRef.current.loaded.navigation;
+      if (!cancelled) setToc(nav.toc || []);
 
-    // Track progress
-    renditionRef.current.on("relocated", (location: any) => {
-      const cfi = location?.start?.cfi;
-      const pct = bookRef.current.locations.percentageFromCfi(cfi) || 0;
-      const total = bookRef.current.locations.total || 100;
-      const page = Math.max(1, Math.min(total, Math.floor(pct * total) + 1));
-      setReaderState((p) => ({
-        ...p,
-        currentLocation: cfi || null,
-        progress: Math.round(pct * 100),
-        currentPage: page,
-      }));
-    });
+      // Locations for progress
+      await bookRef.current.ready;
+      await bookRef.current.locations.generate(1000);
 
-    setIsLoading(false);
-  }, [
-    loadEpubJS,
-    resolveSrc,
-    registerThemes,
-    readerState.theme,
-    readerState.fontSize,
-  ]);
+      renditionRef.current.on("relocated", (loc: any) => {
+        if (cancelled) return;
+        try {
+          const pct = bookRef.current.locations.percentageFromCfi(
+            loc.start.cfi
+          );
+          if (!Number.isNaN(pct)) setProgress(Math.round(pct * 100));
+          localStorage.setItem(keyCfi, loc.start.cfi);
+        } catch {
+          // ignore
+        }
+      });
+
+      setReady(true);
+    })();
+
+    return () => {
+      cancelled = true;
+      try {
+        renditionRef.current?.destroy();
+        bookRef.current?.destroy();
+      } catch {
+        // ignore
+      }
+    };
+  }, [book.fileUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    initializeReader().catch((e) => {
-      console.error(e);
-      setError(e?.message || "Failed to load EPUB");
-      setIsLoading(false);
-    });
-    return () => {
-      try {
-        // Clean up blob URL if it exists
-        const blobUrl = (renditionRef.current as any)?._blobUrl;
-        if (blobUrl) {
-          URL.revokeObjectURL(blobUrl);
-        }
-        renditionRef.current?.destroy();
-      } catch {}
-    };
-    // Re-init only when the book changes
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book]);
-
-  // Theme + font handlers
-  const updateTheme = (theme: Theme) => {
-    setReaderState((p) => ({ ...p, theme }));
     renditionRef.current?.themes.select(theme);
-  };
-  const updateFontSize = (fontSize: number) => {
-    setReaderState((p) => ({ ...p, fontSize }));
-    renditionRef.current?.themes.fontSize(`${fontSize}%`);
-  };
+  }, [theme]);
 
-  const goToNextPage = () => renditionRef.current?.next();
-  const goToPrevPage = () => renditionRef.current?.prev();
-
-  const toggleBookmark = () => {
-    const loc = readerState.currentLocation;
-    if (!loc) return;
-    setReaderState((p) => ({
-      ...p,
-      bookmarks: p.bookmarks.includes(loc)
-        ? p.bookmarks.filter((b) => b !== loc)
-        : [...p.bookmarks, loc],
-    }));
-  };
+  useEffect(() => {
+    renditionRef.current?.themes.fontSize(`${fontPct}%`);
+  }, [fontPct]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowLeft") goToPrevPage();
-      if (e.key === "ArrowRight") goToNextPage();
+      if (e.key === "ArrowRight") next();
+      if (e.key === "ArrowLeft") prev();
+      if (e.key === "+" || (e.key === "=" && (e.ctrlKey || e.metaKey)))
+        setFontPct((v) => Math.min(200, v + 10));
+      if (e.key === "-" || (e.key === "_" && (e.ctrlKey || e.metaKey)))
+        setFontPct((v) => Math.max(70, v - 10));
     };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, []);
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-red-600 mb-2">Error</h1>
-          <p className="text-muted-foreground">{error}</p>
-        </div>
-      </div>
-    );
-  }
+  const next = useCallback(() => renditionRef.current?.next(), []);
+  const prev = useCallback(() => renditionRef.current?.prev(), []);
+  const goToHref = useCallback((href: string) => {
+    setTocOpen(false);
+    renditionRef.current?.display(href);
+  }, []);
+
+  const toggleFs = useCallback(async () => {
+    if (!document.fullscreenElement) {
+      await viewerRef.current?.requestFullscreen?.();
+      setFullscreen(true);
+    } else {
+      await document.exitFullscreen();
+      setFullscreen(false);
+    }
+  }, []);
 
   return (
     <div className="flex flex-col h-screen bg-background">
+      {/* Top Navigation */}
       <div className="flex items-center justify-between p-4 border-b bg-background/80 backdrop-blur">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-semibold truncate max-w-md">
-            {book.title}
+            {book.title || "EPUB Reader"}
           </h1>
-          {readerState.progress > 0 && (
+          {progress > 0 && (
             <span className="text-sm text-muted-foreground">
-              {readerState.progress}%
+              {progress}%
             </span>
           )}
         </div>
+        
         <div className="flex items-center gap-2">
           <button
-            onClick={toggleBookmark}
-            className={`p-2 rounded-md transition-colors ${
-              readerState.bookmarks.includes(readerState.currentLocation || "")
-                ? "bg-yellow-100 text-yellow-600"
-                : "text-muted-foreground hover:bg-muted"
-            }`}
+            onClick={() => setTocOpen(!tocOpen)}
+            className="px-3 py-1 text-sm bg-background border rounded hover:bg-muted transition-colors"
           >
-            <Bookmark className="h-4 w-4" />
+            TOC
           </button>
+          
           <button
-            onClick={() => setShowSettings(!showSettings)}
+            onClick={() => setTheme(t => t === "light" ? "dark" : "light")}
             className="p-2 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+            title="Toggle theme"
           >
-            <Settings className="h-4 w-4" />
+            {theme === "light" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />}
           </button>
+          
+          <a 
+            href={book.fileUrl} 
+            download 
+            target="_blank" 
+            rel="noreferrer"
+            className="p-2 rounded-md text-muted-foreground hover:bg-muted transition-colors"
+            title="Download EPUB"
+          >
+            <Download className="h-4 w-4" />
+          </a>
         </div>
       </div>
 
-      {showSettings && (
-        <div className="p-4 border-b bg-muted/50">
-          <div className="flex flex-wrap gap-4 items-center">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Theme:</span>
-              <div className="flex gap-1">
-                {(["light", "dark", "sepia"] as const).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => updateTheme(t)}
-                    className={`px-3 py-1 text-xs rounded ${
-                      readerState.theme === t
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-background border"
-                    }`}
-                  >
-                    {t[0].toUpperCase() + t.slice(1)}
-                  </button>
-                ))}
-              </div>
+      {/* Settings Panel */}
+      <div className="p-4 border-b bg-muted/50">
+        <div className="flex flex-wrap gap-4 items-center">
+          <div className="flex items-center gap-2">
+            <span className="text-sm">Font Size:</span>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setFontPct(v => Math.max(70, v - 10))}
+                className="px-2 py-1 text-xs bg-background border rounded hover:bg-muted"
+              >
+                A-
+              </button>
+              <span className="px-2 py-1 text-xs">{fontPct}%</span>
+              <button
+                onClick={() => setFontPct(v => Math.min(200, v + 10))}
+                className="px-2 py-1 text-xs bg-background border rounded hover:bg-muted"
+              >
+                A+
+              </button>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Font Size:</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() =>
-                    updateFontSize(Math.max(80, readerState.fontSize - 10))
-                  }
-                  className="px-2 py-1 text-xs bg-background border rounded"
-                >
-                  A-
-                </button>
-                <span className="px-2 py-1 text-xs">
-                  {readerState.fontSize}%
-                </span>
-                <button
-                  onClick={() =>
-                    updateFontSize(Math.min(150, readerState.fontSize + 10))
-                  }
-                  className="px-2 py-1 text-xs bg-background border rounded"
-                >
-                  A+
-                </button>
-              </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <span className="text-sm">Progress:</span>
+            <div className="h-2 w-32 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full bg-primary transition-all duration-300"
+                style={{ width: `${progress}%` }}
+              />
             </div>
           </div>
         </div>
-      )}
+      </div>
 
-      <div className="flex-1 relative">
-        {isLoading && (
+      {/* Main Content Area */}
+      <div className="flex-1 relative overflow-hidden">
+        {/* TOC Sidebar */}
+        {tocOpen && (
+          <div className="absolute left-0 top-0 z-10 h-full w-80 overflow-y-auto border-r bg-background shadow-lg">
+            <div className="p-4">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold">Table of Contents</h3>
+                <button
+                  onClick={() => setTocOpen(false)}
+                  className="p-1 hover:bg-muted rounded"
+                >
+                  ×
+                </button>
+              </div>
+              <TocList toc={toc} onGo={goToHref} />
+            </div>
+          </div>
+        )}
+
+        {/* EPUB Viewer */}
+        <div 
+          className={`h-full w-full bg-background transition-all duration-300 ${
+            tocOpen ? 'ml-80' : ''
+          }`} 
+          ref={viewerRef}
+          style={{
+            backgroundColor: theme === 'dark' ? '#1a1a1a' : '#ffffff',
+            color: theme === 'dark' ? '#e5e5e5' : '#000000'
+          }}
+        />
+        
+        {/* Navigation Buttons */}
+        <button
+          onClick={prev}
+          className="absolute left-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-background/80 shadow-lg hover:bg-background transition-all opacity-50 hover:opacity-100"
+          style={{ left: tocOpen ? '336px' : '16px' }}
+          aria-label="Previous page"
+        >
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+        
+        <button
+          onClick={next}
+          className="absolute right-4 top-1/2 -translate-y-1/2 p-3 rounded-full bg-background/80 shadow-lg hover:bg-background transition-all opacity-50 hover:opacity-100"
+          aria-label="Next page"
+        >
+          <ChevronRight className="h-5 w-5" />
+        </button>
+
+        {/* Loading State */}
+        {!ready && (
           <div className="absolute inset-0 flex items-center justify-center bg-background/80">
             <div className="text-center">
               <div className="animate-pulse text-muted-foreground mb-2">
                 Loading EPUB...
               </div>
-              <div className="text-xs text-muted-foreground">{book.title}</div>
+              <div className="text-xs text-muted-foreground">
+                {book.title || "Document"}
+              </div>
             </div>
           </div>
         )}
-        <div
-          ref={viewerRef}
-          className="w-full h-full"
-          style={{ display: isLoading ? "none" : "block" }}
-        />
-        {!isLoading && (
-          <>
-            <button
-              onClick={goToPrevPage}
-              className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 shadow-lg hover:bg-background transition-all opacity-50 hover:opacity-100"
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </button>
-            <button
-              onClick={goToNextPage}
-              className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 shadow-lg hover:bg-background transition-all opacity-50 hover:opacity-100"
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </button>
-          </>
-        )}
       </div>
-
-      {!isLoading && readerState.progress > 0 && (
-        <div className="h-1 bg-muted">
-          <div
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${readerState.progress}%` }}
-          />
-        </div>
-      )}
     </div>
+  );
+}
+
+function TocList({
+  toc,
+  onGo,
+}: {
+  toc: TocItem[];
+  onGo: (href: string) => void;
+}) {
+  return (
+    <ul className="space-y-1">
+      {toc.map((i, idx) => (
+        <li key={`${i.href}-${idx}`}>
+          <button
+            className="w-full text-left rounded-lg px-2 py-1 hover:bg-accent hover:text-accent-foreground"
+            onClick={() => onGo(i.href)}
+            title={i.label}
+          >
+            {i.label}
+          </button>
+          {i.subitems && i.subitems.length > 0 && (
+            <div className="ml-3 border-l pl-3">
+              <TocList toc={i.subitems} onGo={onGo} />
+            </div>
+          )}
+        </li>
+      ))}
+    </ul>
   );
 }
