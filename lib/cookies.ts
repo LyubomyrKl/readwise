@@ -39,6 +39,18 @@ export function setRefreshCookie(
   });
 }
 export function clearAuthCookies(res: NextResponse) {
-  res.cookies.set("access_token", "", { path: "/", maxAge: 0 });
-  res.cookies.set("refresh_token", "", { path: "/", maxAge: 0 });
+  res.cookies.set("access_token", "", { 
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/", 
+    maxAge: 0 
+  });
+  res.cookies.set("refresh_token", "", { 
+    httpOnly: true,
+    secure: true,
+    sameSite: "lax",
+    path: "/", 
+    maxAge: 0 
+  });
 }

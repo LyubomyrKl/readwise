@@ -55,27 +55,47 @@ class AuthenticatedHttpClient {
           originalRequest._retry = true;
 
           try {
-            // Check if we have a refresh token before attempting refresh
-            const refreshToken = (await cookies()).get("refresh_token")?.value;
-            
+            // Extract refresh token from request cookies
+            const cookieHeader = originalRequest.headers.Cookie || originalRequest.headers.cookie;
+            const refreshToken = cookieHeader
+              ?.split(';')
+              .find((cookie: string) => cookie.trim().startsWith('refresh_token='))
+              ?.split('=')[1];
+
             if (!refreshToken) {
-              // No refresh token available, redirect to login
               this.redirectToLogin();
               return Promise.reject(error);
             }
 
-            // Try to refresh token
-            const refreshResponse = await fetch("/api/auth/refresh", {
+            const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
+            console.warn("Retrying request with refreshed token...");
+
+            const refreshResponse = await fetch(`${baseUrl}/api/auth/refresh`, {
               method: "POST",
-              credentials: "include", // Include cookies for auth tokens
+              headers: {
+                "Content-Type": "application/json",
+              },
+              credentials: "include",
+              body: JSON.stringify({ refreshToken: refreshToken }),
             });
 
+            console.warn(refreshResponse);
+
             if (refreshResponse.ok) {
-              const { accessToken } = await refreshResponse.json();
+              const { accessToken, refreshToken: newRefreshToken } =
+                await refreshResponse.json();
 
               // Update the Authorization header for the retry
               if (accessToken && originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${accessToken}`;
+              }
+
+              // Update cookies with new tokens (refresh token rotation)
+              if (typeof document !== "undefined" && newRefreshToken) {
+                // Client-side: update cookies via document
+                const isSecure = window.location.protocol === 'https:';
+                document.cookie = `access_token=${accessToken}; path=/; ${isSecure ? 'secure;' : ''} samesite=lax; max-age=900`;
+                document.cookie = `refresh_token=${newRefreshToken}; path=/; ${isSecure ? 'secure;' : ''} samesite=lax; max-age=604800`;
               }
 
               // Retry original request with new token

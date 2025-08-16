@@ -14,6 +14,7 @@ import { IBook } from "../../types";
 import { BookCover } from "./BookCover.component";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 import Link from "next/link";
+import { ROUTES } from "@/app/(consts)/pages";
 
 export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -32,71 +33,71 @@ export function BookCard({ book }: { book: IBook }) {
     <motion.div
       variants={{ hidden: { opacity: 0, y: 8 }, show: { opacity: 1, y: 0 } }}
     >
-      <Link href={`/reader/book/${book.id}`}>
+      <Link href={ROUTES.reader.book(book.id)} className="block">
         <Card className="group relative overflow-hidden border-0 shadow-lg ring-1 ring-border/50 pt-3 gap-0 cursor-pointer hover:shadow-xl transition-shadow duration-300">
-        <CardContent className="p-0">
-          <div className="relative aspect-[2/3] w-full overflow-hidden">
-            <BookCover
-              title={book.title}
-              author={book.author}
-              cover={book.coverUrl}
-              backgroundStyle={backgroundStyle}
-            />
-            <div className="absolute left-2 top-2 flex gap-2">
-              {book.isFavorite && (
-                <Badge className="backdrop-blur">★ Favorite</Badge>
-              )}
-              {book.isFinished && (
-                <Badge variant="secondary" className="backdrop-blur">
-                  Finished
-                </Badge>
-              )}
-            </div>
-            <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-              <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
-            </div>
-          </div>
-        </CardContent>
-
-        <CardContent className="p-3 space-y-2">
-          <TooltipProvider>
-            <Tooltip open={truncated ? undefined : false}>
-              <TooltipTrigger asChild>
-                <h3
-                  ref={titleRef}
-                  className="pointer-events-auto text-sm font-semibold leading-snug line-clamp-2 min-h-[2.25rem]"
-                >
-                  {book.title}
-                </h3>
-              </TooltipTrigger>
-              <TooltipContent side="top" className="max-w-[320px]">
-                {book.title}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {book.author}
-          </p>
-          {book.pageCount && (
-            <>
-              <Progress
-                value={(book.pagePassCount / book.pageCount) * 100}
-                className="h-1"
+          <CardContent className="p-0">
+            <div className="relative aspect-[2/3] w-full overflow-hidden">
+              <BookCover
+                title={book.title}
+                author={book.author}
+                cover={book.coverUrl}
+                backgroundStyle={backgroundStyle}
               />
-              <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>
-                  {book.pagePassCount}/{book.pageCount} pages
-                </span>
+              <div className="absolute left-2 top-2 flex gap-2">
+                {book.isFavorite && (
+                  <Badge className="backdrop-blur">★ Favorite</Badge>
+                )}
+                {book.isFinished && (
+                  <Badge variant="secondary" className="backdrop-blur">
+                    Finished
+                  </Badge>
+                )}
+              </div>
+              <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+                <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
+              </div>
+            </div>
+          </CardContent>
+
+          <CardContent className="p-3 space-y-2">
+            <TooltipProvider>
+              <Tooltip open={truncated ? undefined : false}>
+                <TooltipTrigger asChild>
+                  <h3
+                    ref={titleRef}
+                    className="pointer-events-auto text-sm font-semibold leading-snug line-clamp-2 min-h-[2.25rem]"
+                  >
+                    {book.title}
+                  </h3>
+                </TooltipTrigger>
+                <TooltipContent side="top" className="max-w-[320px]">
+                  {book.title}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <p className="text-xs text-muted-foreground line-clamp-1">
+              {book.author}
+            </p>
+            {book.pageCount && (
+              <>
+                <Progress
+                  value={(book.pagePassCount / book.pageCount) * 100}
+                  className="h-1"
+                />
+                <div className="flex justify-between text-[11px] text-muted-foreground">
+                  <span>
+                    {book.pagePassCount}/{book.pageCount} pages
+                  </span>
+                  <span>{book.spentHours}h spent</span>
+                </div>
+              </>
+            )}
+            {!book.pageCount && (
+              <div className="flex justify-end text-[11px] text-muted-foreground">
                 <span>{book.spentHours}h spent</span>
               </div>
-            </>
-          )}
-          {!book.pageCount && (
-            <div className="flex justify-end text-[11px] text-muted-foreground">
-              <span>{book.spentHours}h spent</span>
-            </div>
-          )}
-        </CardContent>
+            )}
+          </CardContent>
         </Card>
       </Link>
     </motion.div>

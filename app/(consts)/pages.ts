@@ -3,6 +3,7 @@ import { set } from "zod";
 
 export const ROUTES = Object.freeze({
   reader: {
+    book: (id: string) => `/reader/book/${id}`,
     library: "/reader/library",
     collections: {
       all: "/reader/collections",

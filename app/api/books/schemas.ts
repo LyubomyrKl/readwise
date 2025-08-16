@@ -64,6 +64,36 @@ export const BookResponse = z.object({
   lastAccessed: z.string().optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
+  notes: z.array(
+    z.object({
+      id: z.string(),
+      userId: z.string(),
+      bookId: z.string(),
+      body: z.string(),
+      anchor: z.any().nullable(),
+      isPinned: z.boolean(),
+      isArchived: z.boolean(),
+    })
+  ),
+  highlights: z.array(
+    z.object({
+      id: z.string(),
+      userId: z.string(),
+      bookId: z.string(),
+      color: z.string().nullable(),
+      text: z.string(),
+      anchor: z.any(),
+      noteId: z.string().nullable(),
+    })
+  ),
+  tags: z.array(
+    z.object({
+      id: z.string(),
+      name: z.string(),
+      color: z.string().nullable(),
+      description: z.string().nullable(),
+    })
+  ),
 });
 
 export const GetAllBooksRes = z.array(BookResponse);
