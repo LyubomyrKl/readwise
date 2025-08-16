@@ -187,7 +187,7 @@ export class BooksController {
     description:
       'Finalizes the book cover upload, returning necessary metadata and presigned URL',
   })
-  async bookPresign(
+  async updateCoverFinalize(
     @Req() req: { user: { userId: string } },
     @Body() dto: CoverUpdateDto,
   ): Promise<FinalizeResponse> {

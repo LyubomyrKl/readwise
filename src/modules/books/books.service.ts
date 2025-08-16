@@ -268,25 +268,13 @@ export class BooksService {
     userId: string,
     dto: CoverUpdateDto,
   ): Promise<FinalizeResponse> {
-    const book = await this.findPendingBookByIdAndUser(dto.bookId, userId);
-
-    if (!book.customCoverStorageKey) {
-      throw new BadRequestException(
-        BOOK_ERROR_MESSAGES.COVER_NOT_PREPARED_FOR_UPLOAD,
-      );
-    }
+    await this.findBookByIdAndUser(dto.bookId, userId);
 
     try {
-      // Verify custom cover file exists
-      await this.bookFilesService.validateFileExists(
-        book.customCoverStorageKey,
-      );
-
-      // Update book with finalized cover details
       await this.prisma.book.update({
         where: { id: dto.bookId },
         data: {
-          customCoverStorageKey: book.customCoverStorageKey,
+          customCoverStorageKey: dto.storageKey,
           status: BOOK_STATUS.READY,
         },
       });
