@@ -12,7 +12,7 @@ import {
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants';
+import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants.js';
 
 export class CreateBookDto {
   @ApiProperty({ description: 'Book title', example: 'The Great Gatsby' })

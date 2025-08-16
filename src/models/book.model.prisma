@@ -25,7 +25,8 @@ model Book {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes       Note[]
   highlights  Highlight[]
-  tags    BookTag[]
+  searchItems SearchItem[]
+  tags        BookTag[]
 }
 
 enum BookStatus {
@@ -46,9 +47,10 @@ model Note {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
-  tags      NoteTag[]
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book      Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  tags       NoteTag[]
+  highlights Highlight[]
+  user       User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
   @@index([userId, bookId, createdAt])
 }
@@ -64,9 +66,10 @@ model Highlight {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   deletedAt DateTime?
-  tags      HighlightTag[]
-  user      User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book      Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  tags HighlightTag[]
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  note Note? @relation(fields: [noteId], references: [id], onDelete: SetNull)
 
 
   @@index([userId, bookId, createdAt])

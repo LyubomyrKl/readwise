@@ -10,4 +10,6 @@ model User {
   books          Book[]
   notes          Note[]
   highlights     Highlight[]
+  tags           Tag[]
+  searchItems    SearchItem[]
 }

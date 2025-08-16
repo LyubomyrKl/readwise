@@ -32,10 +32,11 @@ model Book {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
-  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notes      Note[]
-  highlights Highlight[]
-  tags       BookTag[]
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes       Note[]
+  highlights  Highlight[]
+  searchItems SearchItem[]
+  tags        BookTag[]
 }
 
 enum BookStatus {
@@ -57,6 +58,7 @@ model Note {
   updatedAt  DateTime  @updatedAt
   deletedAt  DateTime?
   tags       NoteTag[]
+  highlights Highlight[]
   user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   book       Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
 
@@ -74,9 +76,10 @@ model Highlight {
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   deletedAt DateTime?
-  tags      HighlightTag[]
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  tags HighlightTag[]
+  user User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  note Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
 
   @@index([userId, bookId, createdAt])
 }
@@ -106,6 +109,9 @@ model SearchItem {
   createdAt DateTime        @default(now())
   updatedAt DateTime        @updatedAt
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
   @@unique([ownerType, ownerId])
   @@index([userId, bookId, ownerType])
   @@map("search_item")
@@ -128,6 +134,7 @@ model Tag {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookTags      BookTag[]
   noteTags      NoteTag[]
   highlightTags HighlightTag[]
@@ -181,7 +188,9 @@ model User {
   updatedAt     DateTime       @updatedAt
   refreshTokens RefreshToken[]
 
-  books      Book[]
-  notes      Note[]
-  highlights Highlight[]
+  books       Book[]
+  notes       Note[]
+  highlights  Highlight[]
+  tags        Tag[]
+  searchItems SearchItem[]
 }

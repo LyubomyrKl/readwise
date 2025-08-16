@@ -153,6 +153,9 @@ export class BooksService {
       mime: book.mime,
       sizeBytes: book.sizeBytes.toString(),
       status: book.status,
+      notes: book.notes || [],
+      highlights: book.highlights || [],
+      tags: book.tags || [],
       createdAt: book.createdAt,
       updatedAt: book.updatedAt,
     };
