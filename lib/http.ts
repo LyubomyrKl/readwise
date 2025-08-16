@@ -20,11 +20,14 @@ class AuthenticatedHttpClient {
     this.instance.interceptors.request.use(async (config) => {
       try {
         const accessToken = (await cookies()).get("access_token")?.value;
+
+        console.log("Access token:", accessToken);
+
         if (accessToken) {
           config.headers.Authorization = `Bearer ${accessToken}`;
         }
-      } catch (error) {
-        // Server-side only,   on client side
+      } catch {
+        // Server-side only, ignore on client side
       }
       return config;
     });
@@ -34,16 +37,6 @@ class AuthenticatedHttpClient {
       (response) => response,
       async (error) => {
         const originalRequest = error.config;
-
-        console.error("API request failed:", {
-          status: error.response?.status,
-          statusText: error.response?.statusText,
-          data: error.response?.data,
-          message: error.message,
-          code: error.code,
-        });
-
-        console.error("originalRequest:", originalRequest);
 
         // Check if we have a 401 error (NestJS UnauthorizedException)
         if (
@@ -55,12 +48,8 @@ class AuthenticatedHttpClient {
           originalRequest._retry = true;
 
           try {
-            // Extract refresh token from request cookies
-            const cookieHeader = originalRequest.headers.Cookie || originalRequest.headers.cookie;
-            const refreshToken = cookieHeader
-              ?.split(';')
-              .find((cookie: string) => cookie.trim().startsWith('refresh_token='))
-              ?.split('=')[1];
+            // Get refresh token from cookies
+            const refreshToken = (await cookies()).get("refresh_token")?.value;
 
             if (!refreshToken) {
               this.redirectToLogin();
@@ -68,7 +57,6 @@ class AuthenticatedHttpClient {
             }
 
             const baseUrl = process.env.NEXTAUTH_URL || "http://localhost:3000";
-            console.warn("Retrying request with refreshed token...");
 
             const refreshResponse = await fetch(`${baseUrl}/api/auth/refresh`, {
               method: "POST",
@@ -79,24 +67,29 @@ class AuthenticatedHttpClient {
               body: JSON.stringify({ refreshToken: refreshToken }),
             });
 
-            console.warn(refreshResponse);
-
             if (refreshResponse.ok) {
-              const { accessToken, refreshToken: newRefreshToken } =
-                await refreshResponse.json();
+              const responseData = await refreshResponse.json();
+              const { accessToken, refreshToken: newRefreshToken } = responseData;
+
+              console.log("Refresh response data:", responseData);
+              console.log("New access token:", accessToken);
+              console.log("New refresh token:", newRefreshToken);
+
+              // Verify tokens are not undefined
+              if (!accessToken) {
+                console.error("Access token is undefined in refresh response");
+                this.redirectToLogin();
+                return Promise.reject(error);
+              }
 
               // Update the Authorization header for the retry
-              if (accessToken && originalRequest.headers) {
+              if (originalRequest.headers) {
                 originalRequest.headers.Authorization = `Bearer ${accessToken}`;
               }
 
-              // Update cookies with new tokens (refresh token rotation)
-              if (typeof document !== "undefined" && newRefreshToken) {
-                // Client-side: update cookies via document
-                const isSecure = window.location.protocol === 'https:';
-                document.cookie = `access_token=${accessToken}; path=/; ${isSecure ? 'secure;' : ''} samesite=lax; max-age=900`;
-                document.cookie = `refresh_token=${newRefreshToken}; path=/; ${isSecure ? 'secure;' : ''} samesite=lax; max-age=604800`;
-              }
+              // The refresh route already sets httpOnly cookies via Set-Cookie headers
+              // No need to manually set cookies on client-side since they're httpOnly
+              // The browser will automatically handle the Set-Cookie headers from the refresh response
 
               // Retry original request with new token
               return this.instance(originalRequest);
@@ -104,8 +97,7 @@ class AuthenticatedHttpClient {
               // Refresh failed, redirect to login
               this.redirectToLogin();
             }
-          } catch (refreshError) {
-            console.error("Token refresh failed:", refreshError);
+          } catch {
             this.redirectToLogin();
           }
         }

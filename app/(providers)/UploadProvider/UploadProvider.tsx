@@ -67,17 +67,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   );
 
   const addUploads = async (files: UploadFile[]) => {
-    console.log(
-      "addUploads received files:",
-      files.map((f) => ({
-        title: f.title,
-        fileName: f.fileName,
-        customCoverFilename: f.customCoverFilename,
-        customCoverMime: f.customCoverMime,
-        customCoverSizeBytes: f.customCoverSizeBytes,
-        hasCoverFile: !!f.coverFile,
-      }))
-    );
 
     // Create initial upload progress entries
     const newUploads: UploadProgress[] = files.map((file) => ({
@@ -103,8 +92,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
     const uploadId = uploadData.id;
 
     try {
-      console.log(`[Upload ${uploadId}] Starting upload process`);
-
       // Update status to processing
       setUnfinishedUploads((prev) =>
         prev.map((upload) =>
@@ -115,14 +102,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
       );
 
       const currentUpload = uploadData;
-
-      console.log(`[Upload ${uploadId}] Calling createBookAndPresign API`);
-      console.log(`[Upload ${uploadId}] Cover fields from file:`, {
-        customCoverFilename: currentUpload.file.customCoverFilename,
-        customCoverMime: currentUpload.file.customCoverMime,
-        customCoverSizeBytes: currentUpload.file.customCoverSizeBytes,
-        hasCoverFile: !!currentUpload.file.coverFile,
-      });
 
       // Call createBookAndPresign
       const requestPayload = {
@@ -138,20 +117,10 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         customCoverSizeBytes: currentUpload.file.customCoverSizeBytes,
       };
 
-      console.log(
-        `[Upload ${uploadId}] Request payload:`,
-        JSON.stringify(requestPayload, null, 2)
-      );
-
       const presignResponse = await apiFetch(
         "POST",
         "/api/books/createBookAndPresign",
         requestPayload
-      );
-
-      console.log(
-        `[Upload ${uploadId}] createBookAndPresign response:`,
-        presignResponse
       );
 
       const response = {
@@ -183,17 +152,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         )
       );
 
-      console.log(`[Upload ${uploadId}] Starting file upload to storage`);
-      console.log(`[Upload ${uploadId}] Upload URL:`, response.upload.url);
-      console.log(
-        `[Upload ${uploadId}] Upload headers:`,
-        response.upload.headers
-      );
-      console.log(`[Upload ${uploadId}] File details:`, {
-        name: currentUpload.file.file.name,
-        size: currentUpload.file.file.size,
-        type: currentUpload.file.file.type,
-      });
 
       // Upload main file
       await uploadFile(
@@ -202,11 +160,9 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         response.upload.headers,
         uploadId
       );
-      console.log(`[Upload ${uploadId}] Main file uploaded successfully`);
 
       // Upload cover if exists
       if (currentUpload.file.coverFile && response.coverUpload) {
-        console.log(`[Upload ${uploadId}] Starting cover upload`);
         await uploadFile(
           currentUpload.file.coverFile,
           response.coverUpload.url!,
@@ -214,26 +170,18 @@ export function UploadProvider({ children }: { children: ReactNode }) {
           uploadId,
           true
         );
-        console.log(`[Upload ${uploadId}] Cover uploaded successfully`);
       }
-
-      console.log(`[Upload ${uploadId}] Finalizing book with API`);
       // Finalize the book after upload is complete
       await apiFetch("POST", "/api/books/finalize", {
         bookId: response.bookId,
       });
-      console.log(`[Upload ${uploadId}] Book finalized successfully`);
 
       // Finalize cover if it exists
       if (currentUpload.file.coverFile && response.coverStorageKey) {
-        console.log(`[Upload ${uploadId}] Finalizing cover with API`);
         await apiFetch("POST", "/api/books/finalizeCover", {
           bookId: response.bookId,
         });
-        console.log(`[Upload ${uploadId}] Cover finalized successfully`);
       }
-
-      console.log(`[Upload ${uploadId}] Upload process completed successfully`);
       // Mark as completed
       setUnfinishedUploads((prev) =>
         prev.map((u) =>
@@ -288,41 +236,13 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
       xhr.addEventListener("load", () => {
         if (xhr.status >= 200 && xhr.status < 300) {
-          console.log(`[Upload ${uploadId}] Upload successful (${xhr.status})`);
           resolve();
         } else {
-          console.error(`[Upload ${uploadId}] Upload failed:`, {
-            status: xhr.status,
-            statusText: xhr.statusText,
-            response: xhr.responseText,
-            url: url,
-            headers: headers,
-          });
-
-          // Parse XML error if it's from S3/MinIO
-          if (xhr.responseText.includes("<Error>")) {
-            try {
-              const parser = new DOMParser();
-              const xmlDoc = parser.parseFromString(
-                xhr.responseText,
-                "text/xml"
-              );
-              const code = xmlDoc.querySelector("Code")?.textContent;
-              const message = xmlDoc.querySelector("Message")?.textContent;
-              console.error(`[Upload ${uploadId}] S3/MinIO Error:`, {
-                code,
-                message,
-              });
-            } catch (e) {
-              console.error(`[Upload ${uploadId}] Failed to parse XML error`);
-            }
-          }
           reject(new Error(`Upload failed with status ${xhr.status}`));
         }
       });
 
       xhr.addEventListener("error", () => {
-        console.error(`[Upload ${uploadId}] Upload network error`);
         reject(new Error("Upload failed"));
       });
 
@@ -330,8 +250,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
 
       // Only set headers that are provided by the presigned URL
       Object.entries(headers).forEach(([k, v]) => {
-        console.log(`[Upload ${uploadId}] Setting header: ${k} = ${v}`);
-
         const key = k.toLowerCase();
         if (key === "content-length") return; // blocked by browser
         if (key.startsWith("x-amz-checksum")) return; // not using checksum

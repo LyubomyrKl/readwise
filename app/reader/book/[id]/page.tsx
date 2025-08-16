@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "./components/PDFReader";
+import EPUBReader from "./components/EPUBReader";
 import { IBook } from "../../types";
 
 export default function BookReaderPage() {
@@ -28,9 +29,6 @@ export default function BookReaderPage() {
         }
 
         const bookData = await response.json();
-
-        console.log("Fetched book data:", bookData);
-
         setBook(bookData.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
@@ -77,6 +75,14 @@ export default function BookReaderPage() {
         </div>
       </div>
     );
+  }
+
+  const isEPUB = book.mime === 'application/epub+zip' || 
+                 book.mime === 'application/epub' ||
+                 (book.fileUrl && book.fileUrl.toLowerCase().endsWith('.epub'));
+
+  if (isEPUB) {
+    return <EPUBReader book={book} />;
   }
 
   return <VirtualPDFReader book={book} />;

@@ -16,9 +16,11 @@ export function setAccessCookie(
   token: string,
   maxAge = 900
 ) {
+  const isProduction = process.env.NODE_ENV === "production";
+  
   res.cookies.set("access_token", token, {
     httpOnly: true,
-    secure: true,
+    secure: isProduction, // Only secure in production
     sameSite: "lax",
     path: "/",
     maxAge,
@@ -30,25 +32,29 @@ export function setRefreshCookie(
   token: string,
   maxAge = 60 * 60 * 24 * 7
 ) {
+  const isProduction = process.env.NODE_ENV === "production";
+  
   res.cookies.set("refresh_token", token, {
     httpOnly: true,
-    secure: true,
+    secure: isProduction, // Only secure in production
     sameSite: "lax",
     path: "/",
     maxAge,
   });
 }
 export function clearAuthCookies(res: NextResponse) {
+  const isProduction = process.env.NODE_ENV === "production";
+  
   res.cookies.set("access_token", "", { 
     httpOnly: true,
-    secure: true,
+    secure: isProduction,
     sameSite: "lax",
     path: "/", 
     maxAge: 0 
   });
   res.cookies.set("refresh_token", "", { 
     httpOnly: true,
-    secure: true,
+    secure: isProduction,
     sameSite: "lax",
     path: "/", 
     maxAge: 0 

@@ -17,7 +17,6 @@ export async function GET(
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
-    console.log("data:", data);
     const book = BookResponse.parse(data.data);
 
     return NextResponse.json({ data: book });

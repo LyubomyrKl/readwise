@@ -27,42 +27,67 @@ export default function UploadPage() {
 
   // Local state for files before upload
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
-  
+
   // Filter uploads to show only those from this session
   const [sessionUploads, setSessionUploads] = useState<string[]>([]);
   const currentUploads = uploads.filter((upload) =>
     sessionUploads.includes(upload.id)
   );
 
-  const onDrop = useCallback(
-    (acceptedFiles: File[]) => {
-      // Add files to local pending state for editing
-      const newPendingFiles: PendingFile[] = acceptedFiles.map((file) => {
-        const fileName = file.name;
-        const baseName = fileName.replace(/\.[^/.]+$/, "");
+  const onDrop = useCallback((acceptedFiles: File[]) => {
+    // Add files to local pending state for editing
+    const newPendingFiles: PendingFile[] = acceptedFiles.map((file) => {
+      const fileName = file.name;
+      const baseName = fileName.replace(/\.[^/.]+$/, "");
 
-        return {
-          id: crypto.randomUUID(),
-          file,
-          title: baseName,
-          author: "",
-          description: "",
-        };
-      });
+      return {
+        id: crypto.randomUUID(),
+        file,
+        title: baseName,
+        author: "",
+        description: "",
+      };
+    });
 
-      setPendingFiles((prev) => [...prev, ...newPendingFiles]);
-    },
-    []
-  );
+    setPendingFiles((prev) => [...prev, ...newPendingFiles]);
+  }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
     accept: {
       "application/pdf": [".pdf"],
       "application/epub+zip": [".epub"],
+      "application/epub": [".epub"], // Alternative MIME type for EPUB
+      "application/x-mobipocket-ebook": [".epub"], // Some browsers report this
       "text/plain": [".txt"],
     },
     multiple: true,
+    validator: (file) => {
+      // Custom validation for EPUB files based on extension
+      const fileName = file.name.toLowerCase();
+      const allowedExtensions = [".pdf", ".epub", ".txt"];
+      const hasValidExtension = allowedExtensions.some((ext) =>
+        fileName.endsWith(ext)
+      );
+
+      if (!hasValidExtension) {
+        return {
+          code: "invalid-file-type",
+          message: "Only PDF, EPUB, and TXT files are allowed",
+        };
+      }
+
+      // Log file info for debugging EPUB MIME types
+      if (fileName.endsWith(".epub")) {
+        console.log("EPUB file detected:", {
+          name: file.name,
+          type: file.type,
+          size: file.size,
+        });
+      }
+
+      return null; // No errors
+    },
   });
 
   const removePendingFile = (fileId: string) => {
@@ -96,12 +121,41 @@ export default function UploadPage() {
   };
 
   const uploadFile = async (pendingFile: PendingFile) => {
+    // Determine MIME type, with fallback for EPUB files
+    let mimeType = pendingFile.file.type;
+    const fileName = pendingFile.file.name.toLowerCase();
+
+    if (
+      fileName.endsWith(".epub") &&
+      (!mimeType || mimeType === "application/octet-stream")
+    ) {
+      mimeType = "application/epub+zip";
+      console.log("Fallback MIME type applied for EPUB:", mimeType);
+    } else if (
+      fileName.endsWith(".pdf") &&
+      (!mimeType || mimeType === "application/octet-stream")
+    ) {
+      mimeType = "application/pdf";
+    } else if (
+      fileName.endsWith(".txt") &&
+      (!mimeType || mimeType === "application/octet-stream")
+    ) {
+      mimeType = "text/plain";
+    }
+
+    console.log(
+      "Uploading file with MIME type:",
+      mimeType,
+      "for file:",
+      fileName
+    );
+
     const uploadFile: UploadFile = {
       title: pendingFile.title,
       author: pendingFile.author,
       description: pendingFile.description,
       fileName: pendingFile.file.name,
-      mime: pendingFile.file.type,
+      mime: mimeType,
       sizeBytes: pendingFile.file.size,
       file: pendingFile.file,
       ...(pendingFile.coverFile && {
@@ -113,23 +167,24 @@ export default function UploadPage() {
     };
 
     addUploads([uploadFile]);
-    
+
     // Track this upload and remove from pending
     setTimeout(() => {
-      const newUploads = uploads.filter(upload => 
-        upload.name === pendingFile.file.name
+      const newUploads = uploads.filter(
+        (upload) => upload.name === pendingFile.file.name
       );
-      setSessionUploads(prev => [...prev, ...newUploads.map(u => u.id)]);
+      setSessionUploads((prev) => [...prev, ...newUploads.map((u) => u.id)]);
     }, 100);
-    
+
     removePendingFile(pendingFile.id);
   };
 
   const uploadAll = async () => {
     const validFiles = pendingFiles.filter(
-      (file) => file.title.trim() && file.author.trim() && file.description.trim()
+      (file) =>
+        file.title.trim() && file.author.trim() && file.description.trim()
     );
-    
+
     for (const file of validFiles) {
       await uploadFile(file);
     }
@@ -182,7 +237,12 @@ export default function UploadPage() {
             </h2>
             <Button
               onClick={uploadAll}
-              disabled={!pendingFiles.some(f => f.title.trim() && f.author.trim() && f.description.trim())}
+              disabled={
+                !pendingFiles.some(
+                  (f) =>
+                    f.title.trim() && f.author.trim() && f.description.trim()
+                )
+              }
             >
               Upload All
             </Button>
@@ -196,7 +256,9 @@ export default function UploadPage() {
                     <div className="flex items-center gap-3">
                       <FileText className="h-8 w-8 text-muted-foreground" />
                       <div>
-                        <CardTitle className="text-base">{file.file.name}</CardTitle>
+                        <CardTitle className="text-base">
+                          {file.file.name}
+                        </CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {(file.file.size / 1024 / 1024).toFixed(2)} MB
                         </p>
@@ -266,12 +328,18 @@ export default function UploadPage() {
                   </div>
 
                   <div>
-                    <Label htmlFor={`description-${file.id}`}>Description *</Label>
+                    <Label htmlFor={`description-${file.id}`}>
+                      Description *
+                    </Label>
                     <Textarea
                       id={`description-${file.id}`}
                       value={file.description}
                       onChange={(e) =>
-                        updatePendingFile(file.id, "description", e.target.value)
+                        updatePendingFile(
+                          file.id,
+                          "description",
+                          e.target.value
+                        )
                       }
                       rows={2}
                     />
@@ -280,7 +348,11 @@ export default function UploadPage() {
                   {/* Upload Button */}
                   <Button
                     onClick={() => uploadFile(file)}
-                    disabled={!file.title.trim() || !file.author.trim() || !file.description.trim()}
+                    disabled={
+                      !file.title.trim() ||
+                      !file.author.trim() ||
+                      !file.description.trim()
+                    }
                     className="w-full"
                   >
                     Upload This Book

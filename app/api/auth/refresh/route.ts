@@ -8,36 +8,36 @@ import {
 } from "@/lib/cookies";
 
 export async function POST(request: Request) {
+  const body = await request.json();
+  const rt = body.refreshToken;
+
+  if (!rt) return new NextResponse(null, { status: 401 });
+
   try {
-    const body = await request.json();
-    const rt = body.refreshToken;
+    const { data } = await authApi.refresh({
+      refreshDto: { refreshToken: `Bearer ${rt}` },
+    });
 
-    console.log("Refresh token request:", rt);
-    console.log("Request body:", body);
+    console.log("Auth API response:", data);
+    console.log("Access token from API:", data.accessToken);
+    console.log("Refresh token from API:", data.refreshToken);
 
-    if (!rt) return new NextResponse(null, { status: 401 });
+    const responsePayload = { 
+      accessToken: data.accessToken, 
+      refreshToken: data.refreshToken 
+    };
+    
+    console.log("Response payload:", responsePayload);
 
-    try {
-      const { data } = await authApi.refresh({
-        refreshDto: { refreshToken: `Bearer ${rt}` },
-      });
+    const res = NextResponse.json(responsePayload, { status: 200 });
 
-      const res = NextResponse.json(
-        { accessToken: data.accessToken, refreshToken: data.refreshToken },
-        { status: 200 }
-      );
+    setAccessCookie(res, data.accessToken);
+    setRefreshCookie(res, data.refreshToken);
 
-      setAccessCookie(res, data.accessToken);
-      setRefreshCookie(res, data.refreshToken);
-
-      return res;
-    } catch (error) {
-      const res = new NextResponse(null, { status: 401 });
-      clearAuthCookies(res);
-      return res;
-    }
-  } catch (parseError) {
-    console.error("Failed to parse request body:", parseError);
-    return new NextResponse(null, { status: 400 });
+    return res;
+  } catch {
+    const res = new NextResponse(null, { status: 401 });
+    clearAuthCookies(res);
+    return res;
   }
 }

@@ -3,9 +3,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROUTES } from "./app/(consts)/pages";
 
-const PROTECTED = new Set<string>([
+const PROTECTED_EXACT = new Set<string>([
   ROUTES.reader.library,
-  ROUTES.reader.book("*"), // Placeholder for book ID
   ROUTES.reader.collections.all,
   ROUTES.reader.collections.new,
   ROUTES.reader.collections.archived,
@@ -15,10 +14,16 @@ const PROTECTED = new Set<string>([
   ROUTES.settings,
 ]);
 
-function needsAuth(path: string) {
-  if (PROTECTED.has(path)) return true;
+const PROTECTED_PATTERNS = [
+  /^\/reader\/book\/[^\/]+$/, // Matches /reader/book/{id}
+];
 
-  return false;
+function needsAuth(path: string) {
+  // Check exact matches
+  if (PROTECTED_EXACT.has(path)) return true;
+
+  // Check pattern matches for dynamic routes
+  return PROTECTED_PATTERNS.some(pattern => pattern.test(path));
 }
 
 export function middleware(req: NextRequest) {
