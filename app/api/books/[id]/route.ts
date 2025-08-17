@@ -8,7 +8,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { booksApi } = createServerSdk(req);
+    const { booksApi } = createServerSdk();
 
     const resp = await booksApi.getBook({
       id,

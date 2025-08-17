@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { registerReqSchema } from "../schemas";
-import { appendSetCookies, createServerSdk } from "@/lib/sdk";
+import { setTokensToCookies, createServerSdk } from "@/lib/sdk";
+import { cookies } from "next/headers";
 
 export async function POST(req: NextRequest) {
-  const { authApi } = createServerSdk(req);
+  const { authApi } = createServerSdk();
 
   const registerDto = registerReqSchema.parse(await req.json());
 
@@ -11,7 +12,7 @@ export async function POST(req: NextRequest) {
 
   const out = NextResponse.json(resp.data?.user ?? {}, { status: resp.status });
 
-  appendSetCookies(resp, out.headers);
+  await setTokensToCookies(resp.data?.tokens, cookies());
 
   return out;
 }

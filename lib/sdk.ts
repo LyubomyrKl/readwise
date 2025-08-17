@@ -1,5 +1,4 @@
 // lib/server-sdk.ts
-import axios, { AxiosResponse } from "axios";
 import {
   Configuration,
   AuthApi,
@@ -7,63 +6,104 @@ import {
   BooksApi,
   AppApi,
 } from "@satoru-satoshi/summarize-api-sdk";
-import type { NextRequest } from "next/server";
+import axios from "axios";
+import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 
-export function createServerSdk(req: NextRequest) {
+export function createServerSdk() {
   const ax = axios.create({
     baseURL: process.env.API_URL,
-    withCredentials: true,
-    headers: {
-      "Content-Type": "application/json",
-      cookie: req.headers.get("cookie") ?? "",
-      "user-agent": req.headers.get("user-agent") ?? "",
-    },
-    validateStatus: () => true,
   });
 
-  // Inject AT from HttpOnly cookie into Authorization for Nest
-  ax.interceptors.request.use((cfg) => {
-    const at = req.cookies.get("at")?.value;
-    if (at) cfg.headers.Authorization = `Bearer ${at}`;
-    return cfg;
-  });
-
-  ax.interceptors.response.use((resp) => {
-    if (resp.status === 401) {
-      resp.headers["set-cookie"] = [
-        "at=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax",
-        "rt=; Path=/; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; SameSite=Lax",
-      ];
+  ax.interceptors.request.use(async (config) => {
+    if (
+      config.url?.includes("/login") ||
+      config.url?.includes("/refresh") ||
+      config.url?.includes("/register")
+    ) {
+      return config;
     }
 
-    fetch("/api/auth/refresh", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      credentials: "include",
-    })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.accessToken) {
-          resp.headers["set-cookie"] = [
-            `at=${data.accessToken}; Path=/; HttpOnly; SameSite=Lax`,
-            `rt=${data.refreshToken}; Path=/; HttpOnly; SameSite=Lax`,
-          ];
-        }
-      })
-      .catch((err) => {
-        console.error("Error refreshing auth tokens:", err);
-      });
-    return resp;
+    const token = (await cookies()).get("access_token")?.value;
+
+    if (token) {
+      config.headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    return config;
   });
+
+  ax.interceptors.response.use(
+    (response) => response,
+    async (error) => {
+      if (!error.response) {
+        console.error("Network error:", error);
+        return Promise.reject(error);
+      }
+
+      if (error.config._retry) {
+        console.warn("Request already retried, not retrying again.");
+        return Promise.reject(error);
+      }
+
+      const refreshToken = (await cookies()).get("refresh_token")?.value;
+
+      console.warn(
+        error.response?.status,
+        "error.response?.status:",
+        error.response?.status
+      );
+
+      if (error.response?.status === 401 && refreshToken) {
+        const authApi = new AuthApi(
+          new Configuration({ basePath: process.env.API_URL })
+        );
+
+        const response = await authApi
+          .refresh({
+            refreshDto: {
+              refreshToken,
+            },
+          })
+          .then((res) => {
+            return res;
+          })
+          .catch((err) => {
+            if (err.response?.status === 401) {
+              deleteTokensFromCookies(cookies());
+              redirect("/auth/login");
+            } else {
+              console.error("Error refreshing token:", err);
+            }
+
+            return Promise.reject(err);
+          });
+
+        if (response.data) {
+          console.log("Token refreshed successfully:", response.data);
+          await setTokensToCookies(response.data, cookies());
+
+          console.log((await cookies()).get("access_token"));
+          console.log((await cookies()).get("refresh_token"));
+
+          const originalRequest = error.config;
+          originalRequest.headers[
+            "Authorization"
+          ] = `Bearer ${response.data.accessToken}`; // Update the Authorization header with the new token
+          originalRequest._retry = true; // Mark the request as retried
+
+          return axios(originalRequest);
+        }
+      }
+      return Promise.reject(error);
+    }
+  );
 
   const cfg = new Configuration({
     basePath: process.env.API_URL,
     baseOptions: { withCredentials: true },
   });
   return {
-    axios: ax,
     authApi: new AuthApi(cfg, undefined, ax),
     usersApi: new UsersApi(cfg, undefined, ax),
     booksApi: new BooksApi(cfg, undefined, ax),
@@ -71,12 +111,23 @@ export function createServerSdk(req: NextRequest) {
   };
 }
 
-// Helper: copy Set-Cookie from Nest → Next response
-export function appendSetCookies(from: AxiosResponse, to: Headers) {
-  const cookies = from.headers["set-cookie"];
+export async function setTokensToCookies(
+  resp: { accessToken: string; refreshToken: string },
+  cookies: ReturnType<typeof import("next/headers").cookies>
+) {
+  (await cookies).set("access_token", resp.accessToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  });
+  (await cookies).set("refresh_token", resp.refreshToken, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+  });
+}
 
-  console.log("Appending Set-Cookie headers:", cookies);
-  if (!cookies) return;
-  for (const c of Array.isArray(cookies) ? cookies : [cookies])
-    to.append("Set-Cookie", c);
+export async function deleteTokensFromCookies(
+  cookies: ReturnType<typeof import("next/headers").cookies>
+) {
+  (await cookies).delete("access_token");
+  (await cookies).delete("refresh_token");
 }

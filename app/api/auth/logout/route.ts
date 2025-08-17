@@ -1,12 +1,27 @@
-import { appendSetCookies, createServerSdk } from "@/lib/sdk";
-import { NextRequest, NextResponse } from "next/server";
+import { deleteTokensFromCookies, createServerSdk } from "@/lib/sdk";
+import { cookies } from "next/headers";
+import { NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 
 export async function POST(req: NextRequest) {
-  const { axios } = createServerSdk(req);
-  const resp = await axios.post("/auth/logout", {});
-
-  const out = NextResponse.json(resp.data ?? {}, { status: resp.status });
-
-  appendSetCookies(resp, out.headers);
-  return out;
+  try {
+    const { authApi } = createServerSdk();
+    await authApi.logout();
+    
+    // Always delete tokens from cookies regardless of API response
+    await deleteTokensFromCookies(cookies());
+    
+    // Redirect to login page after successful logout
+    const url = new URL("/auth/login", req.url);
+    return NextResponse.redirect(url);
+  } catch (error) {
+    console.error("Logout API error:", error);
+    
+    // Even if the API call fails, we should still clear local tokens
+    await deleteTokensFromCookies(cookies());
+    
+    // Redirect to login page even if logout API fails
+    const url = new URL("/auth/login", req.url);
+    return NextResponse.redirect(url);
+  }
 }

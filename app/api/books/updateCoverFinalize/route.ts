@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = UpdateCoverFinalizeReq.parse(body);
 
-    const { booksApi } = createServerSdk(request);
+    const { booksApi } = createServerSdk();
 
     const resp = await booksApi.updateCoverFinalize({
       coverUpdateDto: {

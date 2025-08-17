@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
     const { bookId, ...uploadData } = body;
     const validatedData = CoverPresignReq.parse(uploadData);
 
-    const { booksApi } = createServerSdk(request);
+    const { booksApi } = createServerSdk();
     const resp = await booksApi.coverPresign({
       presignedUploadDto: {
         filename: validatedData.filename,

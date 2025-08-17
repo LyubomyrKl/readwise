@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     console.log("Validation successful, calling books API...");
 
-    const { booksApi } = createServerSdk(request);
+    const { booksApi } = createServerSdk();
     const resp = await booksApi.createBookAndPresign({
       createBookDto: validatedData,
     });
