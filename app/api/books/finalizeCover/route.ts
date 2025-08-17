@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { FinalizeCoverReq } from "../schemas";
-import { booksApi } from "@/lib/sdk";
+import { createServerSdk } from "@/lib/sdk";
 import z from "zod";
 
 export async function POST(request: NextRequest) {
@@ -9,16 +9,22 @@ export async function POST(request: NextRequest) {
 
     const validatedData = FinalizeCoverReq.parse(body);
 
-    await booksApi.finalizeCover({
+    const { booksApi } = createServerSdk(request);
+    const resp = await booksApi.finalizeCover({
       finalizeCoverDto: {
         bookId: validatedData.bookId,
       },
     });
 
-    return NextResponse.json({
-      bookId: body.bookId,
-      status: "ready",
-    });
+    const out = NextResponse.json(
+      {
+        bookId: body.bookId,
+        status: "ready",
+      },
+      { status: resp.status }
+    );
+
+    return out;
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -1,4 +1,4 @@
-import { booksApi } from "@/lib/sdk";
+import { createServerSdk } from "@/lib/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import { CoverPresignReq } from "../schemas";
 
@@ -8,20 +8,25 @@ export async function POST(request: NextRequest) {
     const { bookId, ...uploadData } = body;
     const validatedData = CoverPresignReq.parse(uploadData);
 
-    const response = await booksApi.coverPresign({
+    const { booksApi } = createServerSdk(request);
+    const resp = await booksApi.coverPresign({
       presignedUploadDto: {
         filename: validatedData.filename,
         mime: validatedData.mime,
       },
     });
 
-    return NextResponse.json({
-      storageKey: response.data.storageKey,
-      upload: {
-        url: response.data.presignUploadInfo.url,
-        headers: response.data.presignUploadInfo.headers,
+    const out = NextResponse.json(
+      {
+        storageKey: resp.data.storageKey,
+        upload: {
+          url: resp.data.presignUploadInfo.url,
+          headers: resp.data.presignUploadInfo.headers,
+        },
       },
-    });
+      { status: resp.status }
+    );
+    return out;
   } catch (error) {
     console.error("Cover presign error:", error);
     if (error instanceof Error) {

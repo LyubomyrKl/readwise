@@ -1,6 +1,5 @@
 // middleware.ts
-import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
+import { NextResponse, NextRequest } from "next/server";
 import { ROUTES } from "./app/(consts)/pages";
 
 const PROTECTED_EXACT = new Set<string>([
@@ -15,25 +14,30 @@ const PROTECTED_EXACT = new Set<string>([
 ]);
 
 const PROTECTED_PATTERNS = [
-  /^\/reader\/book\/[^\/]+$/, // Matches /reader/book/{id}
-  /^\/reader\/book\/[^\/]+\/profile$/, // Matches /reader/book/{id}/profile
+  /^\/reader\/book\/[^/]+$/,
+  /^\/reader\/book\/[^/]+\/profile$/,
 ];
 
 function needsAuth(path: string) {
-  // Check exact matches
   if (PROTECTED_EXACT.has(path)) return true;
-
-  // Check pattern matches for dynamic routes
-  return PROTECTED_PATTERNS.some(pattern => pattern.test(path));
+  return PROTECTED_PATTERNS.some((re) => re.test(path));
 }
+
+// allow override; default to 'at'
+const AT_COOKIE = process.env.NEXT_PUBLIC_AT_COOKIE || "at";
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
   if (!needsAuth(pathname)) return NextResponse.next();
 
-  const token = req.cookies.get("access_token")?.value;
+  const token =
+    req.cookies.get(AT_COOKIE)?.value ??
+    req.cookies.get("at")?.value ??
+    req.cookies.get("access_token")?.value; // legacy
+
   if (!token) {
-    const url = new URL(ROUTES.auth.login, req.url);
+    const url = req.nextUrl.clone();
+    url.pathname = ROUTES.auth.login;
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
   }

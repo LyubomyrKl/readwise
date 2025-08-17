@@ -104,16 +104,16 @@ export default function SettingsPage() {
               <div className="mb-2 text-sm text-muted-foreground">
                 Book Cover Style
               </div>
-              
+
               <div className="grid grid-cols-2 gap-3 mb-3">
                 {/* Classic Preview */}
-                <div 
+                <div
                   className={`relative cursor-pointer rounded-lg border-2 p-2 transition-colors ${
-                    backgroundStyle === 'classic' 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border hover:border-border/80'
+                    backgroundStyle === "classic"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-border/80"
                   }`}
-                  onClick={() => setBackgroundStyle('classic')}
+                  onClick={() => setBackgroundStyle("classic")}
                 >
                   <div className="aspect-[2/3] w-full">
                     <BookCover
@@ -123,17 +123,19 @@ export default function SettingsPage() {
                       className="rounded-sm"
                     />
                   </div>
-                  <p className="mt-2 text-center text-xs font-medium">Classic</p>
+                  <p className="mt-2 text-center text-xs font-medium">
+                    Classic
+                  </p>
                 </div>
 
                 {/* Modern Preview */}
-                <div 
+                <div
                   className={`relative cursor-pointer rounded-lg border-2 p-2 transition-colors ${
-                    backgroundStyle === 'modern' 
-                      ? 'border-primary bg-primary/5' 
-                      : 'border-border hover:border-border/80'
+                    backgroundStyle === "modern"
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-border/80"
                   }`}
-                  onClick={() => setBackgroundStyle('modern')}
+                  onClick={() => setBackgroundStyle("modern")}
                 >
                   <div className="aspect-[2/3] w-full">
                     <BookCover
@@ -146,9 +148,10 @@ export default function SettingsPage() {
                   <p className="mt-2 text-center text-xs font-medium">Modern</p>
                 </div>
               </div>
-              
+
               <p className="text-xs text-muted-foreground">
-                Choose between classic elegance or modern clean designs for book covers without images.
+                Choose between classic elegance or modern clean designs for book
+                covers without images.
               </p>
             </div>
 

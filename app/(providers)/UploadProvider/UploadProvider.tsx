@@ -67,7 +67,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
   );
 
   const addUploads = async (files: UploadFile[]) => {
-
     // Create initial upload progress entries
     const newUploads: UploadProgress[] = files.map((file) => ({
       id: crypto.randomUUID(),
@@ -151,7 +150,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
             : u
         )
       );
-
 
       // Upload main file
       await uploadFile(

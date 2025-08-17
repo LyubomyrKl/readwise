@@ -27,33 +27,32 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
   method: M,
   path: P,
   body?: ReqOf<M, P>,
-  init?: RequestInit
+  init: RequestInit = {}
 ): Promise<ResOf<M, P>> {
   const def = (ApiRegistry as any)[method][path] as {
     req?: z.ZodTypeAny;
     res: z.ZodTypeAny;
   };
 
-  if (def.req) def.req.parse(body ?? {});
+  def.req?.parse(body ?? {});
+  const hasBody = method !== "GET" && body !== undefined;
 
   const r = await fetch(path as string, {
     method: method as string,
-    headers: { "content-type": "application/json", ...(init?.headers || {}) },
-    body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
     credentials: "include",
+    body: hasBody ? JSON.stringify(body) : undefined,
+    headers: {
+      ...(hasBody ? { "content-type": "application/json" } : {}),
+      ...(init.headers ?? {}),
+    },
     ...init,
   });
 
-  if (r.status === 204) {
-    return {} as ResOf<M, P>;
-  }
-  if (!r.ok) {
-    const errorMessage = await safeMsg(r);
-    throw new Error(errorMessage || "Request failed");
-  }
+  if (r.status === 204) return {} as ResOf<M, P>;
 
-  const json = await r.json();
-  return def.res.parse(json) as ResOf<M, P>;
+  if (!r.ok) throw new Error((await safeMsg(r)) ?? "Request failed");
+
+  return def.res.parse(await r.json()) as ResOf<M, P>;
 }
 
 async function safeMsg(r: Response): Promise<string | null> {
