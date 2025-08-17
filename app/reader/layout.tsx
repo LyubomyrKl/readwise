@@ -3,6 +3,7 @@ import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
 import { Library, UploadCloud, FolderOpen, Sparkles } from "lucide-react";
 import { useRef, useEffect } from "react";
+import { usePathname } from "next/navigation";
 import { ROUTES } from "../(consts)/pages";
 
 const nav: Section[] = [
@@ -31,6 +32,10 @@ const nav: Section[] = [
 function LayoutInner({ children }: { children: React.ReactNode }) {
   const { setOpen, open } = useSidebar();
   const sidebarRef = useRef<HTMLDivElement>(null);
+  const pathname = usePathname();
+  
+  // Check if we're in a book reading route (reader subpath)
+  const isBookReaderRoute = pathname?.match(/\/reader\/book\/[^/]+\/reader/) !== null;
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -46,6 +51,16 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open, setOpen]);
 
+  // For book reading routes (EPUB/PDF readers), render without sidebar
+  if (isBookReaderRoute) {
+    return (
+      <div className="min-h-dvh w-full">
+        {children}
+      </div>
+    );
+  }
+
+  // Default layout with sidebar for other routes (including profile)
   return (
     <div className="flex grow min-h-dvh">
       <div ref={sidebarRef}>

@@ -2,9 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-import { ModeToggle } from "./(components)/ModeToggle";
 import { UploadWidget } from "./(components)/UploadWidget";
-import { ThemeProvider } from "./(providers)";
 import { Providers } from "./(providers)/Providers";
 
 const geistSans = Geist({
@@ -34,9 +32,7 @@ export default function RootLayout({
       >
         <Providers>
           {children}
-          <div className="fixed top-2 right-2 z-50">
-            <ModeToggle />
-          </div>
+
           <UploadWidget />
         </Providers>
       </body>

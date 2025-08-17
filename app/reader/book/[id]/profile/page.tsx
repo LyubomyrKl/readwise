@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "../components/BookProfile";
 import { IBook } from "../../../types";
+import { ROUTES } from "@/app/(consts)/pages";
 
 export default function BookProfilePage() {
   const params = useParams();
@@ -42,11 +43,11 @@ export default function BookProfilePage() {
   }, [bookId]);
 
   const handleStartReading = () => {
-    router.push(`/reader/book/${bookId}`);
+    router.push(ROUTES.reader.bookReader(bookId));
   };
 
   const handleBack = () => {
-    router.push('/reader/library');
+    router.push(ROUTES.reader.library);
   };
 
   if (loading) {
@@ -85,8 +86,8 @@ export default function BookProfilePage() {
   }
 
   return (
-    <BookProfile 
-      book={book} 
+    <BookProfile
+      book={book}
       onStartReading={handleStartReading}
       onBack={handleBack}
     />
