@@ -8,10 +8,7 @@ import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  Moon,
-  Sun,
-  Palette,
-  RotateCcw,
+  Settings,
   Minus,
   Plus,
 } from "lucide-react";
@@ -73,7 +70,6 @@ export default function EPUBReader({
   const [location, setLocation] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
   const [menuVisible, setMenuVisible] = useState(false);
-  const [lastPageCfi, setLastPageCfi] = useState<string | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<keyof typeof THEMES>(() =>
     typeof window !== "undefined"
@@ -93,8 +89,10 @@ export default function EPUBReader({
     lineHeight: 1.6,
     textAlign: "justify" as "left" | "center" | "justify",
     theme: theme,
-    backgroundColor: theme === "dark" ? "#0b0b0c" : theme === "sepia" ? "#f4ecd8" : "#fafafa",
-    textColor: theme === "dark" ? "#e7e7ea" : theme === "sepia" ? "#3b2f1a" : "#111",
+    backgroundColor:
+      theme === "dark" ? "#0b0b0c" : theme === "sepia" ? "#f4ecd8" : "#fafafa",
+    textColor:
+      theme === "dark" ? "#e7e7ea" : theme === "sepia" ? "#3b2f1a" : "#111",
     margin: 20,
     columnCount: 1 as 1 | 2,
     readingMode: "paginated" as "scroll" | "paginated",
@@ -106,9 +104,7 @@ export default function EPUBReader({
   // restore saved location
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY(book.id));
-    const lastPage = localStorage.getItem(`epub.lastPage.${book.id}`);
     if (saved) setLocation(saved);
-    if (lastPage) setLastPageCfi(lastPage);
   }, [book.id]);
 
   // gestures: swipe for next/prev, pinch for font size
@@ -158,12 +154,6 @@ export default function EPUBReader({
 
   const onLocationChanged = useCallback(
     async (epubcfi: string) => {
-      // Save previous location as last page
-      if (location && location !== epubcfi) {
-        setLastPageCfi(location);
-        localStorage.setItem(`epub.lastPage.${book.id}`, location);
-      }
-      
       setLocation(epubcfi);
       localStorage.setItem(STORAGE_KEY(book.id), epubcfi);
       const r = renditionRef.current;
@@ -175,7 +165,7 @@ export default function EPUBReader({
         } catch {}
       }
     },
-    [book.id, location, onLocationPersistAction]
+    [book.id, onLocationPersistAction]
   );
 
   const onRendition = useCallback(
@@ -199,7 +189,7 @@ export default function EPUBReader({
         if (e.key === "+" || e.key === "=")
           setFontPct((f) => clamp(f + 5, 70, 180));
         if (e.key === "-") setFontPct((f) => clamp(f - 5, 70, 180));
-        if (e.key.toLowerCase() === "t") setSettingsOpen((v: any) => !v);
+        // if (e.key.toLowerCase() === "t") setSettingsOpen((v: any) => !v);
       });
 
       // selection -> quick highlight
@@ -245,11 +235,6 @@ export default function EPUBReader({
 
   const goPrev = () => renditionRef.current?.prev();
   const goNext = () => renditionRef.current?.next();
-  const goToLastPage = () => {
-    if (lastPageCfi && renditionRef.current) {
-      renditionRef.current.display(lastPageCfi);
-    }
-  };
 
   // Auto-hide menu after interaction
   const hideMenuAfterDelay = () => {
@@ -258,8 +243,8 @@ export default function EPUBReader({
 
   // Handle settings changes from EPUBReaderMenu
   const handleSettingsChange = (newSettings: any) => {
-    setEpubSettings(prev => ({ ...prev, ...newSettings }));
-    
+    setEpubSettings((prev) => ({ ...prev, ...newSettings }));
+
     // Sync with existing state
     if (newSettings.theme) {
       setTheme(newSettings.theme as keyof typeof THEMES);
@@ -273,68 +258,43 @@ export default function EPUBReader({
     <div
       className="relative h-[calc(100dvh-0px)] w-full select-none"
       ref={containerRef}
+      onDoubleClick={() => {
+        if (!menuVisible && !settingsOpen) {
+          setMenuVisible(true);
+        }
+      }}
     >
-      {/* Tap area to show menu */}
-      <div 
-        className="absolute inset-0 z-10"
-        onClick={() => setMenuVisible(!menuVisible)}
-      />
 
-      {/* Hidden menu overlay */}
+      {/* Quick menu overlay - simple and minimal */}
       {menuVisible && !settingsOpen && (
-        <div className="absolute inset-0 z-20 pointer-events-none">
-          {/* Top quick menu */}
-          <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
-            {/* Left controls */}
-            <div className="flex items-center gap-2 bg-background/90 rounded-lg p-2 shadow-lg">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={onBackAction}
-                aria-label="Back"
+        <>
+          {/* Backdrop to close menu when clicking outside */}
+          <div
+            className="absolute inset-0 z-20"
+            onClick={() => setMenuVisible(false)}
+          />
+          <div className="absolute inset-0 z-20 pointer-events-none">
+            {/* Simple centered quick menu */}
+            <div className="pointer-events-auto absolute top-2 left-1/2 transform -translate-x-1/2">
+              <div
+                className="flex items-center gap-2 bg-background/95 rounded-full p-2 shadow-xl border"
+                onClick={(e) => e.stopPropagation()}
               >
-                <ArrowLeft className="h-4 w-4" />
-              </Button>
-              {lastPageCfi && (
+                {/* Back */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={goToLastPage}
-                  aria-label="Go to last page"
+                  onClick={() => {
+                    onBackAction?.();
+                    setMenuVisible(false);
+                  }}
+                  aria-label="Back"
+                  className="rounded-full"
                 >
-                  <RotateCcw className="h-4 w-4" />
+                  <ArrowLeft className="h-4 w-4" />
                 </Button>
-              )}
-            </div>
 
-            {/* Center title */}
-            <div className="bg-background/90 rounded-lg p-2 shadow-lg max-w-md">
-              <div className="text-sm font-medium text-center truncate">
-                {book.title}
-              </div>
-            </div>
-
-            {/* Right controls */}
-            <div className="flex items-center gap-2 bg-background/90 rounded-lg p-2 shadow-lg">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => {
-                  setSettingsOpen(true);
-                  setMenuVisible(false);
-                }}
-                aria-label="Settings"
-              >
-                <Palette className="h-4 w-4" />
-              </Button>
-            </div>
-          </div>
-
-          {/* Bottom controls */}
-          <div className="pointer-events-auto absolute bottom-4 left-4 right-4">
-            <div className="flex items-center justify-between bg-background/90 rounded-lg p-2 shadow-lg">
-              {/* Navigation */}
-              <div className="flex items-center gap-2">
+                {/* Previous page */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -343,9 +303,12 @@ export default function EPUBReader({
                     hideMenuAfterDelay();
                   }}
                   aria-label="Previous page"
+                  className="rounded-full"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
+
+                {/* Next page */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -354,60 +317,62 @@ export default function EPUBReader({
                     hideMenuAfterDelay();
                   }}
                   aria-label="Next page"
+                  className="rounded-full"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
-              </div>
 
-              {/* Progress */}
-              <div className="flex-1 mx-4">
-                <div className="text-xs text-center mb-1">{progress}%</div>
-                <div className="w-full bg-muted/50 rounded-full h-1">
-                  <div 
-                    className="bg-primary h-1 rounded-full transition-all" 
-                    style={{ width: `${progress}%` }}
-                  />
-                </div>
-              </div>
-
-              {/* Settings */}
-              <div className="flex items-center gap-2">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFontPct(f => Math.max(70, f - 10))}
-                  aria-label="Decrease font size"
-                >
-                  <Minus className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setFontPct(f => Math.min(180, f + 10))}
-                  aria-label="Increase font size"
-                >
-                  <Plus className="h-4 w-4" />
-                </Button>
+                {/* Font size controls */}
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={() => {
-                    const themes = ['light', 'sepia', 'dark'] as const;
-                    const currentIndex = themes.indexOf(theme);
-                    const nextTheme = themes[(currentIndex + 1) % themes.length];
-                    setTheme(nextTheme);
+                    setFontPct((f) => Math.max(70, f - 10));
                     hideMenuAfterDelay();
                   }}
-                  aria-label="Change theme"
+                  aria-label="Decrease font size"
+                  className="rounded-full"
                 >
-                  {theme === "dark" ? <Moon className="h-4 w-4" /> : 
-                   theme === "sepia" ? <Palette className="h-4 w-4" /> : 
-                   <Sun className="h-4 w-4" />}
+                  <Minus className="h-4 w-4" />
+                </Button>
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setFontPct((f) => Math.min(180, f + 10));
+                    hideMenuAfterDelay();
+                  }}
+                  aria-label="Increase font size"
+                  className="rounded-full"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+
+                {/* Settings */}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setSettingsOpen(true);
+                    setMenuVisible(false);
+                  }}
+                  aria-label="Settings"
+                  className="rounded-full"
+                >
+                  <Settings className="h-4 w-4" />
                 </Button>
               </div>
             </div>
+
+            {/* Simple progress indicator */}
+            <div className="pointer-events-none absolute bottom-4 left-1/2 transform -translate-x-1/2">
+              <div className="bg-background/95 rounded-full px-3 py-1 text-xs shadow-xl">
+                {progress}%
+              </div>
+            </div>
           </div>
-        </div>
+        </>
       )}
 
       {/* Reader */}
