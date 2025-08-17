@@ -1,39 +1,22 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
 import { useGesture } from "@use-gesture/react";
 import { Button } from "@/components/ui/button";
-import { Slider } from "@/components/ui/slider";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-  DropdownMenuSeparator,
-  DropdownMenuLabel,
-} from "@/components/ui/dropdown-menu";
-import { Progress } from "@/components/ui/progress";
 import {
   ArrowLeft,
   ChevronLeft,
   ChevronRight,
-  ListTree,
-  Settings,
   Moon,
   Sun,
-  BookMarked,
-  Type,
   Palette,
+  RotateCcw,
+  Minus,
+  Plus,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
+import EPUBReaderMenu from "./EPUBReaderMenu";
 
 // react-reader needs window, load client-side only
 const ReactReader = dynamic(
@@ -87,11 +70,11 @@ export default function EPUBReader({
 }: EPUBReaderProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<any>(null);
-  const [toc, setToc] = useState<Array<{ href: string; label: string }>>([]);
   const [location, setLocation] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [chapter, setChapter] = useState<string>("");
-  const [tocOpen, setTocOpen] = useState(false);
+  const [menuVisible, setMenuVisible] = useState(false);
+  const [lastPageCfi, setLastPageCfi] = useState<string | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [theme, setTheme] = useState<keyof typeof THEMES>(() =>
     typeof window !== "undefined"
       ? (localStorage.getItem("epub.theme") as any) || "light"
@@ -103,10 +86,29 @@ export default function EPUBReader({
       : 100
   );
 
+  // EPUB Settings for the menu
+  const [epubSettings, setEpubSettings] = useState({
+    fontSize: fontPct,
+    fontFamily: "serif" as "serif" | "sans-serif" | "monospace",
+    lineHeight: 1.6,
+    textAlign: "justify" as "left" | "center" | "justify",
+    theme: theme,
+    backgroundColor: theme === "dark" ? "#0b0b0c" : theme === "sepia" ? "#f4ecd8" : "#fafafa",
+    textColor: theme === "dark" ? "#e7e7ea" : theme === "sepia" ? "#3b2f1a" : "#111",
+    margin: 20,
+    columnCount: 1 as 1 | 2,
+    readingMode: "paginated" as "scroll" | "paginated",
+    showProgress: true,
+    autoSave: true,
+    animatePageTurns: true,
+  });
+
   // restore saved location
   useEffect(() => {
     const saved = localStorage.getItem(STORAGE_KEY(book.id));
+    const lastPage = localStorage.getItem(`epub.lastPage.${book.id}`);
     if (saved) setLocation(saved);
+    if (lastPage) setLastPageCfi(lastPage);
   }, [book.id]);
 
   // gestures: swipe for next/prev, pinch for font size
@@ -156,6 +158,12 @@ export default function EPUBReader({
 
   const onLocationChanged = useCallback(
     async (epubcfi: string) => {
+      // Save previous location as last page
+      if (location && location !== epubcfi) {
+        setLastPageCfi(location);
+        localStorage.setItem(`epub.lastPage.${book.id}`, location);
+      }
+      
       setLocation(epubcfi);
       localStorage.setItem(STORAGE_KEY(book.id), epubcfi);
       const r = renditionRef.current;
@@ -167,7 +175,7 @@ export default function EPUBReader({
         } catch {}
       }
     },
-    [book.id, onLocationPersistAction]
+    [book.id, location, onLocationPersistAction]
   );
 
   const onRendition = useCallback(
@@ -191,7 +199,7 @@ export default function EPUBReader({
         if (e.key === "+" || e.key === "=")
           setFontPct((f) => clamp(f + 5, 70, 180));
         if (e.key === "-") setFontPct((f) => clamp(f - 5, 70, 180));
-        if (e.key.toLowerCase() === "t") setTocOpen((v) => !v);
+        if (e.key.toLowerCase() === "t") setSettingsOpen((v: any) => !v);
       });
 
       // selection -> quick highlight
@@ -237,142 +245,170 @@ export default function EPUBReader({
 
   const goPrev = () => renditionRef.current?.prev();
   const goNext = () => renditionRef.current?.next();
+  const goToLastPage = () => {
+    if (lastPageCfi && renditionRef.current) {
+      renditionRef.current.display(lastPageCfi);
+    }
+  };
 
-  const themeIcon =
-    theme === "dark" ? (
-      <Moon className="h-4 w-4" />
-    ) : theme === "sepia" ? (
-      <Palette className="h-4 w-4" />
-    ) : (
-      <Sun className="h-4 w-4" />
-    );
+  // Auto-hide menu after interaction
+  const hideMenuAfterDelay = () => {
+    setTimeout(() => setMenuVisible(false), 3000);
+  };
+
+  // Handle settings changes from EPUBReaderMenu
+  const handleSettingsChange = (newSettings: any) => {
+    setEpubSettings(prev => ({ ...prev, ...newSettings }));
+    
+    // Sync with existing state
+    if (newSettings.theme) {
+      setTheme(newSettings.theme as keyof typeof THEMES);
+    }
+    if (newSettings.fontSize) {
+      setFontPct(newSettings.fontSize);
+    }
+  };
 
   return (
     <div
       className="relative h-[calc(100dvh-0px)] w-full select-none"
       ref={containerRef}
     >
-      {/* Top bar */}
-      <div className="pointer-events-auto absolute inset-x-0 top-0 z-20 m-3">
-        <div className="flex items-center gap-2 rounded-2xl bg-background/70 p-2 shadow-xl ring-1 ring-border backdrop-blur">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={onBackAction}
-              aria-label="Back"
-            >
-              <ArrowLeft className="h-5 w-5" />
-            </Button>
-            <div className="text-sm font-medium line-clamp-1">
-              {book.title}
-              <span className="ml-2 text-muted-foreground">{book.author}</span>
-            </div>
-          </div>
-          <div className="ml-auto flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={goPrev}
-              aria-label="Previous page"
-            >
-              <ChevronLeft className="h-5 w-5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={goNext}
-              aria-label="Next page"
-            >
-              <ChevronRight className="h-5 w-5" />
-            </Button>
+      {/* Tap area to show menu */}
+      <div 
+        className="absolute inset-0 z-10"
+        onClick={() => setMenuVisible(!menuVisible)}
+      />
 
-            {/* TOC */}
-            <Sheet open={tocOpen} onOpenChange={setTocOpen}>
-              <SheetTrigger asChild>
+      {/* Hidden menu overlay */}
+      {menuVisible && !settingsOpen && (
+        <div className="absolute inset-0 z-20 pointer-events-none">
+          {/* Top quick menu */}
+          <div className="pointer-events-auto absolute top-4 left-4 right-4 flex items-center justify-between">
+            {/* Left controls */}
+            <div className="flex items-center gap-2 bg-background/90 rounded-lg p-2 shadow-lg">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={onBackAction}
+                aria-label="Back"
+              >
+                <ArrowLeft className="h-4 w-4" />
+              </Button>
+              {lastPageCfi && (
                 <Button
                   variant="ghost"
-                  size="icon"
-                  aria-label="Table of contents"
+                  size="sm"
+                  onClick={goToLastPage}
+                  aria-label="Go to last page"
                 >
-                  <ListTree className="h-5 w-5" />
+                  <RotateCcw className="h-4 w-4" />
                 </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-[320px]">
-                <SheetHeader>
-                  <SheetTitle>Contents</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4 space-y-1 overflow-y-auto pr-2 text-sm">
-                  {toc.map((item, i) => (
-                    <button
-                      key={`${item.href}-${i}`}
-                      className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
-                      onClick={() => {
-                        setTocOpen(false);
-                        renditionRef.current?.display(item.href);
-                      }}
-                    >
-                      {item.label}
-                    </button>
-                  ))}
-                </div>
-              </SheetContent>
-            </Sheet>
+              )}
+            </div>
 
-            {/* Settings */}
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" aria-label="Settings">
-                  <Settings className="h-5 w-5" />
+            {/* Center title */}
+            <div className="bg-background/90 rounded-lg p-2 shadow-lg max-w-md">
+              <div className="text-sm font-medium text-center truncate">
+                {book.title}
+              </div>
+            </div>
+
+            {/* Right controls */}
+            <div className="flex items-center gap-2 bg-background/90 rounded-lg p-2 shadow-lg">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setSettingsOpen(true);
+                  setMenuVisible(false);
+                }}
+                aria-label="Settings"
+              >
+                <Palette className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Bottom controls */}
+          <div className="pointer-events-auto absolute bottom-4 left-4 right-4">
+            <div className="flex items-center justify-between bg-background/90 rounded-lg p-2 shadow-lg">
+              {/* Navigation */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    goPrev();
+                    hideMenuAfterDelay();
+                  }}
+                  aria-label="Previous page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-72">
-                <DropdownMenuLabel className="flex items-center gap-2">
-                  <Type className="h-4 w-4" />
-                  Text size
-                </DropdownMenuLabel>
-                <div className="px-3 py-2">
-                  <Slider
-                    value={[fontPct]}
-                    min={70}
-                    max={180}
-                    step={2}
-                    onValueChange={(v) => setFontPct(v[0])}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    goNext();
+                    hideMenuAfterDelay();
+                  }}
+                  aria-label="Next page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+              </div>
+
+              {/* Progress */}
+              <div className="flex-1 mx-4">
+                <div className="text-xs text-center mb-1">{progress}%</div>
+                <div className="w-full bg-muted/50 rounded-full h-1">
+                  <div 
+                    className="bg-primary h-1 rounded-full transition-all" 
+                    style={{ width: `${progress}%` }}
                   />
-                  <div className="mt-1 text-right text-xs text-muted-foreground">
-                    {fontPct}%
-                  </div>
                 </div>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="flex items-center gap-2">
-                  <Palette className="h-4 w-4" />
-                  Theme
-                </DropdownMenuLabel>
-                <div className="grid grid-cols-3 gap-2 px-3 pb-2">
-                  <Button
-                    variant={theme === "light" ? "default" : "outline"}
-                    onClick={() => setTheme("light")}
-                  >
-                    Light
-                  </Button>
-                  <Button
-                    variant={theme === "sepia" ? "default" : "outline"}
-                    onClick={() => setTheme("sepia")}
-                  >
-                    Sepia
-                  </Button>
-                  <Button
-                    variant={theme === "dark" ? "default" : "outline"}
-                    onClick={() => setTheme("dark")}
-                  >
-                    Dark
-                  </Button>
-                </div>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </div>
+
+              {/* Settings */}
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFontPct(f => Math.max(70, f - 10))}
+                  aria-label="Decrease font size"
+                >
+                  <Minus className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setFontPct(f => Math.min(180, f + 10))}
+                  aria-label="Increase font size"
+                >
+                  <Plus className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    const themes = ['light', 'sepia', 'dark'] as const;
+                    const currentIndex = themes.indexOf(theme);
+                    const nextTheme = themes[(currentIndex + 1) % themes.length];
+                    setTheme(nextTheme);
+                    hideMenuAfterDelay();
+                  }}
+                  aria-label="Change theme"
+                >
+                  {theme === "dark" ? <Moon className="h-4 w-4" /> : 
+                   theme === "sepia" ? <Palette className="h-4 w-4" /> : 
+                   <Sun className="h-4 w-4" />}
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       {/* Reader */}
       <div className="absolute inset-0">
@@ -382,7 +418,6 @@ export default function EPUBReader({
           location={location ?? null}
           locationChanged={onLocationChanged}
           getRendition={onRendition}
-          tocChanged={(toc) => setToc(toc as any)}
           epubOptions={{
             allowScriptedContent: true,
             // Some epubs need CORS-less fetch. Let the server set proper headers.
@@ -391,23 +426,15 @@ export default function EPUBReader({
         />
       </div>
 
-      {/* Bottom progress */}
-      <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 m-3">
-        <div className="rounded-2xl bg-background/70 p-3 shadow-xl ring-1 ring-border backdrop-blur">
-          <div className="flex items-center gap-3">
-            <BookMarked className="h-4 w-4 text-muted-foreground" />
-            <Progress value={progress} className="h-2" />
-            <div className="ml-auto text-xs tabular-nums text-muted-foreground">
-              {progress}%
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* Floating theme indicator */}
-      <div className="pointer-events-none absolute right-4 top-[68px] z-20 opacity-70">
-        {themeIcon}
-      </div>
+      {/* EPUBReaderMenu */}
+      {settingsOpen && (
+        <EPUBReaderMenu
+          settings={epubSettings}
+          onSettingsChange={handleSettingsChange}
+          progress={progress}
+          onClose={() => setSettingsOpen(false)}
+        />
+      )}
     </div>
   );
 }

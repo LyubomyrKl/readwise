@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "../components/PDFReader";
 import EPUBReader from "../components/EPUBReader";
-import EPUBReaderMenu from "../components/EPUBReaderMenu";
 import PDFReaderMenu from "../components/PDFReaderMenu";
 import { IBook } from "../../../types";
 
@@ -18,22 +17,6 @@ export default function BookReaderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // EPUB Settings
-  const [epubSettings, setEpubSettings] = useState({
-    fontSize: 16,
-    fontFamily: "serif" as "serif" | "sans-serif" | "monospace",
-    lineHeight: 1.6,
-    textAlign: "justify" as "left" | "center" | "justify",
-    theme: "light" as "light" | "dark" | "sepia",
-    backgroundColor: "#ffffff",
-    textColor: "#1a1a1a",
-    margin: 20,
-    columnCount: 1 as 1 | 2,
-    readingMode: "paginated" as "scroll" | "paginated",
-    showProgress: true,
-    autoSave: true,
-    animatePageTurns: true,
-  });
 
   // PDF Settings
   const [pdfSettings, setPdfSettings] = useState({
@@ -53,7 +36,6 @@ export default function BookReaderPage() {
 
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
-  const [readingProgress, setReadingProgress] = useState(0);
 
   useEffect(() => {
     async function fetchBook() {
@@ -129,13 +111,6 @@ export default function BookReaderPage() {
           // onBack={() => router.back()}
           // onCreateHighlight={(h) => api.highlights.create(book.id, h)}
           // onLocationPersist={(id, cfi, pct) => api.reading.save(id, { cfi, pct })}
-        />
-        <EPUBReaderMenu
-          settings={epubSettings}
-          onSettingsChange={(newSettings) =>
-            setEpubSettings({ ...epubSettings, ...newSettings })
-          }
-          progress={readingProgress}
         />
       </div>
     );

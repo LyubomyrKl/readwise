@@ -40,15 +40,16 @@ interface EPUBReaderMenuProps {
   settings: EPUBSettings;
   onSettingsChange: (settings: Partial<EPUBSettings>) => void;
   progress?: number;
+  onClose?: () => void;
 }
 
 export default function EPUBReaderMenu({
   settings,
   onSettingsChange,
   progress = 0,
+  onClose,
 }: EPUBReaderMenuProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
 
   const themes = [
     {
@@ -108,15 +109,6 @@ export default function EPUBReaderMenu({
 
   return (
     <>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsVisible(!isVisible)}
-        className="fixed top-4 right-4 z-50 p-3 rounded-full bg-background/80 backdrop-blur-md border border-border/50 shadow-lg hover:bg-background/90 transition-all duration-200 group"
-        aria-label="Toggle settings"
-      >
-        <Settings className="h-5 w-5 transition-transform group-hover:rotate-90" />
-      </button>
-
       {/* Settings Panel */}
       <div
         className={`fixed top-0 right-0 h-full w-80 bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl transition-transform duration-300 ease-out z-40 ${
@@ -128,7 +120,10 @@ export default function EPUBReaderMenu({
           <div className="flex items-center justify-between p-4 border-b border-border/50">
             <h2 className="text-lg font-semibold">Reading Settings</h2>
             <button
-              onClick={() => setIsVisible(false)}
+              onClick={() => {
+                setIsVisible(false);
+                onClose?.();
+              }}
               className="p-1.5 rounded-md hover:bg-muted/50 transition-colors"
             >
               <EyeOff className="h-4 w-4" />
@@ -404,7 +399,10 @@ export default function EPUBReaderMenu({
       {isVisible && (
         <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30"
-          onClick={() => setIsVisible(false)}
+          onClick={() => {
+            setIsVisible(false);
+            onClose?.();
+          }}
         />
       )}
     </>
