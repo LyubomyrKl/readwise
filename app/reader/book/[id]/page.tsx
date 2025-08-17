@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "./components/PDFReader";
 import EPUBReader from "./components/EPUBReader";
 import { IBook } from "../../types";
+import router from "next/router";
 
 export default function BookReaderPage() {
   const params = useParams();
@@ -77,12 +78,20 @@ export default function BookReaderPage() {
     );
   }
 
-  const isEPUB = book.mime === 'application/epub+zip' || 
-                 book.mime === 'application/epub' ||
-                 (book.fileUrl && book.fileUrl.toLowerCase().endsWith('.epub'));
+  const isEPUB =
+    book.mime === "application/epub+zip" ||
+    book.mime === "application/epub" ||
+    (book.fileUrl && book.fileUrl.toLowerCase().endsWith(".epub"));
 
   if (isEPUB) {
-    return <EPUBReader book={book} />;
+    return (
+      <EPUBReader
+        book={book}
+        // onBack={() => router.back()}
+        // onCreateHighlight={(h) => api.highlights.create(book.id, h)}
+        // onLocationPersist={(id, cfi, pct) => api.reading.save(id, { cfi, pct })}
+      />
+    );
   }
 
   return <VirtualPDFReader book={book} />;

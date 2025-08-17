@@ -1,401 +1,413 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Settings, Bookmark } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
+import { useGesture } from "@use-gesture/react";
+import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "@/components/ui/sheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuLabel,
+} from "@/components/ui/dropdown-menu";
+import { Progress } from "@/components/ui/progress";
+import {
+  ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
+  ListTree,
+  Settings,
+  Moon,
+  Sun,
+  BookMarked,
+  Type,
+  Palette,
+} from "lucide-react";
 import { IBook } from "@/app/reader/types";
 
-type TocItem = { href: string; label: string; subitems?: TocItem[] };
+// react-reader needs window, load client-side only
+const ReactReader = dynamic(
+  () => import("react-reader").then((m) => m.ReactReader),
+  { ssr: false }
+);
 
-export default function EPUBReader({ book }: { book: IBook }) {
-  const viewerRef = useRef<HTMLDivElement | null>(null);
-  const bookRef = useRef<any>(null);
+// ---- Types ----
+
+export type EPUBReaderProps = {
+  book: IBook;
+  onBackAction?: () => void;
+  onCreateHighlightAction?: (h: { cfiRange: string; text?: string }) => void;
+  onLocationPersistAction?: (
+    bookId: string,
+    cfi: string,
+    progressPct: number
+  ) => void;
+};
+
+// ---- Helpers ----
+const STORAGE_KEY = (id: string) => `epub.cfi.${id}`;
+const clamp = (v: number, lo: number, hi: number) =>
+  Math.max(lo, Math.min(hi, v));
+
+const THEMES = {
+  light: `
+    body { background: #fafafa !important; color: #111 !important; }
+    ::selection { background: rgba(0,0,0,.12); }
+    p { line-height: 1.55; }
+  `,
+  sepia: `
+    body { background: #f4ecd8 !important; color: #3b2f1a !important; }
+    ::selection { background: rgba(0,0,0,.12); }
+    p { line-height: 1.55; }
+  `,
+  dark: `
+    body { background: #0b0b0c !important; color: #e7e7ea !important; }
+    a { color: #9bbcff !important; }
+    ::selection { background: rgba(255,255,255,.14); }
+    p { line-height: 1.6; }
+  `,
+};
+
+// ---- Component ----
+export default function EPUBReader({
+  book,
+  onBackAction,
+  onCreateHighlightAction,
+  onLocationPersistAction,
+}: EPUBReaderProps) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<any>(null);
-
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [showSettings, setShowSettings] = useState(false);
-  const [tocOpen, setTocOpen] = useState(false);
-  const [toc, setToc] = useState<TocItem[]>([]);
-  const [fontPct, setFontPct] = useState(100);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
+  const [toc, setToc] = useState<Array<{ href: string; label: string }>>([]);
+  const [location, setLocation] = useState<string | null>(null);
   const [progress, setProgress] = useState(0);
-  const [currentLocation, setCurrentLocation] = useState<string | null>(null);
-  const [bookmarks, setBookmarks] = useState<string[]>([]);
+  const [chapter, setChapter] = useState<string>("");
+  const [tocOpen, setTocOpen] = useState(false);
+  const [theme, setTheme] = useState<keyof typeof THEMES>(() =>
+    typeof window !== "undefined"
+      ? (localStorage.getItem("epub.theme") as any) || "light"
+      : "light"
+  );
+  const [fontPct, setFontPct] = useState<number>(() =>
+    typeof window !== "undefined"
+      ? Number(localStorage.getItem("epub.fontPct") || 100)
+      : 100
+  );
 
-  const keyCfi = `epub:cfi:${book.id}`;
-  const keyTheme = `epub:theme:${book.id}`;
-  const keyFont = `epub:font:${book.id}`;
-  const keyBmk = `epub:bm:${book.id}`;
-
-  // restore prefs
+  // restore saved location
   useEffect(() => {
-    try {
-      const t = localStorage.getItem(keyTheme) as "light" | "dark" | null;
-      const f = localStorage.getItem(keyFont);
-      const b = localStorage.getItem(keyBmk);
-      if (t) setTheme(t);
-      if (f) setFontPct(Math.min(200, Math.max(70, Number(f))));
-      if (b) setBookmarks(JSON.parse(b));
-    } catch {}
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const saved = localStorage.getItem(STORAGE_KEY(book.id));
+    if (saved) setLocation(saved);
   }, [book.id]);
 
+  // gestures: swipe for next/prev, pinch for font size
+  useGesture(
+    {
+      onDragEnd: ({ swipe: [sx] }) => {
+        if (!renditionRef.current) return;
+        if (sx === -1) renditionRef.current.next();
+        if (sx === 1) renditionRef.current.prev();
+      },
+      onPinch: ({ da: [d] }) => {
+        // da[0] ~ scale delta; map to font change
+        if (!renditionRef.current) return;
+        const next = clamp(
+          Math.round(fontPct * (d > 1 ? 1.02 : 0.98)),
+          70,
+          180
+        );
+        if (next !== fontPct) setFontPct(next);
+      },
+    },
+    { target: containerRef, eventOptions: { passive: true } }
+  );
+
+  // apply theme + font size once rendition is ready
   useEffect(() => {
-    let cancelled = false;
-
-    const initializeReader = async () => {
-      try {
-        if (!viewerRef.current || !book.fileUrl) return;
-
-        setIsLoading(true);
-        setError(null);
-
-        const { default: ePub } = await import("epubjs");
-
-        // Robust fetch for S3 presigned URL
-        let source: ArrayBuffer | string = book.fileUrl;
-        try {
-          const res = await fetch(book.fileUrl, {
-            referrerPolicy: "no-referrer",
-          });
-          if (res.ok) source = await res.arrayBuffer();
-        } catch {}
-
-        bookRef.current = ePub(source as any);
-        renditionRef.current = bookRef.current.renderTo(viewerRef.current, {
-          width: "100%",
-          height: "100%",
-          spread: "none",
-          flow: "paginated",
-        });
-
-        // Themes
-        renditionRef.current.themes.register("light", {
-          body: { background: "#ffffff", color: "#000000" },
-          "p, h1, h2, h3, h4, h5, h6": { color: "#000000" },
-        });
-        renditionRef.current.themes.register("dark", {
-          body: { background: "#1a1a1a", color: "#e5e5e5" },
-          "p, h1, h2, h3, h4, h5, h6": { color: "#e5e5e5" },
-          a: { color: "#e5e5e5" },
-        });
-        renditionRef.current.themes.select(theme);
-        renditionRef.current.themes.fontSize(`${fontPct}%`);
-
-        const startCfi = localStorage.getItem(keyCfi) || undefined;
-        await renditionRef.current.display(startCfi);
-
-        // TOC
-        const nav = await bookRef.current.loaded.navigation;
-        if (!cancelled) setToc(nav?.toc || []);
-
-        // Locations for progress
-        await bookRef.current.ready;
-        await bookRef.current.locations.generate(1000);
-
-        renditionRef.current.on("relocated", (loc: any) => {
-          if (cancelled) return;
-          try {
-            const cfi = loc.start.cfi;
-            const pct = bookRef.current.locations.percentageFromCfi(cfi);
-            if (!Number.isNaN(pct)) {
-              setProgress(Math.round(pct * 100));
-              setCurrentLocation(cfi);
-              localStorage.setItem(keyCfi, cfi);
-            }
-          } catch {}
-        });
-
-        setIsLoading(false);
-      } catch (err) {
-        console.error("Error loading EPUB:", err);
-        setError(err instanceof Error ? err.message : "Failed to load EPUB");
-        setIsLoading(false);
-      }
-    };
-
-    initializeReader();
-
-    return () => {
-      cancelled = true;
-      try {
-        renditionRef.current?.destroy();
-        bookRef.current?.destroy();
-      } catch {}
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [book.fileUrl, book.id]);
-
-  // live updates
-  useEffect(() => {
-    renditionRef.current?.themes.select(theme);
+    const r = renditionRef.current;
+    if (!r) return;
     try {
-      localStorage.setItem(keyTheme, theme);
+      r.themes.register("light", THEMES.light);
+      r.themes.register("sepia", THEMES.sepia);
+      r.themes.register("dark", THEMES.dark);
+      r.themes.select(theme);
+      r.themes.fontSize(`${fontPct}%`);
     } catch {}
+  }, [theme, fontPct]);
+
+  // persist prefs
+  useEffect(() => {
+    if (typeof window !== "undefined")
+      localStorage.setItem("epub.theme", theme);
   }, [theme]);
-
   useEffect(() => {
-    renditionRef.current?.themes.fontSize(`${fontPct}%`);
-    try {
-      localStorage.setItem(keyFont, String(fontPct));
-    } catch {}
+    if (typeof window !== "undefined")
+      localStorage.setItem("epub.fontPct", String(fontPct));
   }, [fontPct]);
 
-  // resize when TOC toggles or window changes
-  useEffect(() => {
-    const rsz = () => renditionRef.current?.resize?.();
-    rsz();
-    window.addEventListener("resize", rsz);
-    return () => window.removeEventListener("resize", rsz);
-  }, [tocOpen]);
-
-  // keyboard
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        next();
+  const onLocationChanged = useCallback(
+    async (epubcfi: string) => {
+      setLocation(epubcfi);
+      localStorage.setItem(STORAGE_KEY(book.id), epubcfi);
+      const r = renditionRef.current;
+      if (r && r.book && r.book.locations) {
+        try {
+          const pct = r.book.locations.percentageFromCfi(epubcfi) || 0;
+          setProgress(Math.round(pct * 100));
+          onLocationPersistAction?.(book.id, epubcfi, Math.round(pct * 100));
+        } catch {}
       }
-      if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        prev();
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
+    },
+    [book.id, onLocationPersistAction]
+  );
 
-  const next = useCallback(() => renditionRef.current?.next(), []);
-  const prev = useCallback(() => renditionRef.current?.prev(), []);
-  const goToHref = useCallback((href: string) => {
-    setTocOpen(false);
-    renditionRef.current
-      ?.display(href)
-      .then(() => renditionRef.current?.resize?.());
-  }, []);
+  const onRendition = useCallback(
+    (rendition: any) => {
+      renditionRef.current = rendition;
 
-  const toggleBookmark = () => {
-    if (!currentLocation) return;
-    setBookmarks((prev) => {
-      const next = prev.includes(currentLocation)
-        ? prev.filter((b) => b !== currentLocation)
-        : [...prev, currentLocation];
+      // flow and settings
       try {
-        localStorage.setItem(keyBmk, JSON.stringify(next));
+        rendition.flow("paginated"); // better for swipes
+        rendition.themes.register("light", THEMES.light);
+        rendition.themes.register("sepia", THEMES.sepia);
+        rendition.themes.register("dark", THEMES.dark);
+        rendition.themes.select(theme);
+        rendition.themes.fontSize(`${fontPct}%`);
       } catch {}
-      return next;
-    });
-  };
 
-  if (error) {
-    return (
-      <div className="grid h-[100dvh] place-items-center">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-red-600 mb-2">Error</h1>
-          <p className="text-muted-foreground">{error}</p>
-        </div>
-      </div>
+      // keyboard
+      rendition.on("keyup", (e: KeyboardEvent) => {
+        if (e.key === "ArrowRight") rendition.next();
+        if (e.key === "ArrowLeft") rendition.prev();
+        if (e.key === "+" || e.key === "=")
+          setFontPct((f) => clamp(f + 5, 70, 180));
+        if (e.key === "-") setFontPct((f) => clamp(f - 5, 70, 180));
+        if (e.key.toLowerCase() === "t") setTocOpen((v) => !v);
+      });
+
+      // selection -> quick highlight
+      rendition.on("selected", async (cfiRange: string, contents: any) => {
+        try {
+          contents.highlight(cfiRange, {}, undefined, {
+            fill: "#ffe066",
+            "fill-opacity": 0.35,
+          });
+        } catch {}
+        const text = await rendition.book
+          .getRange(cfiRange)
+          ?.toString()
+          .catch(() => "");
+        onCreateHighlightAction?.({ cfiRange, text });
+        rendition.annotations.remove(cfiRange, "highlight"); // keep UI minimal; rely on external highlight render below
+        rendition.annotations.add("highlight", cfiRange, {}, undefined, {
+          fill: "#ffe066",
+          "fill-opacity": 0.35,
+        });
+        rendition.annotations.update();
+        rendition.currentLocation(); // keep focus
+      });
+    },
+    [theme, fontPct, onCreateHighlightAction]
+  );
+
+  // Render existing highlights when location or book changes
+  useEffect(() => {
+    const r = renditionRef.current;
+    if (!r) return;
+    try {
+      r.annotations?.removeAll?.();
+      for (const h of book.highlights || []) {
+        r.annotations.add("highlight", [], {}, undefined, {
+          fill: h.color || "#ffd54f",
+          "fill-opacity": 0.35,
+        });
+      }
+      r.annotations.update();
+    } catch {}
+  }, [book.id, book.highlights, location]);
+
+  const goPrev = () => renditionRef.current?.prev();
+  const goNext = () => renditionRef.current?.next();
+
+  const themeIcon =
+    theme === "dark" ? (
+      <Moon className="h-4 w-4" />
+    ) : theme === "sepia" ? (
+      <Palette className="h-4 w-4" />
+    ) : (
+      <Sun className="h-4 w-4" />
     );
-  }
 
   return (
-    <div className="grid h-[100dvh] grid-rows-[auto_auto_1fr_auto] overflow-hidden">
-      {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b bg-background/80 backdrop-blur">
-        <div className="flex items-center gap-2 min-w-0">
-          <h1 className="text-lg font-semibold truncate max-w-[60vw]">
-            {book.title}
-          </h1>
-          {progress > 0 && (
-            <span className="text-sm text-muted-foreground">{progress}%</span>
-          )}
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={toggleBookmark}
-            className={`p-2 rounded-md transition-colors ${
-              bookmarks.includes(currentLocation || "")
-                ? "bg-yellow-100 text-yellow-700"
-                : "text-muted-foreground hover:bg-muted"
-            }`}
-            aria-label="Toggle bookmark"
-          >
-            <Bookmark className="h-4 w-4" />
-          </button>
-          <button
-            onClick={() => setShowSettings((v) => !v)}
-            className="p-2 rounded-md text-muted-foreground hover:bg-muted transition-colors"
-            aria-label="Settings"
-          >
-            <Settings className="h-4 w-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Settings */}
-      {showSettings ? (
-        <div className="p-4 border-b bg-muted/50">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Theme</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setTheme("light")}
-                  className={`px-3 py-1 text-xs rounded ${
-                    theme === "light"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background border"
-                  }`}
-                >
-                  Light
-                </button>
-                <button
-                  onClick={() => setTheme("dark")}
-                  className={`px-3 py-1 text-xs rounded ${
-                    theme === "dark"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-background border"
-                  }`}
-                >
-                  Dark
-                </button>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-sm">Font</span>
-              <div className="flex gap-1">
-                <button
-                  onClick={() => setFontPct((v) => Math.max(70, v - 10))}
-                  className="px-2 py-1 text-xs bg-background border rounded"
-                >
-                  A-
-                </button>
-                <span className="px-2 py-1 text-xs">{fontPct}%</span>
-                <button
-                  onClick={() => setFontPct((v) => Math.min(200, v + 10))}
-                  className="px-2 py-1 text-xs bg-background border rounded"
-                >
-                  A+
-                </button>
-              </div>
-            </div>
-
-            <button
-              onClick={() => setTocOpen((v) => !v)}
-              className="px-3 py-1 text-sm bg-background border rounded hover:bg-muted"
+    <div
+      className="relative h-[calc(100dvh-0px)] w-full select-none"
+      ref={containerRef}
+    >
+      {/* Top bar */}
+      <div className="pointer-events-auto absolute inset-x-0 top-0 z-20 m-3">
+        <div className="flex items-center gap-2 rounded-2xl bg-background/70 p-2 shadow-xl ring-1 ring-border backdrop-blur">
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={onBackAction}
+              aria-label="Back"
             >
-              Table of Contents
-            </button>
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
+            <div className="text-sm font-medium line-clamp-1">
+              {book.title}
+              <span className="ml-2 text-muted-foreground">{book.author}</span>
+            </div>
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goPrev}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={goNext}
+              aria-label="Next page"
+            >
+              <ChevronRight className="h-5 w-5" />
+            </Button>
+
+            {/* TOC */}
+            <Sheet open={tocOpen} onOpenChange={setTocOpen}>
+              <SheetTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Table of contents"
+                >
+                  <ListTree className="h-5 w-5" />
+                </Button>
+              </SheetTrigger>
+              <SheetContent side="left" className="w-[320px]">
+                <SheetHeader>
+                  <SheetTitle>Contents</SheetTitle>
+                </SheetHeader>
+                <div className="mt-4 space-y-1 overflow-y-auto pr-2 text-sm">
+                  {toc.map((item, i) => (
+                    <button
+                      key={`${item.href}-${i}`}
+                      className="block w-full rounded-md px-2 py-1.5 text-left hover:bg-accent"
+                      onClick={() => {
+                        setTocOpen(false);
+                        renditionRef.current?.display(item.href);
+                      }}
+                    >
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
+              </SheetContent>
+            </Sheet>
+
+            {/* Settings */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" aria-label="Settings">
+                  <Settings className="h-5 w-5" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-72">
+                <DropdownMenuLabel className="flex items-center gap-2">
+                  <Type className="h-4 w-4" />
+                  Text size
+                </DropdownMenuLabel>
+                <div className="px-3 py-2">
+                  <Slider
+                    value={[fontPct]}
+                    min={70}
+                    max={180}
+                    step={2}
+                    onValueChange={(v) => setFontPct(v[0])}
+                  />
+                  <div className="mt-1 text-right text-xs text-muted-foreground">
+                    {fontPct}%
+                  </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuLabel className="flex items-center gap-2">
+                  <Palette className="h-4 w-4" />
+                  Theme
+                </DropdownMenuLabel>
+                <div className="grid grid-cols-3 gap-2 px-3 pb-2">
+                  <Button
+                    variant={theme === "light" ? "default" : "outline"}
+                    onClick={() => setTheme("light")}
+                  >
+                    Light
+                  </Button>
+                  <Button
+                    variant={theme === "sepia" ? "default" : "outline"}
+                    onClick={() => setTheme("sepia")}
+                  >
+                    Sepia
+                  </Button>
+                  <Button
+                    variant={theme === "dark" ? "default" : "outline"}
+                    onClick={() => setTheme("dark")}
+                  >
+                    Dark
+                  </Button>
+                </div>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
-      ) : (
-        <div className="h-0" />
-      )}
+      </div>
 
-      {/* Main area: no page scroll */}
-      <div className="relative min-h-0 overflow-hidden">
-        <div className="flex h-full min-h-0">
-          {/* TOC Sidebar */}
-          {tocOpen && (
-            <aside className="w-80 shrink-0 h-full overflow-y-auto border-r bg-background">
-              <div className="p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h3 className="font-semibold">Table of Contents</h3>
-                  <button
-                    onClick={() => setTocOpen(false)}
-                    className="p-1 hover:bg-muted rounded"
-                    aria-label="Close TOC"
-                  >
-                    ×
-                  </button>
-                </div>
-                <TocList toc={toc} onGo={goToHref} />
-              </div>
-            </aside>
-          )}
+      {/* Reader */}
+      <div className="absolute inset-0">
+        <ReactReader
+          key={book.id}
+          url={book.fileUrl}
+          location={location ?? null}
+          locationChanged={onLocationChanged}
+          getRendition={onRendition}
+          tocChanged={(toc) => setToc(toc as any)}
+          epubOptions={{
+            allowScriptedContent: true,
+            // Some epubs need CORS-less fetch. Let the server set proper headers.
+            // spread more options if needed
+          }}
+        />
+      </div>
 
-          {/* Viewer */}
-          <main className="relative flex-1 min-w-0 min-h-0 overflow-hidden">
-            <div ref={viewerRef} className="h-full w-full" />
-
-            {!isLoading && (
-              <>
-                <button
-                  onClick={prev}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 shadow hover:bg-background opacity-60 hover:opacity-100"
-                  style={{ left: tocOpen ? 16 + 320 : 16 }}
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft className="h-5 w-5" />
-                </button>
-
-                <button
-                  onClick={next}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 p-2 rounded-full bg-background/80 shadow hover:bg-background opacity-60 hover:opacity-100"
-                  aria-label="Next page"
-                >
-                  <ChevronRight className="h-5 w-5" />
-                </button>
-              </>
-            )}
-
-            {isLoading && (
-              <div className="absolute inset-0 grid place-items-center bg-background/80">
-                <div className="text-center">
-                  <div className="animate-pulse text-muted-foreground mb-2">
-                    Loading EPUB...
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {book.title}
-                  </div>
-                </div>
-              </div>
-            )}
-          </main>
+      {/* Bottom progress */}
+      <div className="pointer-events-auto absolute inset-x-0 bottom-0 z-20 m-3">
+        <div className="rounded-2xl bg-background/70 p-3 shadow-xl ring-1 ring-border backdrop-blur">
+          <div className="flex items-center gap-3">
+            <BookMarked className="h-4 w-4 text-muted-foreground" />
+            <Progress value={progress} className="h-2" />
+            <div className="ml-auto text-xs tabular-nums text-muted-foreground">
+              {progress}%
+            </div>
+          </div>
         </div>
       </div>
 
-      {/* Progress */}
-      {!isLoading && progress > 0 ? (
-        <div className="h-1 bg-muted">
-          <div
-            className="h-full bg-primary transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
-        </div>
-      ) : (
-        <div className="h-1 bg-muted" />
-      )}
+      {/* Floating theme indicator */}
+      <div className="pointer-events-none absolute right-4 top-[68px] z-20 opacity-70">
+        {themeIcon}
+      </div>
     </div>
-  );
-}
-
-function TocList({
-  toc,
-  onGo,
-}: {
-  toc: TocItem[];
-  onGo: (href: string) => void;
-}) {
-  return (
-    <ul className="space-y-1">
-      {toc.map((i, idx) => (
-        <li key={`${i.href}-${idx}`}>
-          <button
-            className="w-full text-left rounded-lg px-2 py-1 hover:bg-accent hover:text-accent-foreground"
-            onClick={() => onGo(i.href)}
-            title={i.label}
-          >
-            {i.label}
-          </button>
-          {i.subitems?.length ? (
-            <div className="ml-3 border-l pl-3">
-              <TocList toc={i.subitems} onGo={onGo} />
-            </div>
-          ) : null}
-        </li>
-      ))}
-    </ul>
   );
 }
