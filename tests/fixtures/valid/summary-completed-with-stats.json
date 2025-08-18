@@ -1,0 +1,9 @@
+{
+  "v": 1,
+  "jobId": "job-stats-003",
+  "outputKey": "summaries/job-stats-003/summary.md",
+  "stats": {
+    "pages": 42,
+    "durationMs": 156780
+  }
+}
