@@ -138,12 +138,44 @@ export class S3Service {
     await this.client.send(command);
   }
 
-  generateStorageKey(userId: string, filename: string): string {
-    return `${userId}-${Date.now()}-${filename}`;
+  private getExtensionFromMimeType(mimeType: string): string {
+    const mimeToExtension: Record<string, string> = {
+      'application/epub+zip': '.epub',
+      'application/pdf': '.pdf',
+      'application/x-mobipocket-ebook': '.mobi',
+      'application/vnd.amazon.ebook': '.azw',
+      'image/jpeg': '.jpg',
+      'image/jpg': '.jpg',
+      'image/png': '.png',
+      'image/webp': '.webp',
+      'image/gif': '.gif'
+    };
+    return mimeToExtension[mimeType] || '';
   }
 
-  generateCoverStorageKey(userId: string, filename: string): string {
-    return `${userId}-${Date.now()}-${filename}`;
+  private ensureExtension(filename: string, mimeType?: string): string {
+    // If filename already has an extension, return as is
+    if (filename.includes('.')) {
+      return filename;
+    }
+    
+    // If no extension and mime type provided, add appropriate extension
+    if (mimeType) {
+      const extension = this.getExtensionFromMimeType(mimeType);
+      return filename + extension;
+    }
+    
+    return filename;
+  }
+
+  generateStorageKey(userId: string, filename: string, mimeType?: string): string {
+    const filenameWithExt = this.ensureExtension(filename, mimeType);
+    return `${userId}-${Date.now()}-${filenameWithExt}`;
+  }
+
+  generateCoverStorageKey(userId: string, filename: string, mimeType?: string): string {
+    const filenameWithExt = this.ensureExtension(filename, mimeType);
+    return `${userId}-${Date.now()}-${filenameWithExt}`;
   }
 
   async generatePresignedCoverUploadUrl(

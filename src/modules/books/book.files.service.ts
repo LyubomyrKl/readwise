@@ -44,7 +44,7 @@ export class BookFilesService {
     storageKey: string;
     presignInfo: PresignInfo;
   }> {
-    const storageKey = this.s3.generateCoverStorageKey(userId, filename);
+    const storageKey = this.s3.generateCoverStorageKey(userId, filename, mime);
 
     this.logger.log(`Generating presigned URL for custom cover: ${storageKey}`);
 
@@ -65,7 +65,7 @@ export class BookFilesService {
     filename: string,
     mime: string,
   ): Promise<{ storageKey: string; presignInfo: PresignInfo }> {
-    const temporaryStorageKey = this.s3.generateStorageKey(userId, filename);
+    const temporaryStorageKey = this.s3.generateStorageKey(userId, filename, mime);
     this.logger.log(
       `Generating presigned URL for book file: ${temporaryStorageKey}`,
     );
@@ -115,6 +115,7 @@ export class BookFilesService {
     const finalStorageKey = this.s3.generateStorageKey(
       userId,
       originalFilename,
+      book.mime,
     );
 
     // Move file to final location if different

@@ -99,7 +99,9 @@ export class AuthService {
       }
 
       const tokens = await this.issueTokens(user.id, user.email);
+
       const safe = this.mapToSafeUser(user);
+
       return { user: safe, tokens };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
@@ -117,8 +119,23 @@ export class AuthService {
         secret: this.getJwtRefreshSecret(),
       });
 
-      return this.rotate(payload.sub, token);
-    } catch {
+      // Verify the refresh token exists in database and is not revoked
+      await this.verifyRefreshToken(payload.sub, token);
+
+      // Generate new access token but keep the same refresh token
+      const accessToken = await this.jwt.signAsync(
+        { sub: payload.sub, email: payload.email },
+        {
+          secret: this.getJwtAccessSecret(),
+          expiresIn: this.getJwtAccessTtl(),
+        },
+      );
+
+      return { accessToken, refreshToken: token };
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
       throw new UnauthorizedException('Invalid refresh token');
     }
   }
@@ -158,11 +175,42 @@ export class AuthService {
     }
   }
 
+  private async verifyRefreshToken(userId: string, refreshToken: string): Promise<void> {
+    const tokens = await this.prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null },
+    });
+
+    if (tokens.length === 0) {
+      throw new UnauthorizedException('No valid refresh tokens found');
+    }
+
+    const match = await Promise.any(
+      tokens.map(async (t) =>
+        (await argon2.verify(t.tokenHash, refreshToken))
+          ? t
+          : Promise.reject(new Error()),
+      ),
+    ).catch(() => null);
+
+    if (!match) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+  }
+
   private async issueTokens(
     userId: string,
     email: string,
+    revokeExisting = true,
   ): Promise<ServiceTokens> {
     try {
+      // Revoke existing refresh tokens for this user if requested
+      if (revokeExisting) {
+        await this.prisma.refreshToken.updateMany({
+          where: { userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+
       const accessToken = await this.jwt.signAsync(
         { sub: userId, email },
         {
@@ -211,6 +259,8 @@ export class AuthService {
         ),
       ).catch(() => null);
 
+      console.log('Matched refresh token:', match);
+
       if (!match) {
         throw new UnauthorizedException('Invalid refresh token');
       }
@@ -229,7 +279,7 @@ export class AuthService {
         throw new UnauthorizedException('User not found');
       }
 
-      return this.issueTokens(user.id, user.email);
+      return this.issueTokens(user.id, user.email, false);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
