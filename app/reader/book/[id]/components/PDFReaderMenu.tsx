@@ -2,27 +2,21 @@
 
 import { useState } from "react";
 import {
-  Settings,
   FileText,
-  Eye,
   EyeOff,
   ZoomIn,
   ZoomOut,
   RotateCw,
   RotateCcw,
-  Maximize,
-  Minimize,
   Layout,
   Monitor,
   BookOpen,
-  Navigation,
   Minus,
   Plus,
   Search,
-  Download,
-  Bookmark,
   Sun,
   Moon,
+  Coffee,
 } from "lucide-react";
 
 interface PDFSettings {
@@ -30,7 +24,7 @@ interface PDFSettings {
   rotation: 0 | 90 | 180 | 270;
   viewMode: 'single' | 'double' | 'continuous';
   fitMode: 'width' | 'height' | 'page' | 'auto';
-  theme: 'light' | 'dark';
+  theme: 'light' | 'dark' | 'sepia';
   showThumbnails: boolean;
   showBookmarks: boolean;
   invertColors: boolean;
@@ -46,6 +40,7 @@ interface PDFReaderMenuProps {
   currentPage?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+  onClose?: () => void;
 }
 
 export default function PDFReaderMenu({
@@ -54,9 +49,9 @@ export default function PDFReaderMenu({
   currentPage = 1,
   totalPages = 1,
   onPageChange,
+  onClose,
 }: PDFReaderMenuProps) {
-  const [isVisible, setIsVisible] = useState(false);
-  const [activeSection, setActiveSection] = useState<string | null>(null);
+  const [isVisible, setIsVisible] = useState(true);
 
   const viewModes = [
     { name: "Single", value: "single" as const, icon: Monitor },
@@ -104,29 +99,20 @@ export default function PDFReaderMenu({
       rotation: 0,
       viewMode: "single",
       fitMode: "width",
-      theme: "light",
+      theme: "sepia",
       showThumbnails: false,
       showBookmarks: false,
       invertColors: false,
       enableTextSelection: true,
       enableAnnotations: true,
       pageSpacing: 10,
-      backgroundColor: "#ffffff",
+      backgroundColor: "#f4ecd8",
     };
     onSettingsChange(defaultSettings);
   };
 
   return (
     <>
-      {/* Toggle Button */}
-      <button
-        onClick={() => setIsVisible(!isVisible)}
-        className="fixed top-4 right-4 z-50 p-3 rounded-full bg-background/80 backdrop-blur-md border border-border/50 shadow-lg hover:bg-background/90 transition-all duration-200 group"
-        aria-label="Toggle settings"
-      >
-        <Settings className="h-5 w-5 transition-transform group-hover:rotate-90" />
-      </button>
-
       {/* Settings Panel */}
       <div
         className={`fixed top-0 right-0 h-full w-80 bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl transition-transform duration-300 ease-out z-40 ${
@@ -138,7 +124,10 @@ export default function PDFReaderMenu({
           <div className="flex items-center justify-between p-4 border-b border-border/50">
             <h2 className="text-lg font-semibold">PDF Settings</h2>
             <button
-              onClick={() => setIsVisible(false)}
+              onClick={() => {
+                setIsVisible(false);
+                onClose?.();
+              }}
               className="p-1.5 rounded-md hover:bg-muted/50 transition-colors"
             >
               <EyeOff className="h-4 w-4" />
@@ -210,7 +199,7 @@ export default function PDFReaderMenu({
                     type="range"
                     min="25"
                     max="300"
-                    step="25"
+                    step="5"
                     value={settings.zoom}
                     onChange={(e) => updateSetting("zoom", parseInt(e.target.value))}
                     className="w-full accent-primary"
@@ -315,34 +304,48 @@ export default function PDFReaderMenu({
                   Theme
                 </h3>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
                   <button
                     onClick={() => {
                       updateSetting("theme", "light");
-                      updateSetting("backgroundColor", "#ffffff");
+                      updateSetting("backgroundColor", "#fafafa");
                     }}
-                    className={`p-3 rounded-lg border-2 transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`p-3 rounded-lg border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
                       settings.theme === "light"
                         ? "border-primary bg-primary/5"
                         : "border-border/30 hover:border-border/60"
                     }`}
                   >
                     <Sun className="h-4 w-4" />
-                    <span className="text-sm">Light</span>
+                    <span className="text-xs">Light</span>
+                  </button>
+                  <button
+                    onClick={() => {
+                      updateSetting("theme", "sepia");
+                      updateSetting("backgroundColor", "#f4ecd8");
+                    }}
+                    className={`p-3 rounded-lg border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
+                      settings.theme === "sepia"
+                        ? "border-primary bg-primary/5"
+                        : "border-border/30 hover:border-border/60"
+                    }`}
+                  >
+                    <Coffee className="h-4 w-4" />
+                    <span className="text-xs">Sepia</span>
                   </button>
                   <button
                     onClick={() => {
                       updateSetting("theme", "dark");
                       updateSetting("backgroundColor", "#1a1a1a");
                     }}
-                    className={`p-3 rounded-lg border-2 transition-all duration-200 flex items-center justify-center gap-2 ${
+                    className={`p-3 rounded-lg border-2 transition-all duration-200 flex flex-col items-center justify-center gap-1 ${
                       settings.theme === "dark"
                         ? "border-primary bg-primary/5"
                         : "border-border/30 hover:border-border/60"
                     }`}
                   >
                     <Moon className="h-4 w-4" />
-                    <span className="text-sm">Dark</span>
+                    <span className="text-xs">Dark</span>
                   </button>
                 </div>
               </div>
@@ -436,7 +439,10 @@ export default function PDFReaderMenu({
       {isVisible && (
         <div
           className="fixed inset-0 bg-black/20 backdrop-blur-sm z-30"
-          onClick={() => setIsVisible(false)}
+          onClick={() => {
+            setIsVisible(false);
+            onClose?.();
+          }}
         />
       )}
     </>

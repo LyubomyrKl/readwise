@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "../components/PDFReader";
 import EPUBReader from "../components/EPUBReader";
-import PDFReaderMenu from "../components/PDFReaderMenu";
 import { IBook } from "../../../types";
 
 export default function BookReaderPage() {
@@ -17,26 +16,6 @@ export default function BookReaderPage() {
   const [book, setBook] = useState<IBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
-
-  // PDF Settings
-  const [pdfSettings, setPdfSettings] = useState({
-    zoom: 100,
-    rotation: 0 as 0 | 90 | 180 | 270,
-    viewMode: "single" as "single" | "double" | "continuous",
-    fitMode: "width" as "width" | "height" | "page" | "auto",
-    theme: "light" as "light" | "dark",
-    showThumbnails: false,
-    showBookmarks: false,
-    invertColors: false,
-    enableTextSelection: true,
-    enableAnnotations: true,
-    pageSpacing: 10,
-    backgroundColor: "#ffffff",
-  });
-
-  const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
 
   useEffect(() => {
     async function fetchBook() {
@@ -119,15 +98,9 @@ export default function BookReaderPage() {
 
   return (
     <div className="relative w-full h-full">
-      <VirtualPDFReader book={book} />
-      <PDFReaderMenu
-        settings={pdfSettings}
-        onSettingsChange={(newSettings) =>
-          setPdfSettings({ ...pdfSettings, ...newSettings })
-        }
-        currentPage={currentPage}
-        totalPages={totalPages}
-        onPageChange={setCurrentPage}
+      <VirtualPDFReader 
+        book={book} 
+        onBackAction={() => router.back()}
       />
     </div>
   );
