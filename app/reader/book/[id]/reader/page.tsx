@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Loader2 } from "lucide-react";
@@ -11,6 +11,7 @@ import { IBook } from "../../../types";
 
 export default function BookReaderPage() {
   const params = useParams();
+  const router = useRouter();
   const bookId = params.id as string;
 
   const [book, setBook] = useState<IBook | null>(null);
@@ -108,7 +109,7 @@ export default function BookReaderPage() {
       <div className="relative w-full h-full">
         <EPUBReader
           book={book}
-          // onBack={() => router.back()}
+          onBackAction={() => router.back()}
           // onCreateHighlight={(h) => api.highlights.create(book.id, h)}
           // onLocationPersist={(id, cfi, pct) => api.reading.save(id, { cfi, pct })}
         />

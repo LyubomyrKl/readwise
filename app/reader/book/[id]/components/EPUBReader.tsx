@@ -142,14 +142,23 @@ export default function EPUBReader({
     } catch {}
   }, [theme, fontPct]);
 
-  // persist prefs
+  // persist prefs and sync with settings
   useEffect(() => {
     if (typeof window !== "undefined")
       localStorage.setItem("epub.theme", theme);
+    // Sync theme with settings menu
+    setEpubSettings(prev => ({
+      ...prev,
+      theme: theme,
+      backgroundColor: theme === "dark" ? "#0b0b0c" : theme === "sepia" ? "#f4ecd8" : "#fafafa",
+      textColor: theme === "dark" ? "#e7e7ea" : theme === "sepia" ? "#3b2f1a" : "#111",
+    }));
   }, [theme]);
   useEffect(() => {
     if (typeof window !== "undefined")
       localStorage.setItem("epub.fontPct", String(fontPct));
+    // Sync font size with settings menu
+    setEpubSettings(prev => ({ ...prev, fontSize: fontPct }));
   }, [fontPct]);
 
   const onLocationChanged = useCallback(
@@ -245,12 +254,27 @@ export default function EPUBReader({
   const handleSettingsChange = (newSettings: any) => {
     setEpubSettings((prev) => ({ ...prev, ...newSettings }));
 
-    // Sync with existing state
+    // Sync with existing state and apply to rendition
     if (newSettings.theme) {
       setTheme(newSettings.theme as keyof typeof THEMES);
     }
     if (newSettings.fontSize) {
       setFontPct(newSettings.fontSize);
+    }
+    
+    // Apply changes immediately to rendition if available
+    const r = renditionRef.current;
+    if (r) {
+      try {
+        if (newSettings.theme) {
+          r.themes.select(newSettings.theme);
+        }
+        if (newSettings.fontSize) {
+          r.themes.fontSize(`${newSettings.fontSize}%`);
+        }
+      } catch (error) {
+        console.warn('Failed to apply settings to rendition:', error);
+      }
     }
   };
 
