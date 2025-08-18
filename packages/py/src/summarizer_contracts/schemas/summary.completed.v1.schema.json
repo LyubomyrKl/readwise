@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.summarizer.com/events/summary.completed.v1.schema.json",
+  "title": "Summary Completed Event v1",
+  "description": "Event schema for successful completion of document summarization",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "jobId", "outputKey"],
+  "properties": {
+    "v": {
+      "$ref": "https://schemas.summarizer.com/$defs/common.v1.schema.json#/$defs/version"
+    },
+    "jobId": {
+      "$ref": "https://schemas.summarizer.com/$defs/common.v1.schema.json#/$defs/jobId"
+    },
+    "outputKey": {
+      "$ref": "https://schemas.summarizer.com/$defs/common.v1.schema.json#/$defs/s3Key",
+      "description": "S3 key where the generated summary is stored"
+    },
+    "stats": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pages": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000,
+          "description": "Number of pages processed"
+        },
+        "durationMs": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 3600000,
+          "description": "Processing duration in milliseconds (max 1 hour)"
+        }
+      }
+    }
+  },
+  "examples": [
+    {
+      "v": 1,
+      "jobId": "job-abc123def",
+      "outputKey": "summaries/job-abc123def/summary.txt",
+      "stats": {
+        "pages": 15,
+        "durationMs": 12500
+      }
+    }
+  ]
+}
