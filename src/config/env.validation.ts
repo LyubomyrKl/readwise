@@ -52,6 +52,26 @@ export class EnvironmentVariables {
   @IsOptional()
   @IsString()
   S3_REGION = 'us-east-1';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'localhost')
+  RABBITMQ_HOST = 'localhost';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || '5672')
+  RABBITMQ_PORT = '5672';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'guest')
+  RABBITMQ_USER = 'guest';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'guest')
+  RABBITMQ_PASS = 'guest';
 }
 
 export function validate(config: Record<string, unknown>) {

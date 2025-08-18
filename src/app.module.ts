@@ -6,8 +6,10 @@ import { validate } from './config/env.validation';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { BooksModule } from './modules/books/books.module';
+import { SummarizerModule } from './modules/summarizer/summarizer.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { S3Module } from './infrastructure/s3/s3.module';
+import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
 
 @Module({
   imports: [
@@ -17,9 +19,11 @@ import { S3Module } from './infrastructure/s3/s3.module';
     }),
     PrismaModule,
     S3Module,
+    RabbitMQModule,
     UsersModule,
     AuthModule,
     BooksModule,
+    SummarizerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
