@@ -1,0 +1,188 @@
+generator client {
+  provider             = "prisma-client-py"
+  recursive_type_depth = "5"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Book {
+  id                    String        @id
+  userId                String
+  title                 String
+  author                String
+  spentHours            Int           @default(0)
+  pageCount             Int?
+  pagePassCount         Int           @default(0)
+  isFinished            Boolean       @default(false)
+  isFavorite            Boolean       @default(false)
+  mime                  String
+  sizeBytes             BigInt
+  sha256                String?
+  status                BookStatus    @default(pending)
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime
+  description           String?
+  lastAccessed          DateTime?     @default(now())
+  customCoverStorageKey String?
+  fileStorageKey        String
+  customCoverSizeBytes  BigInt?
+  summaryStorageKey     SummaryType?
+  User                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  BookTag               BookTag[]
+  Highlight             Highlight[]
+  Note                  Note[]
+  search_item           search_item[]
+}
+
+model BookTag {
+  bookId    String
+  tagId     String
+  createdAt DateTime @default(now())
+  Book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  Tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([bookId, tagId])
+  @@index([tagId])
+}
+
+model Highlight {
+  id           String         @id
+  userId       String
+  bookId       String
+  color        String?
+  text         String
+  anchor       Json
+  noteId       String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  deletedAt    DateTime?
+  Book         Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  Note         Note?          @relation(fields: [noteId], references: [id])
+  User         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  HighlightTag HighlightTag[]
+
+  @@index([userId, bookId, createdAt])
+}
+
+model HighlightTag {
+  highlightId String
+  tagId       String
+  createdAt   DateTime  @default(now())
+  Highlight   Highlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
+  Tag         Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([highlightId, tagId])
+  @@index([tagId])
+}
+
+model Note {
+  id         String      @id
+  userId     String
+  bookId     String
+  body       String
+  anchor     Json?
+  isPinned   Boolean     @default(false)
+  isArchived Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime
+  deletedAt  DateTime?
+  Highlight  Highlight[]
+  Book       Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  User       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  NoteTag    NoteTag[]
+
+  @@index([userId, bookId, createdAt])
+}
+
+model NoteTag {
+  noteId    String
+  tagId     String
+  createdAt DateTime @default(now())
+  Note      Note     @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  Tag       Tag      @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([noteId, tagId])
+  @@index([tagId])
+}
+
+model RefreshToken {
+  id        String    @id
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  User      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Tag {
+  id           String         @id
+  userId       String
+  name         String
+  color        String?
+  description  String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  BookTag      BookTag[]
+  HighlightTag HighlightTag[]
+  NoteTag      NoteTag[]
+  User         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+}
+
+model User {
+  id           String         @id
+  email        String         @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime
+  Book         Book[]
+  Highlight    Highlight[]
+  Note         Note[]
+  RefreshToken RefreshToken[]
+  Tag          Tag[]
+  search_item  search_item[]
+}
+
+model search_item {
+  id        String          @id
+  userId    String
+  bookId    String
+  ownerType SearchOwnerType
+  ownerId   String
+  text      String
+  meta      Json?
+  createdAt DateTime        @default(now())
+  updatedAt DateTime
+  Book      Book            @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  User      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([ownerType, ownerId])
+  @@index([userId, bookId, ownerType])
+}
+
+enum BookStatus {
+  pending
+  processing
+  ready
+  error
+}
+
+enum SearchOwnerType {
+  chunk
+  note
+  highlight
+  tag
+}
+
+enum SummaryType {
+  extractive
+  abstractive
+}
