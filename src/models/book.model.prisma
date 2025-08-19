@@ -17,7 +17,9 @@ model Book {
   sha256         String?
   fileStorageKey     String
   status         BookStatus @default(pending)
-  
+  summaryStorageKey String?
+  extractionStorageKey String?
+  summaryType    SummaryType?
   lastAccessed   DateTime? @default(now())
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -34,6 +36,11 @@ enum BookStatus {
   processing  // if later you trigger a pipeline
   ready       // some job is done, like OCR
   error       // failed during some stage
+}
+
+enum SummaryType {
+   extractive
+   abstractive
 }
 
 model Note {

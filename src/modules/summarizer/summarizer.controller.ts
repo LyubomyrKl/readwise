@@ -6,11 +6,7 @@ import {
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
-import {
-  ApiTags,
-  ApiOperation,
-  ApiResponse,
-} from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SummarizerService } from './summarizer.service';
 import { RequestSummaryDto } from './summarizer.dto';
 import { SummaryRequestResponse } from './summarizer.models';
