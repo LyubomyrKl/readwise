@@ -178,21 +178,21 @@ class SimplePDFExtractor:
             # Create markdown content
             markdown_content = f"""# Book Extraction: {book_id}
 
-## Extraction Metadata
-- Total Pages: {metadata.get('total_pages', 'unknown')}
-- Pages Processed: {metadata.get('pages_processed', 0)}
-- Extraction Method: {metadata.get('extraction_method', 'unknown')}
-- Source S3: s3://{metadata.get('s3_bucket', '')}/{metadata.get('s3_key', '')}
-
----
-
-## Content
-
-{extracted_text}
-"""
+            ## Extraction Metadata
+            - Total Pages: {metadata.get('total_pages', 'unknown')}
+            - Pages Processed: {metadata.get('pages_processed', 0)}
+            - Extraction Method: {metadata.get('extraction_method', 'unknown')}
+            - Source S3: s3://{metadata.get('s3_bucket', '')}/{metadata.get('s3_key', '')}
+            
+            ---
+            
+            ## Content
+            
+            {extracted_text}
+            """
             
             # Generate S3 key for extraction
-            s3_key = f"extractions/{book_id}_extraction.md"
+            s3_key = f"{book_id}_extraction.md"
             
             # Upload to S3
             self.s3_client.put_object(
@@ -206,9 +206,12 @@ class SimplePDFExtractor:
                     'content_length': str(len(extracted_text))
                 }
             )
-            
+
+
             logger.info(f"Saved extraction to S3: s3://{bucket}/{s3_key}")
             return s3_key
+
+
             
         except ClientError as e:
             logger.error(f"S3 upload failed: {e}")

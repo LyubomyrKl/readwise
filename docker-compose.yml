@@ -1,22 +1,104 @@
-# docker-compose.yml
+version: '3.8'
+
 services:
-  worker-text:
-    build: .
+  extraction-worker:
+    build:
+      context: .
+      dockerfile: workers/extraction-worker/Dockerfile
+    container_name: extraction-worker
     environment:
-      AMQP_URL: amqp://user:pass@rabbitmq:5672/
-      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/appdb?schema=public
-      S3_ENDPOINT: http://minio:9000
-      S3_ACCESS_KEY_ID: minioadmin
-      S3_SECRET_ACCESS_KEY: minioadmin
-      RABBITMQ_HOST: rabbitmq
-      RABBITMQ_PORT: 5672
-      RABBITMQ_VHOST: /
-      RABBITMQ_USER: user
-      RABBITMQ_PASS: pass
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/appdb?schema=public
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - AMQP_URL=amqp://user:pass@rabbitmq:5672/
+      - WORKER_ID=extraction-worker-1
+      - WORKER_PREFETCH_COUNT=1
     depends_on:
-      - rabbitmq
       - postgres
-    networks: [summarizer_net]
+      - minio
+      - rabbitmq
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./schema.prisma:/app/schema.prisma:ro
+    networks:
+      - app-network
+
+  summarization-worker:
+    build:
+      context: .
+      dockerfile: workers/summarization-worker/Dockerfile
+    container_name: summarization-worker
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/appdb?schema=public
+      - S3_ENDPOINT=http://minio:9000
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - AMQP_URL=amqp://user:pass@rabbitmq:5672/
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - WORKER_ID=summarization-worker-1
+      - WORKER_PREFETCH_COUNT=1
+    depends_on:
+      - postgres
+      - minio
+      - rabbitmq
+    restart: unless-stopped
+    volumes:
+      - ./shared:/app/shared:ro
+      - ./schema.prisma:/app/schema.prisma:ro
+    networks:
+      - app-network
+
+  # Infrastructure services
+  postgres:
+    image: postgres:15-alpine
+    container_name: postgres
+    environment:
+      POSTGRES_DB: appdb
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - app-network
+
+  minio:
+    image: minio/minio:latest
+    container_name: minio
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio_data:/data
+    command: server /data --console-address ":9001"
+    networks:
+      - app-network
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: user
+      RABBITMQ_DEFAULT_PASS: pass
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - app-network
+
+volumes:
+  postgres_data:
+  minio_data:
+  rabbitmq_data:
+
 networks:
-  summarizer_net:
-    external: true
+  app-network:
+    driver: bridge

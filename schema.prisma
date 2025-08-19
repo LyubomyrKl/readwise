@@ -29,7 +29,9 @@ model Book {
   customCoverStorageKey String?
   fileStorageKey        String
   customCoverSizeBytes  BigInt?
-  summaryStorageKey     SummaryType?
+  extractionStorageKey  String?
+  summaryType           SummaryType?
+  summaryStorageKey     String?
   User                  User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   BookTag               BookTag[]
   Highlight             Highlight[]
