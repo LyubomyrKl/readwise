@@ -132,6 +132,7 @@ class ExtractionWorker:
 
             if message_data['autoSummarize']:
                 self.messaging.send_summary_request(book_id, 'extractive', 0.3)
+
         finally:
             await self.db_manager.disconnect()
     
