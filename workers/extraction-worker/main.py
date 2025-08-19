@@ -130,7 +130,7 @@ class ExtractionWorker:
             logger.info(f"🔄 Processing extraction for book: {book_id}")
             await self.process_extraction(book_id)
 
-            if message_data['autoSummarize']:
+            if message_data.get('autoSummarize', True):
                 self.messaging.send_summary_request(book_id, 'extractive', 0.3)
 
         finally:
