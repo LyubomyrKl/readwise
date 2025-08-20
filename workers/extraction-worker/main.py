@@ -131,7 +131,7 @@ class ExtractionWorker:
             await self.process_extraction(book_id)
 
             if message_data.get('autoSummarize', True):
-                self.messaging.send_summary_request(book_id, message_data['summaryType'], message_data['summaryPercent'])
+                self.messaging.send_summary_request(book_id, message_data['summarizationType'], message_data['summaryPercent'])
 
         finally:
             await self.db_manager.disconnect()

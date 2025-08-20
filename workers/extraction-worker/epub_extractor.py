@@ -258,7 +258,7 @@ class SimpleEPUBExtractor:
             """
             
             # Generate S3 key for extraction
-            s3_key = f"{book_id}_extraction.md"
+            s3_key = f"extraction/{book_id}_extraction.md"
             
             # Upload to S3
             self.s3_client.put_object(

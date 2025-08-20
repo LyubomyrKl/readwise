@@ -23,7 +23,8 @@ _CHAPTER_REGEXES = [
 ]
 
 class TextSummarizer:
-    def __init__(self, s3_endpoint: str, s3_access_key: str, s3_secret_key: str, openai_api_key: Optional[str] = None):
+    def __init__(self, s3_endpoint: str, s3_access_key: str, s3_secret_key: str, 
+                 openai_api_key: Optional[str] = None, openai_model: str = "gpt-4o-mini"):
         """
         OpenAI-powered text summarizer for both extractive and abstractive methods
         
@@ -32,6 +33,7 @@ class TextSummarizer:
             s3_access_key: S3 access key ID
             s3_secret_key: S3 secret access key
             openai_api_key: OpenAI API key for AI summarization
+            openai_model: OpenAI model to use (default: gpt-4o-mini)
         """
         self.s3_client = boto3.client(
             's3',
@@ -43,6 +45,7 @@ class TextSummarizer:
         # Initialize OpenAI client
         if openai_api_key:
             self.openai_client = openai.OpenAI(api_key=openai_api_key)
+            self.openai_model = openai_model
         else:
             raise ValueError("OpenAI API key is required for AI-powered summarization")
         
@@ -67,21 +70,25 @@ class TextSummarizer:
         # Calculate original token count
         original_tokens = len(self.tokenizer.encode(text))
         
-        # Create chunks with overlap
-        chunks = self.chunk_text_with_overlap(text, chunk_size=3000, overlap=200)
+        # Create optimized chunks for rate limits and throughput
+        chunks = self.chunk_text_with_overlap(text, chunk_size=1500, overlap=150)
         
         # Perform summarization using OpenAI
         if summary_type.lower() == 'extractive':
-            summary_html = self._openai_extractive_summarization(chunks, summary_percent)
+            raw_summary = self._openai_extractive_summarization(chunks, summary_percent)
         elif summary_type.lower() == 'abstractive':
-            summary_html = self._openai_abstractive_summarization(chunks, summary_percent)
+            raw_summary = self._openai_abstractive_summarization(chunks, summary_percent)
         else:
             raise ValueError(f"Unknown summary type: {summary_type}")
-        
+
+        # ALWAYS run final summarization pass for coherence and consistency
+        logger.info("Running final summarization pass for coherence...")
+        summary_html = self._final_summarization_pass(raw_summary, summary_type, summary_percent, len(chunks))
+
         # Calculate final metrics
         summary_tokens = len(self.tokenizer.encode(summary_html))
         compression_ratio = summary_tokens / original_tokens if original_tokens > 0 else 0
-        
+
         metadata = {
             'summary_type': summary_type,
             'original_tokens': original_tokens,
@@ -99,17 +106,20 @@ class TextSummarizer:
     def chunk_text_with_overlap(
             self,
             text: str,
-            chunk_size: int = 3000,
-            overlap: int = 200,
+            chunk_size: int = 1500,
+            overlap: int = 150,
             *,
-            min_last_chunk_tokens: int = 500,
-            add_special_tokens: Optional[bool] = None,  # passed through if tokenizer supports it
+            min_chunk_tokens: int = 600,
+            max_chunk_tokens: int = 2000,
+            add_special_tokens: Optional[bool] = None,
     ) -> List[Dict[str, Any]]:
         """
-        Split text into overlapping token chunks.
-
-        Units are tokens. Overlap is tokens. Output respects max chunk_size.
-        Ensures the final chunk is not too small by sliding the last window back if needed.
+        Split text into optimized overlapping token chunks for rate-limited APIs.
+        
+        Optimized for 60K TPM / 3 RPM limits:
+        - 1,500 tokens per chunk (10-15% overlap)
+        - Generates ~300-600 tokens output per chunk (20-35% summary rate)
+        - Finalizer can merge 10-15 chunks within 8K token budget
         """
         if not isinstance(text, str):
             raise TypeError("text must be str")
@@ -147,10 +157,10 @@ class TextSummarizer:
             starts.append(total - chunk_size)
 
         # Avoid tiny trailing chunk by sliding back if necessary
-        if total - starts[-1] < min_last_chunk_tokens and len(starts) > 1:
+        if total - starts[-1] < min_chunk_tokens and len(starts) > 1:
             proposed = max(total - chunk_size, 0)
             if proposed <= starts[-2]:  # keep progression
-                proposed = min(starts[-2] + stride, max(total - min_last_chunk_tokens, 0))
+                proposed = min(starts[-2] + stride, max(total - min_chunk_tokens, 0))
             starts[-1] = proposed
 
         # De-duplicate and sort
@@ -227,33 +237,31 @@ class TextSummarizer:
                 chapter_context = ""
                 if chunk['chapter_titles']:
                     chapter_context = f"This text is from chapter(s): {', '.join(chunk['chapter_titles'])}. "
-                
-                prompt = f"""
-                    You are an expert at extractive summarization. Select and preserve the most important sentences from the original text.
-                    
-                    {chapter_context}
-                    
-                    Instructions:
-                    - Extract approximately {int(summary_percent * 100)}% of the most important sentences
-                    - Keep sentences EXACTLY as they appear in the original text
-                    - Preserve the original order and structure
-                    - Include key facts, conclusions, definitions, and important statements
-                    - Maintain any existing headings or section markers
-                    - Output as clean HTML with <h2> for headings and <p> for paragraphs
-                    
-                    Text to extract from:
-                    {chunk['text']}
-                    
-                    Return only the extracted sentences formatted as HTML.
-                    """
+
+                    prompt = f"""You are an extractive summarizer. Select and preserve the most important sentences from the original text.
+
+                        {chapter_context}
+                        
+                        Instructions:
+                        - Extract approximately {int(summary_percent * 100)}% of the most important sentences
+                        - Keep sentences EXACTLY as they appear in the original text
+                        - Preserve the original order and structure
+                        - Include key facts, conclusions, definitions, and important statements
+                        - Maintain any existing headings or section markers
+                        - Return as plain text, preserving paragraph breaks and structure
+                        
+                        Text to extract from:
+                        {chunk['text']}
+                        
+                        Return only the extracted sentences as plain text."""
                 
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model=self.openai_model,
                     messages=[
                         {"role": "system", "content": "You are an expert at extractive summarization, selecting the most important sentences while preserving their original form."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=min(1500, int(chunk['token_count'] * summary_percent * 1.5)),
+                    max_tokens=min(1200, int(chunk['token_count'] * summary_percent * 1.5)),
                     temperature=0.1
                 )
                 
@@ -283,33 +291,32 @@ class TextSummarizer:
                 chapter_context = ""
                 if chunk['chapter_titles']:
                     chapter_context = f"This text is from chapter(s): {', '.join(chunk['chapter_titles'])}. "
-                
-                prompt = f"""
-You are an expert at abstractive summarization. Rewrite and condense the content in your own words.
+
+                prompt = f"""You are an abstractive summarizer. Rewrite and condense the content in your own words without adding outside information.
 
 {chapter_context}
 
 Instructions:
-- Create a concise summary that's approximately {int(summary_percent * 100)}% of the original length
-- Rewrite in clear, concise language while preserving all key information
-- Maintain the logical structure and flow
-- Include all important facts, conclusions, and concepts
-- Preserve any headings or section structure
-- Output as clean HTML with <h2> for headings and <p> for paragraphs
+- Condense to approximately {int(summary_percent * 100)}% of the original length
+- Rewrite in your own words while preserving all key information
+- Maintain the logical flow and structure of the original
+- Keep all facts, numbers, definitions, and important details accurate
+- Use clear, concise language appropriate to the content's domain
+- Preserve any existing headings or section structure
+- Return as plain text, preserving paragraph breaks and structure
 
 Text to summarize:
 {chunk['text']}
 
-Return only the abstractive summary formatted as HTML.
-"""
-                
+Return only the rewritten summary as plain text."""
+
                 response = self.openai_client.chat.completions.create(
-                    model="gpt-4o-mini",
+                    model=self.openai_model,
                     messages=[
                         {"role": "system", "content": "You are an expert at abstractive summarization, rewriting content concisely while preserving all key information."},
                         {"role": "user", "content": prompt}
                     ],
-                    max_tokens=min(1500, int(chunk['token_count'] * summary_percent * 1.5)),
+                    max_tokens=min(1800, int(chunk['token_count'] * summary_percent * 1.5)),
                     temperature=0.3
                 )
                 
@@ -324,52 +331,121 @@ Return only the abstractive summary formatted as HTML.
         # Combine summaries
         combined_summary = '\n\n'.join(chunk_summaries)
         
-        # Final pass to ensure overall coherence if multiple chunks
-        if len(chunks) > 1:
-            combined_summary = self._final_summarization_pass(combined_summary, summary_percent)
-        
         logger.info(f"Abstractive summary complete: {len(combined_summary)} characters")
         return combined_summary
 
-    def _final_summarization_pass(self, text: str, summary_percent: float) -> str:
+    def _final_summarization_pass(self, text: str, summary_type: str, summary_percent: float, chunk_count: int) -> str:
         """
-        Perform final summarization pass to ensure coherence across chunks
+        Final summarization pass that transforms raw summaries into structured, deduplicated HTML
+        This is where structured schema output is created from unstructured raw summaries
         """
         try:
-            target_tokens = int(len(self.tokenizer.encode(text)) * 0.8)  # Slight reduction
+            current_tokens = len(self.tokenizer.encode(text))
             
+            # Determine if we need compression or just organization
+            needs_compression = current_tokens > (4000 if summary_type == 'extractive' else 3000)
+            target_reduction = 0.85 if needs_compression else 1.0
+            
+            # Different strategies for single vs multiple chunks
+            if chunk_count == 1:
+                operation_focus = "organize and enhance coherence"
+                max_tokens = min(2000, int(current_tokens * target_reduction))
+            else:
+                operation_focus = "merge chunks, remove overlaps, and ensure coherence"
+                max_tokens = min(2500, int(current_tokens * target_reduction))
+
             prompt = f"""
-                You are creating a final, coherent summary from multiple summary sections.
-                
-                Instructions:
-                - Combine and organize the content into a single, flowing document
-                - Remove any redundancy between sections
-                - Maintain all key information and structure
-                - Ensure smooth transitions between topics
-                - Preserve headings and logical organization
-                - Output as clean HTML with <h2> for headings and <p> for paragraphs
-                
-                Content to finalize:
-                {text}
-                
-                Return only the final, coherent summary formatted as HTML.
-                """
+            You are an expert document finalizer. Transform the raw summary into a well-structured, coherent document. Use only the provided input.
+
+            TASK: {operation_focus} for this {summary_type} summary from {chunk_count} chunk(s).
+            TARGET: Maintain approximately {int(summary_percent * 100)}% compression ratio from the original document.
+
+            RAW SUMMARY INPUT:
+            {text}
+
+            REQUIREMENTS:
+            1) Deduplication: remove repeated information, facts, or concepts.
+            2) Structure: organize content with clear hierarchy and logical flow.
+            3) Coherence: smooth transitions between sections and ideas.
+            4) Consistency: uniform terminology, style, and formatting.
+            5) Completeness: preserve all unique key information, facts, and conclusions.
+            6) Quality: fix grammar, improve clarity, enhance readability.
+
+            CRITICAL DEDUPLICATION RULES:
+            - Remove identical or near-identical sentences from different chunks.
+            - Merge similar concepts that appear in multiple sections.
+            - Eliminate redundant explanations of the same ideas.
+            - Consolidate repeated facts, statistics, or definitions.
+            - Remove duplicate examples that illustrate the same point.
+
+            SPECIAL INSTRUCTIONS:
+            - Create logical sections based on content themes, not chunk boundaries.
+            - For extractive summaries: reorganize selected sentences into coherent sections.
+            - For abstractive summaries: ensure rewritten content flows logically without repetition.
+            - Remove meta-references like "as mentioned above" or "previous section".
+            - Use professional academic/technical style.
+            - Preserve original language of the input.
+
+            OUTPUT FORMAT: STRICT JSON. No prose. No code fences.
+
+            SCHEMA:
+            {{
+              "title": string | null,                         // main document title if identifiable
+              "toc": [{{ "id": string, "title": string }}],   // one per top-level section, in order
+              "chapters": [
+                {{
+                  "id": string,                               // kebab-case from title; if none, "section-1", "section-2", …
+                  "title": string | null,                     // exact heading if present; null otherwise
+                  "summary": string,                          // 3–6 sentences, coherent and deduplicated
+                  "key_points": [string],                     // 3–10 compact bullets
+                  "subsections": [
+                    {{
+                      "id": string,
+                      "title": string | null,
+                      "summary": string,
+                      "key_points": [string]
+                    }}
+                  ]
+                }}
+              ],
+              "html": string                                  // full clean HTML built ONLY from the JSON above:
+                                                              // <h1> for title, <h2> for chapters, <h3> for subsections,
+                                                              // <p> for paragraphs, <ul><li> for key_points, <strong> for emphasis.
+            }}
+
+            HTML RULES:
+            - Escape &, <, >, ".
+            - Do not include inline styles or scripts.
+            - IDs must be URL-safe kebab-case and stable.
+
+            RETURN: Only the JSON matching the schema.
+            """
 
             response = self.openai_client.chat.completions.create(
-                model="gpt-4o-mini",
+                model=self.openai_model,
                 messages=[
-                    {"role": "system", "content": "You are creating a final, coherent summary while preserving all important information."},
+                    {"role": "system", "content": f"You are an expert at finalizing {summary_type} summaries, ensuring coherence, removing redundancy, and maintaining high quality output."},
                     {"role": "user", "content": prompt}
                 ],
-                max_tokens=target_tokens,
-                temperature=0.2
+                max_tokens=max_tokens,
+                temperature=0.15  # Low temperature for consistency
             )
             
-            return response.choices[0].message.content.strip()
+            final_result = response.choices[0].message.content.strip()
+            
+            # Log improvement metrics
+            final_tokens = len(self.tokenizer.encode(final_result))
+            improvement_ratio = final_tokens / current_tokens if current_tokens > 0 else 1
+            
+            logger.info(f"Final pass complete: {current_tokens} → {final_tokens} tokens ({improvement_ratio:.2f}x)")
+            logger.info(f"Operation: {operation_focus}")
+            
+            return final_result
             
         except Exception as e:
             logger.error(f"Final summarization pass failed: {e}")
-            return text
+            # Return formatted fallback
+            return f"<div class='summary-content'>{text.replace(chr(10), '</p><p>')}</div>"
 
     def save_summary_to_s3(self, bucket: str, book_id: str, summary_html: str, 
                           summary_type: str, metadata: Dict) -> str:

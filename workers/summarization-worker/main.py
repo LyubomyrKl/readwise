@@ -39,7 +39,8 @@ class SummarizationWorker:
             s3_endpoint=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
             s3_access_key=os.getenv('S3_ACCESS_KEY_ID', 'minioadmin'),
             s3_secret_key=os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin'),
-            openai_api_key=os.getenv('OPENAI_API_KEY')
+            openai_api_key=os.getenv('OPENAI_API_KEY'),
+            openai_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
         )
         
         # Worker configuration
@@ -56,7 +57,6 @@ class SummarizationWorker:
                 return
             
             logger.info(f"📖 Processing {summary_type} summarization for: {book.title}")
-            logger.info(f"📊 Target compression: {summary_percent:.1%}")
             
             # Check if extraction exists
             if not book.extractionStorageKey:
