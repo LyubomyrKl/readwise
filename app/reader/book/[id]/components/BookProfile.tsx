@@ -20,6 +20,7 @@ import {
   Image as ImageIcon,
   Upload,
   Camera,
+  Sparkles,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 
@@ -38,6 +39,8 @@ export default function BookProfile({
   const [showAllTags, setShowAllTags] = useState(false);
   const [coverUrl, setCoverUrl] = useState(book.coverUrl);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
+  const [summary, setSummary] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDate = (dateString: string) => {
@@ -156,6 +159,33 @@ export default function BookProfile({
 
   const handleCoverClick = () => {
     fileInputRef.current?.click();
+  };
+
+  const handleSummarize = async () => {
+    setIsGeneratingSummary(true);
+    try {
+      const response = await fetch("/api/summarizer", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          bookId: book.id,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate summary");
+      }
+
+      const data = await response.json();
+      setSummary(data.result);
+    } catch (error) {
+      console.error("Error generating summary:", error);
+      alert("Failed to generate summary. Please try again.");
+    } finally {
+      setIsGeneratingSummary(false);
+    }
   };
 
   return (
@@ -295,6 +325,15 @@ export default function BookProfile({
                     {book.highlights.length} Notes
                   </button>
                 </div>
+
+                <button
+                  onClick={handleSummarize}
+                  disabled={isGeneratingSummary}
+                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 text-sm font-medium disabled:cursor-not-allowed"
+                >
+                  <Sparkles className={`h-4 w-4 ${isGeneratingSummary ? "animate-spin" : ""}`} />
+                  {isGeneratingSummary ? "Generating Summary..." : "Generate Summary"}
+                </button>
               </div>
 
               {/* Quick Stats */}
@@ -601,6 +640,21 @@ export default function BookProfile({
                 </div>
               </div>
             </div>
+
+            {/* Generated Summary */}
+            {summary && (
+              <div>
+                <h3 className="font-medium mb-4 flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-muted-foreground" />
+                  AI Generated Summary
+                </h3>
+                <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6">
+                  <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
+                    {summary}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* Notes Preview */}
             {book.notes.length > 0 && (

@@ -1,6 +1,7 @@
 import z from "zod";
 import { AuthApiRegistry } from "./auth/schemas";
 import { BooksApiRegistry } from "./books/schemas";
+import { SummarizerApiRegistry } from "./summarizer/schemas";
 
 export type Def<
   RQ extends z.ZodTypeAny | undefined,
@@ -20,7 +21,7 @@ export type Registry = {
 
 export const ApiRegistry = {
   GET: { ...AuthApiRegistry.GET, ...BooksApiRegistry.GET },
-  POST: { ...AuthApiRegistry.POST, ...BooksApiRegistry.POST },
+  POST: { ...AuthApiRegistry.POST, ...BooksApiRegistry.POST, ...SummarizerApiRegistry.POST },
   PUT: {},
   DELETE: {},
 } as const;

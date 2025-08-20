@@ -5,6 +5,7 @@ import {
   UsersApi,
   BooksApi,
   AppApi,
+  SummarizerApi,
 } from "@satoru-satoshi/summarize-api-sdk";
 import axios from "axios";
 import { redirect } from "next/navigation";
@@ -104,6 +105,7 @@ export function createServerSdk() {
     baseOptions: { withCredentials: true },
   });
   return {
+    summarizerApi: new SummarizerApi(cfg, undefined, ax),
     authApi: new AuthApi(cfg, undefined, ax),
     usersApi: new UsersApi(cfg, undefined, ax),
     booksApi: new BooksApi(cfg, undefined, ax),

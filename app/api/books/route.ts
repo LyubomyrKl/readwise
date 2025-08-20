@@ -4,7 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(req: NextRequest) {
   try {
-    const { booksApi } = createServerSdk(req);
+    const { booksApi } = createServerSdk();
     const resp = await booksApi.getAllBooks();
     const booksArray = resp?.data ?? [];
     const books = GetAllBooksRes.parse(booksArray);
