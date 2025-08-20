@@ -24,16 +24,16 @@ _CHAPTER_REGEXES = [
 
 class TextSummarizer:
     def __init__(self, s3_endpoint: str, s3_access_key: str, s3_secret_key: str, 
-                 openai_api_key: Optional[str] = None, openai_model: str = "gpt-4o-mini"):
+                 ollama_base_url: str = "http://localhost:11434", ollama_model: str = "qwen2.5:14b-instruct-q5_k_m"):
         """
-        OpenAI-powered text summarizer for both extractive and abstractive methods
+        Ollama-powered text summarizer for both extractive and abstractive methods
         
         Args:
             s3_endpoint: S3 endpoint for storing summaries
             s3_access_key: S3 access key ID
             s3_secret_key: S3 secret access key
-            openai_api_key: OpenAI API key for AI summarization
-            openai_model: OpenAI model to use (default: gpt-4o-mini)
+            ollama_base_url: Ollama server base URL (default: http://localhost:11434)
+            ollama_model: Ollama model to use (default: qwen2.5:14b-instruct-q5_k_m)
         """
         self.s3_client = boto3.client(
             's3',
@@ -42,12 +42,12 @@ class TextSummarizer:
             aws_secret_access_key=s3_secret_key
         )
         
-        # Initialize OpenAI client
-        if openai_api_key:
-            self.openai_client = openai.OpenAI(api_key=openai_api_key)
-            self.openai_model = openai_model
-        else:
-            raise ValueError("OpenAI API key is required for AI-powered summarization")
+        # Initialize Ollama client using OpenAI-compatible API
+        self.openai_client = openai.OpenAI(
+            base_url=f"{ollama_base_url}/v1",
+            api_key="ollama"  # Ollama doesn't require a real API key
+        )
+        self.openai_model = ollama_model
         
         # Initialize tokenizer for token counting
         self.tokenizer = tiktoken.get_encoding("cl100k_base")
@@ -55,7 +55,7 @@ class TextSummarizer:
     def summarize_text(self, text: str, summary_type: str = 'extractive',
                        summary_percent: float = 0.3) -> Tuple[str, Dict]:
         """
-        Main summarization method using OpenAI for both extractive and abstractive
+        Main summarization method using Ollama for both extractive and abstractive
         
         Args:
             text: Input text to summarize
@@ -65,7 +65,7 @@ class TextSummarizer:
         Returns:
             Tuple of (summary_html, metadata)
         """
-        logger.info(f"Starting OpenAI-powered {summary_type} summarization of {len(text)} characters")
+        logger.info(f"Starting Ollama-powered {summary_type} summarization of {len(text)} characters")
         
         # Calculate original token count
         original_tokens = len(self.tokenizer.encode(text))
@@ -73,7 +73,7 @@ class TextSummarizer:
         # Create optimized chunks for rate limits and throughput
         chunks = self.chunk_text_with_overlap(text, chunk_size=1500, overlap=150)
         
-        # Perform summarization using OpenAI
+        # Perform summarization using Ollama
         if summary_type.lower() == 'extractive':
             raw_summary = self._openai_extractive_summarization(chunks, summary_percent)
         elif summary_type.lower() == 'abstractive':
@@ -226,9 +226,9 @@ class TextSummarizer:
 
     def _openai_extractive_summarization(self, chunks: List[Dict], summary_percent: float) -> str:
         """
-        Extractive summarization using OpenAI (selects key sentences from original text)
+        Extractive summarization using Ollama (selects key sentences from original text)
         """
-        logger.info(f"Starting OpenAI extractive summarization with {summary_percent:.1%} compression")
+        logger.info(f"Starting Ollama extractive summarization with {summary_percent:.1%} compression")
         
         chunk_summaries = []
         
@@ -280,9 +280,9 @@ class TextSummarizer:
 
     def _openai_abstractive_summarization(self, chunks: List[Dict], summary_percent: float) -> str:
         """
-        Abstractive summarization using OpenAI (rewrites content in new words)
+        Abstractive summarization using Ollama (rewrites content in new words)
         """
-        logger.info(f"Starting OpenAI abstractive summarization with {summary_percent:.1%} compression")
+        logger.info(f"Starting Ollama abstractive summarization with {summary_percent:.1%} compression")
         
         chunk_summaries = []
         

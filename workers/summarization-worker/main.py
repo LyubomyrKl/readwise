@@ -39,8 +39,8 @@ class SummarizationWorker:
             s3_endpoint=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
             s3_access_key=os.getenv('S3_ACCESS_KEY_ID', 'minioadmin'),
             s3_secret_key=os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin'),
-            openai_api_key=os.getenv('OPENAI_API_KEY'),
-            openai_model=os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+            ollama_base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
+            ollama_model=os.getenv('OLLAMA_MODEL', 'qwen2.5:14b-instruct-q5_k_m')
         )
         
         # Worker configuration
@@ -194,7 +194,7 @@ class SummarizationWorker:
         logger.info(f"   - Queue: {self.queue_name}")
         logger.info(f"   - Prefetch Count: {self.prefetch_count}")
         logger.info(f"   - Worker ID: {self.worker_id}")
-        logger.info(f"   - OpenAI API: {'✅ Configured' if os.getenv('OPENAI_API_KEY') else '❌ Not configured'}")
+        logger.info(f"   - Ollama API: {'✅ Configured' if os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434') else '❌ Not configured'}")
         
         try:
             # Check queue status before starting
