@@ -492,6 +492,8 @@ JSON ONLY: {{"title":"..."}}"""
         """
         Segment text and return structured JSON with chapters and subsections
         
+        Auto-detects if text is already segmented (has tags) or needs segmentation.
+        
         Returns:
             Dict with structure:
             {
@@ -518,34 +520,42 @@ JSON ONLY: {{"title":"..."}}"""
             }
         """
         
-        # Step 1: Sentence splitting with offsets
-        sentences = self._sentence_split_with_offsets(text)
-        if len(sentences) < self.window_size + 1:
-            return {"sections": []}  # Too short to segment
+        # Check if text is already segmented (contains our tags)
+        has_chapter_tags = '<<<CHAPTER id=' in text
+        has_subsection_tags = '<<<Subsection id=' in text
         
-        # Step 2-8: Same segmentation process as segment_text
-        windows = self._create_windows(sentences)
-        embeddings = []
-        for window in windows:
-            embedding = self._get_ollama_embedding(window)
-            embeddings.append(embedding)
-        
-        topic_scores = self._compute_topic_shift_scores(embeddings)
-        peak_indices = self._find_peaks_zscore(topic_scores)
-        boundaries = self._map_to_sentence_boundaries(peak_indices, sentences)
-        boundaries = self._merge_close_boundaries(boundaries)
-        boundaries = self._enforce_min_token_gap(boundaries, text)
-        
-        verified_boundaries = []
-        for boundary in boundaries:
-            verified_boundary = self._verify_boundary_with_llm(boundary, sentences, text)
-            if verified_boundary.keep:
-                verified_boundaries.append(verified_boundary)
-        
-        final_boundaries = self._solve_consistency(verified_boundaries, text)
-        
-        # Step 9: Convert to structured JSON instead of inserting tags
-        return self._boundaries_to_json(text, final_boundaries)
+        if has_chapter_tags or has_subsection_tags:
+            # Text is already segmented - parse existing tags
+            boundaries = self._parse_existing_segments(text)
+            clean_text = self._remove_segment_tags(text)
+            return self._boundaries_to_json(clean_text, boundaries)
+        else:
+            # Text needs segmentation - do full AI segmentation
+            sentences = self._sentence_split_with_offsets(text)
+            if len(sentences) < self.window_size + 1:
+                return {"sections": []}  # Too short to segment
+            
+            # Full segmentation process
+            windows = self._create_windows(sentences)
+            embeddings = []
+            for window in windows:
+                embedding = self._get_ollama_embedding(window)
+                embeddings.append(embedding)
+            
+            topic_scores = self._compute_topic_shift_scores(embeddings)
+            peak_indices = self._find_peaks_zscore(topic_scores)
+            boundaries = self._map_to_sentence_boundaries(peak_indices, sentences)
+            boundaries = self._merge_close_boundaries(boundaries)
+            boundaries = self._enforce_min_token_gap(boundaries, text)
+            
+            verified_boundaries = []
+            for boundary in boundaries:
+                verified_boundary = self._verify_boundary_with_llm(boundary, sentences, text)
+                if verified_boundary.keep:
+                    verified_boundaries.append(verified_boundary)
+            
+            final_boundaries = self._solve_consistency(verified_boundaries, text)
+            return self._boundaries_to_json(text, final_boundaries)
 
     def _boundaries_to_json(self, text: str, boundaries: List[Boundary]) -> Dict:
         """Convert boundaries to structured JSON format"""
@@ -665,28 +675,20 @@ JSON ONLY: {{"title":"..."}}"""
         return text
 
 def main():
-    # Test parsing existing segmented file and converting to JSON
+    # Test segment_text_to_json with feynman_lectures_segmented file
     input_file = "/Users/liubomyrklymiuk/Documents/summarizer-workers/feynman_lectures_segmented.txt"
     
-    print(f"Testing _boundaries_to_json with existing segmented file: {input_file}")
+    print(f"Testing segment_text_to_json with file: {input_file}")
     
     try:
         with open(input_file, 'r', encoding='utf-8') as f:
-            segmented_text = f.read()
+            text = f.read()
         
-        print(f"Loaded segmented text with {len(segmented_text)} characters")
+        print(f"Loaded text with {len(text)} characters")
         
-        # Parse existing tags to create boundaries
+        # Use segment_text_to_json (will auto-detect existing tags)
         segmenter = DeterministicSegmenter()
-        boundaries = segmenter._parse_existing_segments(segmented_text)
-        
-        # Remove tags to get clean text
-        clean_text = segmenter._remove_segment_tags(segmented_text)
-        
-        print(f"Found {len(boundaries)} existing boundaries")
-        
-        # Convert to JSON
-        json_result = segmenter._boundaries_to_json(clean_text, boundaries)
+        json_result = segmenter.segment_text_to_json(text)
         
         print("\n=== JSON Structure ===")
         print(f"Number of sections: {len(json_result['sections'])}")
@@ -715,7 +717,7 @@ def main():
         print(f"\n=== JSON output saved to: {output_file} ===")
         
     except Exception as e:
-        print(f"Error testing _boundaries_to_json: {e}")
+        print(f"Error testing segment_text_to_json: {e}")
         import traceback
         traceback.print_exc()
 
