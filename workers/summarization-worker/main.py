@@ -48,7 +48,7 @@ class SummarizationWorker:
         self.worker_id = os.getenv('WORKER_ID', 'summarization-worker-1')
     
     async def process_summarization(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3):
-        """Process summarization for a book"""
+        """Process summarization for a book with JSON segmentation"""
         try:
             # Get book from database
             book = await self.db_manager.get_book(book_id)
@@ -56,7 +56,7 @@ class SummarizationWorker:
                 logger.error(f"Book not found: {book_id}")
                 return
             
-            logger.info(f"📖 Processing {summary_type} summarization for: {book.title}")
+            logger.info(f"📖 Processing {summary_type} summarization with segmentation for: {book.title}")
             
             # Check if extraction exists
             if not book.extractionStorageKey:
@@ -89,38 +89,64 @@ class SummarizationWorker:
             # Update status to processing
             await self.db_manager.update_book_status(book_id, 'processing')
             
-            # Perform summarization
-            logger.info(f"🤖 Starting {summary_type} summarization...")
-            summary_html, summary_metadata = self.text_summarizer.summarize_text(
-                text=extracted_text,
+            # First, convert text to JSON format using text segmentation
+            logger.info("🔧 Converting text to segmented JSON format...")
+            from text_segmentation import DeterministicSegmenter
+            
+            segmenter = DeterministicSegmenter()
+            json_data = segmenter.segment_text_to_json(extracted_text)
+            
+            logger.info(f"📊 Segmented into {len(json_data.get('sections', []))} sections")
+            
+            # Perform JSON-based summarization with 600 token chunks
+            logger.info(f"🤖 Starting {summary_type} summarization with 600-token segmentation...")
+            summary_json, summary_metadata = self.text_summarizer.segment_and_summarize_json(
+                json_data=json_data,
                 summary_type=summary_type,
-                summary_percent=summary_percent
+                summary_percent=summary_percent,
+                target_tokens_per_chunk=600
             )
             
+            # Convert summary JSON to string for storage
+            summary_json_str = json.dumps(summary_json, indent=2, ensure_ascii=False)
+            
             # Save summary to S3
-            logger.info("💾 Saving summary to S3...")
+            logger.info("💾 Saving segmented summary to S3...")
             summary_s3_key = self.text_summarizer.save_summary_to_s3(
                 bucket='summaries',
                 book_id=book_id,
-                summary_html=summary_html,
-                summary_type=summary_type,
+                summary_json=summary_json_str,
+                summary_type=f"{summary_type}_segmented",
                 metadata=summary_metadata
             )
             
+            # Also save locally for inspection
+            local_filename = f"{book_id}_{summary_type}_segmented_summary.json"
+            try:
+                with open(local_filename, 'w', encoding='utf-8') as f:
+                    f.write(summary_json_str)
+                logger.info(f"💾 Also saved locally as: {local_filename}")
+            except Exception as e:
+                logger.warning(f"Failed to save local copy: {e}")
+            
             # Update database with summary information
-            await self.db_manager.update_book_summary(book_id, summary_type, summary_s3_key)
+            await self.db_manager.update_book_summary(book_id, f"{summary_type}_segmented", summary_s3_key)
             
             # Log success
-            logger.info("✅ Text summarization completed successfully!")
+            logger.info("✅ Segmented text summarization completed successfully!")
             logger.info(f"- Book: {book.title}")
-            logger.info(f"- Summary type: {summary_type}")
+            logger.info(f"- Summary type: {summary_type}_segmented")
             logger.info(f"- Original tokens: {summary_metadata['original_tokens']:,}")
             logger.info(f"- Summary tokens: {summary_metadata['summary_tokens']:,}")
             logger.info(f"- Compression: {summary_metadata['compression_ratio']:.1%}")
+            logger.info(f"- Target tokens per chunk: {summary_metadata.get('target_tokens_per_chunk', 600)}")
             logger.info(f"- Saved to: s3://summaries/{summary_s3_key}")
+            logger.info(f"- Local copy: {local_filename}")
             
         except Exception as e:
-            logger.error(f"❌ Error processing summarization for book {book_id}: {e}")
+            logger.error(f"❌ Error processing segmented summarization for book {book_id}: {e}")
+            import traceback
+            logger.error(f"Traceback: {traceback.format_exc()}")
             try:
                 await self.db_manager.update_book_status(book_id, 'error')
             except:
