@@ -18,7 +18,8 @@ type SummaryRequestMessage = {
   version: 1;
   userId: string;
   bookId: string;
-  requestedAt: string; // ISO8601
+  requestedAt: string;
+  autoSummarize: boolean;
 };
 
 @Injectable()
@@ -95,10 +96,11 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       type: 'summary_request',
       version: 1,
       userId,
-      summaryPercent: 40,
+      summaryPercent: 0.4,
       bookId,
       summarizationType: 'abstractive',
       requestedAt: new Date().toISOString(),
+      autoSummarize: true,
     };
 
     try {
