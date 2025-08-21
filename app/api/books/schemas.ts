@@ -55,6 +55,7 @@ export const BookResponse = z.object({
   fileUrl: z.string(),
   spentHours: z.number(),
   pageCount: z.number().nullable(),
+  summaryKey: z.string().optional(),
   pagePassCount: z.number(),
   isFinished: z.boolean(),
   isFavorite: z.boolean(),
@@ -130,7 +131,10 @@ export const BooksApiRegistry = {
       res: FinalizeCoverRes,
     },
     "/api/books/coverPresign": { req: CoverPresignReq, res: CoverPresignRes },
-    "/api/books/updateCoverFinalize": { req: UpdateCoverFinalizeReq, res: UpdateCoverFinalizeRes },
+    "/api/books/updateCoverFinalize": {
+      req: UpdateCoverFinalizeReq,
+      res: UpdateCoverFinalizeRes,
+    },
   },
   GET: {
     "/api/books": { req: undefined, res: GetAllBooksRes },

@@ -12,8 +12,39 @@ export const SummarizeRes = z.object({
   success: z.boolean(),
 });
 
+export const GetSummaryReq = z.object({
+  summaryKey: z.string(),
+});
+
+export const GetSummaryRes = z.object({
+  summary: z.object({
+    sections: z.array(
+      z.object({
+        id: z.string(),
+        title: z.string(),
+        level: z.string(),
+        start_char: z.number(),
+        end_char: z.number(),
+        content: z.string(),
+        subsections: z.array(
+          z.object({
+            id: z.string(),
+            title: z.string(),
+            level: z.string(),
+            start_char: z.number(),
+            end_char: z.number(),
+            content: z.string(),
+          })
+        ).optional(),
+      })
+    ),
+  }),
+  summaryKey: z.string(),
+});
+
 export const SummarizerApiRegistry = {
   POST: {
     "/api/summarizer": { req: SummarizeReq, res: SummarizeRes },
+    "/api/summarizer/get-summary": { req: GetSummaryReq, res: GetSummaryRes },
   },
 } satisfies Registry;

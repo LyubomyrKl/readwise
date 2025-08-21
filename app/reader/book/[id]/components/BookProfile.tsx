@@ -39,8 +39,9 @@ export default function BookProfile({
   const [showAllTags, setShowAllTags] = useState(false);
   const [coverUrl, setCoverUrl] = useState(book.coverUrl);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false);
-  const [summary, setSummary] = useState<string | null>(null);
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(
+    book.status === "processing"
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const formatDate = (dateString: string) => {
@@ -162,7 +163,6 @@ export default function BookProfile({
   };
 
   const handleSummarize = async () => {
-    setIsGeneratingSummary(true);
     try {
       const response = await fetch("/api/summarizer", {
         method: "POST",
@@ -178,13 +178,10 @@ export default function BookProfile({
         throw new Error("Failed to generate summary");
       }
 
-      const data = await response.json();
-      setSummary(data.result);
+      setIsGeneratingSummary(true);
     } catch (error) {
       console.error("Error generating summary:", error);
       alert("Failed to generate summary. Please try again.");
-    } finally {
-      setIsGeneratingSummary(false);
     }
   };
 
@@ -326,14 +323,34 @@ export default function BookProfile({
                   </button>
                 </div>
 
-                <button
-                  onClick={handleSummarize}
-                  disabled={isGeneratingSummary}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 text-sm font-medium disabled:cursor-not-allowed"
-                >
-                  <Sparkles className={`h-4 w-4 ${isGeneratingSummary ? "animate-spin" : ""}`} />
-                  {isGeneratingSummary ? "Generating Summary..." : "Generate Summary"}
-                </button>
+                <div className="grid grid-cols-1 gap-2">
+                  {book.summaryKey ? (
+                    <button
+                      onClick={() =>
+                        (window.location.href = `/reader/book/${book.id}/summary`)
+                      }
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-all duration-300 text-sm font-medium"
+                    >
+                      <Sparkles className="h-4 w-4" />
+                      View Summary
+                    </button>
+                  ) : (
+                    <button
+                      onClick={handleSummarize}
+                      disabled={isGeneratingSummary}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 text-sm font-medium disabled:cursor-not-allowed"
+                    >
+                      <Sparkles
+                        className={`h-4 w-4 ${
+                          isGeneratingSummary ? "animate-spin" : ""
+                        }`}
+                      />
+                      {isGeneratingSummary
+                        ? "Generating Summary..."
+                        : "Generate Summary"}
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Quick Stats */}
@@ -640,21 +657,6 @@ export default function BookProfile({
                 </div>
               </div>
             </div>
-
-            {/* Generated Summary */}
-            {summary && (
-              <div>
-                <h3 className="font-medium mb-4 flex items-center gap-2">
-                  <Sparkles className="h-4 w-4 text-muted-foreground" />
-                  AI Generated Summary
-                </h3>
-                <div className="bg-gradient-to-br from-purple-50 to-pink-50 border border-purple-200 rounded-xl p-6">
-                  <p className="text-sm leading-relaxed text-gray-700 whitespace-pre-wrap">
-                    {summary}
-                  </p>
-                </div>
-              </div>
-            )}
 
             {/* Notes Preview */}
             {book.notes.length > 0 && (
