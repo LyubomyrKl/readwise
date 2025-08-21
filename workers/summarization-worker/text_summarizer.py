@@ -57,14 +57,19 @@ class TextSummarizer:
         Returns:
             Tuple of (segmented_json, metadata)
         """
-        logger.info(f"Starting JSON segmentation and summarization...")
+        print(f"🚀 Starting {summary_type} summarization with {target_tokens_per_chunk} token chunks...")
         
         total_original_tokens = 0
         total_summary_tokens = 0
         processed_sections = []
         
-        for section in json_data.get('sections', []):
-            logger.info(f"Processing section: {section.get('title', 'Untitled')}")
+        # Count total subsections for progress tracking
+        total_subsections = sum(len(section.get('subsections', [])) for section in json_data.get('sections', []))
+        current_subsection = 0
+        
+        for section_idx, section in enumerate(json_data.get('sections', []), 1):
+            section_title = section.get('title', 'Untitled')[:50]
+            print(f"\n📖 Section {section_idx}: {section_title}")
             
             processed_section = {
                 'id': section['id'],
@@ -77,8 +82,11 @@ class TextSummarizer:
             }
             
             # Process each subsection
-            for subsection in section.get('subsections', []):
-                logger.info(f"Processing subsection: {subsection.get('title', 'Untitled')}")
+            for subsection_idx, subsection in enumerate(section.get('subsections', []), 1):
+                current_subsection += 1
+                subsection_title = subsection.get('title', 'Untitled')[:40]
+                
+                print(f"  📄 Subsection {subsection_idx}: {subsection_title}")
                 
                 # Segment subsection content into chunks with overlap
                 chunks = self._segment_content_into_chunks_with_overlap(
@@ -86,15 +94,21 @@ class TextSummarizer:
                     target_tokens_per_chunk
                 )
                 
-                logger.info(f"Split subsection into {len(chunks)} chunks with overlap")
-                
-                # Summarize each chunk
+                # Summarize each chunk with progress bar
                 summarized_chunks = []
+                total_chunks = len(chunks)
+                
                 for i, chunk in enumerate(chunks):
                     chunk_tokens = len(self.tokenizer.encode(chunk))
                     total_original_tokens += chunk_tokens
                     
-                    logger.info(f"Summarizing chunk {i+1}/{len(chunks)} ({chunk_tokens} tokens)")
+                    # Progress bar for chunk summarization
+                    progress = ((i + 1) / total_chunks) * 100
+                    bar_length = 20
+                    filled_length = int(bar_length * (i + 1) // total_chunks)
+                    bar = '█' * filled_length + '░' * (bar_length - filled_length)
+                    
+                    print(f"\r    🤖 Summarizing: [{bar}] {progress:.0f}% ({i+1}/{total_chunks} chunks)", end="", flush=True)
                     
                     # Summarize this chunk
                     if summary_type.lower() == 'extractive':
@@ -114,6 +128,9 @@ class TextSummarizer:
                         'summary_tokens': summary_tokens
                     })
                 
+                # Clear progress bar and show completion
+                print(f"\r    ✅ Summarized {total_chunks} chunks ({total_original_tokens:,} → {total_summary_tokens:,} tokens)")
+                
                 # Create new subsection with summarized chunks
                 processed_subsection = {
                     'id': subsection['id'],
@@ -126,6 +143,10 @@ class TextSummarizer:
                 }
                 
                 processed_section['subsections'].append(processed_subsection)
+                
+                # Overall progress
+                overall_progress = (current_subsection / total_subsections) * 100
+                print(f"    📊 Overall progress: {overall_progress:.1f}% ({current_subsection}/{total_subsections} subsections)")
             
             processed_sections.append(processed_section)
         
@@ -146,7 +167,9 @@ class TextSummarizer:
             'timestamp': datetime.now().isoformat()
         }
         
-        logger.info(f"JSON segmentation complete: {total_original_tokens} → {total_summary_tokens} tokens ({compression_ratio:.1%})")
+        print(f"\n🎉 Summarization complete!")
+        print(f"   📈 {total_original_tokens:,} → {total_summary_tokens:,} tokens ({compression_ratio:.1%} compression)")
+        print(f"   🎯 Target: {int(summary_percent * 100)}% | Achieved: {compression_ratio:.1%}")
         
         return result_json, metadata
 
@@ -169,16 +192,24 @@ class TextSummarizer:
         
         # Split into sentences first
         sentences = re.split(r'(?<=[.!?])\s+', content)
+        total_sentences = len(sentences)
         
         chunks = []
         overlap_size = int(target_tokens * overlap_percent)
-        step_size = target_tokens - overlap_size
         
         current_chunk = []
         current_tokens = 0
         sentence_idx = 0
         
         while sentence_idx < len(sentences):
+            # Progress bar for chunking
+            progress = (sentence_idx / total_sentences) * 100
+            bar_length = 20
+            filled_length = int(bar_length * sentence_idx // total_sentences)
+            bar = '█' * filled_length + '░' * (bar_length - filled_length)
+            
+            print(f"\r    🔧 Chunking: [{bar}] {progress:.0f}% ({len(chunks)} chunks created)", end="", flush=True)
+            
             sentence = sentences[sentence_idx]
             sentence_tokens = len(self.tokenizer.encode(sentence))
             
@@ -208,6 +239,10 @@ class TextSummarizer:
         # Add remaining chunk
         if current_chunk:
             chunks.append(' '.join(current_chunk))
+        
+        # Final progress message
+        avg_tokens = content_tokens // len(chunks) if chunks else 0
+        print(f"\r    ✅ Chunked into {len(chunks)} chunks (avg {avg_tokens} tokens, {overlap_percent:.0%} overlap)")
         
         return chunks
 

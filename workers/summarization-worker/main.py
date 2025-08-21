@@ -116,32 +116,22 @@ class SummarizationWorker:
                 bucket='summaries',
                 book_id=book_id,
                 summary_json=summary_json_str,
-                summary_type=f"{summary_type}_segmented",
+                summary_type=summary_type,  # Use original summary type, not _segmented
                 metadata=summary_metadata
             )
             
-            # Also save locally for inspection
-            local_filename = f"{book_id}_{summary_type}_segmented_summary.json"
-            try:
-                with open(local_filename, 'w', encoding='utf-8') as f:
-                    f.write(summary_json_str)
-                logger.info(f"💾 Also saved locally as: {local_filename}")
-            except Exception as e:
-                logger.warning(f"Failed to save local copy: {e}")
-            
-            # Update database with summary information
-            await self.db_manager.update_book_summary(book_id, f"{summary_type}_segmented", summary_s3_key)
+            # Update database with summary information (use original summary type)
+            await self.db_manager.update_book_summary(book_id, summary_type, summary_s3_key)
             
             # Log success
             logger.info("✅ Segmented text summarization completed successfully!")
             logger.info(f"- Book: {book.title}")
-            logger.info(f"- Summary type: {summary_type}_segmented")
+            logger.info(f"- Summary type: {summary_type} (with segmentation)")
             logger.info(f"- Original tokens: {summary_metadata['original_tokens']:,}")
             logger.info(f"- Summary tokens: {summary_metadata['summary_tokens']:,}")
             logger.info(f"- Compression: {summary_metadata['compression_ratio']:.1%}")
             logger.info(f"- Target tokens per chunk: {summary_metadata.get('target_tokens_per_chunk', 600)}")
             logger.info(f"- Saved to: s3://summaries/{summary_s3_key}")
-            logger.info(f"- Local copy: {local_filename}")
             
         except Exception as e:
             logger.error(f"❌ Error processing segmented summarization for book {book_id}: {e}")
@@ -182,6 +172,8 @@ class SummarizationWorker:
     def message_callback(self, ch, method, properties, body):
         """Handle incoming messages with enhanced error handling"""
         message_data = None
+        processing_successful = False
+        
         try:
             # Parse message
             message_data = json.loads(body)
@@ -195,23 +187,40 @@ class SummarizationWorker:
             
             # Process message with async database operations
             asyncio.run(self.process_message_async(message_data))
-            
-            # Acknowledge successful processing
-            ch.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"✅ [{self.worker_id}] Message processed successfully")
+            processing_successful = True
+            logger.info(f"✅ [{self.worker_id}] Message processing completed successfully")
             
         except json.JSONDecodeError as e:
             logger.error(f"❌ [{self.worker_id}] Invalid JSON in message: {e}")
-            # Don't requeue malformed messages
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            processing_successful = False
             
         except Exception as e:
             logger.error(f"❌ [{self.worker_id}] Error processing message: {e}")
             book_id = message_data.get('bookId', 'unknown') if message_data else 'unknown'
             logger.error(f"📖 Failed book ID: {book_id}")
-            
-            # For processing errors, don't requeue to avoid infinite loops
-            ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+            processing_successful = False
+        
+        # Handle message acknowledgment separately with robust error handling
+        try:
+            if hasattr(ch, 'is_closed') and ch.is_closed:
+                logger.warning(f"⚠️ [{self.worker_id}] Channel is closed, cannot acknowledge message")
+                return
+                
+            if processing_successful:
+                ch.basic_ack(delivery_tag=method.delivery_tag)
+                logger.debug(f"✅ [{self.worker_id}] Message acknowledged successfully")
+            else:
+                # Don't requeue failed messages to avoid infinite loops
+                ch.basic_nack(delivery_tag=method.delivery_tag, requeue=False)
+                logger.debug(f"❌ [{self.worker_id}] Message nacked (not requeued)")
+                
+        except Exception as ack_error:
+            error_msg = str(ack_error)
+            if "Transport indicated EOF" in error_msg or "Channel is closed" in error_msg:
+                logger.warning(f"⚠️ [{self.worker_id}] Connection lost during acknowledgment - message may be redelivered")
+            else:
+                logger.error(f"❌ [{self.worker_id}] Unexpected acknowledgment error: {ack_error}")
+            # Don't re-raise the error, let the worker continue
     
     def start(self):
         """Start the summarization worker with enhanced subscription management"""
@@ -224,8 +233,11 @@ class SummarizationWorker:
         
         try:
             # Check queue status before starting
-            queue_info = self.messaging.get_queue_info(self.queue_name)
-            logger.info(f"📊 Queue status: {queue_info}")
+            try:
+                queue_info = self.messaging.get_queue_info(self.queue_name)
+                logger.info(f"📊 Queue status: {queue_info}")
+            except Exception as queue_error:
+                logger.warning(f"⚠️ Could not get queue info: {queue_error}")
             
             # Set up consumer with enhanced configuration
             connection, channel = self.messaging.setup_consumer(
@@ -240,12 +252,69 @@ class SummarizationWorker:
             # Start consuming with graceful shutdown
             self.messaging.start_consuming(self.queue_name)
             
+        except KeyboardInterrupt:
+            logger.info(f"🛑 [{self.worker_id}] Received keyboard interrupt, shutting down gracefully...")
+            try:
+                self.messaging.stop_consuming()
+            except Exception as stop_error:
+                logger.error(f"❌ Error during graceful shutdown: {stop_error}")
         except Exception as e:
+            error_msg = str(e)
             logger.error(f"❌ Failed to start summarization worker: {e}")
-            raise
+            
+            # Handle specific connection errors gracefully
+            if any(term in error_msg for term in ["Channel is closed", "Connection closed", "Transport indicated EOF", "StreamLostError"]):
+                logger.info(f"💭 [{self.worker_id}] RabbitMQ connection issue detected, worker will exit gracefully")
+            elif "Connection refused" in error_msg:
+                logger.error(f"🔌 [{self.worker_id}] Cannot connect to RabbitMQ - please check if RabbitMQ is running")
+            else:
+                logger.error(f"❌ [{self.worker_id}] Unexpected error: {e}")
+                
         finally:
             logger.info(f"🛑 [{self.worker_id}] Summarization Worker stopped")
+            try:
+                if hasattr(self.messaging, 'connection') and self.messaging.connection:
+                    self.messaging.close()
+            except Exception as close_error:
+                logger.debug(f"Error closing messaging connection: {close_error}")
+                
+    def restart_with_backoff(self, max_retries=3, base_delay=5):
+        """Restart the worker with exponential backoff on connection failures"""
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"🔄 [{self.worker_id}] Attempt {attempt + 1}/{max_retries} to start worker")
+                self.start()
+                return  # Success, exit retry loop
+                
+            except KeyboardInterrupt:
+                logger.info(f"🛑 [{self.worker_id}] Received keyboard interrupt during restart")
+                raise
+                
+            except Exception as e:
+                error_msg = str(e)
+                if attempt < max_retries - 1:
+                    delay = base_delay * (2 ** attempt)  # Exponential backoff
+                    logger.warning(f"⏳ [{self.worker_id}] Retrying in {delay} seconds... ({error_msg})")
+                    import time
+                    time.sleep(delay)
+                else:
+                    logger.error(f"❌ [{self.worker_id}] Max retries exceeded. Final error: {e}")
+                    raise
 
 if __name__ == "__main__":
     worker = SummarizationWorker()
-    worker.start()
+    
+    # Check if restart with backoff is enabled via environment variable
+    enable_restart = os.getenv('WORKER_AUTO_RESTART', 'false').lower() == 'true'
+    
+    try:
+        if enable_restart:
+            logger.info(f"🔄 [{worker.worker_id}] Auto-restart enabled")
+            worker.restart_with_backoff()
+        else:
+            worker.start()
+    except KeyboardInterrupt:
+        logger.info(f"🛑 [{worker.worker_id}] Shutdown requested by user")
+    except Exception as e:
+        logger.error(f"❌ [{worker.worker_id}] Worker failed to start: {e}")
+        exit(1)

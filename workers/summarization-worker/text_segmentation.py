@@ -526,14 +526,21 @@ JSON ONLY: {{"title":"..."}}"""
         
         if has_chapter_tags or has_subsection_tags:
             # Text is already segmented - parse existing tags
+            print("📚 Found existing chapter structure, parsing segments...")
             boundaries = self._parse_existing_segments(text)
             clean_text = self._remove_segment_tags(text)
-            return self._boundaries_to_json(clean_text, boundaries)
+            result = self._boundaries_to_json(clean_text, boundaries)
+            print(f"✅ Parsed {len(result.get('sections', []))} sections from existing structure")
+            return result
         else:
             # Text needs segmentation - do full AI segmentation
+            print("🤖 No existing structure found, generating chapters with AI...")
             sentences = self._sentence_split_with_offsets(text)
             if len(sentences) < self.window_size + 1:
+                print("⚠️  Text too short for segmentation, returning as single section")
                 return {"sections": []}  # Too short to segment
+            
+            print(f"🔍 Analyzing {len(sentences)} sentences for chapter boundaries...")
             
             # Full segmentation process
             windows = self._create_windows(sentences)
@@ -548,6 +555,8 @@ JSON ONLY: {{"title":"..."}}"""
             boundaries = self._merge_close_boundaries(boundaries)
             boundaries = self._enforce_min_token_gap(boundaries, text)
             
+            print(f"🎯 Found {len(boundaries)} potential boundaries, verifying with AI...")
+            
             verified_boundaries = []
             for boundary in boundaries:
                 verified_boundary = self._verify_boundary_with_llm(boundary, sentences, text)
@@ -555,7 +564,9 @@ JSON ONLY: {{"title":"..."}}"""
                     verified_boundaries.append(verified_boundary)
             
             final_boundaries = self._solve_consistency(verified_boundaries, text)
-            return self._boundaries_to_json(text, final_boundaries)
+            result = self._boundaries_to_json(text, final_boundaries)
+            print(f"✅ Generated {len(result.get('sections', []))} sections using AI segmentation")
+            return result
 
     def _boundaries_to_json(self, text: str, boundaries: List[Boundary]) -> Dict:
         """Convert boundaries to structured JSON format"""
