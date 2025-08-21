@@ -488,32 +488,236 @@ JSON ONLY: {{"title":"..."}}"""
         
         return result
 
+    def segment_text_to_json(self, text: str) -> Dict:
+        """
+        Segment text and return structured JSON with chapters and subsections
+        
+        Returns:
+            Dict with structure:
+            {
+                "sections": [
+                    {
+                        "id": "ch-abc12345",
+                        "title": "Chapter Title",
+                        "level": "chapter",
+                        "start_char": 0,
+                        "end_char": 1500,
+                        "content": "chapter text content...",
+                        "subsections": [
+                            {
+                                "id": "sub-def67890",
+                                "title": "Subsection Title",
+                                "level": "subsection",
+                                "start_char": 500,
+                                "end_char": 1000,
+                                "content": "subsection text content..."
+                            }
+                        ]
+                    }
+                ]
+            }
+        """
+        
+        # Step 1: Sentence splitting with offsets
+        sentences = self._sentence_split_with_offsets(text)
+        if len(sentences) < self.window_size + 1:
+            return {"sections": []}  # Too short to segment
+        
+        # Step 2-8: Same segmentation process as segment_text
+        windows = self._create_windows(sentences)
+        embeddings = []
+        for window in windows:
+            embedding = self._get_ollama_embedding(window)
+            embeddings.append(embedding)
+        
+        topic_scores = self._compute_topic_shift_scores(embeddings)
+        peak_indices = self._find_peaks_zscore(topic_scores)
+        boundaries = self._map_to_sentence_boundaries(peak_indices, sentences)
+        boundaries = self._merge_close_boundaries(boundaries)
+        boundaries = self._enforce_min_token_gap(boundaries, text)
+        
+        verified_boundaries = []
+        for boundary in boundaries:
+            verified_boundary = self._verify_boundary_with_llm(boundary, sentences, text)
+            if verified_boundary.keep:
+                verified_boundaries.append(verified_boundary)
+        
+        final_boundaries = self._solve_consistency(verified_boundaries, text)
+        
+        # Step 9: Convert to structured JSON instead of inserting tags
+        return self._boundaries_to_json(text, final_boundaries)
+
+    def _boundaries_to_json(self, text: str, boundaries: List[Boundary]) -> Dict:
+        """Convert boundaries to structured JSON format"""
+        if not boundaries:
+            # No boundaries found, return entire text as single section
+            return {
+                "sections": [{
+                    "id": "ch-" + hashlib.md5("0".encode()).hexdigest()[:8],
+                    "title": "Complete Text",
+                    "level": "chapter",
+                    "start_char": 0,
+                    "end_char": len(text),
+                    "content": text,
+                    "subsections": []
+                }]
+            }
+        
+        # Sort boundaries by character offset
+        boundaries.sort(key=lambda b: b.char_offset)
+        
+        sections = []
+        current_chapter = None
+        
+        # Add implicit first section if first boundary is not at start
+        if boundaries[0].char_offset > 0:
+            first_boundary = Boundary(
+                char_offset=0,
+                sentence_idx=0,
+                score=0.0,
+                level="chapter",
+                title=self._get_title_with_llm(text[:min(1000, len(text))]),
+                keep=True
+            )
+            boundaries.insert(0, first_boundary)
+        
+        for i, boundary in enumerate(boundaries):
+            # Calculate segment content
+            start_pos = boundary.char_offset
+            end_pos = boundaries[i + 1].char_offset if i + 1 < len(boundaries) else len(text)
+            content = text[start_pos:end_pos].strip()
+            
+            # Generate stable ID
+            boundary_id = self._generate_id(boundary.char_offset, boundary.level)
+            
+            section_obj = {
+                "id": boundary_id,
+                "title": boundary.title or "Untitled Section",
+                "level": boundary.level,
+                "start_char": start_pos,
+                "end_char": end_pos,
+                "content": content
+            }
+            
+            if boundary.level == "chapter":
+                # Start new chapter
+                section_obj["subsections"] = []
+                sections.append(section_obj)
+                current_chapter = section_obj
+            elif boundary.level == "subsection" and current_chapter is not None:
+                # Add subsection to current chapter
+                current_chapter["subsections"].append(section_obj)
+            else:
+                # Fallback: treat as chapter if no current chapter
+                section_obj["level"] = "chapter"
+                section_obj["subsections"] = []
+                sections.append(section_obj)
+                current_chapter = section_obj
+        
+        return {"sections": sections}
+
+    def _parse_existing_segments(self, segmented_text: str) -> List[Boundary]:
+        """Parse existing segment tags and adjust offsets for clean text"""
+        boundaries = []
+        offset_adjustment = 0
+        
+        # Find all tags in order and track offset adjustments
+        all_patterns = [
+            (r'<<<CHAPTER id="([^"]*)" title="([^"]*)">>>\n\n', "chapter"),
+            (r'<<<Subsection id="([^"]*)" title="([^"]*)">>>\n\n', "subsection")
+        ]
+        
+        # Combine patterns and find all matches
+        combined_pattern = r'<<<(CHAPTER|Subsection) id="([^"]*)" title="([^"]*)">>>\n\n'
+        
+        for match in re.finditer(combined_pattern, segmented_text):
+            tag_type = "chapter" if match.group(1) == "CHAPTER" else "subsection"
+            tag_id = match.group(2)
+            title = match.group(3)
+            
+            # Calculate position in clean text (after removing previous tags)
+            clean_offset = match.start() - offset_adjustment
+            
+            boundaries.append(Boundary(
+                char_offset=clean_offset,
+                sentence_idx=0,
+                score=0.8 if tag_type == "chapter" else 0.6,
+                level=tag_type,
+                title=title,
+                keep=True
+            ))
+            
+            # Update offset adjustment for next iteration
+            tag_length = len(match.group(0))
+            offset_adjustment += tag_length
+        
+        # Sort by character offset in clean text
+        boundaries.sort(key=lambda b: b.char_offset)
+        
+        return boundaries
+
+    def _remove_segment_tags(self, segmented_text: str) -> str:
+        """Remove all segment tags to get clean text"""
+        # Remove CHAPTER tags
+        text = re.sub(r'<<<CHAPTER id="[^"]*" title="[^"]*">>>\n\n', '', segmented_text)
+        # Remove Subsection tags
+        text = re.sub(r'<<<Subsection id="[^"]*" title="[^"]*">>>\n\n', '', text)
+        return text
+
 def main():
-    parser = argparse.ArgumentParser(description='Deterministic AI Text Segmentation')
-    parser.add_argument('--input', '-i', help='Input file (default: stdin)')
-    parser.add_argument('--output', '-o', help='Output file (default: stdout)')
-    parser.add_argument('--ollama-url', default='http://localhost:11434', 
-                       help='Ollama server URL')
+    # Test parsing existing segmented file and converting to JSON
+    input_file = "/Users/liubomyrklymiuk/Documents/summarizer-workers/feynman_lectures_segmented.txt"
     
-    args = parser.parse_args()
+    print(f"Testing _boundaries_to_json with existing segmented file: {input_file}")
     
-    # Read input
-    if args.input:
-        with open(args.input, 'r', encoding='utf-8') as f:
-            text = f.read()
-    else:
-        text = sys.stdin.read()
-    
-    # Process
-    segmenter = DeterministicSegmenter(ollama_base_url=args.ollama_url)
-    result = segmenter.segment_text(text)
-    
-    # Write output
-    if args.output:
-        with open(args.output, 'w', encoding='utf-8') as f:
-            f.write(result)
-    else:
-        sys.stdout.write(result)
+    try:
+        with open(input_file, 'r', encoding='utf-8') as f:
+            segmented_text = f.read()
+        
+        print(f"Loaded segmented text with {len(segmented_text)} characters")
+        
+        # Parse existing tags to create boundaries
+        segmenter = DeterministicSegmenter()
+        boundaries = segmenter._parse_existing_segments(segmented_text)
+        
+        # Remove tags to get clean text
+        clean_text = segmenter._remove_segment_tags(segmented_text)
+        
+        print(f"Found {len(boundaries)} existing boundaries")
+        
+        # Convert to JSON
+        json_result = segmenter._boundaries_to_json(clean_text, boundaries)
+        
+        print("\n=== JSON Structure ===")
+        print(f"Number of sections: {len(json_result['sections'])}")
+        
+        for i, section in enumerate(json_result['sections']):
+            print(f"\nSection {i+1}:")
+            print(f"  ID: {section['id']}")
+            print(f"  Title: {section['title']}")
+            print(f"  Level: {section['level']}")
+            print(f"  Character range: {section['start_char']}-{section['end_char']}")
+            print(f"  Content length: {len(section['content'])} chars")
+            print(f"  Number of subsections: {len(section['subsections'])}")
+            
+            for j, subsection in enumerate(section['subsections']):
+                print(f"    Subsection {j+1}:")
+                print(f"      ID: {subsection['id']}")
+                print(f"      Title: {subsection['title']}")
+                print(f"      Character range: {subsection['start_char']}-{subsection['end_char']}")
+                print(f"      Content length: {len(subsection['content'])} chars")
+        
+        # Save JSON output to file
+        output_file = "/Users/liubomyrklymiuk/Documents/summarizer-workers/feynman_lectures_json_test.json"
+        with open(output_file, 'w', encoding='utf-8') as f:
+            json.dump(json_result, f, indent=2, ensure_ascii=False)
+        
+        print(f"\n=== JSON output saved to: {output_file} ===")
+        
+    except Exception as e:
+        print(f"Error testing _boundaries_to_json: {e}")
+        import traceback
+        traceback.print_exc()
 
 if __name__ == "__main__":
     main()
