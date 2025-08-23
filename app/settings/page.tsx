@@ -15,7 +15,7 @@ import { LogOut } from "lucide-react";
 import { ThemeToggle } from "./theme-toggle.component";
 import { useMotion } from "../(providers)/MotionProvider/MotionProvider";
 import { useBookCover } from "../(providers)/BookCoverProvider/BookCoverProvider";
-import { BookCover } from "../reader/library/components/BookCover.component";
+import { BookCover } from "@/app/reader/library/(components)/BookCover";
 import {
   Select,
   SelectTrigger,

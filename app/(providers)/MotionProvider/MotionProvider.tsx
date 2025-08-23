@@ -1,4 +1,4 @@
-// components/motion-provider.tsx
+// ((components))/motion-provider.tsx
 "use client";
 import React, {
   createContext,

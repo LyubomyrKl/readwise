@@ -4,28 +4,13 @@ import Link from "next/link";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import React, { useEffect, useMemo } from "react";
-import { LastReadCard, LibraryFilters, BooksGrid } from "./components";
+import { LastReadCard, LibraryFilters, BooksGrid } from "./(components)";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
 import { apiFetch } from "@/lib/fetcher";
 import { IBook } from "../types";
 import { filterAndSortBooks } from "./utils";
+import { ROUTES } from '@/app/(consts)/pages';
 
-const lastBook = {
-  id: "clean-code",
-  title: "Clean Code: A Handbook of Agile Software Craftsmanship",
-  author: "Robert C. Martin",
-  cover: "https://m.media-amazon.com/images/I/51E2055ZGUL._SY425_.jpg",
-  pageCount: 521,
-  pagePassCount: 65,
-  spentHours: 1.5,
-  lastReadAt: "2025-08-08T21:10:00Z",
-  currentChapter: "Chapter 10 – Classes",
-  rating: 4.7,
-  tags: ["Software", "Craft", "Best practices"],
-  minutesLeft: 175,
-  description:
-    "Practical principles for writing maintainable, readable code. Focuses on naming, functions, classes, error handling, and tests with real refactoring examples.",
-};
 
 export default function LibraryPage() {
   const [query, setQuery] = React.useState("");
@@ -36,6 +21,7 @@ export default function LibraryPage() {
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
   const [books, setBooks] = React.useState<IBook[]>([]);
+  const [lastBook, setLastBook] = React.useState<IBook | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -47,6 +33,19 @@ export default function LibraryPage() {
         setError(null);
         const data = await apiFetch("GET", "/api/books");
         setBooks(data);
+
+        const toTs = (d: unknown) => {
+          if (!d) return 0;
+          const t = new Date(d as any).getTime();
+          return Number.isFinite(t) ? t : 0;
+        };
+
+        const lastBook = data.reduce((best, b) =>
+            toTs(b.lastAccessed) > toTs(best?.lastAccessed) ? b : best
+          , null as typeof data[number] | null);
+
+        setLastBook(lastBook);
+
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to fetch books");
       } finally {
@@ -61,7 +60,7 @@ export default function LibraryPage() {
     return filterAndSortBooks(books, query, filter, sortBy);
   }, [books, query, filter, sortBy]);
 
-  const dynamicBg = useCoverGradient(lastBook.cover);
+  const dynamicBg = useCoverGradient(lastBook?.coverUrl);
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
@@ -76,13 +75,13 @@ export default function LibraryPage() {
             </p>
           </div>
           <Button asChild variant="secondary">
-            <Link href="/ingest/upload">
+            <Link href={ROUTES.reader.ingest.uploadFiles}>
               <Sparkles className="mr-2 h-4 w-4" /> Add books
             </Link>
           </Button>
         </div>
 
-        <LastReadCard dynamicBg={dynamicBg} />
+        {lastBook && <LastReadCard lastBook={lastBook} dynamicBg={dynamicBg} />}
 
         <LibraryFilters
           query={query}

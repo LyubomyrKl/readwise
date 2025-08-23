@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { Registry } from "../api.types";
+import { BookResponse } from '@/app/api/books/schemas';
 
 export const SummarizeReq = z.object({
   bookId: z.string(),
@@ -17,7 +18,8 @@ export const GetSummaryReq = z.object({
   bookId: z.string(),
 });
 
-export const GetSummaryRes = z.object({
+export const GetSummaryRes =   z.object({
+  ...BookResponse.shape,
   summary: z.object({
     sections: z.array(
       z.object({
@@ -40,8 +42,7 @@ export const GetSummaryRes = z.object({
       })
     ),
   }),
-  summaryKey: z.string(),
-});
+}) ;
 
 export const SummarizerApiRegistry = {
   POST: {

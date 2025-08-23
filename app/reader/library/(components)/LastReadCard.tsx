@@ -19,45 +19,35 @@ import {
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Stat } from "./Stat.component";
+import { Stat } from "./Stat";
 import { prettyDate, progress, getMinutesLeft } from "../utils";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { IBook } from '@/app/reader/types';
+import { BookCover } from '@/app/reader/library/(components)/BookCover';
+import { useBookCover } from '@/app/(providers)/BookCoverProvider/BookCoverProvider';
 
-const lastBook = {
-  id: "clean-code",
-  title: "Clean Code: A Handbook of Agile Software Craftsmanship",
-  author: "Robert C. Martin",
-  cover: "https://m.media-amazon.com/images/I/51E2055ZGUL._SY425_.jpg",
-  pageCount: 521,
-  pagePassCount: 65,
-  spentHours: 1.5,
-  lastReadAt: "2025-08-08T21:10:00Z",
-  currentChapter: "Chapter 10 – Classes",
-  rating: 4.7,
-  tags: ["Software", "Craft", "Best practices"],
-  minutesLeft: 175,
-  description:
-    "Practical principles for writing maintainable, readable code. Focuses on naming, functions, classes, error handling, and tests with real refactoring examples.",
-};
 
 interface LastReadCardProps {
   dynamicBg: string;
+  lastBook: IBook;
 }
 
-export function LastReadCard({ dynamicBg }: LastReadCardProps) {
+export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
   const { enabled } = useMotion();
   const Wrapper: any = enabled ? motion.div : "div";
+  const { backgroundStyle } = useBookCover();
 
   return (
     <>
       <div className="pointer-events-none absolute top-0 left-0 right-0 h-[65vh] -z-10">
-        <Image
-          src={lastBook.cover}
-          alt=""
+        {lastBook.coverUrl && <Image
           fill
-          className="object-cover blur-2xl opacity-20 scale-110"
           priority
-        />
+          alt={'Book cover'}
+          src={lastBook.coverUrl}
+          className="object-cover blur-2xl opacity-20 scale-110"
+
+        />}
         <div
           className="absolute inset-0"
           style={{ backgroundImage: dynamicBg }}
@@ -80,13 +70,11 @@ export function LastReadCard({ dynamicBg }: LastReadCardProps) {
 
           <CardContent className="grid grid-cols-1 gap-6 pb-2 md:grid-cols-[220px_1fr]">
             <div className="relative mx-auto h-[300px] w-[220px] overflow-hidden rounded-2xl shadow-md md:mx-0">
-              <Image
-                src={lastBook.cover}
-                alt={`${lastBook.title} cover`}
-                fill
-                sizes="220px"
-                className="object-cover"
-                priority
+              <BookCover
+                title={lastBook.title}
+                author={lastBook.author}
+                cover={lastBook.coverUrl}
+                backgroundStyle={backgroundStyle}
               />
             </div>
 
@@ -99,15 +87,15 @@ export function LastReadCard({ dynamicBg }: LastReadCardProps) {
                   by {lastBook.author}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
-                  <span className="inline-flex items-center gap-1 text-muted-foreground">
-                    <Clock className="h-4 w-4" /> Last read{" "}
-                    {prettyDate(lastBook.lastReadAt)}
+                  {lastBook.lastAccessed && <span className="inline-flex items-center gap-1 text-muted-foreground">
+                    <Clock className="h-4 w-4" /> Last read{' '}
+                    {prettyDate(lastBook.lastAccessed)}
+                  </span>}
+                  <span className="inline-flex items-center gap-1">
+                    <Star className="h-4 w-4" /> 3
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <Star className="h-4 w-4" /> {lastBook.rating}
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Bookmark className="h-4 w-4" /> {lastBook.currentChapter}
+                    <Bookmark className="h-4 w-4" />
                   </span>
                 </div>
                 <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
@@ -123,7 +111,6 @@ export function LastReadCard({ dynamicBg }: LastReadCardProps) {
                       </span>
                     </span>
 
-                    <span>~{getMinutesLeft(lastBook, "short")} min left</span>
                   </div>
 
                   <Progress value={progress(lastBook)} className="h-2" />
@@ -133,11 +120,11 @@ export function LastReadCard({ dynamicBg }: LastReadCardProps) {
               <div className="mt-1 flex gap-2">
                 {lastBook.tags.map((t) => (
                   <Badge
-                    key={t}
+                    key={t.name}
                     variant="secondary"
                     className="backdrop-blur"
                   >
-                    {t}
+                    {t.name}
                   </Badge>
                 ))}
               </div>

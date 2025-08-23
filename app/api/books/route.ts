@@ -1,6 +1,6 @@
-import { createServerSdk } from "@/lib/sdk";
-import { GetAllBooksRes } from "./schemas";
-import { NextRequest, NextResponse } from "next/server";
+import { createServerSdk } from '@/lib/sdk';
+import { GetAllBooksRes } from './schemas';
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(req: NextRequest) {
   try {
@@ -9,8 +9,7 @@ export async function GET(req: NextRequest) {
     const booksArray = resp?.data ?? [];
     const books = GetAllBooksRes.parse(booksArray);
 
-    const out = NextResponse.json(books, { status: resp.status });
-    return out;
+    return NextResponse.json(books, { status: resp.status });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
-import BookProfile from "../components/BookProfile";
+import BookProfile from "@/app/reader/book/[id]/(components)/BookProfile";
 import { IBook } from "../../../types";
 import { ROUTES } from "@/app/(consts)/pages";
 

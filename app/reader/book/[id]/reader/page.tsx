@@ -4,8 +4,8 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { Loader2 } from "lucide-react";
-import VirtualPDFReader from "../components/PDFReader";
-import EPUBReader from "../components/EPUBReader";
+import VirtualPDFReader from "@/app/reader/book/[id]/(components)/PDFReader";
+import EPUBReader from "@/app/reader/book/[id]/(components)/EPUBReader";
 import { IBook } from "../../../types";
 
 export default function BookReaderPage() {

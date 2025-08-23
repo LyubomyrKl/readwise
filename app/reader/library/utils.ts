@@ -16,7 +16,7 @@ export function progress(
   round?: boolean
 ) {
   const value =
-    book.pageCount && typeof book.pageCount === "number"
+    book.pageCount
       ? (book.pagePassCount / book.pageCount) * 100
       : 0;
   return round ? Math.round(value) : value;
