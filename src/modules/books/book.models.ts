@@ -1,6 +1,20 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { BookStatus, BookTag, Note, Highlight } from '@prisma/client';
 import { IsNotEmpty, IsString } from 'class-validator';
+
+import {
+  IsNumber,
+  IsOptional,
+  Min,
+  Max,
+  IsUUID,
+  IsMimeType,
+  Length,
+  Matches,
+} from 'class-validator';
+import { } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
+import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants.js';
 
 export class PresignInfo {
   @ApiProperty({ description: 'Presigned upload URL' })
@@ -56,6 +70,9 @@ export class BookResponse {
   title!: string;
 
   @ApiProperty()
+  description?: string | null;
+
+  @ApiProperty()
   author!: string;
 
   @ApiProperty({ required: false })
@@ -78,6 +95,12 @@ export class BookResponse {
 
   @ApiProperty()
   isFavorite!: boolean;
+
+  @ApiProperty()
+  summaryKey?: string | null;
+
+  @ApiProperty()
+  lastAccessed?: Date | null;
 
   @ApiProperty()
   mime!: string;
@@ -123,26 +146,6 @@ export class CoverPresignResponse {
   storageKey!: string;
 }
 
-export class DownloadHeadersDto {
-  @ApiProperty({ description: 'Content-Type of the file' })
-  'Content-Type': string;
-
-  @ApiProperty({ description: 'Accept-Ranges header' })
-  'Accept-Ranges': string;
-
-  @ApiProperty({ description: 'Content-Disposition header' })
-  'Content-Disposition': string;
-
-  @ApiProperty({ description: 'Content-Length of the file' })
-  'Content-Length': string;
-
-  @ApiProperty({ description: 'Content-Range header', required: false })
-  'Content-Range'?: string;
-
-  @ApiProperty({ description: 'Location header for redirection' })
-  Location: string;
-}
-
 export class CoverUpdateDto {
   @ApiProperty({
     description: 'Book ID to update cover for',
@@ -158,6 +161,24 @@ export class CoverUpdateDto {
   storageKey!: string;
 }
 
+export class UpdateLastAccessedDto {
+  @ApiProperty({
+    description: 'Book ID to update last accessed',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+}
+
+export class UpdateLastAccessedResponse {
+  @ApiProperty({
+    description: 'Book ID to update last accessed',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+}
+
 export interface DownloadHeaders {
   'Content-Type': string;
   'Accept-Ranges': string;
@@ -165,4 +186,139 @@ export interface DownloadHeaders {
   'Content-Length': string;
   'Content-Range'?: string;
   Location: string;
+}
+
+export class CreateBookDto {
+  @ApiProperty({ description: 'Book title', example: 'The Great Gatsby' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_TITLE_LENGTH)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  title!: string;
+
+  @ApiProperty({ description: 'Book author', example: 'F. Scott Fitzgerald' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_AUTHOR_LENGTH)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  author!: string;
+
+  @ApiProperty({
+    description: 'Book description',
+    example: 'A classic American novel',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_DESCRIPTION_LENGTH)
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.trim() : value,
+  )
+  description!: string;
+
+  @ApiProperty({ description: 'Original filename', example: 'book.epub' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
+  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
+  })
+  filename!: string;
+
+  @ApiProperty({
+    description: 'MIME type of the book file',
+    example: 'application/epub+zip',
+  })
+  @IsString()
+  @IsNotEmpty()
+  @IsMimeType()
+  mime!: string;
+
+  @ApiProperty({
+    description: 'File size in bytes',
+    example: 2048576,
+    minimum: 1,
+    maximum: BOOK_CONSTRAINTS.MAX_BOOK_SIZE,
+  })
+  @IsNumber()
+  @Min(BOOK_CONSTRAINTS.MIN_FILE_SIZE)
+  @Max(BOOK_CONSTRAINTS.MAX_BOOK_SIZE)
+  sizeBytes!: number;
+
+  @ApiPropertyOptional({
+    description: 'Custom cover filename',
+    example: 'cover.jpg',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
+  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
+  })
+  customCoverFilename?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom cover MIME type',
+    example: 'image/jpeg',
+  })
+  @IsOptional()
+  @IsString()
+  @IsMimeType()
+  @Matches(BOOK_CONSTRAINTS.COVER_MIME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
+  })
+  customCoverMime?: string;
+
+  @ApiPropertyOptional({
+    description: 'Custom cover file size in bytes',
+    example: 102400,
+    minimum: 1,
+    maximum: BOOK_CONSTRAINTS.MAX_COVER_SIZE,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(BOOK_CONSTRAINTS.MIN_FILE_SIZE)
+  @Max(BOOK_CONSTRAINTS.MAX_COVER_SIZE)
+  customCoverSizeBytes?: number;
+}
+
+export class FinalizeBookDto {
+  @ApiProperty({ description: 'Book ID to finalize', example: 'uuid-here' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  bookId!: string;
+}
+
+export class FinalizeCoverDto {
+  @ApiProperty({
+    description: 'Book ID to finalize cover for',
+    example: 'uuid-here',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+}
+
+export class PresignedUploadDto {
+  @ApiProperty({ description: 'Cover filename', example: 'cover.jpg' })
+  @IsString()
+  @IsNotEmpty()
+  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
+  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
+  })
+  filename!: string;
+
+  @ApiProperty({ description: 'Cover MIME type', example: 'image/jpeg' })
+  @IsString()
+  @IsNotEmpty()
+  @IsMimeType()
+  @Matches(BOOK_CONSTRAINTS.COVER_MIME_PATTERN, {
+    message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
+  })
+  mime!: string;
 }

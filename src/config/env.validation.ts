@@ -49,6 +49,10 @@ export class EnvironmentVariables {
   @IsString()
   S3_BOOK_COVER_BUCKET_NAME!: string;
 
+  @IsNotEmpty()
+  @IsString()
+  S3_SUMMARIES_BUCKET_NAME!: string;
+
   @IsOptional()
   @IsString()
   S3_REGION = 'us-east-1';

@@ -9,15 +9,15 @@ import { Book } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookFilesService } from './book.files.service';
-import { CreateBookDto, PresignedUploadDto } from './book.dto';
+import { CreateBookDto, PresignedUploadDto } from './book.models';
 import {
   PresignResponse,
   FinalizeResponse,
   BookResponse,
-  DownloadResponse,
   PresignInfo,
   CoverPresignResponse,
   CoverUpdateDto,
+  UpdateLastAccessedResponse,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
 import { BOOK_WITH_RELATIONS, BookWithRelations } from './book.helpers';
@@ -67,6 +67,7 @@ export class BooksService {
   private async convertBookToResponse(
     book: BookWithRelations,
   ): Promise<BookResponse> {
+
     return {
       id: book.id,
       title: book.title,
@@ -77,9 +78,12 @@ export class BooksService {
           )
         : undefined,
       fileUrl: await this.s3.generatePresignedDownloadUrl(book.fileStorageKey),
+      description: book.description,
       spentHours: book.spentHours,
       pageCount: book.pageCount,
       pagePassCount: book.pagePassCount,
+      summaryKey: book.summaryStorageKey,
+      lastAccessed: book.lastAccessed,
       isFinished: book.isFinished,
       isFavorite: book.isFavorite,
       mime: book.mime,
@@ -224,6 +228,16 @@ export class BooksService {
     return this.convertBookToResponse(book);
   }
 
+   async setLastAccessed(bookId: string): Promise<UpdateLastAccessedResponse> {
+    this.logger.log('accesed set')
+    await this.prisma.book.update({
+      where: { id: bookId },
+      data: { lastAccessed: new Date() },
+    });
+
+    return { bookId };
+  }
+
   async downloadBook(
     userId: string,
     bookId: string,
@@ -231,14 +245,6 @@ export class BooksService {
     res: Response,
   ): Promise<void> {
     return this.bookFilesService.downloadBook(userId, bookId, range, res);
-  }
-
-  async prepareDownload(
-    userId: string,
-    bookId: string,
-    range?: string,
-  ): Promise<DownloadResponse> {
-    return this.bookFilesService.prepareDownload(userId, bookId, range);
   }
 
   async finalizeCoverUpload(

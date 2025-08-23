@@ -16,6 +16,7 @@ export class S3Service {
   private readonly client: S3Client;
   private readonly bucketName: string;
   private readonly coverBucketName: string;
+  private readonly summariesBucketName: string;
 
   constructor(private readonly config: ConfigService<EnvironmentVariables>) {
     const endpoint = this.config.get('S3_ENDPOINT', { infer: true })!;
@@ -26,6 +27,9 @@ export class S3Service {
     })!;
     this.bucketName = this.config.get('S3_BOOK_BUCKET_NAME', { infer: true })!;
     this.coverBucketName = this.config.get('S3_BOOK_COVER_BUCKET_NAME', {
+      infer: true,
+    })!;
+    this.summariesBucketName = this.config.get('S3_SUMMARIES_BUCKET_NAME', {
       infer: true,
     })!;
 
@@ -242,5 +246,29 @@ export class S3Service {
     });
 
     await this.client.send(command);
+  }
+
+  async getJsonObject(key: string): Promise<Record<string, any>> {
+    const command = new GetObjectCommand({
+      Bucket: this.summariesBucketName,
+      Key: key,
+    });
+
+    const response = await this.client.send(command);
+    const chunks: Uint8Array[] = [];
+
+    if (response.Body) {
+      const reader = response.Body.transformToWebStream().getReader();
+      let result = await reader.read();
+
+      while (!result.done) {
+        chunks.push(result.value);
+        result = await reader.read();
+      }
+    }
+
+    const buffer = Buffer.concat(chunks);
+    const jsonString = buffer.toString('utf-8');
+    return JSON.parse(jsonString) as Record<string, any>;
   }
 }

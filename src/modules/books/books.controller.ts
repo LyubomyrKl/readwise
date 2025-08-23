@@ -24,13 +24,15 @@ import {
   FinalizeBookDto,
   FinalizeCoverDto,
   PresignedUploadDto,
-} from './book.dto';
+} from './book.models';
 import {
   PresignResponse,
   FinalizeResponse,
   BookResponse,
   CoverPresignResponse,
   CoverUpdateDto,
+  UpdateLastAccessedDto,
+  UpdateLastAccessedResponse,
 } from './book.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 
@@ -192,5 +194,16 @@ export class BooksController {
     @Body() dto: CoverUpdateDto,
   ): Promise<FinalizeResponse> {
     return await this.booksService.coverUpdateFinalize(req.user.userId, dto);
+  }
+
+  @Authenticated()
+  @Post(':id')
+  @ApiOperation({
+    summary: 'Set last accessed file date'
+  })
+  async setLastAccessed(
+    @Body() dto: UpdateLastAccessedDto,
+  ): Promise<UpdateLastAccessedResponse> {
+    return await this.booksService.setLastAccessed(dto.bookId);
   }
 }
