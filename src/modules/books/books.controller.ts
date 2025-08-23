@@ -24,6 +24,7 @@ import {
   FinalizeBookDto,
   FinalizeCoverDto,
   PresignedUploadDto,
+  UpdateSpentTimeDto,
 } from './book.models';
 import {
   PresignResponse,
@@ -205,5 +206,18 @@ export class BooksController {
     @Body() dto: UpdateLastAccessedDto,
   ): Promise<UpdateLastAccessedResponse> {
     return await this.booksService.setLastAccessed(dto.bookId);
+  }
+
+
+  @Authenticated()
+  @Post(':id')
+  @ApiOperation({
+    summary: 'Update time spent'
+  })
+  async UpdateTimeSpent(
+    @Req() req: { user: { userId: string } },
+    @Body() dto: UpdateSpentTimeDto,
+  ): Promise<{status: string}> {
+    return await this.booksService.updateSpentTime(req.user.userId, dto)
   }
 }

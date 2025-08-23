@@ -6,7 +6,7 @@ model Book {
   description    String?
   customCoverStorageKey    String?
   customCoverSizeBytes    BigInt?
-  spentHours     Int      @default(0)
+  spentTime      Int      @default(0)
   pageCount      Int?
   pagePassCount  Int      @default(0)
   isFinished     Boolean  @default(false)

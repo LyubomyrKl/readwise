@@ -82,7 +82,7 @@ export class BookResponse {
   fileUrl!: string;
 
   @ApiProperty()
-  spentHours!: number;
+  spentTime!: number;
 
   @ApiProperty({ required: false })
   pageCount?: number | null;
@@ -177,6 +177,22 @@ export class UpdateLastAccessedResponse {
   @IsString()
   @IsNotEmpty()
   bookId!: string;
+}
+
+export class UpdateSpentTimeDto {
+  @ApiProperty({
+    description: 'Book ID to update last accessed',
+  })
+  @IsString()
+  @IsNotEmpty()
+  bookId!: string;
+
+  @ApiProperty({
+    description: 'Amount of time',
+  })
+  @IsString()
+  @IsNotEmpty()
+  amount!: number;
 }
 
 export interface DownloadHeaders {

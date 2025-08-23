@@ -9,7 +9,11 @@ import { Book } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookFilesService } from './book.files.service';
-import { CreateBookDto, PresignedUploadDto } from './book.models';
+import {
+  CreateBookDto,
+  PresignedUploadDto,
+  UpdateSpentTimeDto,
+} from './book.models';
 import {
   PresignResponse,
   FinalizeResponse,
@@ -79,7 +83,7 @@ export class BooksService {
         : undefined,
       fileUrl: await this.s3.generatePresignedDownloadUrl(book.fileStorageKey),
       description: book.description,
-      spentHours: book.spentHours,
+      spentTime: book.spentTime,
       pageCount: book.pageCount,
       pagePassCount: book.pagePassCount,
       summaryKey: book.summaryStorageKey,
@@ -133,7 +137,7 @@ export class BooksService {
           customCoverSizeBytes: dto.customCoverSizeBytes
             ? BigInt(dto.customCoverSizeBytes)
             : null,
-          spentHours: 0,
+          spentTime: 0,
           description: dto.description,
           mime: dto.mime,
           sizeBytes: BigInt(dto.sizeBytes),
@@ -297,5 +301,29 @@ export class BooksService {
       );
       throw error;
     }
+  }
+
+  async updateSpentTime(userId: string, dto: UpdateSpentTimeDto ): Promise<{status: string}> {
+    const book = await this.findBookByIdAndUser(dto.bookId, userId);
+
+    const spentTime = Number(book.spentTime) + dto.amount
+
+    try {
+      await this.prisma.book.update({
+        where: { id: dto.bookId },
+        data: {
+          spentTime,
+        },
+      });
+    } catch (error) {
+      this.logger.error(
+        `Failed to finalize cover for book ${dto.bookId} for user ${userId}`,
+        error,
+      );
+      throw error;
+    }
+
+    return {status: 'success'};
+
   }
 }
