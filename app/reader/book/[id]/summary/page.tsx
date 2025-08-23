@@ -1,9 +1,15 @@
 "use client";
 
-import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
-import { ArrowLeft, BookOpen, Loader2, Sparkles, Clock } from "lucide-react";
-import { IBook } from "../../../types";
+import {useParams, useRouter} from "next/navigation";
+import {useEffect, useState} from "react";
+import {
+    ArrowLeft,
+    Clock,
+    Loader2,
+    Sparkles
+} from "lucide-react";
+import {IBook} from "../../../types";
+import {apiFetch} from "@/lib/fetcher";
 
 interface SummarySection {
   id: string;
@@ -19,8 +25,6 @@ interface Summary {
   sections: SummarySection[];
 }
 
-type SummaryStatus = 'none' | 'processing' | 'ready' | 'failed';
-
 export default function BookSummaryPage() {
   const params = useParams();
   const router = useRouter();
@@ -29,49 +33,24 @@ export default function BookSummaryPage() {
   const [book, setBook] = useState<IBook | null>(null);
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
-  const [summaryStatus, setSummaryStatus] = useState<SummaryStatus>('none');
   const [error, setError] = useState<string | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    fetchBookAndSummary();
-    return () => {
-      if (pollingInterval) {
-        clearInterval(pollingInterval);
-      }
-    };
+    void fetchBookAndSummary();
   }, [bookId]);
 
   const fetchBookAndSummary = async () => {
     try {
       setLoading(true);
       const response = await fetch(`/api/books/${bookId}`);
-      
       if (!response.ok) {
         throw new Error("Failed to fetch book");
       }
-
-      const bookData = await response.json();
-      const bookInfo: IBook = bookData.data;
+      const bookInfo: IBook = await response.json();
       setBook(bookInfo);
 
-      // Check summary status based on book data
-      if (bookInfo.summaryKey) {
-        const summaryResult = await fetchSummary(bookInfo.summaryKey);
-        if (summaryResult) {
-          setSummaryStatus('ready');
-        } else {
-          // summaryKey exists but no summary found - it might be processing
-          // Only start polling if we're currently in processing state
-          if (summaryStatus === 'processing') {
-            startPolling();
-          } else {
-            setSummaryStatus('none'); // Reset if not actively processing
-          }
-        }
-      } else {
-        setSummaryStatus('none');
-      }
+      // Try to fetch summary
+      await fetchSummary(bookId);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to load book");
     } finally {
@@ -79,239 +58,161 @@ export default function BookSummaryPage() {
     }
   };
 
-  const fetchSummary = async (summaryKey: string): Promise<boolean> => {
+  const fetchSummary = async (bookId: string) => {
     try {
-      const response = await fetch("/api/summarizer/get-summary", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ summaryKey }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSummary(data.summary);
-        return true;
-      }
-      return false;
+      const data = await apiFetch("POST", "/api/summarizer/get-summary", { bookId });
+      setSummary(data.summary);
     } catch (err) {
-      console.log("Failed to fetch summary:", err);
-      return false;
+      console.log("No summary found:", err);
+      setSummary(null);
     }
   };
-
-  const startPolling = useCallback(() => {
-    if (pollingInterval) {
-      clearInterval(pollingInterval);
-    }
-
-    const interval = setInterval(async () => {
-      if (!book?.summaryKey) return;
-
-      const summaryReady = await fetchSummary(book.summaryKey);
-      if (summaryReady) {
-        setSummaryStatus('ready');
-        clearInterval(interval);
-        setPollingInterval(null);
-      }
-    }, 3000); // Poll every 3 seconds
-
-    setPollingInterval(interval);
-
-    // Stop polling after 5 minutes
-    setTimeout(() => {
-      clearInterval(interval);
-      setPollingInterval(null);
-      if (summaryStatus === 'processing') {
-        setSummaryStatus('failed');
-      }
-    }, 300000);
-  }, [book?.summaryKey, summaryStatus]);
 
   const handleGenerateSummary = async () => {
     if (!book) return;
 
-    setSummaryStatus('processing');
     try {
-      const response = await fetch("/api/summarizer", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ bookId: book.id }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to generate summary");
-      }
-
-      // Start polling immediately after successful generation request
-      startPolling();
-      
-      // Also refresh book data to get updated summaryKey
-      setTimeout(() => {
-        fetchBookAndSummary();
-      }, 2000);
+      await apiFetch("POST", "/api/summarizer", { bookId: book.id });
+      // Refresh to get updated book status
+      await fetchBookAndSummary();
     } catch (error) {
       console.error("Error generating summary:", error);
-      setSummaryStatus('failed');
-      alert("Failed to generate summary. Please try again.");
+      const errorMessage = error instanceof Error ? error.message : "Failed to generate summary. Please try again.";
+      alert(errorMessage);
     }
   };
 
-  if (loading) {
+  const renderSummaryContent = () => {
+    if (!summary || !summary.sections) return null;
+
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="h-6 w-6 animate-spin mr-2" />
-        <span>Loading...</span>
-      </div>
-    );
-  }
-
-  if (error || !book) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <h1 className="text-xl font-semibold text-red-600 mb-2">Error</h1>
-          <p className="text-muted-foreground">{error || "Book not found"}</p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-background/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4">
-          <button
-            onClick={() => router.back()}
-            className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            <span className="text-sm">Back</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        {/* Book Header */}
-        <div className="flex items-center gap-4 mb-8">
-          <div className="w-16 h-20 bg-muted rounded-lg flex items-center justify-center">
-            {book.coverUrl ? (
-              <img
-                src={book.coverUrl}
-                alt={book.title}
-                className="w-full h-full object-cover rounded-lg"
-              />
-            ) : (
-              <BookOpen className="h-8 w-8 text-muted-foreground" />
-            )}
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold">{book.title}</h1>
-            <p className="text-muted-foreground">by {book.author}</p>
-          </div>
-        </div>
-
-        {summaryStatus === 'none' && (
-          // No Summary State
-          <div className="text-center py-12">
-            <Sparkles className="h-16 w-16 text-purple-500 mx-auto mb-4" />
-            <h2 className="text-xl font-semibold mb-2">No Summary Available</h2>
-            <p className="text-muted-foreground mb-6 max-w-md mx-auto">
-              Generate an AI-powered summary to get key insights and chapter breakdowns.
-            </p>
-            <button
-              onClick={handleGenerateSummary}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-medium"
-            >
-              <Sparkles className="h-4 w-4" />
-              Generate Summary
-            </button>
-          </div>
-        )}
-
-        {summaryStatus === 'processing' && (
-          // Processing State
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Loader2 className="h-8 w-8 text-purple-500 animate-spin" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2">Generating Summary</h2>
-            <p className="text-muted-foreground mb-4">
-              AI is analyzing your book and creating a comprehensive summary...
-            </p>
-            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-              <Clock className="h-4 w-4" />
-              <span>This usually takes 2-5 minutes</span>
-            </div>
-          </div>
-        )}
-
-        {summaryStatus === 'failed' && (
-          // Failed State
-          <div className="text-center py-12">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Sparkles className="h-8 w-8 text-red-500" />
-            </div>
-            <h2 className="text-xl font-semibold mb-2 text-red-600">Summary Generation Failed</h2>
-            <p className="text-muted-foreground mb-6">
-              Something went wrong while generating the summary. Please try again.
-            </p>
-            <button
-              onClick={handleGenerateSummary}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg font-medium"
-            >
-              <Sparkles className="h-4 w-4" />
-              Try Again
-            </button>
-          </div>
-        )}
-
-        {summaryStatus === 'ready' && summary && (
-          // Summary Display
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold">Summary</h2>
-              <button
-                onClick={() => {
-                  setSummaryStatus('processing');
-                  handleGenerateSummary();
-                }}
-                className="text-sm text-purple-600 hover:text-purple-700"
-              >
-                Regenerate
-              </button>
-            </div>
-
-            {summary.sections.map((section) => (
-              <div key={section.id} className="border rounded-lg p-6 bg-white">
-                <h3 className="text-lg font-semibold mb-2">{section.title}</h3>
-                <div className="text-sm text-muted-foreground mb-4">
-                  {section.level} • {section.end_char - section.start_char} characters
+      <div className="space-y-6">
+        {summary.sections.map((section, index) => (
+          <div key={section.id || index} className="summary-section">
+            <div className="flex items-start gap-3 mb-4">
+              <div className="flex-shrink-0">
+                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-medium">
+                  {index + 1}
                 </div>
-                <p className="text-gray-700 leading-relaxed mb-4">{section.content}</p>
-
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className={`font-semibold mb-3 ${
+                  parseInt(section.level) === 1 ? 'text-2xl' : 
+                  parseInt(section.level) === 2 ? 'text-xl' : 'text-lg'
+                }`}>
+                  {section.title}
+                </h3>
+                <div className="prose prose-lg max-w-none">
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {section.content}
+                  </p>
+                </div>
                 {section.subsections && section.subsections.length > 0 && (
-                  <div className="pl-4 border-l-2 border-gray-200 space-y-4">
-                    {section.subsections.map((subsection) => (
-                      <div key={subsection.id} className="bg-gray-50 rounded-lg p-4">
-                        <h4 className="font-medium mb-2">{subsection.title}</h4>
-                        <div className="text-sm text-muted-foreground mb-2">
-                          {subsection.level} • {subsection.end_char - subsection.start_char} characters
+                  <div className="mt-4 pl-6 border-l-2 border-border/20">
+                    {section.subsections.map((subsection, subIndex) => (
+                      <div key={subsection.id || subIndex} className="mb-4">
+                        <h4 className="font-medium text-lg mb-2">
+                          {subsection.title}
+                        </h4>
+                        <div className="prose max-w-none">
+                          <p className="whitespace-pre-wrap">
+                            {subsection.content}
+                          </p>
                         </div>
-                        <p className="text-gray-600 text-sm">{subsection.content}</p>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            ))}
+            </div>
           </div>
-        )}
+        ))}
+      </div>
+    );
+  };
+
+  const renderGenerateSummaryPage = () => (
+    <div className="h-full flex items-center justify-center p-8">
+      <div className="max-w-md w-full text-center">
+        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+          <Sparkles className="w-12 h-12 text-primary" />
+        </div>
+        <h2 className="text-2xl font-bold mb-4">Generate Summary</h2>
+        <p className="text-muted-foreground mb-8 leading-relaxed">
+          Create an AI-powered summary of this book with key insights, main themes, and important takeaways.
+        </p>
+        <button
+          onClick={handleGenerateSummary}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+        >
+          <Sparkles className="w-4 h-4" />
+          Generate Summary
+        </button>
+      </div>
+    </div>
+  );
+
+  const renderProcessingPage = () => (
+    <div className="h-full flex items-center justify-center p-8">
+      <div className="max-w-md w-full text-center">
+        <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+          <Loader2 className="w-12 h-12 text-primary animate-spin" />
+        </div>
+        <h2 className="text-2xl font-bold mb-4">Processing Summary</h2>
+        <p className="text-muted-foreground mb-4 leading-relaxed">
+          AI is analyzing the book content and generating your personalized summary. This usually takes 2-3 minutes.
+        </p>
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Clock className="w-4 h-4" />
+          <span>Please wait while we process...</span>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="flex items-center gap-3">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span>Loading book...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="max-w-md text-center p-8">
+          <h2 className="text-xl font-semibold mb-4">Error</h2>
+          <p className="text-muted-foreground mb-6">{error}</p>
+          <button
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-2 px-4 py-2 border rounded-lg hover:bg-muted/50 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Go Back
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Show processing if book is being summarized
+  if (book?.summaryKey && !summary) {
+    return renderProcessingPage();
+  }
+
+  // Show generate page if no summary exists
+  if (!summary) {
+    return renderGenerateSummaryPage();
+  }
+
+  return (
+    <div className="py-8">
+      <div className="max-w-4xl mx-auto">
+        {renderSummaryContent()}
       </div>
     </div>
   );

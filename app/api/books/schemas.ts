@@ -55,7 +55,7 @@ export const BookResponse = z.object({
   fileUrl: z.string(),
   spentHours: z.number(),
   pageCount: z.number().nullable(),
-  summaryKey: z.string().optional(),
+  summaryKey: z.string().optional().nullable(),
   pagePassCount: z.number(),
   isFinished: z.boolean(),
   isFavorite: z.boolean(),

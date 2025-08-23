@@ -10,10 +10,11 @@ export const SummarizeRes = z.object({
   userId: z.string(),
   message: z.string(),
   success: z.boolean(),
+  summaryKey: z.string().optional().nullable(),
 });
 
 export const GetSummaryReq = z.object({
-  summaryKey: z.string(),
+  bookId: z.string(),
 });
 
 export const GetSummaryRes = z.object({
