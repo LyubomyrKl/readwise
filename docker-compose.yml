@@ -14,10 +14,6 @@ services:
       - AMQP_URL=amqp://user:pass@rabbitmq:5672/
       - WORKER_ID=extraction-worker-1
       - WORKER_PREFETCH_COUNT=1
-    depends_on:
-      - postgres
-      - minio
-      - rabbitmq
     restart: unless-stopped
     volumes:
       - ./shared:/app/shared:ro
@@ -39,65 +35,12 @@ services:
       - OPENAI_API_KEY=${OPENAI_API_KEY}
       - WORKER_ID=summarization-worker-1
       - WORKER_PREFETCH_COUNT=1
-    depends_on:
-      - postgres
-      - minio
-      - rabbitmq
     restart: unless-stopped
     volumes:
       - ./shared:/app/shared:ro
       - ./schema.prisma:/app/schema.prisma:ro
     networks:
       - app-network
-
-  # Infrastructure services
-  postgres:
-    image: postgres:15-alpine
-    container_name: postgres
-    environment:
-      POSTGRES_DB: appdb
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    networks:
-      - app-network
-
-  minio:
-    image: minio/minio:latest
-    container_name: minio
-    environment:
-      MINIO_ACCESS_KEY: minioadmin
-      MINIO_SECRET_KEY: minioadmin
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    command: server /data --console-address ":9001"
-    networks:
-      - app-network
-
-  rabbitmq:
-    image: rabbitmq:3-management-alpine
-    container_name: rabbitmq
-    environment:
-      RABBITMQ_DEFAULT_USER: user
-      RABBITMQ_DEFAULT_PASS: pass
-    ports:
-      - "5672:5672"
-      - "15672:15672"
-    volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
-    networks:
-      - app-network
-
-volumes:
-  postgres_data:
-  minio_data:
-  rabbitmq_data:
 
 networks:
   app-network:

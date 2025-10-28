@@ -87,25 +87,33 @@ class RabbitMQManager:
             logger.info(f"🛑 Received signal {signum}, stopping consumer...")
             self.stop_consuming()
             sys.exit(0)
-            
+
         # Set up signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
-        
+
         try:
             self.is_consuming = True
             logger.info(f"📡 Starting to consume messages from '{queue_name}' queue...")
             logger.info("💡 Press CTRL+C to stop gracefully")
-            
+
             self.channel.start_consuming()
-            
+
         except KeyboardInterrupt:
             logger.info("🛑 KeyboardInterrupt received, stopping consumer...")
             self.stop_consuming()
-        except Exception as e:
-            logger.error(f"❌ Error during consuming: {e}")
-            self.stop_consuming()
             raise
+        except Exception as e:
+            error_msg = str(e)
+            # Check if it's a connection error that can be recovered
+            if any(term in error_msg for term in ["StreamLostError", "EOF", "Connection closed", "Channel is closed"]):
+                logger.warning(f"⚠️ Connection lost during consumption: {e}")
+                self.stop_consuming()
+                # Don't raise, let the caller handle reconnection
+            else:
+                logger.error(f"❌ Error during consuming: {e}")
+                self.stop_consuming()
+                raise
 
     def stop_consuming(self):
         """Stop consuming messages gracefully"""
@@ -129,25 +137,34 @@ class RabbitMQManager:
             except Exception as e:
                 logger.error(f"❌ Error stopping consumer: {e}")
 
+    def close(self):
+        """Close the connection"""
+        try:
+            if self.connection and not self.connection.is_closed:
+                self.connection.close()
+                logger.info("✅ RabbitMQ connection closed")
+        except Exception as e:
+            logger.debug(f"Error closing connection: {e}")
+
     def get_queue_info(self, queue: str) -> Dict[str, Any]:
         """Get information about a queue"""
         try:
             connection = pika.BlockingConnection(pika.URLParameters(self.amqp_url))
             channel = connection.channel()
-            
+
             # Declare queue to ensure it exists
             method = channel.queue_declare(queue=queue, durable=True, passive=True)
-            
+
             queue_info = {
                 'queue': queue,
                 'message_count': method.method.message_count,
                 'consumer_count': method.method.consumer_count
             }
-            
+
             connection.close()
             logger.info(f"📊 Queue '{queue}' info: {queue_info}")
             return queue_info
-            
+
         except Exception as e:
             logger.error(f"❌ Failed to get queue info for '{queue}': {e}")
             return {'queue': queue, 'error': str(e)}

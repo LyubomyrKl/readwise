@@ -230,7 +230,7 @@ class SummarizationWorker:
         logger.info(f"   - Prefetch Count: {self.prefetch_count}")
         logger.info(f"   - Worker ID: {self.worker_id}")
         logger.info(f"   - Ollama API: {'✅ Configured' if os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434') else '❌ Not configured'}")
-        
+
         try:
             # Check queue status before starting
             try:
@@ -238,40 +238,43 @@ class SummarizationWorker:
                 logger.info(f"📊 Queue status: {queue_info}")
             except Exception as queue_error:
                 logger.warning(f"⚠️ Could not get queue info: {queue_error}")
-            
+
             # Set up consumer with enhanced configuration
             connection, channel = self.messaging.setup_consumer(
                 queue=self.queue_name,
                 callback=self.message_callback,
                 prefetch_count=self.prefetch_count
             )
-            
+
             logger.info(f"📡 [{self.worker_id}] Consumer ready for '{self.queue_name}' queue")
             logger.info("💡 Worker is ready to process summarization requests...")
-            
+
             # Start consuming with graceful shutdown
             self.messaging.start_consuming(self.queue_name)
-            
+
         except KeyboardInterrupt:
             logger.info(f"🛑 [{self.worker_id}] Received keyboard interrupt, shutting down gracefully...")
             try:
                 self.messaging.stop_consuming()
             except Exception as stop_error:
                 logger.error(f"❌ Error during graceful shutdown: {stop_error}")
+            raise  # Re-raise to exit the reconnection loop
         except Exception as e:
             error_msg = str(e)
             logger.error(f"❌ Failed to start summarization worker: {e}")
-            
+
             # Handle specific connection errors gracefully
             if any(term in error_msg for term in ["Channel is closed", "Connection closed", "Transport indicated EOF", "StreamLostError"]):
-                logger.info(f"💭 [{self.worker_id}] RabbitMQ connection issue detected, worker will exit gracefully")
+                logger.info(f"💭 [{self.worker_id}] RabbitMQ connection issue detected")
             elif "Connection refused" in error_msg:
                 logger.error(f"🔌 [{self.worker_id}] Cannot connect to RabbitMQ - please check if RabbitMQ is running")
             else:
                 logger.error(f"❌ [{self.worker_id}] Unexpected error: {e}")
-                
+
+            # Re-raise to trigger reconnection
+            raise
+
         finally:
-            logger.info(f"🛑 [{self.worker_id}] Summarization Worker stopped")
             try:
                 if hasattr(self.messaging, 'connection') and self.messaging.connection:
                     self.messaging.close()
@@ -302,19 +305,50 @@ class SummarizationWorker:
                     raise
 
 if __name__ == "__main__":
+    import time
+
     worker = SummarizationWorker()
-    
-    # Check if restart with backoff is enabled via environment variable
-    enable_restart = os.getenv('WORKER_AUTO_RESTART', 'false').lower() == 'true'
-    
-    try:
-        if enable_restart:
-            logger.info(f"🔄 [{worker.worker_id}] Auto-restart enabled")
-            worker.restart_with_backoff()
-        else:
+
+    # Auto-reconnection is now always enabled
+    reconnect_delay = int(os.getenv('WORKER_RECONNECT_DELAY', '5'))
+    max_reconnect_attempts = int(os.getenv('WORKER_MAX_RECONNECT_ATTEMPTS', '0'))  # 0 = infinite
+
+    attempt = 0
+    while True:
+        try:
+            if attempt > 0:
+                logger.info(f"🔄 [{worker.worker_id}] Reconnection attempt {attempt}")
+
+            # Reinitialize messaging connection for each attempt
+            worker.messaging = RabbitMQManager()
             worker.start()
-    except KeyboardInterrupt:
-        logger.info(f"🛑 [{worker.worker_id}] Shutdown requested by user")
-    except Exception as e:
-        logger.error(f"❌ [{worker.worker_id}] Worker failed to start: {e}")
-        exit(1)
+
+            # If start() returns without exception, break (shouldn't happen in normal operation)
+            break
+
+        except KeyboardInterrupt:
+            logger.info(f"🛑 [{worker.worker_id}] Shutdown requested by user")
+            break
+
+        except Exception as e:
+            attempt += 1
+            error_msg = str(e)
+
+            # Check if we should retry
+            if max_reconnect_attempts > 0 and attempt >= max_reconnect_attempts:
+                logger.error(f"❌ [{worker.worker_id}] Max reconnection attempts ({max_reconnect_attempts}) reached. Exiting.")
+                exit(1)
+
+            # Check if it's a connection error that warrants reconnection
+            is_connection_error = any(term in error_msg for term in [
+                "Channel is closed", "Connection closed", "Transport indicated EOF",
+                "StreamLostError", "Connection refused"
+            ])
+
+            if is_connection_error:
+                logger.warning(f"⏳ [{worker.worker_id}] Connection lost. Reconnecting in {reconnect_delay} seconds...")
+                time.sleep(reconnect_delay)
+            else:
+                logger.error(f"❌ [{worker.worker_id}] Unexpected error: {e}")
+                logger.error(f"⏳ [{worker.worker_id}] Retrying in {reconnect_delay} seconds...")
+                time.sleep(reconnect_delay)

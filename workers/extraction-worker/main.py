@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import asyncio
+import re
 import sys
 from dotenv import load_dotenv
 
@@ -19,6 +20,29 @@ load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+
+def clean_text(text: str) -> str:
+    if not text or not isinstance(text, str):
+        return text
+
+    # Remove various newline patterns
+    text = re.sub(r'\\n+', ' ', text)  # Remove \n patterns
+    text = re.sub(r'\\\\n+', ' ', text)  # Remove \\n patterns
+    text = re.sub(r'\n+', ' ', text)  # Remove actual newlines
+    text = re.sub(r'\\r+', ' ', text)  # Remove \r patterns
+    text = re.sub(r'\r+', ' ', text)  # Remove actual carriage returns
+    text = re.sub(r'\\t+', ' ', text)  # Remove \t patterns
+    text = re.sub(r'\t+', ' ', text)  # Remove actual tabs
+
+    # Normalize multiple spaces to single space
+    text = re.sub(r' +', ' ', text)
+
+    # Clean up whitespace at beginning and end
+    text = text.strip()
+
+    return text
+
 
 class ExtractionWorker:
     def __init__(self):
@@ -85,13 +109,15 @@ class ExtractionWorker:
                 bucket='books',
                 file_key=book.fileStorageKey
             )
+
+            cleaned_text = clean_text(extracted_text)
             
             # Save extraction to S3
             logger.info("Saving extraction to S3...")
             extraction_s3_key = extractor.save_extraction_to_s3(
                 bucket='summaries',
                 book_id=book_id,
-                extracted_text=extracted_text,
+                extracted_text=cleaned_text,
                 metadata=metadata
             )
             
@@ -116,7 +142,7 @@ class ExtractionWorker:
                 await self.db_manager.update_book_status(book_id, 'ready')
             except:
                 pass
-    
+
     async def process_message_async(self, message_data):
         """Process a message asynchronously"""
         await self.db_manager.connect()
@@ -202,5 +228,50 @@ class ExtractionWorker:
             logger.info(f"🛑 [{self.worker_id}] Extraction Worker stopped")
 
 if __name__ == "__main__":
+    import time
+
     worker = ExtractionWorker()
-    worker.start()
+
+    # Auto-reconnection is now always enabled
+    reconnect_delay = int(os.getenv('WORKER_RECONNECT_DELAY', '5'))
+    max_reconnect_attempts = int(os.getenv('WORKER_MAX_RECONNECT_ATTEMPTS', '0'))  # 0 = infinite
+
+    attempt = 0
+    while True:
+        try:
+            if attempt > 0:
+                logger.info(f"🔄 [{worker.worker_id}] Reconnection attempt {attempt}")
+
+            # Reinitialize messaging connection for each attempt
+            worker.messaging = RabbitMQManager()
+            worker.start()
+
+            # If start() returns without exception, break (shouldn't happen in normal operation)
+            break
+
+        except KeyboardInterrupt:
+            logger.info(f"🛑 [{worker.worker_id}] Shutdown requested by user")
+            break
+
+        except Exception as e:
+            attempt += 1
+            error_msg = str(e)
+
+            # Check if we should retry
+            if max_reconnect_attempts > 0 and attempt >= max_reconnect_attempts:
+                logger.error(f"❌ [{worker.worker_id}] Max reconnection attempts ({max_reconnect_attempts}) reached. Exiting.")
+                exit(1)
+
+            # Check if it's a connection error that warrants reconnection
+            is_connection_error = any(term in error_msg for term in [
+                "Channel is closed", "Connection closed", "Transport indicated EOF",
+                "StreamLostError", "Connection refused"
+            ])
+
+            if is_connection_error:
+                logger.warning(f"⏳ [{worker.worker_id}] Connection lost. Reconnecting in {reconnect_delay} seconds...")
+                time.sleep(reconnect_delay)
+            else:
+                logger.error(f"❌ [{worker.worker_id}] Unexpected error: {e}")
+                logger.error(f"⏳ [{worker.worker_id}] Retrying in {reconnect_delay} seconds...")
+                time.sleep(reconnect_delay)

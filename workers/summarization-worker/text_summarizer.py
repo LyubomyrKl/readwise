@@ -69,7 +69,7 @@ class TextSummarizer:
         
         for section_idx, section in enumerate(json_data.get('sections', []), 1):
             section_title = section.get('title', 'Untitled')[:50]
-            print(f"\n📖 Section {section_idx}: {section_title}")
+            print(f"\n📖 Section {section_idx}: {section_title}, subsections -  {len(section.get('subsections', []))}")
             
             processed_section = {
                 'id': section['id'],
