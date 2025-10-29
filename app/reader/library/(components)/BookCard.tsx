@@ -95,13 +95,13 @@ export function BookCard({ book }: { book: IBook }) {
                 <span>
                   {book.pagePassCount}/{book.pageCount} pages
                 </span>
-                <span>{book.spentHours}h spent</span>
+                <span>{book.spentTime}h spent</span>
               </div>
             </>
           )}
           {!book.pageCount && (
             <div className="flex justify-end text-[11px] text-muted-foreground">
-              <span>{book.spentHours}h spent</span>
+              <span>{book.spentTime}h spent</span>
             </div>
           )}
         </CardContent>

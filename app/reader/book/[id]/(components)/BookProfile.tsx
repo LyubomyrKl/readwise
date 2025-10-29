@@ -67,9 +67,9 @@ export default function BookProfile({
     return mime.split("/").pop()?.toUpperCase() || "Unknown";
   };
 
-  const readingTimeHours = Math.floor(book.spentHours);
+  const readingTimeHours = Math.floor(book.spentTime);
   const readingTimeMinutes = Math.round(
-    (book.spentHours - readingTimeHours) * 60
+    (book.spentTime - readingTimeHours) * 60
   );
 
   const handleCoverUpload = async (
@@ -304,7 +304,7 @@ export default function BookProfile({
                   className="w-full bg-primary text-primary-foreground px-6 py-3 rounded-xl font-medium hover:bg-primary/90 transition-colors flex items-center justify-center gap-2"
                 >
                   <BookOpen className="h-4 w-4" />
-                  {book.spentHours > 0 ? "Continue Reading" : "Start Reading"}
+                  {book.spentTime > 0 ? "Continue Reading" : "Start Reading"}
                 </button>
 
                 <div className="grid grid-cols-2 gap-3">
@@ -392,7 +392,7 @@ export default function BookProfile({
                   )}
                 </div>
 
-                {book.spentHours > 0 && (
+                {book.spentTime > 0 && (
                   <div className="pt-2 border-t border-muted">
                     <div className="flex items-center gap-2 text-sm">
                       <Clock className="h-4 w-4 text-muted-foreground" />
@@ -442,7 +442,7 @@ export default function BookProfile({
                   </div>
                 )}
 
-                {book.spentHours > 0 && (
+                {book.spentTime > 0 && (
                   <div className="inline-flex items-center gap-2 bg-blue-50 text-blue-700 px-3 py-1 rounded-full text-sm">
                     <TrendingUp className="h-3 w-3" />
                     In Progress
@@ -594,7 +594,7 @@ export default function BookProfile({
                   {/* Sessions */}
                   <div className="text-center border-x border-muted">
                     <div className="text-2xl font-bold mb-1">
-                      {Math.max(1, Math.floor(book.spentHours / 0.5))}
+                      {Math.max(1, Math.floor(book.spentTime / 0.5))}
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Sessions
@@ -605,8 +605,8 @@ export default function BookProfile({
                   <div className="text-center">
                     <div className="text-2xl font-bold mb-1">
                       {Math.round(
-                        (book.spentHours /
-                          Math.max(1, Math.floor(book.spentHours / 0.5))) *
+                        (book.spentTime /
+                          Math.max(1, Math.floor(book.spentTime / 0.5))) *
                           60
                       )}
                       m

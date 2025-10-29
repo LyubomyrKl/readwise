@@ -14,7 +14,6 @@ const nextConfig: NextConfig = {
       },
     ],
   },
-  // Simplified config for EmbedPDF
 };
 
 export default nextConfig;

@@ -40,6 +40,7 @@ export default function UploadPage() {
       const fileName = file.name;
       const baseName = fileName.replace(/\.[^/.]+$/, "");
 
+
       return {
         id: crypto.randomUUID(),
         file,
@@ -63,7 +64,6 @@ export default function UploadPage() {
     },
     multiple: true,
     validator: (file) => {
-      // Custom validation for EPUB files based on extension
       const fileName = file.name.toLowerCase();
       const allowedExtensions = [".pdf", ".epub", ".txt"];
       const hasValidExtension = allowedExtensions.some((ext) =>
@@ -76,16 +76,6 @@ export default function UploadPage() {
           message: "Only PDF, EPUB, and TXT files are allowed",
         };
       }
-
-      // Log file info for debugging EPUB MIME types
-      if (fileName.endsWith(".epub")) {
-        console.log("EPUB file detected:", {
-          name: file.name,
-          type: file.type,
-          size: file.size,
-        });
-      }
-
       return null; // No errors
     },
   });
@@ -124,6 +114,8 @@ export default function UploadPage() {
     // Determine MIME type, with fallback for EPUB files
     let mimeType = pendingFile.file.type;
     const fileName = pendingFile.file.name.toLowerCase();
+
+    console.log("uploadFile", pendingFile.file);
 
     if (
       fileName.endsWith(".epub") &&

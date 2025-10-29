@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import { z } from "zod";
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerSdk } from '@/lib/sdk';
+import { z } from 'zod';
 
 const UpdateCoverFinalizeReq = z.object({
   bookId: z.string(),
@@ -21,15 +21,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const out = NextResponse.json(
+    return NextResponse.json(
       {
         bookId: validatedData.bookId,
         status: "ready",
       },
       { status: resp.status }
     );
-
-    return out;
   } catch (error) {
     console.error("Update cover finalize error:", error);
     if (error instanceof Error) {

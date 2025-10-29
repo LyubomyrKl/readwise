@@ -1,6 +1,6 @@
-import { createServerSdk } from "@/lib/sdk";
-import { NextRequest, NextResponse } from "next/server";
-import { CoverPresignReq } from "../schemas";
+import { createServerSdk } from '@/lib/sdk';
+import { NextRequest, NextResponse } from 'next/server';
+import { CoverPresignReq } from '../schemas';
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    const out = NextResponse.json(
+    return NextResponse.json(
       {
         storageKey: resp.data.storageKey,
         upload: {
@@ -26,7 +26,6 @@ export async function POST(request: NextRequest) {
       },
       { status: resp.status }
     );
-    return out;
   } catch (error) {
     console.error("Cover presign error:", error);
     if (error instanceof Error) {

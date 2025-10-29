@@ -15,7 +15,6 @@ import {
   Plus,
 } from "lucide-react";
 
-// Essential plugins
 import { ViewportPluginPackage } from "@embedpdf/plugin-viewport";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
 import { ScrollPluginPackage } from "@embedpdf/plugin-scroll";
@@ -24,7 +23,6 @@ import { LoaderPluginPackage } from "@embedpdf/plugin-loader";
 import { RenderPluginPackage } from "@embedpdf/plugin-render";
 import { RenderLayer } from "@embedpdf/plugin-render/react";
 
-// Zoom (wheel+Ctrl/⌘ and programmatic controls)
 import { ZoomPluginPackage } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 
@@ -36,8 +34,6 @@ type Props = {
   onBackAction?: () => void;
 };
 
-// Top bar is hidden to match EPUB reader clean design
-
 export default function VirtualPDFReader({ book, onBackAction }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const url = book.fileUrl;
@@ -46,9 +42,8 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
+  const [totalPages, setTotalPages] = useState(10);
 
-  // PDF Settings state to match EPUB reader functionality with persistence
   const [pdfSettings, setPdfSettings] = useState(() => {
     const defaultSettings = {
       zoom: 100,
@@ -150,7 +145,6 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
     ];
   }, [url, book.id]);
 
-  // Enhanced wheel and touch-pad zoom support with touch sensitivity fix
   useEffect(() => {
     const el = containerRef.current;
     if (!el) return;
@@ -182,7 +176,7 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
   // Touch gesture support with reduced sensitivity
   useGesture(
     {
-      onPinch: ({ da: [d], origin: [ox, oy] }) => {
+      onPinch: ({ da: [d] }) => {
         // Further reduced sensitivity for touch zoom
         const factor = d > 1 ? 1.005 : 0.995; // Even smaller increment for less sensitive zooming
         const currentZoom = pdfSettings.zoom;
@@ -423,7 +417,6 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
         </div>
       </div>
 
-      {/* PDFReaderMenu */}
       {settingsOpen && (
         <PDFReaderMenu
           settings={pdfSettings}
@@ -486,7 +479,6 @@ function ZoomWheelBridge({ onZoomSettle }: { onZoomSettle?: () => void }) {
 
       provides.requestZoom(next);
 
-      // Trigger zoom settle callback after a delay
       if (onZoomSettle) {
         if (zoomTimeoutRef.current) {
           clearTimeout(zoomTimeoutRef.current);
@@ -495,7 +487,6 @@ function ZoomWheelBridge({ onZoomSettle }: { onZoomSettle?: () => void }) {
       }
     };
 
-    // Add both direct wheel handling and custom event handling
     el.addEventListener("wheel", onWheel, { passive: false });
     el.addEventListener("epdf-zoom-wheel", onZoomCustom);
 
@@ -511,8 +502,6 @@ function ZoomWheelBridge({ onZoomSettle }: { onZoomSettle?: () => void }) {
   return <div ref={hostRef} />;
 }
 
-// 1) Replace your <RenderLayer ... dpr={devicePixelRatio} /> usage
-//    with a zoom-aware wrapper that multiplies DPR by current zoom
 function CrispRenderLayer({
   pageIndex,
   baseDpr,

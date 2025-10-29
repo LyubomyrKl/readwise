@@ -54,7 +54,7 @@ export const BookResponse = z.object({
   description: z.string().optional(),
   coverUrl: z.string().optional(),
   fileUrl: z.string(),
-  spentHours: z.number(),
+  spentTime: z.number(),
   pageCount: z.number().nullable(),
   summaryKey: z.string().optional().nullable(),
   pagePassCount: z.number(),
@@ -122,6 +122,15 @@ export const UpdateCoverFinalizeRes = z.object({
 });
 
 export const GetAllBooksRes = z.array(BookResponse);
+
+export const UpdateSpentTimeReq = z.object({
+  bookId: z.string(),
+  amount: z.number(),
+})
+
+export const UpdateCoverRes = z.object({
+  status: z.string()
+})
 
 export const BooksApiRegistry = {
   POST: {
