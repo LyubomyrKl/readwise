@@ -50,7 +50,11 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
 
   if (r.status === 204) return {} as ResOf<M, P>;
 
-  if (!r.ok) throw new Error((await safeMsg(r)) ?? "Request failed");
+  if (!r.ok) {
+    const errorMsg = await safeMsg(r);
+    console.error(`API Error [${method} ${String(path)}]:`, errorMsg, 'Status:', r.status);
+    throw new Error(errorMsg ?? `Request failed with status code ${r.status}`);
+  }
 
   return def.res.parse(await r.json()) as ResOf<M, P>;
 }

@@ -26,7 +26,7 @@ export function getMinutesLeft(
   book: {
     pageCount?: number;
     pagePassCount: number;
-    spentHours: number;
+    spentTime: number;
   },
   format: "short" | "long"
 ) {
@@ -34,8 +34,8 @@ export function getMinutesLeft(
 
   const pagesLeft = book.pageCount - book.pagePassCount;
   const avgTimePerPage =
-    (book.spentHours * 60) / book.pagePassCount
-      ? (book.spentHours * 60) / book.pagePassCount
+    (book.spentTime * 60) / book.pagePassCount
+      ? (book.spentTime * 60) / book.pagePassCount
       : 0;
   const minutesLeft = Math.round(pagesLeft * avgTimePerPage);
 
@@ -65,7 +65,7 @@ export function filterAndSortBooks(
   if (sortBy === "alphabetical")
     data.sort((a, b) => a.title.localeCompare(b.title));
   if (sortBy === "progress") data.sort((a, b) => progress(b) - progress(a));
-  if (sortBy === "time") data.sort((a, b) => b.spentHours - a.spentHours);
+  if (sortBy === "time") data.sort((a, b) => b.spentTime - a.spentTime);
   if (sortBy === "recent")
     data.sort(
       (a, b) =>

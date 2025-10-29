@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
-import { PresignReq } from "../schemas";
-import { createServerSdk } from "@/lib/sdk";
+import {NextRequest, NextResponse} from "next/server";
+import {PresignReq} from "../schemas";
+import {createServerSdk} from "@/lib/sdk";
 import z from "zod";
 
 export async function POST(request: NextRequest) {
@@ -39,8 +39,7 @@ export async function POST(request: NextRequest) {
       coverUpload: resp.data.customCoverPresignInfo,
     };
 
-    const out = NextResponse.json(response, { status: resp.status });
-    return out;
+    return NextResponse.json(response, {status: resp.status});
   } catch (error) {
     console.error("createBookAndPresign error:", error);
 

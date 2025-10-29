@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useUpload, UploadFile } from "@/app/(providers)/UploadProvider";
+import { extractBookMetadata } from "@/lib/bookParser";
 
 interface PendingFile {
   id: string;
@@ -18,6 +19,8 @@ interface PendingFile {
   title: string;
   author: string;
   description: string;
+  pageCount: number | null;
+  isParsingMetadata: boolean;
   coverFile?: File;
   coverPreview?: string;
 }
@@ -34,12 +37,11 @@ export default function UploadPage() {
     sessionUploads.includes(upload.id)
   );
 
-  const onDrop = useCallback((acceptedFiles: File[]) => {
+  const onDrop = useCallback(async (acceptedFiles: File[]) => {
     // Add files to local pending state for editing
     const newPendingFiles: PendingFile[] = acceptedFiles.map((file) => {
       const fileName = file.name;
       const baseName = fileName.replace(/\.[^/.]+$/, "");
-
 
       return {
         id: crypto.randomUUID(),
@@ -47,10 +49,45 @@ export default function UploadPage() {
         title: baseName,
         author: "",
         description: "",
+        pageCount: null,
+        isParsingMetadata: true,
       };
     });
 
     setPendingFiles((prev) => [...prev, ...newPendingFiles]);
+
+    // Extract metadata for each file asynchronously
+    for (const pendingFile of newPendingFiles) {
+      try {
+        const metadata = await extractBookMetadata(pendingFile.file);
+        console.log('Extracted metadata:', metadata);
+
+        // Get the base filename without extension
+        const baseName = pendingFile.file.name.replace(/\.[^/.]+$/, "");
+
+        setPendingFiles((prev) =>
+          prev.map((f) =>
+            f.id === pendingFile.id
+              ? {
+                  ...f,
+                  title: metadata.title || baseName,
+                  author: metadata.author || "",
+                  description: metadata.description || "",
+                  pageCount: metadata.pageCount,
+                  isParsingMetadata: false,
+                }
+              : f
+          )
+        );
+      } catch (error) {
+        console.error("Failed to extract metadata:", error);
+        setPendingFiles((prev) =>
+          prev.map((f) =>
+            f.id === pendingFile.id ? { ...f, isParsingMetadata: false } : f
+          )
+        );
+      }
+    }
   }, []);
 
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -142,6 +179,8 @@ export default function UploadPage() {
       fileName
     );
 
+    console.log(sessionUploads);
+
     const uploadFile: UploadFile = {
       title: pendingFile.title,
       author: pendingFile.author,
@@ -149,6 +188,7 @@ export default function UploadPage() {
       fileName: pendingFile.file.name,
       mime: mimeType,
       sizeBytes: pendingFile.file.size,
+      pageCount: pendingFile.pageCount,
       file: pendingFile.file,
       ...(pendingFile.coverFile && {
         customCoverFilename: pendingFile.coverFile.name,
@@ -253,6 +293,8 @@ export default function UploadPage() {
                         </CardTitle>
                         <p className="text-sm text-muted-foreground">
                           {(file.file.size / 1024 / 1024).toFixed(2)} MB
+                          {file.isParsingMetadata && " • Parsing..."}
+                          {!file.isParsingMetadata && file.pageCount !== null && ` • ${file.pageCount} pages`}
                         </p>
                       </div>
                     </div>
