@@ -14,6 +14,8 @@ export const BOOK_CONSTRAINTS = {
   // Validation patterns
   FILENAME_PATTERN: /^[^<>:"/\\|?*]+$/,
   COVER_MIME_PATTERN: /^image\/(jpeg|jpg|png|webp|gif)$/,
+
+  MAX_PAGE_COUNT: 2555,
 } as const;
 
 export const BOOK_ERROR_MESSAGES = {

@@ -5,7 +5,6 @@ model Book {
   author         String
   description    String?
   customCoverStorageKey    String?
-  customCoverSizeBytes    BigInt?
   spentTime      Int      @default(0)
   pageCount      Int?
   pagePassCount  Int      @default(0)

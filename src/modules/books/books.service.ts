@@ -134,12 +134,10 @@ export class BooksService {
           title: dto.title,
           author: dto.author,
           customCoverStorageKey: customCover?.storageKey,
-          customCoverSizeBytes: dto.customCoverSizeBytes
-            ? BigInt(dto.customCoverSizeBytes)
-            : null,
           spentTime: 0,
           description: dto.description,
           mime: dto.mime,
+          pageCount: dto.pageCount,
           sizeBytes: BigInt(dto.sizeBytes),
           fileStorageKey: bookFilePresignInfo.storageKey,
           status: BOOK_STATUS.PENDING,

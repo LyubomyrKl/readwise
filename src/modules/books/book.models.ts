@@ -14,7 +14,7 @@ import {
 } from 'class-validator';
 import { } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants.js';
+import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants';
 
 export class PresignInfo {
   @ApiProperty({ description: 'Presigned upload URL' })
@@ -201,7 +201,7 @@ export interface DownloadHeaders {
   'Content-Disposition': string;
   'Content-Length': string;
   'Content-Range'?: string;
-  Location: string;
+   Location: string;
 }
 
 export class CreateBookDto {
@@ -289,16 +289,14 @@ export class CreateBookDto {
   customCoverMime?: string;
 
   @ApiPropertyOptional({
-    description: 'Custom cover file size in bytes',
-    example: 102400,
+    description: 'Page Number',
+    example: 100,
     minimum: 1,
-    maximum: BOOK_CONSTRAINTS.MAX_COVER_SIZE,
+    maximum: BOOK_CONSTRAINTS.MAX_PAGE_COUNT,
   })
   @IsOptional()
   @IsNumber()
-  @Min(BOOK_CONSTRAINTS.MIN_FILE_SIZE)
-  @Max(BOOK_CONSTRAINTS.MAX_COVER_SIZE)
-  customCoverSizeBytes?: number;
+  pageCount?: number;
 }
 
 export class FinalizeBookDto {

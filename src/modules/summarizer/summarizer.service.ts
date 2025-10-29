@@ -32,7 +32,7 @@ export class SummarizerService {
         : undefined,
       fileUrl: await this.s3Service.generatePresignedDownloadUrl(book.fileStorageKey),
       description: book.description,
-      spentHours: book.spentHours,
+      spentTime: book.spentTime,
       pageCount: book.pageCount,
       pagePassCount: book.pagePassCount,
       summaryKey: book.summaryStorageKey,
