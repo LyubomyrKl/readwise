@@ -6,12 +6,7 @@ import { ROUTES } from "./app/(consts)/routes";
 const PROTECTED = new Set<string>([
   ROUTES.reader.library,
   ROUTES.reader.bookProfile("*"), // Placeholder for book ID
-  ROUTES.reader.collections.all,
-  ROUTES.reader.collections.new,
-  ROUTES.reader.collections.archived,
   ROUTES.reader.ingest.uploadFiles,
-  ROUTES.reader.ingest.webImport,
-  ROUTES.reader.aiWorkbench,
   ROUTES.settings,
 ]);
 

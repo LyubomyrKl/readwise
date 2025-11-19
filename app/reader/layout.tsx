@@ -9,24 +9,12 @@ import { ROUTES } from "../(consts)/routes";
 const nav: Section[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },
   {
-    title: "Collections",
-    icon: FolderOpen,
-    defaultOpen: true,
-    items: [
-      { title: "All", href: ROUTES.reader.collections.all },
-      { title: "New", href: ROUTES.reader.collections.new },
-      { title: "Archived", href: ROUTES.reader.collections.archived },
-    ],
-  },
-  {
     title: "Ingest",
     icon: UploadCloud,
     items: [
       { title: "Upload files", href: ROUTES.reader.ingest.uploadFiles },
-      { title: "Web import", href: ROUTES.reader.ingest.webImport },
     ],
   },
-  { title: "AI Workbench", icon: Sparkles, href: ROUTES.reader.aiWorkbench },
 ];
 
 function LayoutInner({ children }: { children: React.ReactNode }) {
@@ -34,7 +22,6 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const sidebarRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   
-  // Check if we're in a book reading route (reader subpath)
   const isBookReaderRoute = pathname?.match(/\/reader\/book\/[^/]+\/reader/) !== null;
 
   useEffect(() => {
@@ -51,7 +38,6 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open, setOpen]);
 
-  // For book reading routes (EPUB/PDF readers), render without sidebar
   if (isBookReaderRoute) {
     return (
       <div className="min-h-dvh w-full">
@@ -60,7 +46,6 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // Default layout with sidebar for other routes (including profile)
   return (
     <div className="flex grow min-h-dvh">
       <div ref={sidebarRef}>
