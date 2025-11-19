@@ -4,7 +4,7 @@ import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
 import { Library, UploadCloud, FolderOpen, Sparkles } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
-import { ROUTES } from "../(consts)/pages";
+import { ROUTES } from "../(consts)/routes";
 
 const nav: Section[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },

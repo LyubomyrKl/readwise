@@ -1,6 +1,5 @@
 export const ROUTES = Object.freeze({
   reader: {
-    book: (id: string) => `/reader/book/${id}`,
     bookReader: (id: string) => `/reader/book/${id}/reader`,
     bookProfile: (id: string) => `/reader/book/${id}/profile`,
     library: "/reader/library",

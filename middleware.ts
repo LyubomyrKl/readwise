@@ -1,11 +1,11 @@
 // middleware.ts
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { ROUTES } from "./app/(consts)/pages";
+import { ROUTES } from "./app/(consts)/routes";
 
 const PROTECTED = new Set<string>([
   ROUTES.reader.library,
-  ROUTES.reader.book("*"), // Placeholder for book ID
+  ROUTES.reader.bookProfile("*"), // Placeholder for book ID
   ROUTES.reader.collections.all,
   ROUTES.reader.collections.new,
   ROUTES.reader.collections.archived,

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { IBook } from "../../types";
 import { BookCard } from "./BookCard";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
-import { ROUTES } from "@/app/(consts)/pages";
+import { ROUTES } from "@/app/(consts)/routes";
 
 interface BooksGridProps {
   books: IBook[];

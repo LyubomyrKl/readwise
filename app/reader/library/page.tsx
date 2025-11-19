@@ -9,7 +9,7 @@ import { useCoverGradient } from "@/hooks/useCoverGradient";
 import { apiFetch } from "@/lib/fetcher";
 import { IBook } from "../types";
 import { filterAndSortBooks } from "./utils";
-import { ROUTES } from '@/app/(consts)/pages';
+import { ROUTES } from '@/app/(consts)/routes';
 
 
 export default function LibraryPage() {

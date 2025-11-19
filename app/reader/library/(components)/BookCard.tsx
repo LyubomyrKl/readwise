@@ -14,7 +14,7 @@ import { useRouter } from "next/navigation";
 import { IBook } from "../../types";
 import { BookCover } from "./BookCover";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
-import { ROUTES } from "@/app/(consts)/pages";
+import { ROUTES } from "@/app/(consts)/routes";
 
 export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);

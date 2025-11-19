@@ -36,7 +36,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { ROUTES } from "@/app/(consts)/pages";
+import { ROUTES } from "@/app/(consts)/routes";
 import { useRouter } from "next/navigation";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 import { apiFetch } from "@/lib/fetcher";

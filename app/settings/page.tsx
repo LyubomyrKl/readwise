@@ -23,7 +23,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { ROUTES } from "../(consts)/pages";
+import { ROUTES } from "../(consts)/routes";
 import { toast } from "sonner";
 
 const container: Variants = {

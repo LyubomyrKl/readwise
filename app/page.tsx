@@ -2,7 +2,7 @@
 import React from "react";
 import { Library } from "lucide-react";
 import Link from "next/link";
-import { ROUTES } from "./(consts)/pages";
+import { ROUTES } from "./(consts)/routes";
 
 export default function Home() {
   return (

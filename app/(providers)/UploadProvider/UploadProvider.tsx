@@ -11,7 +11,6 @@ export interface UploadFileMetadata {
   mime: string;
   sizeBytes: number;
   pageCount?: number | null;
-  customCoverFilename?: string;
   customCoverMime?: string;
   customCoverSizeBytes?: number;
 }
@@ -113,7 +112,6 @@ export function UploadProvider({ children }: { children: ReactNode }) {
         mime: currentUpload.file.mime,
         sizeBytes: currentUpload.file.sizeBytes,
         pageCount: currentUpload.file.pageCount,
-        customCoverFilename: currentUpload.file.customCoverFilename,
         customCoverMime: currentUpload.file.customCoverMime,
         customCoverSizeBytes: currentUpload.file.customCoverSizeBytes,
       };

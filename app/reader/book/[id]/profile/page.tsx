@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@/app/reader/book/[id]/(components)/BookProfile";
 import { IBook } from "../../../types";
-import { ROUTES } from "@/app/(consts)/pages";
+import { ROUTES } from "@/app/(consts)/routes";
 
 export default function BookProfilePage() {
   const params = useParams();

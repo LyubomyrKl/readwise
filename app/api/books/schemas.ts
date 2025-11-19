@@ -9,7 +9,6 @@ export const PresignReq = z.object({
   mime: z.string().min(1),
   sizeBytes: z.number().positive(),
   pageCount: z.number().positive().optional().nullable(),
-  customCoverFilename: z.string().optional(),
   customCoverMime: z.string().optional(),
   customCoverSizeBytes: z.number().positive().optional(),
 });

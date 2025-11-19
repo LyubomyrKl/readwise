@@ -2,11 +2,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
 import {
-  BookOpen,
-  Clock,
-  Star,
-  Bookmark,
-  ChevronRight,
+    BookOpen,
+    Clock,
+    Star,
+    Bookmark,
+    ChevronRight, NotebookPen, NotepadText, NotebookText,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +25,7 @@ import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 import { IBook } from '@/app/reader/types';
 import { BookCover } from '@/app/reader/library/(components)/BookCover';
 import { useBookCover } from '@/app/(providers)/BookCoverProvider/BookCoverProvider';
+import {ROUTES} from "@/app/(consts)/routes";
 
 
 interface LastReadCardProps {
@@ -91,12 +92,6 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
                     <Clock className="h-4 w-4" /> Last read{' '}
                     {prettyDate(lastBook.lastAccessed)}
                   </span>}
-                  <span className="inline-flex items-center gap-1">
-                    <Star className="h-4 w-4" /> 3
-                  </span>
-                  <span className="inline-flex items-center gap-1">
-                    <Bookmark className="h-4 w-4" />
-                  </span>
                 </div>
                 <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
                   {lastBook.description}
@@ -131,22 +126,22 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
 
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button asChild size="sm">
-                  <Link href={`/reader/${lastBook.id}`}>
+                  <Link href={ROUTES.reader.bookReader(lastBook.id)}>
                     Continue reading
                     <ChevronRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
                 <Button asChild size="sm" variant="secondary">
-                  <Link href={`/books/${lastBook.id}`}>View details</Link>
+                  <Link href={ROUTES.reader.bookProfile(lastBook.id)}>View details</Link>
                 </Button>
               </div>
             </div>
           </CardContent>
 
           <CardFooter className="flex flex-wrap items-center gap-4 border-t bg-muted/30 px-6 py-4">
-            <Stat label="Total pages" value="464" />
-            <Stat label="Notes" value="18" />
-            <Stat label="Highlights" value="73" />
+              {lastBook.pageCount && <Stat label="Total pages" value={lastBook.pageCount}/>}
+            <Stat label="Notes" value={lastBook.notes.length} icon={<NotebookPen  className="h-4 w-4"/>}/>
+            <Stat label="Highlights" value={lastBook.highlights.length} icon={<Bookmark className="h-4 w-4" />} />
           </CardFooter>
         </Card>
       </Wrapper>

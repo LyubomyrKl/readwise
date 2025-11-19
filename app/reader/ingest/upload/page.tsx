@@ -21,8 +21,9 @@ interface PendingFile {
   description: string;
   pageCount: number | null;
   isParsingMetadata: boolean;
+  extractedCover?: string; // Cover extracted from the book file
   coverFile?: File;
-  coverPreview?: string;
+  coverPreview?: string; // User-uploaded custom cover
 }
 
 export default function UploadPage() {
@@ -74,6 +75,7 @@ export default function UploadPage() {
                   author: metadata.author || "",
                   description: metadata.description || "",
                   pageCount: metadata.pageCount,
+                  extractedCover: metadata.coverImage,
                   isParsingMetadata: false,
                 }
               : f
@@ -181,6 +183,28 @@ export default function UploadPage() {
 
     console.log(sessionUploads);
 
+    // Convert extracted cover to File if no custom cover is provided
+    let coverFileToUpload = pendingFile.coverFile;
+
+    if (!coverFileToUpload && pendingFile.extractedCover) {
+      try {
+        // Convert base64 data URL to Blob
+        const response = await fetch(pendingFile.extractedCover);
+        const blob = await response.blob();
+
+        // Create a File from the Blob
+        coverFileToUpload = new File(
+          [blob],
+          `${pendingFile.file.name.replace(/\.[^/.]+$/, "")}-cover.jpg`,
+          { type: "image/jpeg" }
+        );
+
+        console.log("Converted extracted cover to File:", coverFileToUpload);
+      } catch (error) {
+        console.error("Failed to convert extracted cover to File:", error);
+      }
+    }
+
     const uploadFile: UploadFile = {
       title: pendingFile.title,
       author: pendingFile.author,
@@ -190,11 +214,10 @@ export default function UploadPage() {
       sizeBytes: pendingFile.file.size,
       pageCount: pendingFile.pageCount,
       file: pendingFile.file,
-      ...(pendingFile.coverFile && {
-        customCoverFilename: pendingFile.coverFile.name,
-        customCoverMime: pendingFile.coverFile.type,
-        customCoverSizeBytes: pendingFile.coverFile.size,
-        coverFile: pendingFile.coverFile,
+      ...(coverFileToUpload && {
+        customCoverMime: coverFileToUpload.type,
+        customCoverSizeBytes: coverFileToUpload.size,
+        coverFile: coverFileToUpload,
       }),
     };
 
@@ -311,16 +334,16 @@ export default function UploadPage() {
                 <CardContent className="space-y-4">
                   {/* Cover Upload/Preview */}
                   <div className="flex justify-center">
-                    <div className="relative w-24 h-32 rounded-lg overflow-hidden border bg-muted">
-                      {file.coverPreview ? (
+                    <div className="relative w-32 h-44 rounded-lg overflow-hidden border bg-muted hover:border-primary transition-colors">
+                      {file.coverPreview || file.extractedCover ? (
                         <img
-                          src={file.coverPreview}
+                          src={file.coverPreview || file.extractedCover}
                           alt={`${file.title} cover`}
                           className="w-full h-full object-cover"
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center">
-                          <FileText className="h-8 w-8 text-muted-foreground" />
+                          <FileText className="h-10 w-10 text-muted-foreground" />
                         </div>
                       )}
                       <input
@@ -333,7 +356,18 @@ export default function UploadPage() {
                           }
                         }}
                         className="absolute inset-0 opacity-0 cursor-pointer"
+                        title="Click to upload custom cover"
                       />
+                      {file.coverPreview && (
+                        <div className="absolute top-1 right-1 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded">
+                          Custom
+                        </div>
+                      )}
+                      {!file.coverPreview && file.extractedCover && (
+                        <div className="absolute top-1 right-1 bg-secondary text-secondary-foreground text-xs px-1.5 py-0.5 rounded">
+                          Auto
+                        </div>
+                      )}
                     </div>
                   </div>
 
