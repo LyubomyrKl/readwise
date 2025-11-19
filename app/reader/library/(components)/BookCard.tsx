@@ -15,6 +15,7 @@ import { IBook } from "../../types";
 import { BookCover } from "./BookCover";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 import { ROUTES } from "@/app/(consts)/routes";
+import {BookCheck, BookHeart} from "lucide-react";
 
 export function BookCard({ book }: { book: IBook }) {
   const titleRef = useRef<HTMLHeadingElement>(null);
@@ -50,16 +51,6 @@ export function BookCard({ book }: { book: IBook }) {
               cover={book.coverUrl}
               backgroundStyle={backgroundStyle}
             />
-            <div className="absolute left-2 top-2 flex gap-2">
-              {book.isFavorite && (
-                <Badge className="backdrop-blur">★ Favorite</Badge>
-              )}
-              {book.isFinished && (
-                <Badge variant="secondary" className="backdrop-blur">
-                  Finished
-                </Badge>
-              )}
-            </div>
             <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
             </div>
@@ -82,9 +73,25 @@ export function BookCard({ book }: { book: IBook }) {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <p className="text-xs text-muted-foreground line-clamp-1">
-            {book.author}
-          </p>
+          <div className="flex items-center justify-between gap-2">
+            <p className="text-xs text-muted-foreground line-clamp-1 flex-1">
+              {book.author}
+            </p>
+            {(book.isFavorite || book.isFinished) && (
+              <div className="flex gap-1">
+                {book.isFavorite && (
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted">
+                    <BookHeart className="w-3 h-3 fill-muted-foreground/40 text-muted-foreground" />
+                  </Badge>
+                )}
+                {book.isFinished && (
+                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted">
+                    <BookCheck className="w-3 h-3 text-muted-foreground" />
+                  </Badge>
+                )}
+              </div>
+            )}
+          </div>
           {book.pageCount && (
             <>
               <Progress

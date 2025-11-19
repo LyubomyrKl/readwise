@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Sparkles } from "lucide-react";
+import {BookPlus, Sparkles} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import React, { useEffect, useMemo } from "react";
 import { LastReadCard, LibraryFilters, BooksGrid } from "./(components)";
@@ -74,9 +74,9 @@ export default function LibraryPage() {
               Your last read and all books
             </p>
           </div>
-          <Button asChild variant="secondary">
-            <Link href={ROUTES.reader.ingest.uploadFiles}>
-              <Sparkles className="mr-2 h-4 w-4" /> Add books
+          <Button asChild variant="secondary" className={'gap-0'}>
+                <Link href={ROUTES.reader.ingest.uploadFiles}>
+              <BookPlus className="mr-2 h-4 w-4" /> <span>Add books</span>
             </Link>
           </Button>
         </div>

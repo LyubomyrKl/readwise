@@ -1,3 +1,11 @@
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
 interface LibraryFiltersProps {
   query: string;
   setQuery: (query: string) => void;
@@ -70,16 +78,17 @@ export function LibraryFilters({
           />
         </div>
 
-        <select
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value as any)}
-          className="h-9 rounded-xl border bg-background px-3 text-sm ring-1 ring-border focus:outline-none focus:ring-2 focus:ring-primary/50"
-        >
-          <option value="recent">Sort: Recent</option>
-          <option value="alphabetical">Sort: A-Z</option>
-          <option value="progress">Sort: Progress</option>
-          <option value="time">Sort: Time spent</option>
-        </select>
+        <Select value={sortBy} onValueChange={setSortBy}>
+          <SelectTrigger className="h-9 w-fit rounded-xl">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="recent">Sort: Recent</SelectItem>
+            <SelectItem value="alphabetical">Sort: A-Z</SelectItem>
+            <SelectItem value="progress">Sort: Progress</SelectItem>
+            <SelectItem value="time">Sort: Time spent</SelectItem>
+          </SelectContent>
+        </Select>
       </div>
     </div>
   );
