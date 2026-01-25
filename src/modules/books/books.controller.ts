@@ -198,7 +198,7 @@ export class BooksController {
   }
 
   @Authenticated()
-  @Post(':id')
+  @Post('updateLastAccessed')
   @ApiOperation({
     summary: 'Set last accessed file date'
   })
