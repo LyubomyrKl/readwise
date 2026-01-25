@@ -12,6 +12,7 @@ import { BookFilesService } from './book.files.service';
 import {
   CreateBookDto,
   PresignedUploadDto,
+  SetBookToFavoriteDto,
   UpdateSpentTimeDto,
 } from './book.models';
 import {
@@ -25,6 +26,7 @@ import {
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
 import { BOOK_WITH_RELATIONS, BookWithRelations } from './book.helpers';
+import { SuccessEmptyResponse } from '@/app.models';
 
 @Injectable()
 export class BooksService {
@@ -246,16 +248,16 @@ export class BooksService {
   async downloadBook(
     userId: string,
     bookId: string,
-    range: string | undefined,
     res: Response,
-  ): Promise<void> {
-    return this.bookFilesService.downloadBook(userId, bookId, range, res);
+  ): Promise<SuccessEmptyResponse> {
+     await this.bookFilesService.downloadBook(userId, bookId, res);
+     return { status: 'success'};
   }
 
   async finalizeCoverUpload(
     userId: string,
     bookId: string,
-  ): Promise<{ success: boolean }> {
+  ): Promise<SuccessEmptyResponse> {
     return this.bookFilesService.finalizeCoverUpload(userId, bookId);
   }
 
@@ -304,7 +306,7 @@ export class BooksService {
     }
   }
 
-  async updateSpentTime(userId: string, dto: UpdateSpentTimeDto ): Promise<{status: string}> {
+  async updateSpentTime(userId: string, dto: UpdateSpentTimeDto ): Promise<SuccessEmptyResponse> {
     const book = await this.findBookByIdAndUser(dto.bookId, userId);
 
     const spentTime = Number(book.spentTime) + dto.amount
@@ -323,12 +325,11 @@ export class BooksService {
       );
       throw error;
     }
-
-    return {status: 'success'};
-
+    return { status: 'success' };
   }
 
-   async setBookToFavorite(userId: string, bookId: string, isFavorite: boolean): Promise<{status: string}> {
+   async setBookToFavorite(userId: string, dto: SetBookToFavoriteDto): Promise<SuccessEmptyResponse> {
+    const { bookId, isFavorite } = dto;
     const book = await this.findBookByIdAndUser(bookId, userId);
     await this.prisma.book.update({
       where: {
@@ -338,6 +339,6 @@ export class BooksService {
         isFavorite,
       }
     })
-     return  {status: 'success'};
+     return  { status: 'success' };
    }
 }

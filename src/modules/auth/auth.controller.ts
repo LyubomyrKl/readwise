@@ -9,7 +9,7 @@ import {
 } from './auth.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 import { ApiTags } from '@nestjs/swagger';
-import { UserModel } from '@/modules/app.models';
+import { UserModel } from '@/app.models';
 
 @ApiTags('auth')
 @Controller('auth')

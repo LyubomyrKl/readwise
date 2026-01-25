@@ -12,3 +12,8 @@ export class UserModel {
   @ApiProperty({ type: UserDto })
   user: UserDto;
 }
+
+export class SuccessEmptyResponse {
+  @ApiProperty({ example: { status: "success" } })
+  status: 'success';
+}

@@ -8,7 +8,7 @@ import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { add } from 'date-fns';
-import { LoginDto, RefreshDto, RegisterDto } from './auth.dto';
+import { LoginDto, RefreshDto, RegisterDto } from './auth.models';
 
 interface RefreshPayload {
   sub: string;

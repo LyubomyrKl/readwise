@@ -78,7 +78,7 @@ export class S3Service {
     });
   }
 
-  async objectExists(key: string): Promise<boolean> {
+  async isObjectExists(key: string): Promise<boolean> {
     try {
       await this.client.send(
         new HeadObjectCommand({
@@ -92,18 +92,9 @@ export class S3Service {
     }
   }
 
-  async getObjectMetadata(key: string) {
-    const command = new HeadObjectCommand({
-      Bucket: this.bucketName,
-      Key: key,
-    });
-
-    return await this.client.send(command);
-  }
-
-  async getObjectBuffer(key: string): Promise<Buffer> {
+  async getObjectBuffer(bucketName: string, key: string): Promise<Buffer> {
     const command = new GetObjectCommand({
-      Bucket: this.bucketName,
+      Bucket: bucketName,
       Key: key,
     });
 
@@ -122,6 +113,10 @@ export class S3Service {
     }
 
     return Buffer.concat(chunks);
+  }
+
+  async getBookBucketObjectBuffer(key: string): Promise<Buffer> {
+    return this.getObjectBuffer(this.bucketName, key)
   }
 
   async copyObject(sourceKey: string, destKey: string): Promise<void> {
@@ -216,7 +211,7 @@ export class S3Service {
     });
   }
 
-  async coverObjectExists(key: string): Promise<boolean> {
+  async isObjectCoverExists(key: string): Promise<boolean> {
     try {
       await this.client.send(
         new HeadObjectCommand({
@@ -250,26 +245,7 @@ export class S3Service {
   }
 
   async getJsonObject(key: string): Promise<Record<string, any>> {
-    const command = new GetObjectCommand({
-      Bucket: this.summariesBucketName,
-      Key: key,
-    });
-
-    const response = await this.client.send(command);
-    const chunks: Uint8Array[] = [];
-
-    if (response.Body) {
-      const reader = response.Body.transformToWebStream().getReader();
-      let result = await reader.read();
-
-      while (!result.done) {
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
-        chunks.push(result.value);
-        result = await reader.read();
-      }
-    }
-
-    const buffer = Buffer.concat(chunks);
+    const buffer = await this.getObjectBuffer(this.summariesBucketName, key)
     const jsonString = buffer.toString('utf-8');
     return JSON.parse(jsonString) as Record<string, any>;
   }

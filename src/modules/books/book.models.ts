@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import type { BookStatus, BookTag, Note, Highlight } from '@prisma/client';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
 
 import {
   IsNumber,
@@ -335,4 +335,17 @@ export class PresignedUploadDto {
     message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
   })
   mime!: string;
+}
+
+
+export class SetBookToFavoriteDto {
+  @ApiProperty({ description: 'Book ID to finalize', example: 'uuid-here' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  bookId!: string;
+
+  @ApiPropertyOptional({ description: 'Boolean that shows whether or not book is favorite', example: true })
+  @IsBoolean()
+  isFavorite!: boolean;
 }

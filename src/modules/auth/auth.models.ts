@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { IsEmail, IsOptional, IsString, MinLength } from 'class-validator';
 
 export class SafeUser {
   @ApiProperty({ example: 'uuid' }) id!: string;
@@ -28,4 +29,36 @@ export class LogoutResult {
   @ApiProperty({ example: true }) success!: true;
 }
 
-export type ServiceTokens = { accessToken: string; refreshToken: string };
+
+export class RegisterDto {
+  @ApiProperty({ example: 'anna@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ minLength: 8, example: 'S3curePass1' })
+  @IsString()
+  @MinLength(8)
+  password!: string;
+
+  @ApiProperty({ required: false, example: 'Anna' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
+export class LoginDto {
+  @ApiProperty({ example: 'anna@example.com' })
+  @IsEmail()
+  email!: string;
+
+  @ApiProperty({ minLength: 8, example: 'S3curePass1' })
+  @IsString()
+  @MinLength(8)
+  password!: string;
+}
+
+export class RefreshDto {
+  @ApiProperty({ example: 'Bearer eyJhbGciOi...' })
+  @IsString()
+  refreshToken!: string;
+}
