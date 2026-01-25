@@ -126,7 +126,7 @@ export class S3Service {
   async copyObject(sourceKey: string, destKey: string): Promise<void> {
     const command = new CopyObjectCommand({
       Bucket: this.bucketName,
-      CopySource: `${this.bucketName}/${sourceKey}`,
+      CopySource: encodeURIComponent(`${this.bucketName}/${sourceKey}`),
       Key: destKey,
     });
 
@@ -232,7 +232,7 @@ export class S3Service {
   async copyCoverObject(sourceKey: string, destKey: string): Promise<void> {
     const command = new CopyObjectCommand({
       Bucket: this.coverBucketName,
-      CopySource: `${this.coverBucketName}/${sourceKey}`,
+      CopySource: encodeURIComponent(`${this.coverBucketName}/${sourceKey}`),
       Key: destKey,
     });
 

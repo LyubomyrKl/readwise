@@ -231,7 +231,6 @@ export class BooksService {
   }
 
    async setLastAccessed(bookId: string): Promise<UpdateLastAccessedResponse> {
-    this.logger.log('accesed set')
     await this.prisma.book.update({
       where: { id: bookId },
       data: { lastAccessed: new Date() },
