@@ -230,7 +230,7 @@ export class BooksService {
     return this.convertBookToResponse(book);
   }
 
-   async setLastAccessed(bookId: string): Promise<UpdateLastAccessedResponse> {
+  async setLastAccessed(bookId: string): Promise<UpdateLastAccessedResponse> {
     await this.prisma.book.update({
       where: { id: bookId },
       data: { lastAccessed: new Date() },

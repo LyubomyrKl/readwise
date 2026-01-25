@@ -210,7 +210,7 @@ export class BooksController {
 
 
   @Authenticated()
-  @Post(':id')
+  @Post('updateTimeSpent')
   @ApiOperation({
     summary: 'Update time spent'
   })
