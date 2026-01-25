@@ -22,7 +22,6 @@ import { Scroller } from "@embedpdf/plugin-scroll/react";
 import { LoaderPluginPackage } from "@embedpdf/plugin-loader";
 import { RenderPluginPackage } from "@embedpdf/plugin-render";
 import { RenderLayer } from "@embedpdf/plugin-render/react";
-
 import { ZoomPluginPackage } from "@embedpdf/plugin-zoom";
 import { useZoom } from "@embedpdf/plugin-zoom/react";
 
@@ -34,58 +33,23 @@ type Props = {
   onBackAction?: () => void;
 };
 
-export default function VirtualPDFReader({ book, onBackAction }: Props) {
+const MIN_ZOOM = 0.25;
+const MAX_ZOOM = 3;
+const DEFAULT_ZOOM = 1;
+
+export default function PDFReader({ book, onBackAction }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const url = book.fileUrl;
   const [, setRenderKey] = useState(0);
   const [devicePixelRatio, setDevicePixelRatio] = useState(1);
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(10);
-
-  const [pdfSettings, setPdfSettings] = useState(() => {
-    const defaultSettings = {
-      zoom: 100,
-      rotation: 0 as 0 | 90 | 180 | 270,
-      viewMode: "single" as "single" | "double" | "continuous",
-      fitMode: "width" as "width" | "height" | "page" | "auto",
-      theme: "sepia" as "light" | "dark" | "sepia",
-      showThumbnails: false,
-      showBookmarks: false,
-      invertColors: false,
-      enableTextSelection: true,
-      enableAnnotations: true,
-      pageSpacing: 10,
-      backgroundColor: "#f4ecd8",
-    };
-
-    if (typeof window !== "undefined") {
-      const savedTheme = localStorage.getItem("pdf.theme") as
-        | "light"
-        | "dark"
-        | "sepia"
-        | null;
-      const savedBg = localStorage.getItem("pdf.backgroundColor");
-
-      if (savedTheme && savedBg) {
-        return {
-          ...defaultSettings,
-          theme: savedTheme,
-          backgroundColor: savedBg,
-        };
-      }
-    }
-
-    return defaultSettings;
-  });
-
-  // Initialize the PDFium engine. By default, the WASM binary is loaded from the package CDN.
-  // For production, host it yourself and pass { wasmUrl } to usePdfiumEngine().
-  const { engine, isLoading, error } = usePdfiumEngine();
-
+  const [totalPages, setTotalPages] = useState(1);
   const [isScrolling, setIsScrolling] = useState(false);
 
+  const { engine, isLoading, error } = usePdfiumEngine();
+
+  // Scroll detection for render quality
   useEffect(() => {
     const root = containerRef.current;
     if (!root) return;
@@ -102,9 +66,9 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
       root.removeEventListener("scroll", onScroll, { capture: true } as any);
       if (t) clearTimeout(t);
     };
-  }, []);
+  }, [isScrolling]);
 
-  // 4) Make DPR watcher robust when moving between monitors
+  // DPR watcher for monitor changes
   useEffect(() => {
     if (typeof window === "undefined") return;
     let mql: MediaQueryList | null = null;
@@ -113,7 +77,7 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
     const onChange = () => {
       setDevicePixelRatio(window.devicePixelRatio || 1);
       setRenderKey((k) => k + 1);
-      raf = window.requestAnimationFrame(watch); // re-arm for the new DPR
+      raf = window.requestAnimationFrame(watch);
     };
 
     const watch = () => {
@@ -130,12 +94,12 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
   }, []);
 
   const plugins = useMemo(() => {
-    if (!url) return [] as any[];
+    if (!book.fileUrl) return [] as any[];
     return [
       createPluginRegistration(LoaderPluginPackage, {
         loadingOptions: {
           type: "url",
-          pdfFile: { id: book.id || "doc", url },
+          pdfFile: { id: book.id || "doc", url: book.fileUrl },
         },
       }),
       createPluginRegistration(ViewportPluginPackage),
@@ -143,89 +107,7 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
       createPluginRegistration(RenderPluginPackage),
       createPluginRegistration(ZoomPluginPackage),
     ];
-  }, [url, book.id]);
-
-  useEffect(() => {
-    const el = containerRef.current;
-    if (!el) return;
-
-    const onWheel = (e: WheelEvent) => {
-      // Detect different types of zoom gestures
-      const isModifierZoom = e.ctrlKey || e.metaKey;
-
-      if (isModifierZoom) {
-        e.preventDefault();
-
-        // Pass detailed information about the wheel event
-        const detail = {
-          dy: e.deltaY,
-          clientY: e.clientY,
-          deltaMode: e.deltaMode,
-          ctrlKey: e.ctrlKey,
-          metaKey: e.metaKey,
-        };
-
-        el.dispatchEvent(new CustomEvent("epdf-zoom-wheel", { detail }));
-      }
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel as any);
-  }, []);
-
-  // Touch gesture support with reduced sensitivity
-  useGesture(
-    {
-      onPinch: ({ da: [d] }) => {
-        // Further reduced sensitivity for touch zoom
-        const factor = d > 1 ? 1.005 : 0.995; // Even smaller increment for less sensitive zooming
-        const currentZoom = pdfSettings.zoom;
-        const nextZoom = Math.max(
-          25,
-          Math.min(300, Math.round(currentZoom * factor))
-        );
-
-        if (nextZoom !== currentZoom) {
-          setPdfSettings((prev) => ({ ...prev, zoom: nextZoom }));
-        }
-      },
-    },
-    {
-      target: containerRef,
-      eventOptions: { passive: true },
-      pinch: {
-        threshold: [0.05, 0], // Much higher threshold for less sensitivity
-        rubberband: 0.2, // More resistance at zoom limits
-      },
-    }
-  );
-
-  // Auto-hide menu after interaction
-  const hideMenuAfterDelay = () => {
-    setTimeout(() => setMenuVisible(false), 3000);
-  };
-
-  // Handle settings changes with persistence
-  const handleSettingsChange = useCallback((newSettings: any) => {
-    setPdfSettings((prev) => {
-      const updated = { ...prev, ...newSettings };
-
-      // Persist theme and background color
-      if (typeof window !== "undefined") {
-        if (newSettings.theme) {
-          localStorage.setItem("pdf.theme", newSettings.theme);
-        }
-        if (newSettings.backgroundColor) {
-          localStorage.setItem(
-            "pdf.backgroundColor",
-            newSettings.backgroundColor
-          );
-        }
-      }
-
-      return updated;
-    });
-  }, []);
+  }, [book.fileUrl, book.id]);
 
   if (error) {
     return (
@@ -239,7 +121,7 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
     );
   }
 
-  if (isLoading || !engine || !url) {
+  if (isLoading || !engine || !book.fileUrl) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
@@ -257,27 +139,131 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
       className="relative h-[calc(100dvh-0px)] w-full select-none"
       ref={containerRef}
       onDoubleClick={() => {
-        if (!menuVisible && !settingsOpen) {
-          setMenuVisible(true);
-        }
+        if (!menuVisible && !settingsOpen) setMenuVisible(true);
       }}
     >
-      {/* Quick menu overlay - simple and minimal */}
+      <EmbedPDF engine={engine} plugins={plugins}>
+        <PDFReaderContent
+          containerRef={containerRef}
+          devicePixelRatio={devicePixelRatio}
+          isScrolling={isScrolling}
+          menuVisible={menuVisible}
+          setMenuVisible={setMenuVisible}
+          settingsOpen={settingsOpen}
+          setSettingsOpen={setSettingsOpen}
+          currentPage={currentPage}
+          setCurrentPage={setCurrentPage}
+          totalPages={totalPages}
+          setTotalPages={setTotalPages}
+          setRenderKey={setRenderKey}
+          onBackAction={onBackAction}
+        />
+      </EmbedPDF>
+    </div>
+  );
+}
+
+function PDFReaderContent({
+  containerRef,
+  devicePixelRatio,
+  isScrolling,
+  menuVisible,
+  setMenuVisible,
+  settingsOpen,
+  setSettingsOpen,
+  currentPage,
+  totalPages,
+  setRenderKey,
+  onBackAction,
+}: {
+  containerRef: React.RefObject<HTMLDivElement | null>;
+  devicePixelRatio: number;
+  isScrolling: boolean;
+  menuVisible: boolean;
+  setMenuVisible: (v: boolean) => void;
+  settingsOpen: boolean;
+  setSettingsOpen: (v: boolean) => void;
+  currentPage: number;
+  setCurrentPage: (p: number) => void;
+  totalPages: number;
+  setTotalPages: (p: number) => void;
+  setRenderKey: (fn: (k: number) => number) => void;
+  onBackAction?: () => void;
+}) {
+  const { provides, state } = useZoom();
+  const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;
+  const zoomPercent = Math.round(currentZoom * 100);
+
+  const requestZoom = useCallback(
+    (newZoom: number) => {
+      if (provides) {
+        const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+        provides.requestZoom(clamped);
+      }
+    },
+    [provides]
+  );
+
+  const zoomIn = useCallback(() => {
+    requestZoom(currentZoom + 0.25);
+  }, [currentZoom, requestZoom]);
+
+  const zoomOut = useCallback(() => {
+    requestZoom(currentZoom - 0.25);
+  }, [currentZoom, requestZoom]);
+
+  const handleZoomChange = useCallback(
+    (percent: number) => {
+      requestZoom(percent / 100);
+    },
+    [requestZoom]
+  );
+
+  // Pinch gesture for touch zoom
+  useGesture(
+    {
+      onPinch: ({ da: [d] }) => {
+        const factor = d > 1 ? 1.02 : 0.98;
+        requestZoom(currentZoom * factor);
+      },
+    },
+    {
+      target: containerRef,
+      eventOptions: { passive: true },
+    }
+  );
+
+  // Ctrl+wheel zoom
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el || !provides) return;
+
+    const onWheel = (e: WheelEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.95 : 1.05;
+      requestZoom(currentZoom * factor);
+    };
+
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, [containerRef, provides, currentZoom, requestZoom]);
+
+  return (
+    <>
+      {/* Quick menu */}
       {menuVisible && !settingsOpen && (
         <>
-          {/* Backdrop to close menu when clicking outside */}
           <div
             className="absolute inset-0 z-20"
             onClick={() => setMenuVisible(false)}
           />
           <div className="absolute inset-0 z-20 pointer-events-none">
-            {/* Simple centered quick menu */}
             <div className="pointer-events-auto absolute top-2 left-1/2 transform -translate-x-1/2">
               <div
                 className="flex items-center gap-2 bg-background/95 rounded-full p-2 shadow-xl border"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Back */}
                 {onBackAction && (
                   <Button
                     variant="ghost"
@@ -293,43 +279,28 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
                   </Button>
                 )}
 
-                {/* Previous page */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    // TODO: Implement page navigation
-                    hideMenuAfterDelay();
-                  }}
                   aria-label="Previous page"
                   className="rounded-full"
                 >
                   <ChevronLeft className="h-4 w-4" />
                 </Button>
 
-                {/* Next page */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    // TODO: Implement page navigation
-                    hideMenuAfterDelay();
-                  }}
                   aria-label="Next page"
                   className="rounded-full"
                 >
                   <ChevronRight className="h-4 w-4" />
                 </Button>
 
-                {/* Zoom controls */}
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    const newZoom = Math.max(25, pdfSettings.zoom - 25);
-                    setPdfSettings((prev) => ({ ...prev, zoom: newZoom }));
-                    hideMenuAfterDelay();
-                  }}
+                  onClick={zoomOut}
                   aria-label="Zoom out"
                   className="rounded-full"
                 >
@@ -339,18 +310,13 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => {
-                    const newZoom = Math.min(300, pdfSettings.zoom + 25);
-                    setPdfSettings((prev) => ({ ...prev, zoom: newZoom }));
-                    hideMenuAfterDelay();
-                  }}
+                  onClick={zoomIn}
                   aria-label="Zoom in"
                   className="rounded-full"
                 >
                   <Plus className="h-4 w-4" />
                 </Button>
 
-                {/* Settings */}
                 <Button
                   variant="ghost"
                   size="sm"
@@ -366,9 +332,8 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
               </div>
             </div>
 
-            {/* Simple page indicator */}
             <div className="pointer-events-none absolute bottom-4 left-1/2 transform -translate-x-1/2">
-              <div className="bg-background/95 rounded-full px-3 py-1 text-xs shadow-xl">
+              <div className="bg-background/95 rounded-full px-3 py-1 text-xs shadow-xl border">
                 Page {currentPage} of {totalPages}
               </div>
             </div>
@@ -376,130 +341,34 @@ export default function VirtualPDFReader({ book, onBackAction }: Props) {
         </>
       )}
 
-      {/* PDF Reader */}
+      {/* PDF Viewport */}
       <div className="absolute inset-0">
-        <div
-          className="h-full w-full transition-colors duration-200"
-          style={{ backgroundColor: pdfSettings.backgroundColor }}
-        >
-          <EmbedPDF engine={engine} plugins={plugins}>
-            <Viewport
-              style={{
-                height: "100%",
-                width: "100%",
-                backgroundColor: pdfSettings.backgroundColor,
-              }}
-              onPointerDownCapture={() => {
-                /* keep React happy */
-              }}
-            >
-              {/* Local handler that bridges our custom wheel event to the zoom plugin */}
-              <ZoomWheelBridge
-                onZoomSettle={() => {
-                  // Trigger crisp re-render with current device pixel ratio
-                  setRenderKey((prev) => prev + 1);
-                }}
-              />
-
-              <Scroller
-                renderPage={({ width, height, pageIndex }) => (
-                  <div style={{ width, height }}>
-                    <CrispRenderLayer
-                      pageIndex={pageIndex}
-                      baseDpr={devicePixelRatio}
-                      isScrolling={isScrolling}
-                    />
-                  </div>
-                )}
-              />
-            </Viewport>
-          </EmbedPDF>
-        </div>
+        <Viewport style={{ height: "100%", width: "100%" }}>
+          <Scroller
+            renderPage={({ width, height, pageIndex }) => (
+              <div style={{ width, height }}>
+                <CrispRenderLayer
+                  pageIndex={pageIndex}
+                  baseDpr={devicePixelRatio}
+                  isScrolling={isScrolling}
+                />
+              </div>
+            )}
+          />
+        </Viewport>
       </div>
 
       {settingsOpen && (
         <PDFReaderMenu
-          settings={pdfSettings}
-          onSettingsChange={handleSettingsChange}
+          zoom={zoomPercent}
+          onZoomChange={handleZoomChange}
           currentPage={currentPage}
           totalPages={totalPages}
-          onPageChange={(page) => {
-            setCurrentPage(page);
-            // TODO: Implement actual page navigation
-          }}
           onClose={() => setSettingsOpen(false)}
         />
       )}
-    </div>
+    </>
   );
-}
-
-// Simplified zoom gesture handler with improved sensitivity
-function ZoomWheelBridge({ onZoomSettle }: { onZoomSettle?: () => void }) {
-  const hostRef = useRef<HTMLDivElement | null>(null);
-  const { provides, state } = useZoom();
-  const zoomTimeoutRef = useRef<NodeJS.Timeout>(null);
-
-  useEffect(() => {
-    if (!hostRef.current || !provides) return;
-    const el = hostRef.current.parentElement as HTMLElement;
-
-    const clamp = (z: number) => Math.min(Math.max(z, 0.25), 5);
-
-    // Direct wheel event handling with improved sensitivity
-    const onWheel = (e: WheelEvent) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
-      e.preventDefault();
-
-      // Improved zoom calculation with better sensitivity
-      const sensitivity = 0.05; // Reduced from 0.1 to make it less jumpy
-      const factor = e.deltaY > 0 ? 1 - sensitivity : 1 + sensitivity;
-      const currentZoom = state?.currentZoomLevel ?? 1;
-      const next = clamp(currentZoom * factor);
-
-      provides.requestZoom(next);
-
-      // Trigger zoom settle callback after a delay
-      if (onZoomSettle) {
-        if (zoomTimeoutRef.current) {
-          clearTimeout(zoomTimeoutRef.current);
-        }
-        zoomTimeoutRef.current = setTimeout(onZoomSettle, 300);
-      }
-    };
-
-    // Handle custom zoom events from the outer wheel handler
-    const onZoomCustom = (evt: Event) => {
-      const detail = (evt as CustomEvent).detail;
-
-      const sensitivity = 0.05;
-      const factor = detail.dy > 0 ? 1 - sensitivity : 1 + sensitivity;
-      const currentZoom = state?.currentZoomLevel ?? 1;
-      const next = clamp(currentZoom * factor);
-
-      provides.requestZoom(next);
-
-      if (onZoomSettle) {
-        if (zoomTimeoutRef.current) {
-          clearTimeout(zoomTimeoutRef.current);
-        }
-        zoomTimeoutRef.current = setTimeout(onZoomSettle, 300);
-      }
-    };
-
-    el.addEventListener("wheel", onWheel, { passive: false });
-    el.addEventListener("epdf-zoom-wheel", onZoomCustom);
-
-    return () => {
-      el.removeEventListener("wheel", onWheel);
-      el.removeEventListener("epdf-zoom-wheel", onZoomCustom);
-      if (zoomTimeoutRef.current) {
-        clearTimeout(zoomTimeoutRef.current);
-      }
-    };
-  }, [provides, state?.currentZoomLevel, onZoomSettle]);
-
-  return <div ref={hostRef} />;
 }
 
 function CrispRenderLayer({
@@ -514,10 +383,9 @@ function CrispRenderLayer({
   const { state } = useZoom();
   const zoom = state?.currentZoomLevel ?? 1;
 
-  // Low DPR during motion, higher when settled. Cap to avoid huge canvases.
   const dpr = isScrolling
-    ? Math.min(2, Math.max(1, baseDpr)) // cheap while moving
-    : Math.min(3, Math.max(1, baseDpr * Math.min(2, zoom))); // sharper at rest
+    ? Math.min(2, Math.max(1, baseDpr))
+    : Math.min(3, Math.max(1, baseDpr * Math.min(2, zoom)));
 
   return <RenderLayer key={pageIndex} pageIndex={pageIndex} dpr={dpr} />;
 }
