@@ -230,11 +230,15 @@ export class BooksService {
     return this.convertBookToResponse(book);
   }
 
-  async setLastAccessed(bookId: string): Promise<UpdateLastAccessedResponse> {
-    await this.prisma.book.update({
-      where: { id: bookId },
-      data: { lastAccessed: new Date() },
-    });
+  async setLastAccessed(bookId: string, userId: string): Promise<UpdateLastAccessedResponse> {
+    const book = await this.findBookByIdAndUser(bookId, userId);
+
+    if(book){
+      await this.prisma.book.update({
+        where: { id: bookId },
+        data: { lastAccessed: new Date() },
+      });
+    }
 
     return { bookId };
   }
@@ -323,4 +327,17 @@ export class BooksService {
     return {status: 'success'};
 
   }
+
+   async setBookToFavorite(userId: string, bookId: string, isFavorite: boolean): Promise<{status: string}> {
+    const book = await this.findBookByIdAndUser(bookId, userId);
+    await this.prisma.book.update({
+      where: {
+        id: book.id,
+      },
+      data: {
+        isFavorite,
+      }
+    })
+     return  {status: 'success'};
+   }
 }

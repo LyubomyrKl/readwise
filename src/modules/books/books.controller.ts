@@ -203,9 +203,11 @@ export class BooksController {
     summary: 'Set last accessed file date'
   })
   async setLastAccessed(
+    @Req() req: { user: { userId: string } },
     @Body() dto: UpdateLastAccessedDto,
   ): Promise<UpdateLastAccessedResponse> {
-    return await this.booksService.setLastAccessed(dto.bookId);
+    const { userId } = req.user;
+    return await this.booksService.setLastAccessed(dto.bookId, userId );
   }
 
 
@@ -219,5 +221,19 @@ export class BooksController {
     @Body() dto: UpdateSpentTimeDto,
   ): Promise<{status: string}> {
     return await this.booksService.updateSpentTime(req.user.userId, dto)
+  }
+
+  @Authenticated()
+  @Post('setBookToFavorite')
+  @ApiOperation({
+    summary: 'Set whether book is favorite or not',
+  })
+  async setBookToFavorite(@Req() req: { user: { userId: string } },     @Body() dto: {bookId: string, isFavorite: boolean} ,
+  ) {
+    const { userId } = req.user;
+    const {bookId, isFavorite} = dto;
+
+
+    return await this.booksService.setBookToFavorite(userId, bookId, isFavorite);
   }
 }

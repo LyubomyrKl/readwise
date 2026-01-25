@@ -9,6 +9,7 @@ import {
 } from './auth.models';
 import { Authenticated } from '@/common/authenticated.decorator';
 import { ApiTags } from '@nestjs/swagger';
+import { UserModel } from '@/modules/app.models';
 
 @ApiTags('auth')
 @Controller('auth')
@@ -17,7 +18,7 @@ export class AuthController {
 
   @Post('register')
   async register(@Body() dto: RegisterDto): Promise<AuthBundle> {
-    return await this.auth.register(dto.email, dto.password, dto.name);
+    return await this.auth.register(dto);
   }
 
   @Post('login')
@@ -33,7 +34,7 @@ export class AuthController {
   @Authenticated()
   @Get('me')
   async me(
-    @Req() req: { user: { userId: string; email: string } },
+    @Req() req: UserModel,
   ): Promise<MePayload> {
     return await this.auth.me(req.user.userId);
   }
@@ -41,7 +42,7 @@ export class AuthController {
   @Authenticated()
   @Post('logout')
   async logout(
-    @Req() req: { user: { userId: string; email: string } },
+    @Req() req: UserModel,
   ): Promise<LogoutResult> {
     return await this.auth.logout(req.user.userId);
   }

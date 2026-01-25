@@ -6,9 +6,9 @@ import {
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { PrismaService } from '../../infrastructure/prisma/prisma.service';
+import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { add } from 'date-fns';
-import { RefreshDto } from './auth.dto';
+import { LoginDto, RefreshDto, RegisterDto } from './auth.dto';
 
 interface RefreshPayload {
   sub: string;
@@ -28,11 +28,9 @@ export class AuthService {
     private prisma: PrismaService,
   ) {}
 
-  async register(
-    email: string,
-    password: string,
-    name?: string,
-  ): Promise<AuthBundle> {
+  async register(body: RegisterDto): Promise<AuthBundle> {
+    const {email, password, name} = body;
+
     try {
       const existingUser = await this.prisma.user.findUnique({
         where: { email },
@@ -90,7 +88,7 @@ export class AuthService {
     }
   }
 
-  async login(dto: { email: string; password: string }): Promise<AuthBundle> {
+  async login(dto: LoginDto): Promise<AuthBundle> {
     try {
       const user = await this.validateUser(dto.email, dto.password);
 
@@ -238,53 +236,6 @@ export class AuthService {
       return { accessToken, refreshToken };
     } catch {
       throw new InternalServerErrorException('Failed to issue tokens');
-    }
-  }
-
-  async rotate(userId: string, refreshToken: string): Promise<ServiceTokens> {
-    try {
-      const tokens = await this.prisma.refreshToken.findMany({
-        where: { userId, revokedAt: null },
-      });
-
-      if (tokens.length === 0) {
-        throw new UnauthorizedException('No valid refresh tokens found');
-      }
-
-      const match = await Promise.any(
-        tokens.map(async (t) =>
-          (await argon2.verify(t.tokenHash, refreshToken))
-            ? t
-            : Promise.reject(new Error()),
-        ),
-      ).catch(() => null);
-
-      console.log('Matched refresh token:', match);
-
-      if (!match) {
-        throw new UnauthorizedException('Invalid refresh token');
-      }
-
-      await this.prisma.refreshToken.update({
-        where: { id: match.id },
-        data: { revokedAt: new Date() },
-      });
-
-      const user = await this.prisma.user.findUnique({
-        where: { id: userId },
-        select: { id: true, email: true },
-      });
-
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-
-      return this.issueTokens(user.id, user.email, false);
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
-      throw new InternalServerErrorException('Token rotation failed');
     }
   }
 

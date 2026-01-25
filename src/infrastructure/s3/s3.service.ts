@@ -115,6 +115,7 @@ export class S3Service {
       let result = await reader.read();
 
       while (!result.done) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         chunks.push(result.value);
         result = await reader.read();
       }
@@ -262,6 +263,7 @@ export class S3Service {
       let result = await reader.read();
 
       while (!result.done) {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
         chunks.push(result.value);
         result = await reader.read();
       }
