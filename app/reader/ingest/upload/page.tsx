@@ -1,544 +1,551 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
-import { useDropzone } from "react-dropzone";
-import { Upload, FileText, AlertCircle, CheckCircle, X } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { FileRejection } from "react-dropzone";
+import {
+    FileText,
+    Upload,
+    X,
+    Sparkles,
+    BookOpen,
+    ArrowRight,
+} from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Progress } from "@/components/ui/progress";
-import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useUpload, UploadFile } from "@/app/(providers)/UploadProvider";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import {
+    FileDropZone,
+    UploadQueue,
+} from "@/app/(components)/FileUpload";
+import {
+    useUploadEnhanced,
+    UploadProviderEnhanced,
+    UploadFile,
+} from "@/app/(providers)/UploadProvider";
 import { extractBookMetadata } from "@/lib/bookParser";
+import Link from "next/link";
 
+// Pending file state for editing before upload
 interface PendingFile {
-  id: string;
-  file: File;
-  title: string;
-  author: string;
-  description: string;
-  pageCount: number | null;
-  isParsingMetadata: boolean;
-  extractedCover?: string; // Cover extracted from the book file
-  coverFile?: File;
-  coverPreview?: string; // User-uploaded custom cover
+    id: string;
+    file: File;
+    title: string;
+    author: string;
+    description: string;
+    pageCount: number | null;
+    isParsingMetadata: boolean;
+    extractedCover?: string;
+    coverFile?: File;
+    coverPreview?: string;
 }
 
-export default function UploadPage() {
-  const { uploads, addUploads, removeUpload } = useUpload();
+function BulkUploadContent() {
+    const {
+        uploads,
+        stats,
+        isPaused,
+        addUploads,
+        cancelUpload,
+        removeUpload,
+        retryUpload,
+        pauseUpload,
+        resumeUpload,
+        pauseAll,
+        resumeAll,
+        cancelAll,
+        retryAllFailed,
+        clearCompleted,
+    } = useUploadEnhanced();
 
-  // Local state for files before upload
-  const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+    const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
+    const [expandedFileId, setExpandedFileId] = useState<string | null>(null);
 
-  // Filter uploads to show only those from this session
-  const [sessionUploads, setSessionUploads] = useState<string[]>([]);
-  const currentUploads = uploads.filter((upload) =>
-    sessionUploads.includes(upload.id)
-  );
+    // Handle files dropped/selected
+    const handleFilesAccepted = useCallback(async (files: File[]) => {
+        const newPendingFiles: PendingFile[] = files.map((file) => {
+            const baseName = file.name.replace(/\.[^/.]+$/, "");
+            return {
+                id: crypto.randomUUID(),
+                file,
+                title: baseName,
+                author: "",
+                description: "",
+                pageCount: null,
+                isParsingMetadata: true,
+            };
+        });
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    // Add files to local pending state for editing
-    const newPendingFiles: PendingFile[] = acceptedFiles.map((file) => {
-      const fileName = file.name;
-      const baseName = fileName.replace(/\.[^/.]+$/, "");
+        setPendingFiles((prev) => [...prev, ...newPendingFiles]);
 
-      return {
-        id: crypto.randomUUID(),
-        file,
-        title: baseName,
-        author: "",
-        description: "",
-        pageCount: null,
-        isParsingMetadata: true,
-      };
-    });
+        // Extract metadata asynchronously
+        for (const pendingFile of newPendingFiles) {
+            try {
+                const metadata = await extractBookMetadata(pendingFile.file);
+                const baseName = pendingFile.file.name.replace(/\.[^/.]+$/, "");
 
-    setPendingFiles((prev) => [...prev, ...newPendingFiles]);
+                setPendingFiles((prev) =>
+                    prev.map((f) =>
+                        f.id === pendingFile.id
+                            ? {
+                                ...f,
+                                title: metadata.title || baseName,
+                                author: metadata.author || "",
+                                description: metadata.description || "",
+                                pageCount: metadata.pageCount,
+                                extractedCover: metadata.coverImage,
+                                isParsingMetadata: false,
+                            }
+                            : f
+                    )
+                );
+            } catch (error) {
+                console.error("Failed to extract metadata:", error);
+                setPendingFiles((prev) =>
+                    prev.map((f) =>
+                        f.id === pendingFile.id ? { ...f, isParsingMetadata: false } : f
+                    )
+                );
+            }
+        }
 
-    // Extract metadata for each file asynchronously
-    for (const pendingFile of newPendingFiles) {
-      try {
-        const metadata = await extractBookMetadata(pendingFile.file);
-        console.log('Extracted metadata:', metadata);
+        toast.success(
+            `${files.length} file${files.length !== 1 ? "s" : ""} added to queue`
+        );
+    }, []);
 
-        // Get the base filename without extension
-        const baseName = pendingFile.file.name.replace(/\.[^/.]+$/, "");
+    // Handle file rejections
+    const handleFilesRejected = useCallback((rejections: FileRejection[]) => {
+        const count = rejections.length;
+        toast.error(
+            `${count} file${count !== 1 ? "s" : ""} rejected. Check file type and size.`
+        );
+    }, []);
 
+    // Update pending file field
+    const updatePendingFile = (
+        fileId: string,
+        field: keyof PendingFile,
+        value: string | File | null
+    ) => {
         setPendingFiles((prev) =>
-          prev.map((f) =>
-            f.id === pendingFile.id
-              ? {
-                  ...f,
-                  title: metadata.title || baseName,
-                  author: metadata.author || "",
-                  description: metadata.description || "",
-                  pageCount: metadata.pageCount,
-                  extractedCover: metadata.coverImage,
-                  isParsingMetadata: false,
-                }
-              : f
-          )
+            prev.map((file) =>
+                file.id === fileId ? { ...file, [field]: value } : file
+            )
         );
-      } catch (error) {
-        console.error("Failed to extract metadata:", error);
-        setPendingFiles((prev) =>
-          prev.map((f) =>
-            f.id === pendingFile.id ? { ...f, isParsingMetadata: false } : f
-          )
-        );
-      }
-    }
-  }, []);
-
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      "application/pdf": [".pdf"],
-      "application/epub+zip": [".epub"],
-      "application/epub": [".epub"], // Alternative MIME type for EPUB
-      "application/x-mobipocket-ebook": [".epub"], // Some browsers report this
-      "text/plain": [".txt"],
-    },
-    multiple: true,
-    validator: (file) => {
-      const fileName = file.name.toLowerCase();
-      const allowedExtensions = [".pdf", ".epub", ".txt"];
-      const hasValidExtension = allowedExtensions.some((ext) =>
-        fileName.endsWith(ext)
-      );
-
-      if (!hasValidExtension) {
-        return {
-          code: "invalid-file-type",
-          message: "Only PDF, EPUB, and TXT files are allowed",
-        };
-      }
-      return null; // No errors
-    },
-  });
-
-  const removePendingFile = (fileId: string) => {
-    setPendingFiles((prev) => prev.filter((file) => file.id !== fileId));
-  };
-
-  const removeUploadedFile = (fileId: string) => {
-    removeUpload(fileId);
-    setSessionUploads((prev) => prev.filter((id) => id !== fileId));
-  };
-
-  const updatePendingFile = (
-    fileId: string,
-    field: keyof PendingFile,
-    value: string | File
-  ) => {
-    setPendingFiles((prev) =>
-      prev.map((file) =>
-        file.id === fileId ? { ...file, [field]: value } : file
-      )
-    );
-  };
-
-  const handleCoverUpload = (fileId: string, coverFile: File) => {
-    const coverPreview = URL.createObjectURL(coverFile);
-    setPendingFiles((prev) =>
-      prev.map((file) =>
-        file.id === fileId ? { ...file, coverFile, coverPreview } : file
-      )
-    );
-  };
-
-  const uploadFile = async (pendingFile: PendingFile) => {
-    // Determine MIME type, with fallback for EPUB files
-    let mimeType = pendingFile.file.type;
-    const fileName = pendingFile.file.name.toLowerCase();
-
-    console.log("uploadFile", pendingFile.file);
-
-    if (
-      fileName.endsWith(".epub") &&
-      (!mimeType || mimeType === "application/octet-stream")
-    ) {
-      mimeType = "application/epub+zip";
-      console.log("Fallback MIME type applied for EPUB:", mimeType);
-    } else if (
-      fileName.endsWith(".pdf") &&
-      (!mimeType || mimeType === "application/octet-stream")
-    ) {
-      mimeType = "application/pdf";
-    } else if (
-      fileName.endsWith(".txt") &&
-      (!mimeType || mimeType === "application/octet-stream")
-    ) {
-      mimeType = "text/plain";
-    }
-
-    console.log(
-      "Uploading file with MIME type:",
-      mimeType,
-      "for file:",
-      fileName
-    );
-
-    console.log(sessionUploads);
-
-    // Convert extracted cover to File if no custom cover is provided
-    let coverFileToUpload = pendingFile.coverFile;
-
-    if (!coverFileToUpload && pendingFile.extractedCover) {
-      try {
-        // Convert base64 data URL to Blob
-        const response = await fetch(pendingFile.extractedCover);
-        const blob = await response.blob();
-
-        // Create a File from the Blob
-        coverFileToUpload = new File(
-          [blob],
-          `${pendingFile.file.name.replace(/\.[^/.]+$/, "")}-cover.jpg`,
-          { type: "image/jpeg" }
-        );
-
-        console.log("Converted extracted cover to File:", coverFileToUpload);
-      } catch (error) {
-        console.error("Failed to convert extracted cover to File:", error);
-      }
-    }
-
-    const uploadFile: UploadFile = {
-      title: pendingFile.title,
-      author: pendingFile.author,
-      description: pendingFile.description,
-      fileName: pendingFile.file.name,
-      mime: mimeType,
-      sizeBytes: pendingFile.file.size,
-      pageCount: pendingFile.pageCount,
-      file: pendingFile.file,
-      ...(coverFileToUpload && {
-        customCoverMime: coverFileToUpload.type,
-        customCoverSizeBytes: coverFileToUpload.size,
-        coverFile: coverFileToUpload,
-      }),
     };
 
-    addUploads([uploadFile]);
+    // Handle cover upload
+    const handleCoverUpload = (fileId: string, coverFile: File) => {
+        const coverPreview = URL.createObjectURL(coverFile);
+        setPendingFiles((prev) =>
+            prev.map((file) =>
+                file.id === fileId ? { ...file, coverFile, coverPreview } : file
+            )
+        );
+    };
 
-    // Track this upload and remove from pending
-    setTimeout(() => {
-      const newUploads = uploads.filter(
-        (upload) => upload.name === pendingFile.file.name
-      );
-      setSessionUploads((prev) => [...prev, ...newUploads.map((u) => u.id)]);
-    }, 100);
+    // Remove pending file
+    const removePendingFile = (fileId: string) => {
+        setPendingFiles((prev) => prev.filter((file) => file.id !== fileId));
+    };
 
-    removePendingFile(pendingFile.id);
-  };
+    // Check if pending file is valid
+    const isPendingFileValid = (file: PendingFile) =>
+        file.title.trim() && file.author.trim() && !file.isParsingMetadata;
 
-  const uploadAll = async () => {
-    const validFiles = pendingFiles.filter(
-      (file) =>
-        file.title.trim() && file.author.trim() && file.description.trim()
-    );
+    // Get MIME type with fallback
+    const getMimeType = (file: File): string => {
+        const fileName = file.name.toLowerCase();
+        let mimeType = file.type;
 
-    for (const file of validFiles) {
-      await uploadFile(file);
-    }
-  };
+        if (fileName.endsWith(".epub") && (!mimeType || mimeType === "application/octet-stream")) {
+            return "application/epub+zip";
+        }
+        if (fileName.endsWith(".pdf") && (!mimeType || mimeType === "application/octet-stream")) {
+            return "application/pdf";
+        }
+        if (fileName.endsWith(".txt") && (!mimeType || mimeType === "application/octet-stream")) {
+            return "text/plain";
+        }
+        return mimeType;
+    };
 
-  return (
-    <section className="p-6 max-w-4xl mx-auto space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Upload Books</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Drop PDFs, EPUBs, or text files to add them to your library.
-        </p>
-      </div>
+    // Convert extracted cover to File
+    const convertCoverToFile = async (
+        base64Cover: string,
+        fileName: string
+    ): Promise<File | undefined> => {
+        try {
+            const response = await fetch(base64Cover);
+            const blob = await response.blob();
+            return new File([blob], `${fileName}-cover.jpg`, { type: "image/jpeg" });
+        } catch {
+            return undefined;
+        }
+    };
 
-      {/* Drop Zone */}
-      <Card>
-        <CardContent className="p-6">
-          <div
-            {...getRootProps()}
-            className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-              isDragActive
-                ? "border-primary bg-primary/5"
-                : "border-muted-foreground/25 hover:border-primary/50"
-            }`}
-          >
-            <input {...getInputProps()} />
-            <Upload className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
-            {isDragActive ? (
-              <p className="text-lg">Drop the files here...</p>
-            ) : (
-              <div>
-                <p className="text-lg mb-2">
-                  Drag & drop files here, or click to select
+    // Upload a single pending file
+    const uploadSingleFile = async (pendingFile: PendingFile) => {
+        let coverFileToUpload = pendingFile.coverFile;
+
+        if (!coverFileToUpload && pendingFile.extractedCover) {
+            coverFileToUpload = await convertCoverToFile(
+                pendingFile.extractedCover,
+                pendingFile.file.name.replace(/\.[^/.]+$/, "")
+            );
+        }
+
+        const uploadFile: UploadFile = {
+            title: pendingFile.title,
+            author: pendingFile.author,
+            description: pendingFile.description || "No description provided",
+            fileName: pendingFile.file.name,
+            mime: getMimeType(pendingFile.file),
+            sizeBytes: pendingFile.file.size,
+            pageCount: pendingFile.pageCount,
+            file: pendingFile.file,
+            coverPreview: pendingFile.coverPreview || pendingFile.extractedCover,
+            ...(coverFileToUpload && {
+                customCoverFilename: coverFileToUpload.name,
+                customCoverMime: coverFileToUpload.type,
+                coverFile: coverFileToUpload,
+            }),
+        };
+
+        addUploads([uploadFile]);
+        removePendingFile(pendingFile.id);
+    };
+
+    // Upload all valid pending files
+    const uploadAllPending = async () => {
+        const validFiles = pendingFiles.filter(isPendingFileValid);
+        if (validFiles.length === 0) {
+            toast.error("No valid files to upload. Please fill in required fields.");
+            return;
+        }
+
+        for (const file of validFiles) {
+            await uploadSingleFile(file);
+        }
+
+        toast.success(`Started uploading ${validFiles.length} files`);
+    };
+
+    // Count valid and total pending files
+    const validPendingCount = pendingFiles.filter(isPendingFileValid).length;
+    const totalPendingCount = pendingFiles.length;
+
+    return (
+        <section className="p-6 max-w-4xl mx-auto space-y-8">
+            {/* Header */}
+            <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                    <Upload className="h-6 w-6 text-primary" />
+                    <h1 className="text-2xl font-semibold">Upload Books</h1>
+                </div>
+                <p className="text-muted-foreground">
+                    Drop your files to add them to your library. We support bulk uploads
+                    of PDF, EPUB, and TXT files.
                 </p>
-                <p className="text-sm text-muted-foreground">
-                  Supports PDF, EPUB, and TXT files
-                </p>
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
+            </div>
 
-      {/* Pending Files for Editing */}
-      {pendingFiles.length > 0 && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-medium">
-              Files to Upload ({pendingFiles.length})
-            </h2>
-            <Button
-              onClick={uploadAll}
-              disabled={
-                !pendingFiles.some(
-                  (f) =>
-                    f.title.trim() && f.author.trim() && f.description.trim()
-                )
-              }
-            >
-              Upload All
-            </Button>
-          </div>
+            {/* Drop Zone - Always visible but compact when files exist */}
+            <FileDropZone
+                onFilesAccepted={handleFilesAccepted}
+                onFilesRejected={handleFilesRejected}
+                compact={pendingFiles.length > 0 || uploads.length > 0}
+            />
 
-          <div className="space-y-4">
-            {pendingFiles.map((file) => (
-              <Card key={file.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <CardTitle className="text-base">
-                          {file.file.name}
-                        </CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          {(file.file.size / 1024 / 1024).toFixed(2)} MB
-                          {file.isParsingMetadata && " • Parsing..."}
-                          {!file.isParsingMetadata && file.pageCount !== null && ` • ${file.pageCount} pages`}
-                        </p>
-                      </div>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removePendingFile(file.id)}
+            {/* Pending Files Section */}
+            <AnimatePresence>
+                {pendingFiles.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="space-y-4"
                     >
-                      <X className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </CardHeader>
+                        {/* Section header */}
+                        <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <Sparkles className="h-5 w-5 text-amber-500" />
+                                <h2 className="text-lg font-medium">
+                                    Ready to Upload ({validPendingCount}/{totalPendingCount})
+                                </h2>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={() => setPendingFiles([])}
+                                >
+                                    Clear All
+                                </Button>
+                                <Button
+                                    onClick={uploadAllPending}
+                                    disabled={validPendingCount === 0}
+                                >
+                                    Upload {validPendingCount > 0 ? `(${validPendingCount})` : ""}
+                                </Button>
+                            </div>
+                        </div>
 
-                <CardContent className="space-y-4">
-                  {/* Cover Upload/Preview */}
-                  <div className="flex justify-center">
-                    <div className="relative w-32 h-44 rounded-lg overflow-hidden border bg-muted hover:border-primary transition-colors">
-                      {file.coverPreview || file.extractedCover ? (
-                        <img
-                          src={file.coverPreview || file.extractedCover}
-                          alt={`${file.title} cover`}
-                          className="w-full h-full object-cover"
+                        {/* Pending files grid */}
+                        <div className="grid gap-4">
+                            {pendingFiles.map((file) => (
+                                <Card
+                                    key={file.id}
+                                    className={`transition-all duration-200 ${
+                                        isPendingFileValid(file)
+                                            ? "border-emerald-500/50 bg-emerald-500/5"
+                                            : "border-amber-500/50 bg-amber-500/5"
+                                    }`}
+                                >
+                                    <CardHeader className="pb-3">
+                                        <div className="flex items-start justify-between gap-4">
+                                            <div className="flex items-start gap-3 min-w-0">
+                                                {/* Cover preview */}
+                                                <div className="relative w-12 h-16 rounded border overflow-hidden bg-muted shrink-0 group cursor-pointer">
+                                                    {file.coverPreview || file.extractedCover ? (
+                                                        <img
+                                                            src={file.coverPreview || file.extractedCover}
+                                                            alt="Cover"
+                                                            className="w-full h-full object-cover"
+                                                        />
+                                                    ) : (
+                                                        <div className="w-full h-full flex items-center justify-center">
+                                                            <FileText className="h-6 w-6 text-muted-foreground" />
+                                                        </div>
+                                                    )}
+                                                    <input
+                                                        type="file"
+                                                        accept="image/*"
+                                                        onChange={(e) => {
+                                                            const coverFile = e.target.files?.[0];
+                                                            if (coverFile) handleCoverUpload(file.id, coverFile);
+                                                        }}
+                                                        className="absolute inset-0 opacity-0 cursor-pointer"
+                                                        title="Upload custom cover"
+                                                    />
+                                                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                        <Upload className="h-4 w-4 text-white" />
+                                                    </div>
+                                                </div>
+
+                                                <div className="min-w-0 flex-1">
+                                                    <CardTitle className="text-base truncate">
+                                                        {file.file.name}
+                                                    </CardTitle>
+                                                    <div className="flex items-center gap-2 mt-1">
+                            <span className="text-sm text-muted-foreground">
+                              {(file.file.size / 1024 / 1024).toFixed(1)} MB
+                            </span>
+                                                        {file.isParsingMetadata && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                <span className="animate-pulse">
+                                  Parsing...
+                                </span>
+                                                            </Badge>
+                                                        )}
+                                                        {!file.isParsingMetadata && file.pageCount && (
+                                                            <Badge variant="secondary" className="text-xs">
+                                                                {file.pageCount} pages
+                                                            </Badge>
+                                                        )}
+                                                        {isPendingFileValid(file) ? (
+                                                            <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs">
+                                                                Ready
+                                                            </Badge>
+                                                        ) : (
+                                                            <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs">
+                                                                Needs info
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center gap-2 shrink-0">
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    onClick={() =>
+                                                        setExpandedFileId(
+                                                            expandedFileId === file.id ? null : file.id
+                                                        )
+                                                    }
+                                                >
+                                                    {expandedFileId === file.id ? "Collapse" : "Edit"}
+                                                </Button>
+                                                <Button
+                                                    variant="ghost"
+                                                    size="sm"
+                                                    className="h-8 w-8 p-0"
+                                                    onClick={() => removePendingFile(file.id)}
+                                                >
+                                                    <X className="h-4 w-4" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+
+                                    {/* Expanded edit form */}
+                                    <AnimatePresence>
+                                        {expandedFileId === file.id && (
+                                            <motion.div
+                                                initial={{ height: 0, opacity: 0 }}
+                                                animate={{ height: "auto", opacity: 1 }}
+                                                exit={{ height: 0, opacity: 0 }}
+                                                transition={{ duration: 0.2 }}
+                                                className="overflow-hidden"
+                                            >
+                                                <CardContent className="pt-0 space-y-4">
+                                                    <Separator />
+                                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor={`title-${file.id}`}>
+                                                                Title <span className="text-destructive">*</span>
+                                                            </Label>
+                                                            <Input
+                                                                id={`title-${file.id}`}
+                                                                value={file.title}
+                                                                onChange={(e) =>
+                                                                    updatePendingFile(
+                                                                        file.id,
+                                                                        "title",
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                placeholder="Enter book title"
+                                                            />
+                                                        </div>
+                                                        <div className="space-y-2">
+                                                            <Label htmlFor={`author-${file.id}`}>
+                                                                Author <span className="text-destructive">*</span>
+                                                            </Label>
+                                                            <Input
+                                                                id={`author-${file.id}`}
+                                                                value={file.author}
+                                                                onChange={(e) =>
+                                                                    updatePendingFile(
+                                                                        file.id,
+                                                                        "author",
+                                                                        e.target.value
+                                                                    )
+                                                                }
+                                                                placeholder="Enter author name"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                    <div className="space-y-2">
+                                                        <Label htmlFor={`description-${file.id}`}>
+                                                            Description
+                                                        </Label>
+                                                        <Textarea
+                                                            id={`description-${file.id}`}
+                                                            value={file.description}
+                                                            onChange={(e) =>
+                                                                updatePendingFile(
+                                                                    file.id,
+                                                                    "description",
+                                                                    e.target.value
+                                                                )
+                                                            }
+                                                            placeholder="Enter book description (optional)"
+                                                            rows={2}
+                                                        />
+                                                    </div>
+                                                    <div className="flex justify-end">
+                                                        <Button
+                                                            onClick={() => uploadSingleFile(file)}
+                                                            disabled={!isPendingFileValid(file)}
+                                                            size="sm"
+                                                        >
+                                                            Upload This Book
+                                                            <ArrowRight className="h-4 w-4 ml-1" />
+                                                        </Button>
+                                                    </div>
+                                                </CardContent>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+                                </Card>
+                            ))}
+                        </div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Upload Queue Section */}
+            <AnimatePresence>
+                {uploads.length > 0 && (
+                    <motion.div
+                        initial={{ opacity: 0, y: 20 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -20 }}
+                        className="space-y-4"
+                    >
+                        <div className="flex items-center gap-2">
+                            <BookOpen className="h-5 w-5 text-primary" />
+                            <h2 className="text-lg font-medium">Upload Progress</h2>
+                        </div>
+
+                        <UploadQueue
+                            uploads={uploads}
+                            stats={stats}
+                            isPaused={isPaused}
+                            onCancel={cancelUpload}
+                            onRemove={removeUpload}
+                            onRetry={retryUpload}
+                            onPause={pauseUpload}
+                            onResume={resumeUpload}
+                            onPauseAll={pauseAll}
+                            onResumeAll={resumeAll}
+                            onCancelAll={cancelAll}
+                            onRetryFailed={retryAllFailed}
+                            onClearCompleted={clearCompleted}
                         />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center">
-                          <FileText className="h-10 w-10 text-muted-foreground" />
-                        </div>
-                      )}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const coverFile = e.target.files?.[0];
-                          if (coverFile) {
-                            handleCoverUpload(file.id, coverFile);
-                          }
-                        }}
-                        className="absolute inset-0 opacity-0 cursor-pointer"
-                        title="Click to upload custom cover"
-                      />
-                      {file.coverPreview && (
-                        <div className="absolute top-1 right-1 bg-primary text-primary-foreground text-xs px-1.5 py-0.5 rounded">
-                          Custom
-                        </div>
-                      )}
-                      {!file.coverPreview && file.extractedCover && (
-                        <div className="absolute top-1 right-1 bg-secondary text-secondary-foreground text-xs px-1.5 py-0.5 rounded">
-                          Auto
-                        </div>
-                      )}
-                    </div>
-                  </div>
 
-                  {/* Metadata Form */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <Label htmlFor={`title-${file.id}`}>Title *</Label>
-                      <Input
-                        id={`title-${file.id}`}
-                        value={file.title}
-                        onChange={(e) =>
-                          updatePendingFile(file.id, "title", e.target.value)
-                        }
-                      />
-                    </div>
-                    <div>
-                      <Label htmlFor={`author-${file.id}`}>Author *</Label>
-                      <Input
-                        id={`author-${file.id}`}
-                        value={file.author}
-                        onChange={(e) =>
-                          updatePendingFile(file.id, "author", e.target.value)
-                        }
-                      />
-                    </div>
-                  </div>
+                        {/* Success CTA */}
+                        {stats.completed > 0 && stats.uploading === 0 && (
+                            <motion.div
+                                initial={{ opacity: 0, y: 10 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                className="flex justify-center"
+                            >
+                                <Button asChild variant="outline">
+                                    <Link href="/reader/library">
+                                        View Library
+                                        <ArrowRight className="h-4 w-4 ml-2" />
+                                    </Link>
+                                </Button>
+                            </motion.div>
+                        )}
+                    </motion.div>
+                )}
+            </AnimatePresence>
 
-                  <div>
-                    <Label htmlFor={`description-${file.id}`}>
-                      Description *
-                    </Label>
-                    <Textarea
-                      id={`description-${file.id}`}
-                      value={file.description}
-                      onChange={(e) =>
-                        updatePendingFile(
-                          file.id,
-                          "description",
-                          e.target.value
-                        )
-                      }
-                      rows={2}
-                    />
-                  </div>
+            {/* Empty state */}
+            {pendingFiles.length === 0 && uploads.length === 0 && (
+                <div className="text-center text-muted-foreground py-8">
+                    <p>No files queued. Drop files above or click to browse.</p>
+                </div>
+            )}
+        </section>
+    );
+}
 
-                  {/* Upload Button */}
-                  <Button
-                    onClick={() => uploadFile(file)}
-                    disabled={
-                      !file.title.trim() ||
-                      !file.author.trim() ||
-                      !file.description.trim()
-                    }
-                    className="w-full"
-                  >
-                    Upload This Book
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Upload Status */}
-      {currentUploads.length > 0 && (
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium">
-            Upload Status ({currentUploads.length})
-          </h2>
-
-          <div className="space-y-4">
-            {currentUploads.map((file) => (
-              <Card key={file.id}>
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-center gap-3">
-                      <FileText className="h-8 w-8 text-muted-foreground" />
-                      <div>
-                        <CardTitle className="text-base">{file.name}</CardTitle>
-                        <p className="text-sm text-muted-foreground">
-                          {(file.size / 1024 / 1024).toFixed(2)} MB
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      {file.status === "completed" && (
-                        <CheckCircle className="h-5 w-5 text-green-500" />
-                      )}
-                      {file.status === "error" && (
-                        <AlertCircle className="h-5 w-5 text-red-500" />
-                      )}
-                      {file.status === "uploading" && (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      )}
-                      {file.status === "processing" && (
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => removeUploadedFile(file.id)}
-                        disabled={
-                          file.status === "uploading" ||
-                          file.status === "processing"
-                        }
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardHeader>
-
-                <CardContent className="space-y-4">
-                  {/* Status Display */}
-                  <div className="flex items-center justify-center py-4">
-                    <div className="text-center">
-                      <div className="text-lg font-medium mb-2">
-                        {file.status === "pending" && "Preparing..."}
-                        {file.status === "processing" && "Processing..."}
-                        {file.status === "uploading" && "Uploading..."}
-                        {file.status === "completed" &&
-                          "Successfully uploaded!"}
-                        {file.status === "error" && "Upload failed"}
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Title: {file.title}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Progress */}
-                  {(file.status === "uploading" ||
-                    file.status === "processing") && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span>
-                          {file.status === "uploading"
-                            ? "Uploading..."
-                            : "Processing..."}
-                        </span>
-                        <span>{file.progress}%</span>
-                      </div>
-                      <Progress value={file.progress} />
-                    </div>
-                  )}
-
-                  {/* Error Message */}
-                  {file.status === "error" && file.error && (
-                    <Alert variant="destructive">
-                      <AlertCircle className="h-4 w-4" />
-                      <AlertDescription>{file.error}</AlertDescription>
-                    </Alert>
-                  )}
-
-                  {/* Success Message */}
-                  {file.status === "completed" && (
-                    <Alert>
-                      <CheckCircle className="h-4 w-4" />
-                      <AlertDescription>
-                        Book uploaded and finalized successfully! View it in
-                        your library.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-        </div>
-      )}
-    </section>
-  );
+// Wrap with provider
+export default function BulkUploadPage() {
+    return (
+        <UploadProviderEnhanced>
+            <BulkUploadContent />
+        </UploadProviderEnhanced>
+    );
 }

@@ -1,4 +1,3 @@
-// Re-export all types from schema files for centralized access
 export type {
   PresignReqType,
   FinalizeReqType,

@@ -3,6 +3,7 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/.idea/day-to-day.iml" filepath="$PROJECT_DIR$/.idea/day-to-day.iml" />
+      <module fileurl="file://$PROJECT_DIR$/../summarizer-gateway/.idea/summarizer-gateway.iml" filepath="$PROJECT_DIR$/../summarizer-gateway/.idea/summarizer-gateway.iml" />
     </modules>
   </component>
 </project>

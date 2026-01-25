@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
+import { booksApi} from "@/lib/sdk";
 import type { CreateBookDto } from "@satoru-satoshi/summarize-api-sdk";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as CreateBookDto;
+      console.log('body', 'body');
 
-    const { booksApi } = createServerSdk();
+    const body = (await request.json()) as CreateBookDto;
     const resp = await booksApi.createBookAndPresign({
       createBookDto: body,
     });
@@ -24,14 +24,8 @@ export async function POST(request: NextRequest) {
       },
       { status: resp.status }
     );
-  } catch (error) {
-    console.error("createBookAndPresign error:", error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
-    }
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+  } catch (err) {
+     const error = err as Error;
+     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 }

@@ -133,3 +133,6 @@ export async function deleteTokensFromCookies(
   (await cookies).delete("access_token");
   (await cookies).delete("refresh_token");
 }
+
+
+export const { booksApi, authApi, appApi, usersApi, summarizerApi } = createServerSdk();
