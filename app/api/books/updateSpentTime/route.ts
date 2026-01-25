@@ -1,35 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSdk } from "@/lib/sdk";
 import { z } from "zod";
-
-const UpdateCoverFinalizeReq = z.object({
-  bookId: z.string(),
-  storageKey: z.string(),
-});
+import {UpdateSpentTimeReq} from "@/app/api/books/schemas";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedData = UpdateCoverFinalizeReq.parse(body);
+    const validatedData = UpdateSpentTimeReq.parse(body);
 
     const { booksApi } = createServerSdk();
 
-    const resp = await booksApi.updateCoverFinalize({
-      coverUpdateDto: {
+    const resp = await booksApi.updateTimeSpent({
+      updateSpentTimeDto: {
         bookId: validatedData.bookId,
-        storageKey: validatedData.storageKey,
+        amount: validatedData.amount,
       },
     });
 
-    const out = NextResponse.json(
-      {
-        bookId: validatedData.bookId,
-        status: "ready",
-      },
-      { status: resp.status }
-    );
-
-    return out;
+    return { status: resp.status };
   } catch (error) {
     console.error("Update cover finalize error:", error);
     if (error instanceof Error) {
