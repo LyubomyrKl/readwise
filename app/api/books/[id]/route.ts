@@ -1,5 +1,4 @@
 import { createServerSdk } from "@/lib/sdk";
-import { BookResponse } from "@/app/api/books/schemas";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function GET(
@@ -10,18 +9,13 @@ export async function GET(
     const { id } = await params;
     const { booksApi } = createServerSdk();
 
-    const resp = await booksApi.getBook({
-      id,
-    });
+    const resp = await booksApi.getBook({ id });
 
     if (!resp.data) {
       return NextResponse.json({ error: "Book not found" }, { status: 404 });
     }
 
-    const book = BookResponse.parse(resp.data);
-
-    const out = NextResponse.json({ data: book }, { status: resp.status });
-    return out;
+    return NextResponse.json({ data: resp.data }, { status: resp.status });
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

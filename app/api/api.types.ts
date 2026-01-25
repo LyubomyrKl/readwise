@@ -1,27 +1,37 @@
-import z from "zod";
-import { AuthApiRegistry } from "./auth/schemas";
-import { BooksApiRegistry } from "./books/schemas";
-import { SummarizerApiRegistry } from "./summarizer/schemas";
+// Re-export all types from schema files for centralized access
+export type {
+  PresignReqType,
+  FinalizeReqType,
+  FinalizeCoverReqType,
+  CoverPresignReqType,
+  UpdateCoverFinalizeReqType,
+  UpdateSpentTimeReqType,
+  PresignResType,
+  FinalizeResType,
+  CoverPresignResType,
+  BookResponse,
+  TransformedPresignRes,
+  TransformedCoverPresignRes,
+} from "./books/schemas";
 
-export type Def<
-  RQ extends z.ZodTypeAny | undefined,
-  RS extends z.ZodTypeAny
-> = {
-  req: RQ;
-  res: RS;
-};
+export type {
+  LoginReqType,
+  RegisterReqType,
+  RefreshReqType,
+  AuthBundleType,
+  TokensType,
+  SafeUserType,
+  MePayloadType,
+  LogoutResultType,
+} from "./auth/schemas";
 
-export type Registry = {
-  GET?: Record<string, Def<undefined, z.ZodTypeAny>>;
-  POST?: Record<string, Def<z.ZodTypeAny | undefined, z.ZodTypeAny>>;
-  PUT?: Record<string, Def<z.ZodTypeAny | undefined, z.ZodTypeAny>>;
-  PATCH?: Record<string, Def<z.ZodTypeAny | undefined, z.ZodTypeAny>>;
-  DELETE?: Record<string, Def<z.ZodTypeAny | undefined, z.ZodTypeAny>>;
-};
-
-export const ApiRegistry = {
-  GET: { ...AuthApiRegistry.GET, ...BooksApiRegistry.GET },
-  POST: { ...AuthApiRegistry.POST, ...BooksApiRegistry.POST, ...SummarizerApiRegistry.POST },
-  PUT: {},
-  DELETE: {},
-} as const;
+export type {
+  SummarizeReqType,
+  GetSummaryReqType,
+  SummarizeResType,
+  GetSummaryResType,
+  Summary,
+  SummarySection,
+  SummarySubsection,
+  SummaryResponse,
+} from "./summarizer/schemas";

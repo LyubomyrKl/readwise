@@ -1,29 +1,19 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { createServerSdk } from '@/lib/sdk';
-import { z } from 'zod';
-
-const UpdateCoverFinalizeReq = z.object({
-  bookId: z.string(),
-  storageKey: z.string(),
-});
+import { NextRequest, NextResponse } from "next/server";
+import { createServerSdk } from "@/lib/sdk";
+import type { CoverUpdateDto } from "@satoru-satoshi/summarize-api-sdk";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const validatedData = UpdateCoverFinalizeReq.parse(body);
+    const body = (await request.json()) as CoverUpdateDto;
 
     const { booksApi } = createServerSdk();
-
     const resp = await booksApi.updateCoverFinalize({
-      coverUpdateDto: {
-        bookId: validatedData.bookId,
-        storageKey: validatedData.storageKey,
-      },
+      coverUpdateDto: body,
     });
 
     return NextResponse.json(
       {
-        bookId: validatedData.bookId,
+        bookId: body.bookId,
         status: "ready",
       },
       { status: resp.status }

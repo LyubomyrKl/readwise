@@ -1,52 +1,44 @@
-import { z } from "zod";
-import { Registry } from "../api.types";
-import { BookResponse } from '@/app/api/books/schemas';
+import type {
+  RequestSummaryDto,
+  GetSummaryDto,
+  SummaryRequestResponse,
+} from "@satoru-satoshi/summarize-api-sdk";
+import type { BookResponse } from "@/app/api/books/schemas";
 
-export const SummarizeReq = z.object({
-  bookId: z.string(),
-});
+// Re-export SDK types for convenience
+export type {
+  RequestSummaryDto as SummarizeReqType,
+  GetSummaryDto as GetSummaryReqType,
+  SummaryRequestResponse as SummarizeResType,
+};
 
-export const SummarizeRes = z.object({
-  bookId: z.string(),
-  userId: z.string(),
-  message: z.string(),
-  success: z.boolean(),
-  summaryKey: z.string().optional().nullable(),
-});
+// Summary section structure
+export interface SummarySubsection {
+  id: string;
+  title: string;
+  level: string;
+  start_char: number;
+  end_char: number;
+  content: string;
+}
 
-export const GetSummaryReq = z.object({
-  bookId: z.string(),
-});
+export interface SummarySection {
+  id: string;
+  title: string;
+  level: string;
+  start_char: number;
+  end_char: number;
+  content: string;
+  subsections?: SummarySubsection[];
+}
 
-export const GetSummaryRes =   z.object({
-  ...BookResponse.shape,
-  summary: z.object({
-    sections: z.array(
-      z.object({
-        id: z.string(),
-        title: z.string(),
-        level: z.string(),
-        start_char: z.number(),
-        end_char: z.number(),
-        content: z.string(),
-        subsections: z.array(
-          z.object({
-            id: z.string(),
-            title: z.string(),
-            level: z.string(),
-            start_char: z.number(),
-            end_char: z.number(),
-            content: z.string(),
-          })
-        ).optional(),
-      })
-    ),
-  }),
-}) ;
+export interface Summary {
+  sections: SummarySection[];
+}
 
-export const SummarizerApiRegistry = {
-  POST: {
-    "/api/summarizer": { req: SummarizeReq, res: SummarizeRes },
-    "/api/summarizer/get-summary": { req: GetSummaryReq, res: GetSummaryRes },
-  },
-} satisfies Registry;
+// Extended SummaryResponse with correct types
+export interface SummaryResponse extends BookResponse {
+  summary: Summary;
+}
+
+export type GetSummaryResType = SummaryResponse;

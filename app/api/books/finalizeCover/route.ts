@@ -1,30 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { FinalizeCoverReq } from "../schemas";
 import { createServerSdk } from "@/lib/sdk";
-import z from "zod";
+import type { FinalizeCoverDto } from "@satoru-satoshi/summarize-api-sdk";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = (await request.json()) as z.infer<typeof FinalizeCoverReq>;
-
-    const validatedData = FinalizeCoverReq.parse(body);
+    const body = (await request.json()) as FinalizeCoverDto;
 
     const { booksApi } = createServerSdk();
     const resp = await booksApi.finalizeCover({
-      finalizeCoverDto: {
-        bookId: validatedData.bookId,
-      },
+      finalizeCoverDto: body,
     });
 
-    const out = NextResponse.json(
+    return NextResponse.json(
       {
         bookId: body.bookId,
         status: "ready",
       },
       { status: resp.status }
     );
-
-    return out;
   } catch (error) {
     if (error instanceof Error) {
       return NextResponse.json({ error: error.message }, { status: 400 });

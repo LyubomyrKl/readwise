@@ -1,4 +1,3 @@
-import z from "zod";
-import type { BookResponse } from "../api/books/schemas";
+import type { BookResponse } from "@/app/api/books/schemas";
 
-export type IBook = z.infer<typeof BookResponse>;
+export type IBook = BookResponse;

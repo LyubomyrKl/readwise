@@ -6,6 +6,7 @@ import { Loader2 } from "lucide-react";
 import BookProfile from "@/app/reader/book/[id]/(components)/BookProfile";
 import { IBook } from "../../../types";
 import { ROUTES } from "@/app/(consts)/routes";
+import {apiFetch} from "@/lib/fetcher";
 
 export default function BookProfilePage() {
   const params = useParams();
@@ -15,6 +16,7 @@ export default function BookProfilePage() {
   const [book, setBook] = useState<IBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
 
   useEffect(() => {
     async function fetchBook() {

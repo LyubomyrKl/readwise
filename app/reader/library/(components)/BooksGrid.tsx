@@ -6,6 +6,7 @@ import { IBook } from "../../types";
 import { BookCard } from "./BookCard";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 import { ROUTES } from "@/app/(consts)/routes";
+import {apiFetch} from "@/lib/fetcher";
 
 interface BooksGridProps {
   books: IBook[];
@@ -17,6 +18,8 @@ interface BooksGridProps {
 export function BooksGrid({ books, filteredBooks, loading, error }: BooksGridProps) {
   const { enabled } = useMotion();
   const Child: any = enabled ? motion.div : "div";
+
+  const res = apiFetch("GET", "/api/books/[id]");
 
   if (loading) {
     return (
