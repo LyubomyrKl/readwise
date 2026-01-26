@@ -14,6 +14,7 @@ import {
 } from 'class-validator';
 import { Transform } from 'class-transformer';
 import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants';
+import type { JsonValue } from '@prisma/client/runtime/edge';
 
 export class NoteResponse {
   @ApiProperty()
@@ -29,7 +30,7 @@ export class NoteResponse {
   body!: string;
 
   @ApiProperty()
-  anchor: string;
+  anchor: JsonValue;
 
   @ApiProperty()
   isPinned!: boolean;
@@ -64,7 +65,7 @@ export class HighlightResponse {
   text!: string;
 
   @ApiProperty()
-  anchorJ!: string;
+  anchor!: JsonValue;
 
   @ApiProperty({ nullable: true })
   noteId?: string | null;
@@ -365,10 +366,8 @@ export class CreateBookDto {
   @ApiPropertyOptional({
     description: 'Page Number',
     example: 100,
-    minimum: 1,
     maximum: BOOK_CONSTRAINTS.MAX_PAGE_COUNT,
   })
-  @IsOptional()
   @IsNumber()
   pageCount?: number;
 }

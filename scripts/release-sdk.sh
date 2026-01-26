@@ -1,23 +1,16 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-API_URL="${API_URL:-http://localhost:5173/api/docs-json}"
 REPO_SSH="git@github.com:SatoruSatoshi/summarize-api-sdk.git"
 PKG_NAME="@satoru-satoshi/summarize-api-sdk"
 
 GEN_DIR=".sdk-gen"    # temp generation
 REPO_DIR="sdk"        # persistent repo checkout
-SPEC_JSON="$GEN_DIR-spec.json"
+SPEC_JSON="openapi/openapi.json"
 
-# -------- 0) optional: make Nest produce clean operationIds --------
-# In your NestJS swagger bootstrap (recommended):
-# SwaggerModule.createDocument(app, config, {
-#   operationIdFactory: (_controllerKey, methodKey) => methodKey,
-# });
-
-# -------- 1) fetch spec and normalize operationIds (safety net) ----
-mkdir -p "$GEN_DIR"
-curl -sS "$API_URL" > "$SPEC_JSON"
+# -------- 1) generate spec statically (no running server needed) ----
+echo "Generating OpenAPI spec..."
+npx ts-node -r tsconfig-paths/register scripts/generate-openapi.ts
 
 # remove typical controller prefixes like "UsersController_updateMe" -> "updateMe"
 # and "UsersController.updateMe" -> "updateMe"
@@ -32,7 +25,7 @@ jq '
       else . end
     )
   )
-' "$SPEC_JSON" > "$SPEC_JSON.tmp" && mv "$SPEC_JSON.tmp" "$SPEC_JSON"
+' "$SPEC_JSON" > "${SPEC_JSON}.tmp" && mv "${SPEC_JSON}.tmp" "$SPEC_JSON"
 
 # -------- 2) generate into a TEMP folder ---------------------------
 rm -rf "$GEN_DIR"
@@ -66,7 +59,7 @@ fi
 #PREV_HASH="$(cat "$REPO_DIR/.spec-hash" 2>/dev/null || true)"
 #if [ "$SPEC_HASH" = "$PREV_HASH" ]; then
 #  echo "No SDK changes. Skip release."
-#  rm -rf "$GEN_DIR" "$SPEC_JSON"
+#  rm -rf "$GEN_DIR"
 #  exit 0
 #fi
 
@@ -133,7 +126,7 @@ git push origin main
 git push origin "v${NEW_VER}" || true
 
 popd >/dev/null
-rm -rf "$GEN_DIR" "$SPEC_JSON"
+rm -rf "$GEN_DIR"
 
 echo "Released v${NEW_VER}"
 echo "Install: npm i $PKG_NAME"

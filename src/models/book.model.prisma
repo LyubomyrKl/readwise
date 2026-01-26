@@ -6,7 +6,7 @@ model Book {
   description    String?
   customCoverStorageKey    String?
   spentTime      Int      @default(0)
-  pageCount      Int?     @default(0)
+  pageCount      Int      @default(0)
   pagePassCount  Int      @default(0)
   isFinished     Boolean  @default(false)
   isFavorite     Boolean  @default(false)
