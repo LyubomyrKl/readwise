@@ -1,15 +1,18 @@
 import { createServerSdk } from "@/lib/sdk";
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import axios from "axios";
 
-export async function GET(req: NextRequest) {
+export async function GET() {
   try {
     const { booksApi } = createServerSdk();
     const resp = await booksApi.getAllBooks();
 
     return NextResponse.json(resp.data ?? [], { status: resp.status });
   } catch (error) {
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
+      });
     }
     return NextResponse.json(
       { error: "Internal server error" },

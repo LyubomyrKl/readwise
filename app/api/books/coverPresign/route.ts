@@ -1,6 +1,7 @@
 import { createServerSdk } from "@/lib/sdk";
 import { NextRequest, NextResponse } from "next/server";
 import type { PresignedUploadDto } from "@satoru-satoshi/summarize-api-sdk";
+import axios from "axios";
 
 export async function POST(request: NextRequest) {
   try {
@@ -23,9 +24,10 @@ export async function POST(request: NextRequest) {
       { status: resp.status }
     );
   } catch (error) {
-    console.error("Cover presign error:", error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
+      });
     }
     return NextResponse.json(
       { error: "Internal server error" },

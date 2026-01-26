@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSdk } from "@/lib/sdk";
 import type { FinalizeBookDto } from "@satoru-satoshi/summarize-api-sdk";
+import axios from "axios";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as FinalizeBookDto;
-
     const { booksApi } = createServerSdk();
     const resp = await booksApi.finalizeBook({
       finalizeBookDto: body,
@@ -20,9 +20,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(resp.data, { status: resp.status });
   } catch (error) {
-    console.error("[finalize] Error:", error);
-    if (error instanceof Error) {
-      return NextResponse.json({ error: error.message }, { status: 400 });
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
+      });
     }
     return NextResponse.json(
       { error: "Internal server error" },
