@@ -83,7 +83,7 @@ export class BooksController {
     @Req() req: UserModel,
     @Param('id') id: string,
   ): Promise<BookResponse> {
-    return this.booksService.getBook(req.user.userId, id);
+      return this.booksService.getBook(req.user.userId, id);
   }
 
   @Authenticated()

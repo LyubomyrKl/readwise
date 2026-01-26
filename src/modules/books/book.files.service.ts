@@ -11,8 +11,6 @@ import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { PresignInfo } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
-import { ConfigService } from '@nestjs/config';
-import { EnvironmentVariables } from '@/config/env.validation';
 import { SuccessEmptyResponse } from '@/app.models';
 
 @Injectable()
@@ -22,7 +20,6 @@ export class BookFilesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly s3: S3Service,
-    private readonly config: ConfigService<EnvironmentVariables>
   ) {}
 
   private async findReadyBookByIdAndUser(

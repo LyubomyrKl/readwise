@@ -231,7 +231,7 @@ export class BooksService {
 
   async getBook(userId: string, bookId: string): Promise<BookResponse> {
     const book = await this.findBookByIdAndUser(bookId, userId);
-    return this.convertBookToResponse(book);
+    return await this.convertBookToResponse(book);
   }
 
   async setLastAccessed(bookId: string, userId: string): Promise<UpdateLastAccessedResponse> {
@@ -260,7 +260,7 @@ export class BooksService {
     userId: string,
     bookId: string,
   ): Promise<SuccessEmptyResponse> {
-    return this.bookFilesService.finalizeCoverUpload(userId, bookId);
+    return await this.bookFilesService.finalizeCoverUpload(userId, bookId);
   }
 
   async coverPresign(

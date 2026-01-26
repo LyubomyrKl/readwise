@@ -8,6 +8,7 @@ import {
   BookWithRelations,
 } from '@/modules/books/book.helpers';
 import { BookResponse } from '@/modules/books/book.models';
+import { BOOK_ERROR_MESSAGES} from "@/modules/books/book.constants";
 
 @Injectable()
 export class SummarizerService {
@@ -60,7 +61,7 @@ export class SummarizerService {
     });
 
     if (!book) {
-      throw new NotFoundException('Book not found');
+      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_NOT_FOUND);
     }
 
     if (book.summaryStorageKey) {
@@ -93,7 +94,7 @@ export class SummarizerService {
     });
 
     if (!book) {
-      throw new NotFoundException('Book not found');
+      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_NOT_FOUND);
     }
 
     if (!book.summaryStorageKey) {
