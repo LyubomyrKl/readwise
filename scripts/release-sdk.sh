@@ -63,12 +63,12 @@ else
   git -C "$REPO_DIR" reset --hard origin/main
 fi
 
-PREV_HASH="$(cat "$REPO_DIR/.spec-hash" 2>/dev/null || true)"
-if [ "$SPEC_HASH" = "$PREV_HASH" ]; then
-  echo "No SDK changes. Skip release."
-  rm -rf "$GEN_DIR" "$SPEC_JSON"
-  exit 0
-fi
+#PREV_HASH="$(cat "$REPO_DIR/.spec-hash" 2>/dev/null || true)"
+#if [ "$SPEC_HASH" = "$PREV_HASH" ]; then
+#  echo "No SDK changes. Skip release."
+#  rm -rf "$GEN_DIR" "$SPEC_JSON"
+#  exit 0
+#fi
 
 # -------- 5) sync into repo without losing history -----------------
 rsync -a --delete \

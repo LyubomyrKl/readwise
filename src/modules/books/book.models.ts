@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { BookStatus, BookTag, Note, Highlight } from '@prisma/client';
+import type { BookStatus } from '@prisma/client';
 import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
 
 import {
@@ -12,9 +12,83 @@ import {
   Length,
   Matches,
 } from 'class-validator';
-import { } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants';
+
+export class NoteResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  bookId!: string;
+
+  @ApiProperty()
+  body!: string;
+
+  @ApiProperty()
+  anchor: string;
+
+  @ApiProperty()
+  isPinned!: boolean;
+
+  @ApiProperty()
+  isArchived!: boolean;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+
+  @ApiProperty({ nullable: true })
+  deletedAt?: Date | null;
+}
+
+export class HighlightResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  userId!: string;
+
+  @ApiProperty()
+  bookId!: string;
+
+  @ApiProperty({ nullable: true })
+  color?: string | null;
+
+  @ApiProperty()
+  text!: string;
+
+  @ApiProperty()
+  anchorJ!: string;
+
+  @ApiProperty({ nullable: true })
+  noteId?: string | null;
+
+  @ApiProperty()
+  createdAt!: Date;
+
+  @ApiProperty()
+  updatedAt!: Date;
+
+  @ApiProperty({ nullable: true })
+  deletedAt?: Date | null;
+}
+
+export class BookTagResponse {
+  @ApiProperty()
+  bookId!: string;
+
+  @ApiProperty()
+  tagId!: string;
+
+  @ApiProperty()
+  createdAt!: Date;
+}
 
 export class PresignInfo {
   @ApiProperty({ description: 'Presigned upload URL' })
@@ -75,17 +149,17 @@ export class BookResponse {
   @ApiProperty()
   author!: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty()
   coverUrl?: string;
 
-  @ApiProperty({ required: true })
+  @ApiProperty()
   fileUrl!: string;
 
   @ApiProperty()
   spentTime!: number;
 
-  @ApiProperty({ required: false })
-  pageCount?: number | null;
+  @ApiProperty()
+  pageCount: number;
 
   @ApiProperty()
   pagePassCount!: number;
@@ -111,14 +185,14 @@ export class BookResponse {
   @ApiProperty()
   status!: string;
 
-  @ApiProperty()
-  notes!: Note[];
+  @ApiProperty({ type: [NoteResponse] })
+  notes!: NoteResponse[];
 
-  @ApiProperty()
-  highlights!: Highlight[];
+  @ApiProperty({ type: [HighlightResponse] })
+  highlights!: HighlightResponse[];
 
-  @ApiProperty()
-  tags!: BookTag[];
+  @ApiProperty({ type: [BookTagResponse] })
+  tags!: BookTagResponse[];
 
   @ApiProperty()
   createdAt!: Date;
