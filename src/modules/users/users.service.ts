@@ -2,8 +2,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { User } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
-
-type PublicUser = Omit<User, 'passwordHash'>;
+import  { PublicUser} from '@/modules/users/user.dto';
 
 @Injectable()
 export class UsersService {

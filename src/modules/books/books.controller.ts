@@ -7,7 +7,7 @@ import {
   Req,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiParam } from '@nestjs/swagger';
 import type { Response } from 'express';
 
 import { BooksService } from './books.service';
@@ -20,9 +20,6 @@ import {
   UpdateSpentTimeDto,
   CoverUpdateDto,
   UpdateLastAccessedDto,
-} from './book.models';
-
-import {
   PresignResponse,
   FinalizeResponse,
   BookResponse,
@@ -30,7 +27,7 @@ import {
   UpdateLastAccessedResponse,
 } from './book.models';
 
-import { Authenticated } from '@/common/authenticated.decorator';
+import { ApiEndpoint } from '@/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@/app.models';
 
 @ApiTags('books')
@@ -38,9 +35,8 @@ import { SuccessEmptyResponse, UserModel } from '@/app.models';
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
-  @Authenticated()
   @Post('presign')
-  @ApiOperation({ summary: 'Create book and presign upload' })
+  @ApiEndpoint({ summary: 'Create book and presign upload', response: PresignResponse })
   createBookAndPresign(
     @Req() req: UserModel,
     @Body() dto: CreateBookDto,
@@ -48,9 +44,8 @@ export class BooksController {
     return this.booksService.createBookAndPresign(req.user.userId, dto);
   }
 
-  @Authenticated()
   @Post('finalize')
-  @ApiOperation({ summary: 'Finalize book upload' })
+  @ApiEndpoint({ summary: 'Finalize book upload', response: FinalizeResponse })
   finalizeBook(
     @Req() req: UserModel,
     @Body() dto: FinalizeBookDto,
@@ -58,9 +53,8 @@ export class BooksController {
     return this.booksService.finalizeBook(req.user.userId, dto.bookId);
   }
 
-  @Authenticated()
   @Post('cover/finalize')
-  @ApiOperation({ summary: 'Finalize cover upload' })
+  @ApiEndpoint({ summary: 'Finalize cover upload', response: SuccessEmptyResponse })
   finalizeCover(
     @Req() req: UserModel,
     @Body() dto: FinalizeCoverDto,
@@ -68,27 +62,25 @@ export class BooksController {
     return this.booksService.finalizeCoverUpload(req.user.userId, dto.bookId);
   }
 
-  @Authenticated()
   @Get()
-  @ApiOperation({ summary: 'Get user books' })
+  @ApiEndpoint({ summary: 'Get user books', response: [BookResponse] })
   getAllBooks(@Req() req: UserModel): Promise<BookResponse[]> {
     return this.booksService.getAllBooks(req.user.userId);
   }
 
-  @Authenticated()
   @Get(':id')
-  @ApiOperation({ summary: 'Get book by id' })
   @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get book by id', response: BookResponse })
   getBook(
     @Req() req: UserModel,
     @Param('id') id: string,
   ): Promise<BookResponse> {
-      return this.booksService.getBook(req.user.userId, id);
+    return this.booksService.getBook(req.user.userId, id);
   }
 
-  @Authenticated()
   @Get(':id/download')
-  @ApiOperation({ summary: 'Download book file' })
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Download book file', response: SuccessEmptyResponse })
   downloadBook(
     @Req() req: UserModel,
     @Param('id') id: string,
@@ -97,9 +89,8 @@ export class BooksController {
     return this.booksService.downloadBook(req.user.userId, id, res);
   }
 
-  @Authenticated()
   @Post('cover/presign')
-  @ApiOperation({ summary: 'Presign cover upload' })
+  @ApiEndpoint({ summary: 'Presign cover upload', response: CoverPresignResponse })
   coverPresign(
     @Req() req: UserModel,
     @Body() dto: PresignedUploadDto,
@@ -107,9 +98,8 @@ export class BooksController {
     return this.booksService.coverPresign(req.user.userId, dto);
   }
 
-  @Authenticated()
   @Post('cover/update')
-  @ApiOperation({ summary: 'Finalize cover update' })
+  @ApiEndpoint({ summary: 'Finalize cover update', response: FinalizeResponse })
   updateCoverFinalize(
     @Req() req: UserModel,
     @Body() dto: CoverUpdateDto,
@@ -117,9 +107,8 @@ export class BooksController {
     return this.booksService.coverUpdateFinalize(req.user.userId, dto);
   }
 
-  @Authenticated()
   @Post('last-accessed')
-  @ApiOperation({ summary: 'Update last accessed time' })
+  @ApiEndpoint({ summary: 'Update last accessed time', response: UpdateLastAccessedResponse })
   setLastAccessed(
     @Req() req: UserModel,
     @Body() dto: UpdateLastAccessedDto,
@@ -127,9 +116,8 @@ export class BooksController {
     return this.booksService.setLastAccessed(dto.bookId, req.user.userId);
   }
 
-  @Authenticated()
   @Post('time-spent')
-  @ApiOperation({ summary: 'Update time spent' })
+  @ApiEndpoint({ summary: 'Update time spent', response: SuccessEmptyResponse })
   updateTimeSpent(
     @Req() req: UserModel,
     @Body() dto: UpdateSpentTimeDto,
@@ -137,9 +125,8 @@ export class BooksController {
     return this.booksService.updateSpentTime(req.user.userId, dto);
   }
 
-  @Authenticated()
   @Post('favorite')
-  @ApiOperation({ summary: 'Set book favorite flag' })
+  @ApiEndpoint({ summary: 'Set book favorite flag', response: SuccessEmptyResponse })
   setBookToFavorite(
     @Req() req: UserModel,
     @Body() dto: SetBookToFavoriteDto,

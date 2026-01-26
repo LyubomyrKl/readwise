@@ -38,13 +38,13 @@ export class NoteResponse {
   @ApiProperty()
   isArchived!: boolean;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'string', format: 'date-time' })
   createdAt!: Date;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'string', format: 'date-time' })
   updatedAt!: Date;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: 'string', format: 'date-time', nullable: true })
   deletedAt?: Date | null;
 }
 
@@ -70,13 +70,13 @@ export class HighlightResponse {
   @ApiProperty({ nullable: true })
   noteId?: string | null;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'string', format: 'date-time' })
   createdAt!: Date;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'string', format: 'date-time' })
   updatedAt!: Date;
 
-  @ApiProperty({ nullable: true })
+  @ApiProperty({ type: 'string', format: 'date-time', nullable: true })
   deletedAt?: Date | null;
 }
 
@@ -87,7 +87,7 @@ export class BookTagResponse {
   @ApiProperty()
   tagId!: string;
 
-  @ApiProperty()
+  @ApiProperty({ type: 'string', format: 'date-time' })
   createdAt!: Date;
 }
 
@@ -175,7 +175,7 @@ export class BookResponse {
   summaryKey?: string | null;
 
   @ApiProperty()
-  lastAccessed?: Date | null;
+  lastAccessed: Date | null;
 
   @ApiProperty()
   mime!: string;
