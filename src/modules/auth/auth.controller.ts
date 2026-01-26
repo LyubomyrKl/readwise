@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Post, Req } from '@nestjs/common';
 import { AuthService } from './auth.service';
-import { RegisterDto, LoginDto, RefreshDto } from './auth.dto';
+import { RegisterDto, LoginDto, RefreshDto } from './auth.models';
 import {
   AuthBundle,
   RefreshBundle,

@@ -14,3 +14,7 @@ Generates SQL migrations for any schema changes.
 Connects to the DB at DATABASE_URL (from .env).
 Applies migrations there (creates/updates tables).
 Also regenerates the Prisma Client automatically after migration.
+
+npm run db:merge-migrate →
+creates single schema.prisma file from all models
+executes prisma generate + prisma migrate

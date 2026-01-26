@@ -80,4 +80,3 @@ model Highlight {
 
   @@index([userId, bookId, createdAt])
 }
-  

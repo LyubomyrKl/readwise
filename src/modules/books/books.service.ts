@@ -107,6 +107,8 @@ export class BooksService {
     userId: string,
     dto: CreateBookDto,
   ): Promise<PresignResponse> {
+
+
     const bookFilePresignInfo =
       await this.bookFilesService.generateBookFilePresign(
         userId,
