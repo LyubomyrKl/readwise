@@ -19,8 +19,6 @@ export function BooksGrid({ books, filteredBooks, loading, error }: BooksGridPro
   const { enabled } = useMotion();
   const Child: any = enabled ? motion.div : "div";
 
-  const res = apiFetch("GET", "/api/books/[id]");
-
   if (loading) {
     return (
       <div className="mt-8 flex justify-center">

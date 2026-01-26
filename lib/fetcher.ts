@@ -52,15 +52,34 @@ type ResOf<M extends Methods, P extends Paths<M>> = DefOf<M, P> extends { res: i
   ? R
   : never;
 
+// Extract path parameters like [id] from path strings
+type ExtractParams<T extends string> = T extends `${string}[${infer Param}]${infer Rest}`
+  ? Param | ExtractParams<Rest>
+  : never;
+
+// If path has params, require them; otherwise params is optional/undefined
+type PathParams<P extends string> = ExtractParams<P> extends never
+  ? undefined
+  : Record<ExtractParams<P>, string>;
+
 export async function apiFetch<M extends Methods, P extends Paths<M>>(
   method: M,
   path: P,
   body?: ReqOf<M, P>,
+  params?: PathParams<P & string>,
   init: RequestInit = {}
 ): Promise<ResOf<M, P>> {
   const hasBody = method !== "GET" && body !== undefined;
 
-  const r = await fetch(path as string, {
+  // Replace [param] placeholders with actual values
+  let resolvedPath = path as string;
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      resolvedPath = resolvedPath.replace(`[${key}]`, value as string);
+    }
+  }
+
+  const r = await fetch(resolvedPath, {
     method: method as string,
     credentials: "include",
     body: hasBody ? JSON.stringify(body) : undefined,
@@ -75,7 +94,7 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
 
   if (!r.ok) {
     const errorMsg = await safeMsg(r);
-    console.error(`API Error [${method} ${String(path)}]:`, errorMsg, "Status:", r.status);
+    console.error(`API Error [${method} ${resolvedPath}]:`, errorMsg, "Status:", r.status);
     throw new Error(errorMsg ?? `Request failed with status code ${r.status}`);
   }
 

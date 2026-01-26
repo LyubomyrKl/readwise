@@ -7,6 +7,7 @@ import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "@/app/reader/book/[id]/(components)/PDFReader";
 import EPUBReader from "@/app/reader/book/[id]/(components)/EPUBReader";
 import { IBook } from "../../../types";
+import {apiFetch} from "@/lib/fetcher";
 
 export default function BookReaderPage() {
   const params = useParams();
@@ -21,16 +22,9 @@ export default function BookReaderPage() {
     async function fetchBook() {
       try {
         setLoading(true);
-        const response = await fetch(`/api/books/${bookId}`, {
-          credentials: "include",
-        });
+        const response = await apiFetch('GET', '/api/books/[id]', undefined, { id: bookId });
 
-        if (!response.ok) {
-          throw new Error(`Failed to fetch book: ${response.status}`);
-        }
-
-        const bookData = await response.json();
-        setBook(bookData.data);
+        setBook(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
       } finally {

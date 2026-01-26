@@ -1,15 +1,14 @@
 import {createServerSdk} from "@/lib/sdk";
 import {NextResponse} from "next/server";
 
-export async function updateLastAccessed(req: { bookId: string  }) {
+export async function POST(req: { bookId: string  }) {
     try {
         const { bookId } = req;
         const { booksApi } = createServerSdk();
 
-        const resp = await booksApi.updateTimeSpent({
-            updateSpentTimeDto: {
-                bookId,
-                amount: 1000,
+        const resp = await booksApi.setLastAccessed({
+            updateLastAccessedDto: {
+                bookId
             }
         });
 

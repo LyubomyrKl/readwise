@@ -11,10 +11,6 @@ export async function GET(
 
     const resp = await booksApi.getBook({ id });
 
-    if (!resp.data) {
-      return NextResponse.json({ error: "Book not found" }, { status: 404 });
-    }
-
     return NextResponse.json({ data: resp.data }, { status: resp.status });
   } catch (error) {
     if (error instanceof Error) {

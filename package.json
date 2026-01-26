@@ -9,7 +9,8 @@
     "lint": "next lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "postinstall": "mkdir -p public/pdf-worker && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf-worker/ || true"
+    "postinstall": "mkdir -p public/pdf-worker && cp node_modules/pdfjs-dist/build/pdf.worker.min.mjs public/pdf-worker/ || true",
+    "sdk:install": "npm i github:SatoruSatoshi/summarize-api-sdk#main"
   },
   "dependencies": {
     "@embedpdf/core": "^1.0.19",

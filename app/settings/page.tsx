@@ -25,6 +25,7 @@ import {
 } from "@/components/ui/select";
 import { ROUTES } from "../(consts)/routes";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/fetcher";
 
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
@@ -55,19 +56,8 @@ export default function SettingsPage() {
   async function logout() {
     start(async () => {
       try {
-        // The API will handle the redirect automatically
-        const response = await fetch("/api/auth/logout", {
-          method: "POST",
-          redirect: "follow", // Follow the redirect automatically
-        });
-        
-        if (response.redirected) {
-          // The server redirected us, go to that URL
-          window.location.href = response.url;
-        } else {
-          // Fallback redirect
-          location.assign(ROUTES.auth.login);
-        }
+        await apiFetch("POST", "/api/auth/logout", {});
+        location.assign(ROUTES.auth.login);
       } catch (e) {
         toast.error("Logout failed", {
           description: "Please try again later.",
