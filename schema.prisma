@@ -13,8 +13,8 @@ model Book {
   userId                String
   title                 String
   author                String
-  spentTime            Int           @default(0)
-  pageCount             Int?
+  spentTime             Int           @default(0)
+  pageCount             Int
   pagePassCount         Int           @default(0)
   isFinished            Boolean       @default(false)
   isFavorite            Boolean       @default(false)
@@ -25,10 +25,9 @@ model Book {
   createdAt             DateTime      @default(now())
   updatedAt             DateTime
   description           String?
-  lastAccessed          DateTime?     @default(now())
+  lastAccessed          DateTime     @default(now())
   customCoverStorageKey String?
   fileStorageKey        String
-  customCoverSizeBytes  BigInt?
   extractionStorageKey  String?
   summaryType           SummaryType?
   summaryStorageKey     String?

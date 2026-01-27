@@ -15,7 +15,7 @@ from shared.database import DatabaseManager
 from shared.messaging import RabbitMQManager
 from pdf_extractor import SimplePDFExtractor
 from epub_extractor import SimpleEPUBExtractor
-
+# 
 load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
@@ -258,7 +258,7 @@ if __name__ == "__main__":
             error_msg = str(e)
 
             # Check if we should retry
-            if max_reconnect_attempts > 0 and attempt >= max_reconnect_attempts:
+            if 0 < max_reconnect_attempts <= attempt:
                 logger.error(f"❌ [{worker.worker_id}] Max reconnection attempts ({max_reconnect_attempts}) reached. Exiting.")
                 exit(1)
 

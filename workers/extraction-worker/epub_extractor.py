@@ -1,7 +1,7 @@
 #!/opt/anaconda3/bin/python
 
 import ebooklib
-from ebooklib import epub
+from  ebooklib import epub
 import re
 import boto3
 import tempfile
@@ -225,16 +225,31 @@ class SimpleEPUBExtractor:
         logger.info(f"Content cleaning: {len(text)} -> {len(cleaned_text)} characters")
         return cleaned_text.strip()
     
+    def _sanitize_for_s3_metadata(self, value: str) -> str:
+        """
+        Sanitize string for S3 metadata (ASCII only)
+
+        Args:
+            value: String to sanitize
+
+        Returns:
+            ASCII-safe string
+        """
+        if not value:
+            return ''
+        # Encode to ASCII, replacing non-ASCII chars with '?'
+        return value.encode('ascii', 'replace').decode('ascii')
+
     def save_extraction_to_s3(self, bucket: str, book_id: str, extracted_text: str, metadata: Dict) -> str:
         """
         Save extracted text to S3 as markdown file
-        
+
         Args:
             bucket: S3 bucket for storing extractions
             book_id: Unique book identifier
             extracted_text: Cleaned text content
             metadata: Extraction metadata
-            
+
         Returns:
             S3 key for the stored file
         """
@@ -249,18 +264,18 @@ class SimpleEPUBExtractor:
             - Chapters Processed: {metadata.get('chapters_processed', 0)}
             - Extraction Method: {metadata.get('extraction_method', 'unknown')}
             - Source S3: s3://{metadata.get('s3_bucket', '')}/{metadata.get('s3_key', '')}
-            
+
             ---
-            
+
             ## Content
-            
+
             {extracted_text}
             """
-            
+
             # Generate S3 key for extraction
             s3_key = f"extraction/{book_id}_extraction.md"
-            
-            # Upload to S3
+
+            # Upload to S3 (sanitize metadata for ASCII-only requirement)
             self.s3_client.put_object(
                 Bucket=bucket,
                 Key=s3_key,
@@ -268,8 +283,8 @@ class SimpleEPUBExtractor:
                 ContentType='text/markdown',
                 Metadata={
                     'book_id': book_id,
-                    'title': metadata.get('title', ''),
-                    'author': metadata.get('author', ''),
+                    'title': self._sanitize_for_s3_metadata(metadata.get('title', '')),
+                    'author': self._sanitize_for_s3_metadata(metadata.get('author', '')),
                     'chapters_processed': str(metadata.get('chapters_processed', 0)),
                     'content_length': str(len(extracted_text))
                 }

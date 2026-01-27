@@ -3,11 +3,12 @@ FROM python:3.11-slim
 # Set working directory
 WORKDIR /app
 
-# Install system dependencies
+# Install system dependencies (libatomic1 required for Node.js/Prisma)
 RUN apt-get update && apt-get install -y \
     tesseract-ocr \
     tesseract-ocr-eng \
     poppler-utils \
+    libatomic1 \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy shared utilities
