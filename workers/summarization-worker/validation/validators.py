@@ -3,9 +3,9 @@
 import logging
 from typing import List, Optional
 
-from ..core.models import Chunk, Summary, SummarizationContext, ValidationResult
-from ..core.protocols import ValidatorProtocol, AsyncValidatorProtocol, LLMClientProtocol
-from ..config.settings import SummarizationSettings
+from core.models import Chunk, Summary, SummarizationContext, ValidationResult
+from core.protocols import ValidatorProtocol, AsyncValidatorProtocol, LLMClientProtocol
+from config.settings import SummarizationSettings
 from .quality_metrics import QualityMetrics
 
 logger = logging.getLogger(__name__)

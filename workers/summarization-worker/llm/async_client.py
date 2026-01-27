@@ -8,9 +8,9 @@ from typing import List, Optional, Dict, Any
 import httpx
 import tiktoken
 
-from ..core.models import LLMRequest, LLMResponse
-from ..core.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError
-from ..config.settings import SummarizationSettings
+from core.models import LLMRequest, LLMResponse
+from core.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError
+from config.settings import SummarizationSettings
 from .rate_limiter import RateLimiter, RetryConfig, retry_with_backoff
 
 logger = logging.getLogger(__name__)

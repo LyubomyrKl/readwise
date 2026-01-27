@@ -2,10 +2,10 @@
 
 from typing import Optional
 
-from ..config.settings import SummarizationSettings, ChunkerType
-from ..config.feature_flags import FeatureFlags
-from ..llm.async_client import AsyncLLMClient
-from .pipeline import SummarizationPipeline
+from config.settings import SummarizationSettings, ChunkerType
+from config.feature_flags import FeatureFlags
+from llm.async_client import AsyncLLMClient
+from orchestration.pipeline import SummarizationPipeline
 
 
 class PipelineBuilder:

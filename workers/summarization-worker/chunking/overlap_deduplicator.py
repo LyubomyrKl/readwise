@@ -8,9 +8,9 @@ from typing import List, Optional, Set, Tuple
 
 import tiktoken
 
-from ..core.models import Summary
-from ..core.protocols import DeduplicatorProtocol, LLMClientProtocol
-from ..config.settings import SummarizationSettings
+from core.models import Summary
+from core.protocols import DeduplicatorProtocol, LLMClientProtocol
+from config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 

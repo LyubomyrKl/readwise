@@ -3,9 +3,9 @@
 import logging
 from typing import Optional
 
-from ..core.models import Chunk, Summary, SummarizationContext
-from ..core.protocols import SummarizerProtocol, LLMClientProtocol
-from ..config.settings import SummarizationSettings, SummaryType
+from core.models import Chunk, Summary, SummarizationContext
+from core.protocols import SummarizerProtocol, LLMClientProtocol
+from config.settings import SummarizationSettings, SummaryType
 
 logger = logging.getLogger(__name__)
 

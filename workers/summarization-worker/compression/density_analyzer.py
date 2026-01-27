@@ -7,9 +7,9 @@ from typing import List, Optional, Set
 
 import tiktoken
 
-from ..core.models import DensityMetrics
-from ..core.protocols import DensityAnalyzerProtocol, LLMClientProtocol
-from ..config.settings import SummarizationSettings
+from core.models import DensityMetrics
+from core.protocols import DensityAnalyzerProtocol, LLMClientProtocol
+from config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 

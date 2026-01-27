@@ -7,7 +7,7 @@ from typing import List, Optional, Set, Tuple
 
 import tiktoken
 
-from ..core.protocols import LLMClientProtocol
+from core.protocols import LLMClientProtocol
 
 logger = logging.getLogger(__name__)
 

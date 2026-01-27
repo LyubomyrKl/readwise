@@ -3,16 +3,16 @@
 import logging
 from typing import List, Optional
 
-from ..core.models import Chunk, Summary, SummarizationContext, Entity
-from ..core.protocols import (
+from core.models import Chunk, Summary, SummarizationContext, Entity
+from core.protocols import (
     SummarizerProtocol,
     LLMClientProtocol,
     ContextManagerProtocol,
     EntityTrackerProtocol,
 )
-from ..config.settings import SummarizationSettings, SummaryType
-from ..context.running_context import RunningContext
-from ..context.entity_tracker import EntityTracker
+from config.settings import SummarizationSettings, SummaryType
+from context.running_context import RunningContext
+from context.entity_tracker import EntityTracker
 
 logger = logging.getLogger(__name__)
 

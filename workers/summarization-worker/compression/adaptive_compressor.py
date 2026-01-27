@@ -3,9 +3,9 @@
 import logging
 from typing import Optional
 
-from ..core.models import Chunk, SummarizationContext, DensityMetrics
-from ..core.protocols import DensityAnalyzerProtocol
-from ..config.settings import SummarizationSettings
+from core.models import Chunk, SummarizationContext, DensityMetrics
+from core.protocols import DensityAnalyzerProtocol
+from config.settings import SummarizationSettings
 from .density_analyzer import DensityAnalyzer
 
 logger = logging.getLogger(__name__)

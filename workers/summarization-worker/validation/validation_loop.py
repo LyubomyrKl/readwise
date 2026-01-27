@@ -3,10 +3,10 @@
 import logging
 from typing import Optional, List, Tuple
 
-from ..core.models import Chunk, Summary, SummarizationContext, ValidationResult
-from ..core.protocols import SummarizerProtocol
-from ..core.exceptions import ValidationError
-from ..config.settings import SummarizationSettings
+from core.models import Chunk, Summary, SummarizationContext, ValidationResult
+from core.protocols import SummarizerProtocol
+from core.exceptions import ValidationError
+from config.settings import SummarizationSettings
 from .validators import SummaryValidator
 
 logger = logging.getLogger(__name__)

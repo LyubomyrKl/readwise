@@ -6,10 +6,10 @@ import re
 from difflib import SequenceMatcher
 from typing import Dict, List, Optional, Set
 
-from ..core.models import Entity
-from ..core.protocols import EntityTrackerProtocol, LLMClientProtocol
-from ..core.exceptions import EntityExtractionError
-from ..config.settings import SummarizationSettings
+from core.models import Entity
+from core.protocols import EntityTrackerProtocol, LLMClientProtocol
+from core.exceptions import EntityExtractionError
+from config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 

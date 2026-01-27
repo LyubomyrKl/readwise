@@ -5,9 +5,9 @@ from typing import List, Optional, Dict, Any
 
 import tiktoken
 
-from ..core.models import Summary
-from ..core.protocols import MergerProtocol, LLMClientProtocol
-from ..config.settings import SummarizationSettings
+from core.models import Summary
+from core.protocols import MergerProtocol, LLMClientProtocol
+from config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 

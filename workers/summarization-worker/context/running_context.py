@@ -6,9 +6,9 @@ from typing import Deque, List, Optional
 
 import tiktoken
 
-from ..core.models import Summary, SummarizationContext, Entity
-from ..core.protocols import ContextManagerProtocol
-from ..config.settings import SummarizationSettings
+from core.models import Summary, SummarizationContext, Entity
+from core.protocols import ContextManagerProtocol
+from config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 
