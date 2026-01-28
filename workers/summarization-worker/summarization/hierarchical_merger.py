@@ -32,7 +32,8 @@ Output format:
 - Write in well-structured paragraphs (3-5 sentences each)
 - Separate paragraphs with a blank line
 - Use transition words between paragraphs
-- Return only the merged summary content"""
+- Return only the merged summary content
+- IMPORTANT: Write in the same language as the source summaries"""
 
 
 DOCUMENT_SUMMARY_PROMPT = """Create a comprehensive document summary from these chapter summaries.
@@ -53,7 +54,8 @@ Output format:
 - Start with an overview paragraph
 - Group related themes/topics into paragraphs
 - End with conclusions or key takeaways
-- Return only the document summary content"""
+- Return only the document summary content
+- IMPORTANT: Write in the same language as the chapter summaries"""
 
 
 class HierarchicalMerger(MergerProtocol):

@@ -33,6 +33,7 @@ Return as JSON array:
 Text:
 {text}
 
+IMPORTANT: Write entity names and context descriptions in the same language as the source text.
 Return ONLY the JSON array, no other text."""
 
 

@@ -46,7 +46,8 @@ STRUCTURED_EXTRACTIVE_PROMPT = """You are an expert extractive summarizer. Your 
 - Write in well-structured paragraphs
 - Separate paragraphs with a blank line
 - Each paragraph should cover a coherent topic or theme
-- Return only the extracted content, no headers or labels"""
+- Return only the extracted content, no headers or labels
+- IMPORTANT: Write in the same language as the source text"""
 
 
 STRUCTURED_ABSTRACTIVE_PROMPT = """You are an expert abstractive summarizer. Your task is to create a concise, coherent summary that captures all essential information.
@@ -86,7 +87,8 @@ STRUCTURED_ABSTRACTIVE_PROMPT = """You are an expert abstractive summarizer. You
 - Separate paragraphs with a blank line
 - Each paragraph should cover a coherent topic or theme
 - Use transition words between paragraphs for flow
-- Return only the summary content, no headers or labels"""
+- Return only the summary content, no headers or labels
+- IMPORTANT: Write in the same language as the source text"""
 
 
 async def structured_summarize(
@@ -175,7 +177,8 @@ List any terms that are defined or explained.
 {text}
 
 ## OUTPUT:
-Use the exact headers above. Be comprehensive - missing information cannot be recovered."""
+Use the exact headers above. Be comprehensive - missing information cannot be recovered.
+IMPORTANT: Write in the same language as the source text."""
 
 
 TWO_PASS_SYNTHESIS_PROMPT = """Create a coherent summary that incorporates ALL of the extracted information below.
@@ -199,7 +202,8 @@ TWO_PASS_SYNTHESIS_PROMPT = """Create a coherent summary that incorporates ALL o
 - Start with the main thesis/conclusion
 - Group related information into the same paragraph
 - Use transition words between paragraphs
-- Return only the summary content"""
+- Return only the summary content
+- IMPORTANT: Write in the same language as the source text"""
 
 
 async def two_pass_summarize(
@@ -293,6 +297,7 @@ Rewrite Summary 2 to include 1-2 more important entities, facts, or details.
 - Increase density by using more precise/concise language, not by adding length
 - Focus on: names, numbers, key terms, cause-effect, conclusions
 - Write each summary in paragraph form (2-3 paragraphs separated by blank lines)
+- IMPORTANT: Write in the same language as the source text
 
 ## TEXT TO SUMMARIZE:
 {text}
@@ -416,7 +421,7 @@ HYBRID_EXTRACTION_PROMPT = """Select the {num_sentences} most important sentence
 {text}
 
 ## OUTPUT:
-List the {num_sentences} most important sentences, numbered:"""
+List the {num_sentences} most important sentences, numbered (preserve original language):"""
 
 
 HYBRID_REWRITE_PROMPT = """Rewrite these key sentences into a coherent, flowing summary.
@@ -439,7 +444,8 @@ HYBRID_REWRITE_PROMPT = """Rewrite these key sentences into a coherent, flowing 
 - Separate paragraphs with a blank line
 - Group related information into the same paragraph
 - Use transition words/phrases between paragraphs
-- Return only the summary content, no headers"""
+- Return only the summary content, no headers
+- IMPORTANT: Write in the same language as the source text"""
 
 
 async def hybrid_summarize(

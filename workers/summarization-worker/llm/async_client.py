@@ -306,6 +306,7 @@ Instructions:
 Text to extract from:
 {text}
 
+IMPORTANT: Preserve the original language of the text.
 Return only the extracted sentences as plain text."""
 
         max_tokens = min(1200, int(self.count_tokens(text) * summary_percent * 1.5))
@@ -364,6 +365,7 @@ Instructions:
 Text to summarize:
 {text}
 
+IMPORTANT: Write the summary in the same language as the source text.
 Return only the rewritten summary as plain text."""
 
         max_tokens = min(1800, int(self.count_tokens(text) * summary_percent * 1.5))
