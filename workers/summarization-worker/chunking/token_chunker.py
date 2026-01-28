@@ -6,9 +6,9 @@ from typing import List, Optional
 
 import tiktoken
 
-from core.models import Chunk, SummarizationContext
-from core.protocols import ChunkerProtocol
-from config.settings import SummarizationSettings
+from ..core.models import Chunk, SummarizationContext
+from ..core.protocols import ChunkerProtocol
+from ..config.settings import SummarizationSettings
 
 
 class TokenChunker(ChunkerProtocol):

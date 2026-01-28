@@ -167,10 +167,17 @@ class SummarizationPipeline:
         Returns:
             List of chunks
         """
+        if self._chunker is None:
+            raise RuntimeError("Chunker not initialized")
+
         if self.features.use_semantic_chunking:
-            return await self._chunker.chunk(content, context)
+            # SemanticChunker has async chunk method
+            chunks = await self._chunker.chunk(content, context)  # type: ignore[misc]
         else:
-            return self._chunker.chunk(content, context)
+            # TokenChunker has sync chunk method
+            chunks = self._chunker.chunk(content, context)  # type: ignore[misc]
+
+        return chunks
 
     async def _get_compression_ratio(
         self, chunk: Chunk, context: Optional[SummarizationContext] = None
@@ -204,6 +211,9 @@ class SummarizationPipeline:
         Returns:
             Summary
         """
+        if self._summarizer is None:
+            raise RuntimeError("Summarizer not initialized")
+
         if self.features.use_validation_loop and self._validation_loop:
             return await self._validation_loop.summarize_with_validation(
                 chunk, context, target_ratio
@@ -293,14 +303,18 @@ class SummarizationPipeline:
         self._ensure_open()
         start_time = time.perf_counter()
 
+        # Ensure summarizer is initialized
+        if self._summarizer is None:
+            raise RuntimeError("Summarizer not initialized")
+
         # Set summary type
         sum_type = SummaryType(summary_type.lower())
         if hasattr(self._summarizer, 'summary_type'):
-            self._summarizer.summary_type = sum_type
+            self._summarizer.summary_type = sum_type  # type: ignore
 
         # Override base ratio with summary_percent
         if hasattr(self._summarizer, 'default_ratio'):
-            self._summarizer.default_ratio = summary_percent
+            self._summarizer.default_ratio = summary_percent  # type: ignore
 
         # Process sections
         result_sections = []
@@ -371,7 +385,7 @@ class SummarizationPipeline:
                 self._context_manager.reset_for_section()
 
         # Build result
-        result_json = {
+        result_json: Dict[str, Any] = {
             "sections": result_sections,
         }
 
@@ -419,7 +433,7 @@ class SummarizationPipeline:
             if total_original_tokens > 0 else 1.0
         )
 
-        metadata = {
+        metadata: Dict[str, Any] = {
             "summary_type": summary_type,
             "target_percent": summary_percent,
             "original_tokens": total_original_tokens,
@@ -451,7 +465,7 @@ class SummarizationPipeline:
     @property
     def stats(self) -> Dict[str, Any]:
         """Get pipeline statistics."""
-        stats = {
+        stats: Dict[str, Any] = {
             "is_open": self._is_open,
         }
 

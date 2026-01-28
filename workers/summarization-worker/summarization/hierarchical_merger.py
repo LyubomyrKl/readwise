@@ -8,8 +8,12 @@ import tiktoken
 from core.models import Summary
 from core.protocols import MergerProtocol, LLMClientProtocol
 from config.settings import SummarizationSettings
+from formatting.paragraph_formatter import ParagraphFormatter
 
 logger = logging.getLogger(__name__)
+
+# Formatter for post-processing merged content
+_paragraph_formatter = ParagraphFormatter()
 
 
 MERGE_PROMPT_TEMPLATE = """Merge the following {level} summaries into a single cohesive summary.
@@ -24,7 +28,11 @@ Guidelines:
 Summaries to merge:
 {summaries_text}
 
-Provide a merged summary that captures all essential information."""
+Output format:
+- Write in well-structured paragraphs (3-5 sentences each)
+- Separate paragraphs with a blank line
+- Use transition words between paragraphs
+- Return only the merged summary content"""
 
 
 DOCUMENT_SUMMARY_PROMPT = """Create a comprehensive document summary from these chapter summaries.
@@ -39,7 +47,13 @@ Guidelines:
 Chapter summaries:
 {summaries_text}
 
-Provide a cohesive document summary."""
+Output format:
+- Write in well-structured paragraphs (3-5 sentences each)
+- Separate paragraphs with a blank line
+- Start with an overview paragraph
+- Group related themes/topics into paragraphs
+- End with conclusions or key takeaways
+- Return only the document summary content"""
 
 
 class HierarchicalMerger(MergerProtocol):
@@ -164,10 +178,13 @@ class HierarchicalMerger(MergerProtocol):
         try:
             merged_content = await self._llm_client.complete(
                 prompt=prompt,
-                system_prompt=f"You are an expert at merging {level} summaries into cohesive text.",
+                system_prompt=f"You are an expert at merging {level} summaries into cohesive text with proper paragraph structure.",
                 max_tokens=max_tokens,
                 temperature=0.3,
             )
+
+            # Ensure proper paragraph formatting
+            merged_content = _paragraph_formatter.format(merged_content)
 
             merged_tokens = self._count_tokens(merged_content)
             compression = merged_tokens / total_original if total_original > 0 else 1.0
@@ -313,10 +330,13 @@ class HierarchicalMerger(MergerProtocol):
         try:
             doc_content = await self._llm_client.complete(
                 prompt=prompt,
-                system_prompt="You are an expert at creating comprehensive document summaries.",
+                system_prompt="You are an expert at creating comprehensive document summaries with clear paragraph structure.",
                 max_tokens=max_tokens,
                 temperature=0.3,
             )
+
+            # Ensure proper paragraph formatting
+            doc_content = _paragraph_formatter.format(doc_content)
 
             doc_tokens = self._count_tokens(doc_content)
             compression = doc_tokens / total_original if total_original > 0 else 1.0

@@ -14,6 +14,8 @@ Advanced text summarization pipeline with async LLM calls, context tracking, ent
 | **Overlap Deduplication** | Remove duplicate content from overlapping chunks |
 | **Semantic Chunking** | Embedding-based topic boundary detection |
 | **Hierarchical Merge** | Tree-like merging: chunks → subsections → chapters → document |
+| **Advanced Strategies** | 4 summarization strategies: Structured, Two-Pass, Chain-of-Density, Hybrid |
+| **Paragraph Formatting** | Automatic paragraph structuring for readable output |
 
 ## Quick Start
 
@@ -45,9 +47,10 @@ FEATURE_USE_HIERARCHICAL_MERGE=true
 from orchestration import PipelineBuilder
 
 # Quick presets
-pipeline = PipelineBuilder().fast().build()      # Minimal features, fastest
-pipeline = PipelineBuilder().balanced().build()  # Good quality/speed tradeoff
-pipeline = PipelineBuilder().quality().build()   # All features enabled
+pipeline = PipelineBuilder().fast().build()            # Minimal features, fastest
+pipeline = PipelineBuilder().balanced().build()        # Good quality/speed tradeoff
+pipeline = PipelineBuilder().quality().build()         # All features, two-pass strategy
+pipeline = PipelineBuilder().maximum_density().build() # Chain-of-density for max info packing
 
 # Custom configuration
 pipeline = (
@@ -70,6 +73,87 @@ async with pipeline:
         summary_type="abstractive",
         summary_percent=0.3
     )
+```
+
+## Summarization Strategies
+
+Choose a strategy based on your quality/speed requirements:
+
+| Strategy | Description | Best For | LLM Calls |
+|----------|-------------|----------|-----------|
+| **BASIC** | Simple prompts, minimal constraints | Quick drafts, testing | 1x |
+| **STRUCTURED** | Better prompts with strict constraints | General use (default) | 1x |
+| **TWO_PASS** | Extract key info, then synthesize | Preserving all facts | 2x |
+| **CHAIN_OF_DENSITY** | 3 progressively denser summaries | Maximum info density | 1x (longer) |
+| **HYBRID** | Extract key sentences, then rewrite | Technical content | 2x |
+
+### Strategy Details
+
+#### BASIC
+Simple approach with minimal prompt engineering. Fastest but lowest quality.
+
+#### STRUCTURED (Recommended Default)
+Uses carefully crafted prompts with strict rules:
+- MUST include all numerical data, names, dates
+- MUST preserve exact wording (extractive) or key facts (abstractive)
+- NEVER add information not in the original
+
+#### TWO_PASS
+Two-stage approach for better factuality:
+1. **Pass 1**: Extract ALL key information in structured format
+   - Main claims/arguments
+   - Numerical data and statistics
+   - Named entities and relationships
+   - Conclusions and definitions
+2. **Pass 2**: Synthesize extracted info into coherent summary
+
+#### CHAIN_OF_DENSITY
+Creates 3 increasingly dense summaries of the same length:
+```
+Summary 1: Covers main topic (~100 words)
+Summary 2: Adds 1-2 more facts, same length, more concise language
+Summary 3: Maximum density, all key info packed in same word count
+```
+Returns only Summary 3 (the densest).
+
+#### HYBRID
+Combines extractive and abstractive approaches:
+1. **Step 1**: Select N most important sentences verbatim
+2. **Step 2**: Rewrite selected sentences into flowing prose
+
+### Using Strategies
+
+```python
+from orchestration import PipelineBuilder
+from config.settings import SummarizationStrategy
+
+# Using preset with default strategy
+pipeline = PipelineBuilder().quality().build()  # Uses TWO_PASS
+
+# Explicitly set strategy
+pipeline = (
+    PipelineBuilder()
+    .with_chain_of_density_strategy()  # Maximum density
+    .with_validation()
+    .build()
+)
+
+# Or use the enum directly
+pipeline = (
+    PipelineBuilder()
+    .with_strategy(SummarizationStrategy.HYBRID)
+    .build()
+)
+```
+
+### Strategy Selection Guide
+
+```
+Need fast results?          → BASIC or STRUCTURED
+Need to preserve all facts? → TWO_PASS
+Need maximum info density?  → CHAIN_OF_DENSITY
+Summarizing technical docs? → HYBRID
+General production use?     → STRUCTURED (balanced)
 ```
 
 ## Pipeline Flow
@@ -335,6 +419,7 @@ workers/summarization-worker/
 ├── summarization/
 │   ├── chunk_summarizer.py      # Basic summarizer
 │   ├── context_summarizer.py    # Context-aware summarizer
+│   ├── strategies.py            # Advanced summarization strategies
 │   └── hierarchical_merger.py   # Tree-like merging
 │
 ├── compression/
@@ -345,6 +430,9 @@ workers/summarization-worker/
 │   ├── quality_metrics.py   # Coverage, coherence, factuality
 │   ├── validators.py        # Summary validation
 │   └── validation_loop.py   # Retry logic
+│
+├── formatting/
+│   └── paragraph_formatter.py  # Paragraph post-processing
 │
 ├── orchestration/
 │   ├── pipeline.py          # Main orchestrator
@@ -357,11 +445,12 @@ workers/summarization-worker/
 
 ### Pipeline Modes
 
-| Mode | Features Enabled | Use Case |
-|------|------------------|----------|
-| `fast` | None | Quick processing, basic quality |
-| `balanced` | Context, Compression, Validation, Dedup, Merge | Good quality/speed tradeoff |
-| `quality` | All features including Semantic Chunking & Entities | Best quality, slower |
+| Mode | Strategy | Features Enabled | Use Case |
+|------|----------|------------------|----------|
+| `fast` | BASIC | None | Quick processing, drafts |
+| `balanced` | STRUCTURED | Context, Compression, Validation, Dedup, Merge | Production use |
+| `quality` | TWO_PASS | All features including Semantic Chunking & Entities | Best factuality |
+| `maximum_density` | CHAIN_OF_DENSITY | All features | Maximum information packing |
 
 ### Settings (via `SUMMARIZER_` prefix)
 
@@ -374,6 +463,10 @@ workers/summarization-worker/
 | `chunk_overlap_percent` | `0.15` | Overlap between chunks |
 | `context_max_tokens` | `2000` | Max context window |
 | `compression_base_ratio` | `0.3` | Base compression ratio |
+| `summarization_strategy` | `structured` | Strategy: basic, structured, two_pass, chain_of_density, hybrid |
+| `format_paragraphs` | `true` | Auto-format summaries into paragraphs |
+| `paragraph_min_sentences` | `2` | Minimum sentences per paragraph |
+| `paragraph_max_sentences` | `5` | Maximum sentences per paragraph |
 | `validation_max_attempts` | `3` | Max retry attempts |
 | `validation_min_coverage` | `0.7` | Min coverage score |
 

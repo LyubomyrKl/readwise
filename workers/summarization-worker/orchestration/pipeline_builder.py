@@ -2,7 +2,7 @@
 
 from typing import Optional
 
-from config.settings import SummarizationSettings, ChunkerType
+from config.settings import SummarizationSettings, ChunkerType, SummarizationStrategy
 from config.feature_flags import FeatureFlags
 from llm.async_client import AsyncLLMClient
 from orchestration.pipeline import SummarizationPipeline
@@ -178,6 +178,59 @@ class PipelineBuilder:
         self._settings.compression_base_ratio = ratio
         return self
 
+    # Summarization Strategy Configuration
+    def with_strategy(
+        self, strategy: SummarizationStrategy
+    ) -> "PipelineBuilder":
+        """Set the summarization strategy.
+
+        Available strategies:
+        - BASIC: Simple prompts (fastest, lowest quality)
+        - STRUCTURED: Better prompts with strict constraints (recommended)
+        - TWO_PASS: Extract key info, then synthesize (better factuality)
+        - CHAIN_OF_DENSITY: Progressive density increase (most information-dense)
+        - HYBRID: Extractive then abstractive (best for technical content)
+
+        Args:
+            strategy: SummarizationStrategy to use
+        """
+        self._settings.summarization_strategy = strategy
+        return self
+
+    def with_basic_strategy(self) -> "PipelineBuilder":
+        """Use basic summarization (fastest, minimal prompts)."""
+        self._settings.summarization_strategy = SummarizationStrategy.BASIC
+        return self
+
+    def with_structured_strategy(self) -> "PipelineBuilder":
+        """Use structured prompts with strict constraints (recommended default)."""
+        self._settings.summarization_strategy = SummarizationStrategy.STRUCTURED
+        return self
+
+    def with_two_pass_strategy(self) -> "PipelineBuilder":
+        """Use two-pass summarization (extract key info, then synthesize).
+
+        Best for: Documents where preserving all key facts is critical.
+        """
+        self._settings.summarization_strategy = SummarizationStrategy.TWO_PASS
+        return self
+
+    def with_chain_of_density_strategy(self) -> "PipelineBuilder":
+        """Use chain-of-density prompting (progressive information packing).
+
+        Best for: Getting maximum information density in summaries.
+        """
+        self._settings.summarization_strategy = SummarizationStrategy.CHAIN_OF_DENSITY
+        return self
+
+    def with_hybrid_strategy(self) -> "PipelineBuilder":
+        """Use hybrid extractive-then-abstractive strategy.
+
+        Best for: Technical content, maintaining key sentence fidelity.
+        """
+        self._settings.summarization_strategy = SummarizationStrategy.HYBRID
+        return self
+
     # Validation Configuration
     def with_validation(
         self,
@@ -267,7 +320,11 @@ class PipelineBuilder:
 
     # Preset Configurations
     def fast(self) -> "PipelineBuilder":
-        """Configure for fast processing (minimal features)."""
+        """Configure for fast processing (minimal features).
+
+        Uses basic strategy, no validation, no context tracking.
+        Best for: Quick drafts, initial prototyping.
+        """
         self._features.use_semantic_chunking = False
         self._features.use_running_context = False
         self._features.use_entity_tracking = False
@@ -275,10 +332,15 @@ class PipelineBuilder:
         self._features.use_validation_loop = False
         self._features.use_overlap_dedup = False
         self._features.use_hierarchical_merge = False
+        self._settings.summarization_strategy = SummarizationStrategy.BASIC
         return self
 
     def balanced(self) -> "PipelineBuilder":
-        """Configure for balanced quality/speed."""
+        """Configure for balanced quality/speed.
+
+        Uses structured strategy with validation and context.
+        Best for: Production use with reasonable latency requirements.
+        """
         self._features.use_semantic_chunking = False
         self._features.use_running_context = True
         self._features.use_entity_tracking = False
@@ -287,10 +349,15 @@ class PipelineBuilder:
         self._features.use_overlap_dedup = True
         self._features.use_hierarchical_merge = True
         self._settings.validation_max_attempts = 2
+        self._settings.summarization_strategy = SummarizationStrategy.STRUCTURED
         return self
 
     def quality(self) -> "PipelineBuilder":
-        """Configure for maximum quality (all features)."""
+        """Configure for maximum quality (all features).
+
+        Uses two-pass strategy with full validation and entity tracking.
+        Best for: Final production summaries where quality is paramount.
+        """
         self._features.use_semantic_chunking = True
         self._features.use_running_context = True
         self._features.use_entity_tracking = True
@@ -299,6 +366,24 @@ class PipelineBuilder:
         self._features.use_overlap_dedup = True
         self._features.use_hierarchical_merge = True
         self._settings.validation_max_attempts = 3
+        self._settings.summarization_strategy = SummarizationStrategy.TWO_PASS
+        return self
+
+    def maximum_density(self) -> "PipelineBuilder":
+        """Configure for maximum information density.
+
+        Uses chain-of-density strategy for information-packed summaries.
+        Best for: When you need to preserve maximum information in minimal space.
+        """
+        self._features.use_semantic_chunking = True
+        self._features.use_running_context = True
+        self._features.use_entity_tracking = True
+        self._features.use_adaptive_compression = True
+        self._features.use_validation_loop = True
+        self._features.use_overlap_dedup = True
+        self._features.use_hierarchical_merge = True
+        self._settings.validation_max_attempts = 3
+        self._settings.summarization_strategy = SummarizationStrategy.CHAIN_OF_DENSITY
         return self
 
     def build(self) -> SummarizationPipeline:

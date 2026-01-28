@@ -230,7 +230,10 @@ Respond with ONLY a number between 0 and 100 representing the percentage of key 
 
             # Parse response
             try:
-                llm_ratio = float(re.search(r'(\d+(?:\.\d+)?)', response).group(1)) / 100
+                match = re.search(r'(\d+(?:\.\d+)?)', response)
+                if not match:
+                    raise ValueError("No number found in response")
+                llm_ratio = float(match.group(1)) / 100
                 llm_ratio = max(0.0, min(1.0, llm_ratio))
 
                 # Blend LLM estimate with heuristic (weight LLM higher)

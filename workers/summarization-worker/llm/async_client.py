@@ -111,6 +111,9 @@ class AsyncLLMClient:
             LLMTimeoutError: If the request times out
         """
         self._ensure_open()
+        assert self._client is not None  # Guaranteed by _ensure_open()
+
+        client = self._client  # Local reference for type checker
 
         async def _make_request() -> str:
             async with self._rate_limiter:
@@ -120,7 +123,7 @@ class AsyncLLMClient:
                 messages.append({"role": "user", "content": prompt})
 
                 try:
-                    response = await self._client.post(
+                    response = await client.post(
                         "/v1/chat/completions",
                         json={
                             "model": self.model,
@@ -210,11 +213,14 @@ class AsyncLLMClient:
             LLMError: If the request fails
         """
         self._ensure_open()
+        assert self._client is not None  # Guaranteed by _ensure_open()
+
+        client = self._client  # Local reference for type checker
 
         async def _make_request() -> List[float]:
             async with self._rate_limiter:
                 try:
-                    response = await self._client.post(
+                    response = await client.post(
                         "/api/embed",
                         json={
                             "model": self.embed_model,

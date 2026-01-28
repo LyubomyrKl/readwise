@@ -75,7 +75,7 @@ class ValidatorProtocol(Protocol):
 class AsyncValidatorProtocol(Protocol):
     """Protocol for async summary validators."""
 
-    async def validate(
+    async def validate_async(
         self,
         summary: Summary,
         original: Chunk,
@@ -89,12 +89,23 @@ class AsyncValidatorProtocol(Protocol):
 class EntityTrackerProtocol(Protocol):
     """Protocol for entity tracking."""
 
+    entity_types: set  # Set of tracked entity types
+    entity_count: int  # Number of tracked entities
+
     async def extract_entities(self, text: str) -> List[Entity]:
         """Extract entities from text."""
         ...
 
     def register_entity(self, entity: Entity) -> Entity:
         """Register an entity, merging with existing if similar."""
+        ...
+
+    def register_entities(self, entities: List[Entity]) -> List[Entity]:
+        """Register multiple entities, merging with existing if similar."""
+        ...
+
+    def increment_mentions(self, entity_names: List[str]) -> None:
+        """Increment mention count for entities."""
         ...
 
     def resolve_reference(self, reference: str) -> Optional[Entity]:
@@ -109,21 +120,45 @@ class EntityTrackerProtocol(Protocol):
         """Get all tracked entities."""
         ...
 
+    def get_important_entities(self, top_k: int = 10) -> List[Entity]:
+        """Get most important entities by mention count."""
+        ...
+
+    def clear(self) -> None:
+        """Clear all tracked entities."""
+        ...
+
 
 @runtime_checkable
 class ContextManagerProtocol(Protocol):
     """Protocol for running context management."""
 
+    summary_count: int  # Number of summaries in context
+    current_tokens: int  # Current token count in context
+    entity_count: int  # Number of entities in context
+
     def add_summary(self, summary: Summary) -> None:
         """Add a summary to the context."""
         ...
 
-    def get_context_prompt(self) -> str:
+    def get_context_prompt(self) -> Optional[str]:
         """Generate context prompt for next chunk."""
         ...
 
     def get_context(self) -> SummarizationContext:
         """Get current summarization context."""
+        ...
+
+    def set_total_chunks(self, total: int) -> None:
+        """Set total number of chunks to process."""
+        ...
+
+    def set_section_context(self, title: str, context: str) -> None:
+        """Set section context information."""
+        ...
+
+    def reset_for_section(self) -> None:
+        """Reset context for a new section, keeping entities."""
         ...
 
     def clear(self) -> None:
@@ -170,6 +205,29 @@ class LLMClientProtocol(Protocol):
 
     async def get_embedding(self, text: str) -> List[float]:
         """Get embedding for text."""
+        ...
+
+    async def get_embeddings_batch(self, texts: List[str]) -> List[List[float]]:
+        """Get embeddings for multiple texts."""
+        ...
+
+    async def extractive_summarize(
+        self,
+        text: str,
+        summary_percent: float,
+        context: Optional[str] = None,
+    ) -> str:
+        """Generate an extractive summary."""
+        ...
+
+    async def abstractive_summarize(
+        self,
+        text: str,
+        summary_percent: float,
+        context: Optional[str] = None,
+        entities: Optional[str] = None,
+    ) -> str:
+        """Generate an abstractive summary."""
         ...
 
 

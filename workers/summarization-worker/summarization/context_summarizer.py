@@ -10,9 +10,10 @@ from core.protocols import (
     ContextManagerProtocol,
     EntityTrackerProtocol,
 )
-from config.settings import SummarizationSettings, SummaryType
+from config.settings import SummarizationSettings, SummaryType, SummarizationStrategy
 from context.running_context import RunningContext
 from context.entity_tracker import EntityTracker
+from summarization.strategies import summarize_with_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class ContextSummarizer(SummarizerProtocol):
         context_manager: Optional[ContextManagerProtocol] = None,
         entity_tracker: Optional[EntityTrackerProtocol] = None,
         summary_type: SummaryType = SummaryType.ABSTRACTIVE,
+        strategy: SummarizationStrategy = SummarizationStrategy.STRUCTURED,
         default_ratio: float = 0.3,
         use_entity_tracking: bool = True,
         use_running_context: bool = True,
@@ -42,7 +44,8 @@ class ContextSummarizer(SummarizerProtocol):
             llm_client: LLM client for summarization
             context_manager: Optional context manager for running context
             entity_tracker: Optional entity tracker for entity consistency
-            summary_type: Type of summarization
+            summary_type: Type of summarization (extractive/abstractive)
+            strategy: Summarization strategy for quality improvement
             default_ratio: Default compression ratio
             use_entity_tracking: Whether to extract and track entities
             use_running_context: Whether to use running context
@@ -51,6 +54,7 @@ class ContextSummarizer(SummarizerProtocol):
         self._context_manager = context_manager
         self._entity_tracker = entity_tracker
         self.summary_type = summary_type
+        self.strategy = strategy
         self.default_ratio = default_ratio
         self.use_entity_tracking = use_entity_tracking
         self.use_running_context = use_running_context
@@ -61,6 +65,7 @@ class ContextSummarizer(SummarizerProtocol):
         llm_client: LLMClientProtocol,
         settings: SummarizationSettings,
         summary_type: Optional[SummaryType] = None,
+        strategy: Optional[SummarizationStrategy] = None,
     ) -> "ContextSummarizer":
         """Create summarizer with new context manager and entity tracker."""
         context_manager = RunningContext.from_settings(settings)
@@ -71,6 +76,7 @@ class ContextSummarizer(SummarizerProtocol):
             context_manager=context_manager,
             entity_tracker=entity_tracker,
             summary_type=summary_type or SummaryType.ABSTRACTIVE,
+            strategy=strategy or settings.summarization_strategy,
             default_ratio=settings.compression_base_ratio,
         )
 
@@ -136,7 +142,7 @@ class ContextSummarizer(SummarizerProtocol):
         self,
         chunk: Chunk,
         context: Optional[SummarizationContext] = None,
-        target_ratio: float = None,
+        target_ratio: Optional[float] = None,
     ) -> Summary:
         """Summarize a chunk with context awareness.
 
@@ -159,19 +165,15 @@ class ContextSummarizer(SummarizerProtocol):
         entity_names = [e.name for e in extracted_entities]
 
         try:
-            if self.summary_type == SummaryType.EXTRACTIVE:
-                summary_text = await self._llm_client.extractive_summarize(
-                    text=chunk.content,
-                    summary_percent=ratio,
-                    context=context_prompt,
-                )
-            else:
-                summary_text = await self._llm_client.abstractive_summarize(
-                    text=chunk.content,
-                    summary_percent=ratio,
-                    context=context_prompt,
-                    entities=entity_context,
-                )
+            # Use strategy-based summarization for improved quality
+            summary_text = await summarize_with_strategy(
+                llm_client=self._llm_client,
+                text=chunk.content,
+                strategy=self.strategy,
+                summary_percent=ratio,
+                extractive=(self.summary_type == SummaryType.EXTRACTIVE),
+                context=context_prompt,
+            )
 
             summary_tokens = self._llm_client.count_tokens(summary_text)
             compression_ratio = (
@@ -221,7 +223,7 @@ class ContextSummarizer(SummarizerProtocol):
     async def summarize_sequence(
         self,
         chunks: List[Chunk],
-        target_ratio: float = None,
+        target_ratio: Optional[float] = None,
     ) -> List[Summary]:
         """Summarize a sequence of chunks with running context.
 

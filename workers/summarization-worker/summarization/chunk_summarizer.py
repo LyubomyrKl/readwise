@@ -52,7 +52,7 @@ class ChunkSummarizer(SummarizerProtocol):
         self,
         chunk: Chunk,
         context: Optional[SummarizationContext] = None,
-        target_ratio: float = None,
+        target_ratio: Optional[float] = None,
     ) -> Summary:
         """Summarize a chunk of text.
 
@@ -108,7 +108,7 @@ class ChunkSummarizer(SummarizerProtocol):
             )
 
     async def summarize_extractive(
-        self, chunk: Chunk, target_ratio: float = None
+        self, chunk: Chunk, target_ratio: Optional[float] = None
     ) -> Summary:
         """Explicitly use extractive summarization.
 
@@ -127,7 +127,7 @@ class ChunkSummarizer(SummarizerProtocol):
             self.summary_type = original_type
 
     async def summarize_abstractive(
-        self, chunk: Chunk, target_ratio: float = None
+        self, chunk: Chunk, target_ratio: Optional[float] = None
     ) -> Summary:
         """Explicitly use abstractive summarization.
 

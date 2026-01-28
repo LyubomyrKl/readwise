@@ -8,9 +8,9 @@ from typing import List, Optional, Tuple
 import numpy as np
 import tiktoken
 
-from core.models import Chunk, SummarizationContext
-from core.protocols import AsyncChunkerProtocol, LLMClientProtocol
-from config.settings import SummarizationSettings
+from ..core.models import Chunk, SummarizationContext
+from ..core.protocols import AsyncChunkerProtocol, LLMClientProtocol
+from ..config.settings import SummarizationSettings
 
 logger = logging.getLogger(__name__)
 

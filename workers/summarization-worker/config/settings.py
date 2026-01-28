@@ -1,7 +1,6 @@
 """Central configuration via environment variables."""
 
 from enum import Enum
-from typing import Optional
 from pydantic_settings import BaseSettings
 
 
@@ -13,6 +12,15 @@ class ChunkerType(str, Enum):
 class SummaryType(str, Enum):
     EXTRACTIVE = "extractive"
     ABSTRACTIVE = "abstractive"
+
+
+class SummarizationStrategy(str, Enum):
+    """Available summarization strategies for quality improvement."""
+    BASIC = "basic"                    # Original simple approach
+    STRUCTURED = "structured"          # Better prompts with strict constraints
+    TWO_PASS = "two_pass"              # Extract key info, then synthesize
+    CHAIN_OF_DENSITY = "chain_of_density"  # Progressive density increase
+    HYBRID = "hybrid"                  # Extractive then abstractive rewrite
 
 
 class SummarizationSettings(BaseSettings):
@@ -50,6 +58,14 @@ class SummarizationSettings(BaseSettings):
     compression_base_ratio: float = 0.3
     compression_min_ratio: float = 0.15
     compression_max_ratio: float = 0.5
+
+    # Summarization Strategy
+    summarization_strategy: SummarizationStrategy = SummarizationStrategy.STRUCTURED
+
+    # Paragraph Formatting
+    format_paragraphs: bool = True
+    paragraph_min_sentences: int = 2
+    paragraph_max_sentences: int = 5
 
     # Validation Configuration
     validation_max_attempts: int = 3

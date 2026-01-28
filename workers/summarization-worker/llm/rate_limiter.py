@@ -104,7 +104,7 @@ async def retry_with_backoff(
     Raises:
         The last exception if all retries fail
     """
-    last_exception = None
+    last_exception: Optional[Exception] = None
 
     for attempt in range(config.max_attempts):
         try:
@@ -129,7 +129,9 @@ async def retry_with_backoff(
             await asyncio.sleep(delay)
 
     # Should not reach here, but just in case
-    raise last_exception
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("Unexpected: retry loop completed without result or exception")
 
 
 def with_retry(
