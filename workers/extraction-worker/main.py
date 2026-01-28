@@ -64,40 +64,39 @@ class ExtractionWorker:
         self.prefetch_count = int(os.getenv('WORKER_PREFETCH_COUNT', '1'))
         self.worker_id = os.getenv('WORKER_ID', 'extraction-worker-1')
     
-    async def process_extraction(self, book_id: str):
-        """Process extraction for a book"""
+    async def process_extraction(self, book_id: str) -> bool:
+        """Process extraction for a book. Returns True if extraction succeeded."""
         try:
             # Get book from database
             book = await self.db_manager.get_book(book_id)
             if not book:
                 logger.error(f"Book not found: {book_id}")
-                return
+                return False
 
             if book.status == "processing":
                 logger.info(f"Book already in process book: {book_id}")
-                return
+                return False
 
             if book.extractionStorageKey:
                 logger.info(f"Book already extracted: {book_id}")
-                return
-
+                return True  # Already extracted, can proceed with summarization
 
             logger.info(book.extractionStorageKey)
             logger.info(f"Processing book: {book.title} by {book.author}")
             logger.info(f"File storage key: {book.fileStorageKey}")
 
-            file_key = book.fileStorageKey.lower()
+            file_key = book.mime.lower()
             
-            if file_key.endswith('.pdf'):
+            if file_key.endswith('application/pdf'):
                 extractor = self.pdf_extractor
                 file_type = 'PDF'
-            elif file_key.endswith('.epub'):
+            elif file_key.endswith('application/epub+zip'):
                 extractor = self.epub_extractor
                 file_type = 'EPUB'
             else:
                 logger.warning(f"Unsupported file type: {book.fileStorageKey}")
-                return
-            
+                return False
+
             # Update status to processing
             await self.db_manager.update_book_status(book_id, 'processing')
             logger.info(f"Updated book status to 'processing' for {file_type}")
@@ -115,7 +114,7 @@ class ExtractionWorker:
             # Save extraction to S3
             logger.info("Saving extraction to S3...")
             extraction_s3_key = extractor.save_extraction_to_s3(
-                bucket='summaries',
+                bucket='extractions',
                 book_id=book_id,
                 extracted_text=cleaned_text,
                 metadata=metadata
@@ -134,7 +133,8 @@ class ExtractionWorker:
             else:
                 logger.info(f"- Processed {metadata['chapters_processed']}/{metadata['total_items']} chapters")
             
-            logger.info(f"- Saved to: s3://summaries/{extraction_s3_key}")
+            logger.info(f"- Saved to: s3://extractions/{extraction_s3_key}")
+            return True
 
         except Exception as e:
             logger.error(f"❌ Error processing book {book_id}: {e}")
@@ -142,6 +142,7 @@ class ExtractionWorker:
                 await self.db_manager.update_book_status(book_id, 'ready')
             except:
                 pass
+            return False
 
     async def process_message_async(self, message_data):
         """Process a message asynchronously"""
@@ -154,9 +155,9 @@ class ExtractionWorker:
             book_id = message_data['bookId']
 
             logger.info(f"🔄 Processing extraction for book: {book_id}")
-            await self.process_extraction(book_id)
+            extraction_succeeded = await self.process_extraction(book_id)
 
-            if message_data.get('autoSummarize', True):
+            if extraction_succeeded and message_data.get('autoSummarize', True):
                 self.messaging.send_summary_request(book_id, message_data['summarizationType'], message_data['summaryPercent'])
 
         finally:
