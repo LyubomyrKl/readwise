@@ -97,7 +97,7 @@ class SummarizationWorker:
             return
 
         # Download extraction
-        extracted_markdown = self.s3.download_text('summaries', book.extractionStorageKey)
+        extracted_markdown = self.s3.download_text('extractions', book.extractionStorageKey)
 
         # Extract content section
         if "## Content" in extracted_markdown:
@@ -126,7 +126,9 @@ class SummarizationWorker:
                 json_data=json_data,
                 summary_type=summary_type,
                 summary_percent=summary_percent,
-                target_tokens_per_chunk=600
+                target_tokens_per_chunk=600,
+                book_title=book.title,
+                show_progress=True
             )
 
         # Save to S3

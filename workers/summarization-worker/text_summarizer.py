@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-import json
 import logging
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Optional
 from datetime import datetime
 
 from chunker import TextChunker
 from llm_client import LLMClient
+from progress import SummarizationProgress, count_total_chunks
 
 import sys
 import os
@@ -27,9 +27,19 @@ class TextSummarizer:
 
     def segment_and_summarize_json(self, json_data: Dict, summary_type: str = 'extractive',
                                    summary_percent: float = 0.3,
-                                   target_tokens_per_chunk: int = 600) -> Tuple[Dict, Dict]:
+                                   target_tokens_per_chunk: int = 600,
+                                   book_title: str = "",
+                                   show_progress: bool = True) -> Tuple[Dict, Dict]:
         """
         Segment JSON subsections into chunks and summarize each.
+
+        Args:
+            json_data: Segmented JSON data with sections
+            summary_type: 'extractive' or 'abstractive'
+            summary_percent: Target summary length as percentage (0-1)
+            target_tokens_per_chunk: Target tokens per chunk
+            book_title: Book title for progress display
+            show_progress: Whether to show progress bar
 
         Returns:
             Tuple of (result_json, metadata)
@@ -37,22 +47,35 @@ class TextSummarizer:
         logger.info(f"Starting {summary_type} summarization with {target_tokens_per_chunk} token chunks")
 
         chunker = TextChunker(target_tokens=target_tokens_per_chunk)
+
+        # Pre-count chunks for progress bar
+        total_chunks = count_total_chunks(json_data, chunker)
+        total_sections = len(json_data.get('sections', []))
+
         total_original_tokens = 0
         total_summary_tokens = 0
         processed_sections = []
 
-        for section in json_data.get('sections', []):
-            processed_section = self._process_section(
-                section, chunker, summary_type, summary_percent
-            )
+        with SummarizationProgress(
+            total_chunks=total_chunks,
+            total_sections=total_sections,
+            book_title=book_title,
+            summary_type=summary_type,
+            disable=not show_progress,
+        ) as progress:
+            for section in json_data.get('sections', []):
+                processed_section = self._process_section(
+                    section, chunker, summary_type, summary_percent, progress
+                )
 
-            # Accumulate token counts
-            for subsection in processed_section.get('subsections', []):
-                for chunk in subsection.get('chunks', []):
-                    total_original_tokens += chunk['original_tokens']
-                    total_summary_tokens += chunk['summary_tokens']
+                # Accumulate token counts
+                for subsection in processed_section.get('subsections', []):
+                    for chunk in subsection.get('chunks', []):
+                        total_original_tokens += chunk['original_tokens']
+                        total_summary_tokens += chunk['summary_tokens']
 
-            processed_sections.append(processed_section)
+                processed_sections.append(processed_section)
+                progress.update_section(section.get('title', ''))
 
         compression_ratio = total_summary_tokens / total_original_tokens if total_original_tokens > 0 else 0
 
@@ -71,7 +94,8 @@ class TextSummarizer:
         return {'sections': processed_sections}, metadata
 
     def _process_section(self, section: Dict, chunker: TextChunker,
-                         summary_type: str, summary_percent: float) -> Dict:
+                         summary_type: str, summary_percent: float,
+                         progress: Optional[SummarizationProgress] = None) -> Dict:
         """Process a single section and its subsections"""
         processed_section = {
             'id': section['id'],
@@ -83,19 +107,25 @@ class TextSummarizer:
             'subsections': []
         }
 
+        section_title = section.get('title', '')
+
         for subsection in section.get('subsections', []):
             processed_subsection = self._process_subsection(
-                subsection, chunker, summary_type, summary_percent
+                subsection, chunker, summary_type, summary_percent,
+                section_title=section_title, progress=progress
             )
             processed_section['subsections'].append(processed_subsection)
 
         return processed_section
 
     def _process_subsection(self, subsection: Dict, chunker: TextChunker,
-                            summary_type: str, summary_percent: float) -> Dict:
+                            summary_type: str, summary_percent: float,
+                            section_title: str = "",
+                            progress: Optional[SummarizationProgress] = None) -> Dict:
         """Process a single subsection - chunk and summarize"""
         chunks = chunker.chunk(subsection['content'])
         summarized_chunks = []
+        subsection_title = subsection.get('title', '')
 
         for i, chunk_text in enumerate(chunks):
             original_tokens = self.llm.count_tokens(chunk_text)
@@ -114,6 +144,15 @@ class TextSummarizer:
                 'original_tokens': original_tokens,
                 'summary_tokens': summary_tokens
             })
+
+            # Update progress
+            if progress:
+                progress.update_chunk(
+                    section_title=section_title,
+                    subsection_title=subsection_title,
+                    original_tokens=original_tokens,
+                    summary_tokens=summary_tokens,
+                )
 
         return {
             'id': subsection['id'],

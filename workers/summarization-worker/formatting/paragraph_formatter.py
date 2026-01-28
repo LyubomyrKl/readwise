@@ -77,6 +77,16 @@ class ParagraphFormatter:
         # Remove trailing whitespace from lines
         text = re.sub(r' +\n', '\n', text)
 
+        # Ensure space after sentence-ending punctuation if followed by a letter/digit
+        # This fixes cases like "word.Another" -> "word. Another"
+        text = re.sub(r'([.!?,:;])([A-Za-z0-9])', r'\1 \2', text)
+
+        # Ensure space before opening brackets/quotes if preceded by letter/digit
+        text = re.sub(r'([A-Za-z0-9])(["\'\(\[])', r'\1 \2', text)
+
+        # Ensure space after closing brackets/quotes if followed by letter/digit
+        text = re.sub(r'([\]\)\"\'])([A-Za-z0-9])', r'\1 \2', text)
+
         return text.strip()
 
     def _has_paragraphs(self, text: str) -> bool:
