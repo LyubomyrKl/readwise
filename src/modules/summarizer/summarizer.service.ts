@@ -9,6 +9,7 @@ import {
 } from '@/modules/books/book.helpers';
 import { BookResponse } from '@/modules/books/book.models';
 import { BOOK_ERROR_MESSAGES} from "@/modules/books/book.constants";
+import { SummaryType } from '@prisma/client';
 
 @Injectable()
 export class SummarizerService {
@@ -54,6 +55,7 @@ export class SummarizerService {
   async requestSummary(
     userId: string,
     bookId: string,
+    summaryType: SummaryType,
   ): Promise<SummaryRequestResponse> {
     const book = await this.prisma.book.findFirst({
       where: { id: bookId, userId },
@@ -77,6 +79,7 @@ export class SummarizerService {
     const result = await this.rabbitMQService.publishSummaryRequest(
       userId,
       bookId,
+      summaryType
     );
 
     return {

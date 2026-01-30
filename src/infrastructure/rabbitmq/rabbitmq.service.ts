@@ -90,6 +90,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   async publishSummaryRequest(
     userId: string,
     bookId: string,
+    type: SummaryType,
   ): Promise<{ success: boolean; message: string }> {
     const message: SummaryRequestMessage = {
       messageId: randomUUID(),
@@ -98,7 +99,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       userId,
       summaryPercent: 0.4,
       bookId,
-      summarizationType: 'abstractive',
+      summarizationType: type,
       requestedAt: new Date().toISOString(),
       autoSummarize: true,
     };

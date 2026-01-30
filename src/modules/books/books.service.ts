@@ -143,6 +143,7 @@ export class BooksService {
           mime: dto.mime,
           pageCount: dto.pageCount,
           sizeBytes: BigInt(dto.sizeBytes),
+          lastAccessed: new Date().toISOString(),
           fileStorageKey: bookFilePresignInfo.storageKey,
           status: BOOK_STATUS.PENDING,
         },
