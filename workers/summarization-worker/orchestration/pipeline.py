@@ -1,13 +1,12 @@
 """Main orchestration pipeline for summarization."""
 
-import json
 import logging
 import time
 from typing import Any, Dict, List, Optional, Tuple
 
-from config.settings import SummarizationSettings, SummaryType, ChunkerType
+from config.settings import SummarizationSettings, SummaryType
 from config.feature_flags import FeatureFlags
-from core.models import Chunk, Summary, SummarizationContext, PipelineResult, Entity
+from core.models import Chunk, Summary, SummarizationContext
 from llm.async_client import AsyncLLMClient
 from chunking.token_chunker import TokenChunker
 from chunking.semantic_chunker import SemanticChunker

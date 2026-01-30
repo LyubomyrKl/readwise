@@ -4,7 +4,7 @@ import logging
 from typing import Dict, Tuple, Optional
 from datetime import datetime
 
-from chunker import TextChunker
+from chunking.token_chunker import TokenChunker
 from llm_client import LLMClient
 from progress import SummarizationProgress, count_total_chunks
 
@@ -46,7 +46,7 @@ class TextSummarizer:
         """
         logger.info(f"Starting {summary_type} summarization with {target_tokens_per_chunk} token chunks")
 
-        chunker = TextChunker(target_tokens=target_tokens_per_chunk)
+        chunker = TokenChunker(target_tokens=target_tokens_per_chunk)
 
         # Pre-count chunks for progress bar
         total_chunks = count_total_chunks(json_data, chunker)
@@ -93,7 +93,7 @@ class TextSummarizer:
 
         return {'sections': processed_sections}, metadata
 
-    def _process_section(self, section: Dict, chunker: TextChunker,
+    def _process_section(self, section: Dict, chunker: TokenChunker,
                          summary_type: str, summary_percent: float,
                          progress: Optional[SummarizationProgress] = None) -> Dict:
         """Process a single section and its subsections"""
@@ -118,7 +118,7 @@ class TextSummarizer:
 
         return processed_section
 
-    def _process_subsection(self, subsection: Dict, chunker: TextChunker,
+    def _process_subsection(self, subsection: Dict, chunker: TokenChunker,
                             summary_type: str, summary_percent: float,
                             section_title: str = "",
                             progress: Optional[SummarizationProgress] = None) -> Dict:
@@ -127,8 +127,9 @@ class TextSummarizer:
         summarized_chunks = []
         subsection_title = subsection.get('title', '')
 
-        for i, chunk_text in enumerate(chunks):
-            original_tokens = self.llm.count_tokens(chunk_text)
+        for i, chunk in enumerate(chunks):
+            chunk_text = chunk.content
+            original_tokens = chunk.token_count
 
             # Summarize based on type
             if summary_type.lower() == 'extractive':

@@ -21,7 +21,6 @@ from .exceptions import (
     LLMTimeoutError,
     LLMRateLimitError,
     ValidationError,
-    ChunkingError,
     EntityExtractionError,
 )
 
@@ -45,6 +44,5 @@ __all__ = [
     "LLMTimeoutError",
     "LLMRateLimitError",
     "ValidationError",
-    "ChunkingError",
     "EntityExtractionError",
 ]

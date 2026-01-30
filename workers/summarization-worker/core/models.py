@@ -2,7 +2,6 @@
 
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Any
-from datetime import datetime
 
 
 @dataclass
@@ -178,21 +177,3 @@ class LLMResponse:
     error: Optional[str] = None
 
 
-@dataclass
-class PipelineResult:
-    """Result of the summarization pipeline."""
-
-    summary_json: Dict[str, Any]
-    metadata: Dict[str, Any]
-    entity_registry: Dict[str, Entity]
-    quality_metrics: Dict[str, float]
-    processing_time_ms: float = 0.0
-    total_original_tokens: int = 0
-    total_summary_tokens: int = 0
-
-    @property
-    def overall_compression_ratio(self) -> float:
-        """Calculate overall compression ratio."""
-        if self.total_original_tokens == 0:
-            return 0.0
-        return self.total_summary_tokens / self.total_original_tokens

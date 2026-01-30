@@ -28,7 +28,7 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Feature flag to enable new pipeline
-USE_NEW_PIPELINE = os.getenv('USE_NEW_PIPELINE', 'false').lower() == 'true'
+USE_NEW_PIPELINE = os.getenv('USE_NEW_PIPELINE', 'true').lower() == 'true'
 
 
 class SummarizationWorker:
@@ -162,31 +162,13 @@ class SummarizationWorker:
     def _save_summary_to_s3(self, bucket: str, book_id: str, summary_json: str,
                            summary_type: str, metadata: dict) -> str:
         """Save summary to S3 storage."""
-        # Try new summarizer method first, fall back to legacy
-        if hasattr(self.summarizer, 'save_summary_to_s3'):
-            return self.summarizer.save_summary_to_s3(
-                bucket=bucket,
-                book_id=book_id,
-                summary_json=summary_json,
-                summary_type=summary_type,
-                metadata=metadata
-            )
-        else:
-            # Direct S3 upload
-            key = f'summary/{book_id}_{summary_type}_summary.json'
-            self.s3.upload_text(
-                bucket=bucket,
-                key=key,
-                content=summary_json,
-                content_type='application/json',
-                metadata={
-                    'book_id': book_id,
-                    'summary_type': summary_type,
-                    'original_tokens': str(metadata.get('original_tokens', 0)),
-                    'summary_tokens': str(metadata.get('summary_tokens', 0)),
-                }
-            )
-            return key
+        return self.summarizer.save_summary_to_s3(
+            bucket=bucket,
+            book_id=book_id,
+            summary_json=summary_json,
+            summary_type=summary_type,
+            metadata=metadata
+        )
 
     async def process_message_async(self, message_data):
         """Process a message asynchronously"""

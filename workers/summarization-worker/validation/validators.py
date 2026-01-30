@@ -191,17 +191,3 @@ class SummaryValidator(ValidatorProtocol, AsyncValidatorProtocol):
             suggestions=suggestions,
         )
 
-    def quick_validate(self, summary: Summary, original: Chunk) -> bool:
-        """Quick validation check (coverage only).
-
-        Args:
-            summary: Summary to validate
-            original: Original chunk
-
-        Returns:
-            True if summary passes basic validation
-        """
-        coverage_score, _ = self._metrics.coverage_score(
-            summary.content, original.content
-        )
-        return coverage_score >= self.min_coverage * 0.9  # Slightly relaxed threshold

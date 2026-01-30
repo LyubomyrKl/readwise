@@ -62,32 +62,7 @@ class ValidationError(SummarizationError):
         self.issues = issues or []
 
 
-class ChunkingError(SummarizationError):
-    """Text chunking errors."""
-
-    pass
-
-
 class EntityExtractionError(SummarizationError):
     """Entity extraction errors."""
 
     pass
-
-
-class ConfigurationError(SummarizationError):
-    """Configuration errors."""
-
-    pass
-
-
-class PipelineError(SummarizationError):
-    """Pipeline orchestration errors."""
-
-    def __init__(
-        self,
-        message: str,
-        stage: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-    ):
-        super().__init__(message, details)
-        self.stage = stage

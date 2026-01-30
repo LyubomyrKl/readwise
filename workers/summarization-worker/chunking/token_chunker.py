@@ -188,16 +188,3 @@ class TokenChunker(ChunkerProtocol):
 
         return chunks
 
-    def chunk_text(self, content: str) -> List[str]:
-        """Legacy method: Split content into chunks, returning text only.
-
-        This maintains backward compatibility with the original TextChunker.
-
-        Args:
-            content: Text content to chunk
-
-        Returns:
-            List of text chunks
-        """
-        chunks = self.chunk(content)
-        return [c.content for c in chunks]
