@@ -1,13 +1,14 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "@/app/reader/book/[id]/(components)/PDFReader";
 import EPUBReader from "@/app/reader/book/[id]/(components)/EPUBReader";
 import { IBook } from "../../../types";
-import {apiFetch} from "@/lib/fetcher";
+import { apiFetch } from "@/lib/fetcher";
+import { useReadingSession } from "@/hooks/useReadingSession";
 
 export default function BookReaderPage() {
   const params = useParams();
@@ -18,12 +19,17 @@ export default function BookReaderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Initialize reading session (tracks time, updates lastAccessed)
+  const { setCurrentPage, forceSave } = useReadingSession({
+    bookId,
+    autoSaveInterval: 30_000, // Save every 30 seconds
+  });
+
   useEffect(() => {
     async function fetchBook() {
       try {
         setLoading(true);
-        const response = await apiFetch('GET', '/api/books/[id]', undefined, { id: bookId });
-
+        const response = await apiFetch("GET", "/api/books/[id]", undefined, { id: bookId });
         setBook(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
@@ -36,6 +42,12 @@ export default function BookReaderPage() {
       fetchBook();
     }
   }, [bookId]);
+
+  // Handle back navigation with save
+  const handleBack = useCallback(async () => {
+    await forceSave();
+    router.back();
+  }, [forceSave, router]);
 
   if (loading) {
     return (
@@ -82,9 +94,8 @@ export default function BookReaderPage() {
       <div className="relative w-full h-full">
         <EPUBReader
           book={book}
-          onBackAction={() => router.back()}
-          // onCreateHighlight={(h) => api.highlights.create(book.id, h)}
-          // onLocationPersist={(id, cfi, pct) => api.reading.save(id, { cfi, pct })}
+          onBackAction={handleBack}
+          onPageChange={setCurrentPage}
         />
       </div>
     );
@@ -92,9 +103,10 @@ export default function BookReaderPage() {
 
   return (
     <div className="relative w-full h-full">
-      <VirtualPDFReader 
-        book={book} 
-        onBackAction={() => router.back()}
+      <VirtualPDFReader
+        book={book}
+        onBackAction={handleBack}
+        onPageChange={setCurrentPage}
       />
     </div>
   );

@@ -90,11 +90,11 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
                   {lastBook.lastAccessed && <span className="inline-flex items-center gap-1 text-muted-foreground">
                     <Clock className="h-4 w-4" /> Last read{' '}
-                    {prettyDate(lastBook.lastAccessed)}
+                    {prettyDate(lastBook.lastAccessed as unknown as string)}
                   </span>}
                 </div>
                 <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
-                  {lastBook.description}
+                  {lastBook.description as unknown as string}
                 </p>
                 <div className="mt-4">
                   <div className="mb-2 flex items-center justify-between text-xs">
@@ -113,13 +113,13 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
               </div>
 
               <div className="mt-1 flex gap-2">
-                {lastBook.tags.map((t) => (
+                {(lastBook.tags as { name?: string; tag?: string }[]).map((t, idx) => (
                   <Badge
-                    key={t.name}
+                    key={t.name || t.tag || idx}
                     variant="secondary"
                     className="backdrop-blur"
                   >
-                    {t.name}
+                    {t.name || t.tag}
                   </Badge>
                 ))}
               </div>

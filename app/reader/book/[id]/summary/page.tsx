@@ -2,12 +2,16 @@
 
 import {useParams} from "next/navigation";
 import {useEffect, useState} from "react";
-import {
-  Loader2,
-} from 'lucide-react';
 import {IBook} from "../../../types";
 import {apiFetch} from "@/lib/fetcher";
-import { ErrorState, Processing, SummaryPage, GenerateSummaryState} from './(components)';
+import { ErrorState, Loader, Processing, SummaryReader, GenerateSummaryState} from './(components)';
+
+interface Chunk {
+  chunk_id: string;
+  content: string;
+  original_tokens: number;
+  summary_tokens: number;
+}
 
 interface SummarySection {
   id: string;
@@ -17,6 +21,7 @@ interface SummarySection {
   end_char: number;
   content: string;
   subsections?: SummarySection[];
+  chunks?: Chunk[];
 }
 
 export interface Summary {
@@ -53,7 +58,7 @@ export default function BookSummaryPage() {
     }
   };
 
-  if (loading) return <Loader2/>
+  if (loading) return <Loader/>
 
   if (error)  return <ErrorState error={error}/>
 
@@ -69,11 +74,5 @@ export default function BookSummaryPage() {
     />
   }
 
-  return (
-    <div className="py-8">
-      <div className="max-w-4xl mx-auto">
-        <SummaryPage summary={summary} />
-      </div>
-    </div>
-  );
+  return <SummaryReader summary={summary} />;
 }

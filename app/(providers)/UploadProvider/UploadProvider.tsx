@@ -97,6 +97,11 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
     // Calculate stats on each render (memoized in real app)
     const stats = calculateStats(uploads);
 
+    // Check if there are active uploads
+    const hasActiveUploads = uploads.some(
+        (u) => u.status === "uploading" || u.status === "processing" || u.status === "queued"
+    );
+
     // Update upload state helper
     const updateUpload = useCallback(
         (id: string, updates: Partial<UploadProgress>) => {
@@ -534,6 +539,7 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                 stats,
                 isPaused,
                 maxConcurrent,
+                hasActiveUploads,
                 addUploads,
                 removeUpload,
                 cancelUpload,

@@ -23,6 +23,7 @@ const ReactReader = dynamic(
 export type EPUBReaderProps = {
   book: IBook;
   onBackAction?: () => void;
+  onPageChange?: (page: number) => void;
   onCreateHighlightAction?: (h: { cfiRange: string; text?: string }) => void;
   onLocationPersistAction?: (
     bookId: string,
@@ -43,6 +44,7 @@ const clamp = (v: number, min: number, max: number) =>
 export default function EPUBReader({
   book,
   onBackAction,
+  onPageChange,
   onCreateHighlightAction,
   onLocationPersistAction,
 }: EPUBReaderProps) {
@@ -106,11 +108,17 @@ export default function EPUBReader({
           const pct = r.book.locations.percentageFromCfi(epubcfi) || 0;
           const progressPct = Math.round(pct * 100);
           setProgress(progressPct);
+
+          // Calculate approximate page from percentage
+          const totalPages = book.pageCount || 100;
+          const currentPage = Math.round((pct * totalPages));
+          onPageChange?.(currentPage);
+
           onLocationPersistAction?.(book.id, epubcfi, progressPct);
         } catch {}
       }
     },
-    [book.id, onLocationPersistAction]
+    [book.id, book.pageCount, onPageChange, onLocationPersistAction]
   );
 
   const onRendition = useCallback(

@@ -31,13 +31,14 @@ import PDFReaderMenu from "./PDFReaderMenu";
 type Props = {
   book: IBook;
   onBackAction?: () => void;
+  onPageChange?: (page: number) => void;
 };
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const DEFAULT_ZOOM = 1;
 
-export default function PDFReader({ book, onBackAction }: Props) {
+export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [, setRenderKey] = useState(0);
   const [devicePixelRatio, setDevicePixelRatio] = useState(1);
@@ -157,6 +158,7 @@ export default function PDFReader({ book, onBackAction }: Props) {
           setTotalPages={setTotalPages}
           setRenderKey={setRenderKey}
           onBackAction={onBackAction}
+          onPageChange={onPageChange}
         />
       </EmbedPDF>
     </div>
@@ -172,9 +174,12 @@ function PDFReaderContent({
   settingsOpen,
   setSettingsOpen,
   currentPage,
+  setCurrentPage,
   totalPages,
+  setTotalPages,
   setRenderKey,
   onBackAction,
+  onPageChange,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   devicePixelRatio: number;
@@ -189,7 +194,12 @@ function PDFReaderContent({
   setTotalPages: (p: number) => void;
   setRenderKey: (fn: (k: number) => number) => void;
   onBackAction?: () => void;
+  onPageChange?: (page: number) => void;
 }) {
+  // Report page changes to parent for time tracking
+  useEffect(() => {
+    onPageChange?.(currentPage);
+  }, [currentPage, onPageChange]);
   const { provides, state } = useZoom();
   const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;
   const zoomPercent = Math.round(currentZoom * 100);

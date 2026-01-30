@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useTransition } from "react";
 import {
   BookOpen,
   Clock,
@@ -20,9 +20,12 @@ import {
   Upload,
   Camera,
   Sparkles,
+  Loader2,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import { apiFetch } from "@/lib/fetcher";
+import { useBookMutations } from "@/hooks/useBookMutations";
+import { toast } from "sonner";
 
 interface BookProfileProps {
   book: IBook;
@@ -36,6 +39,7 @@ export default function BookProfile({
   onBack,
 }: BookProfileProps) {
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
+  const [isPending, startTransition] = useTransition();
   const [showAllTags, setShowAllTags] = useState(false);
   const [coverUrl, setCoverUrl] = useState(book.coverUrl);
   const [isUploadingCover, setIsUploadingCover] = useState(false);
@@ -43,6 +47,24 @@ export default function BookProfile({
     book.status === "processing"
   );
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { setFavorite } = useBookMutations({
+    onError: (error) => {
+      // Revert optimistic update on error
+      setIsFavorite(!isFavorite);
+      toast.error("Failed to update favorite status");
+    },
+  });
+
+  const handleFavoriteToggle = () => {
+    const newValue = !isFavorite;
+    // Optimistic update
+    setIsFavorite(newValue);
+
+    startTransition(async () => {
+      await setFavorite(book.id, newValue);
+    });
+  };
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString("en-US", {
@@ -170,16 +192,21 @@ export default function BookProfile({
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setIsFavorite(!isFavorite)}
+                onClick={handleFavoriteToggle}
+                disabled={isPending}
                 className={`p-2 rounded-lg transition-colors ${
                   isFavorite
-                    ? "text-red-500 bg-red-50 hover:bg-red-100"
+                    ? "text-red-500 bg-red-50 hover:bg-red-100 dark:bg-red-950 dark:hover:bg-red-900"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
+                } disabled:opacity-50`}
               >
-                <Heart
-                  className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`}
-                />
+                {isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Heart
+                    className={`h-4 w-4 ${isFavorite ? "fill-current" : ""}`}
+                  />
+                )}
               </button>
 
               <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">

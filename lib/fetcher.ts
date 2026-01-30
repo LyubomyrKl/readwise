@@ -5,6 +5,8 @@ import type {
   PresignedUploadDto,
   CoverUpdateDto,
   UpdateSpentTimeDto,
+  SetBookToFavoriteDto,
+  UpdateLastAccessedDto,
   LoginDto,
   RegisterDto,
   RequestSummaryDto,
@@ -31,6 +33,8 @@ type ApiRegistry = {
     "/api/books/coverPresign": { req: PresignedUploadDto & { bookId?: string }; res: TransformedCoverPresignRes };
     "/api/books/updateCoverFinalize": { req: CoverUpdateDto; res: FinalizeResponse };
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
+    "/api/books/setBookToFavorite": { req: SetBookToFavoriteDto; res: { bookId: string; status: string } };
+    "/api/books/updateLastAccessed": { req: UpdateLastAccessedDto; res: { status: string } };
     "/api/auth/login": { req: LoginDto; res: AuthBundle };
     "/api/auth/register": { req: RegisterDto; res: AuthBundle };
     "/api/auth/refresh": { req: object; res: Tokens };

@@ -9,19 +9,42 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { IBook } from "../../types";
 import { BookCover } from "./BookCover";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 import { ROUTES } from "@/app/(consts)/routes";
-import {BookCheck, BookHeart} from "lucide-react";
+import { BookCheck, BookHeart, Heart, Loader2 } from "lucide-react";
+import { useBookMutations } from "@/hooks/useBookMutations";
 
-export function BookCard({ book }: { book: IBook }) {
+type BookCardProps = {
+  book: IBook;
+  onFavoriteChange?: (bookId: string, isFavorite: boolean) => void;
+};
+
+export function BookCard({ book, onFavoriteChange }: BookCardProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [truncated, setTruncated] = useState(false);
+  const [isFavorite, setIsFavorite] = useState(book.isFavorite);
+  const [isPending, startTransition] = useTransition();
   const { backgroundStyle } = useBookCover();
   const router = useRouter();
+
+  const { setFavorite } = useBookMutations({
+    onFavoriteChange: (bookId, newValue) => {
+      onFavoriteChange?.(bookId, newValue);
+    },
+    onError: () => {
+      // Revert on error
+      setIsFavorite(!isFavorite);
+    },
+  });
+
+  // Sync with prop changes (e.g., after refetch)
+  useEffect(() => {
+    setIsFavorite(book.isFavorite);
+  }, [book.isFavorite]);
 
   useEffect(() => {
     const el = titleRef.current;
@@ -33,6 +56,16 @@ export function BookCard({ book }: { book: IBook }) {
 
   const handleCardClick = () => {
     router.push(`/reader/book/${book.id}/profile`);
+  };
+
+  const handleFavoriteClick = (e: React.MouseEvent) => {
+    e.stopPropagation(); // Prevent card navigation
+    const newValue = !isFavorite;
+    setIsFavorite(newValue); // Optimistic update
+
+    startTransition(async () => {
+      await setFavorite(book.id, newValue);
+    });
   };
 
   return (
@@ -54,6 +87,24 @@ export function BookCard({ book }: { book: IBook }) {
             <div className="pointer-events-none absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
               <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-background/60 to-transparent" />
             </div>
+
+            {/* Favorite button - appears on hover */}
+            <button
+              onClick={handleFavoriteClick}
+              disabled={isPending}
+              className={`absolute top-2 right-2 p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-200 ${
+                isFavorite
+                  ? "bg-red-500 text-white opacity-100"
+                  : "bg-background/80 text-muted-foreground hover:bg-background hover:text-red-500"
+              } backdrop-blur-sm shadow-sm`}
+              aria-label={isFavorite ? "Remove from favorites" : "Add to favorites"}
+            >
+              {isPending ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Heart className={`w-3.5 h-3.5 ${isFavorite ? "fill-current" : ""}`} />
+              )}
+            </button>
           </div>
         </CardContent>
 
@@ -77,9 +128,9 @@ export function BookCard({ book }: { book: IBook }) {
             <p className="text-xs text-muted-foreground line-clamp-1 flex-1">
               {book.author}
             </p>
-            {(book.isFavorite || book.isFinished) && (
+            {(isFavorite || book.isFinished) && (
               <div className="flex gap-1">
-                {book.isFavorite && (
+                {isFavorite && (
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted">
                     <BookHeart className="w-3 h-3 fill-muted-foreground/40 text-muted-foreground" />
                   </Badge>

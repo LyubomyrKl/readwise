@@ -86,6 +86,7 @@ export interface UploadContextType {
   stats: UploadStats;
   isPaused: boolean;
   maxConcurrent: number;
+  hasActiveUploads: boolean;
 
   // Actions
   addUploads: (files: UploadFile[]) => void;
