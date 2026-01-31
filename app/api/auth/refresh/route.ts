@@ -1,4 +1,4 @@
-import { createServerSdk } from "@/lib/sdk";
+import { authApi, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
 
 export async function POST(req: NextRequest) {
@@ -10,11 +10,16 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  const { authApi } = createServerSdk();
+  try {
+    const resp = await authApi.refresh({ refreshToken });
 
-  const resp = await authApi.refresh({ refreshDto: { refreshToken } });
-
-  const out = NextResponse.json(resp.data ?? {}, { status: resp.status });
-
-  return out;
+    return NextResponse.json(resp.data ?? {}, { status: resp.status });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
+      });
+    }
+    return NextResponse.json({ error: "Refresh failed" }, { status: 500 });
+  }
 }

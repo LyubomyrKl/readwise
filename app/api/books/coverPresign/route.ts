@@ -1,17 +1,13 @@
-import { createServerSdk } from "@/lib/sdk";
+import { booksApi, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
-import type { PresignedUploadDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import type { PresignedUploadDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const { bookId, ...uploadData } = body as { bookId?: string } & PresignedUploadDto;
 
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.coverPresign({
-      presignedUploadDto: uploadData,
-    });
+    const resp = await booksApi.coverPresign(uploadData);
 
     return NextResponse.json(
       {

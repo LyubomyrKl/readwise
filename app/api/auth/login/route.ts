@@ -1,22 +1,20 @@
-import { createServerSdk, setTokensToCookies } from "@/lib/sdk";
-import { cookies } from "next/headers";
+import { authApi, setTokensToCookies, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
+import type { LoginDto } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
-  const body = await req.json();
-  const { authApi } = createServerSdk();
+  const body = (await req.json()) as LoginDto;
 
   try {
-    const resp = await authApi.login({ loginDto: body });
+    const resp = await authApi.login(body);
 
-    await setTokensToCookies(resp.data.tokens, cookies());
+    await setTokensToCookies(resp.data.tokens);
 
     return NextResponse.json(resp.data, { status: resp.status });
   } catch (error: unknown) {
-    if (error && typeof error === "object" && "response" in error) {
-      const axiosError = error as { response: { data: unknown; status: number } };
-      return NextResponse.json(axiosError.response.data, {
-        status: axiosError.response.status,
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
       });
     }
     return NextResponse.json({ message: "Login failed" }, { status: 500 });

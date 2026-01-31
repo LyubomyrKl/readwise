@@ -1,6 +1,5 @@
-import { createServerSdk } from "@/lib/sdk";
+import { booksApi, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
 
 export async function GET(
   req: NextRequest,
@@ -8,8 +7,7 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.getBook({ id });
+    const resp = await booksApi.getBook(id);
 
     return NextResponse.json({ data: resp.data }, { status: resp.status });
   } catch (error) {

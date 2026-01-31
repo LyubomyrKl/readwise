@@ -1,14 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import axios from "axios";
+import { booksApi, axios } from "@/lib/api";
+import type { SetBookToFavoriteDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.setBookToFavorite({
-      setBookToFavoriteDto: body,
-    });
+    const body = (await request.json()) as SetBookToFavoriteDto;
+    const resp = await booksApi.setBookToFavorite(body);
 
     return NextResponse.json(
       {

@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import type { CoverUpdateDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import { booksApi, axios } from "@/lib/api";
+import type { CoverUpdateDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as CoverUpdateDto;
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.updateCoverFinalize({
-      coverUpdateDto: body,
-    });
+    const resp = await booksApi.updateCoverFinalize(body);
 
     return NextResponse.json(
       {

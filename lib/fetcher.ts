@@ -15,7 +15,7 @@ import type {
   AuthBundle,
   Tokens,
   SummaryRequestResponse,
-} from "@satoru-satoshi/summarize-api-sdk";
+} from "@/lib/types";
 import type { BookResponse, TransformedPresignRes, TransformedCoverPresignRes } from "@/app/api/books/schemas";
 import type { SummaryResponse } from "@/app/api/summarizer/schemas";
 

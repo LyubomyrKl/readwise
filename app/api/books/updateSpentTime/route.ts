@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import type { UpdateSpentTimeDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import { booksApi, axios } from "@/lib/api";
+import type { UpdateSpentTimeDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as UpdateSpentTimeDto;
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.updateTimeSpent({
-      updateSpentTimeDto: body,
-    });
+    const resp = await booksApi.updateTimeSpent(body);
 
     return NextResponse.json({ status: "ok" }, { status: resp.status });
   } catch (error) {

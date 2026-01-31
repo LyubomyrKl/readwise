@@ -1,15 +1,4 @@
-import type {
-  LoginDto,
-  RegisterDto,
-  RefreshDto,
-  AuthBundle,
-  Tokens,
-  SafeUser,
-  MePayload,
-  LogoutResult,
-} from "@satoru-satoshi/summarize-api-sdk";
-
-// Re-export SDK types for convenience
+// Re-export types from centralized location
 export type {
   LoginDto as LoginReqType,
   RegisterDto as RegisterReqType,
@@ -19,4 +8,4 @@ export type {
   SafeUser as SafeUserType,
   MePayload as MePayloadType,
   LogoutResult as LogoutResultType,
-};
+} from "@/lib/types";

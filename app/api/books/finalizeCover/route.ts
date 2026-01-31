@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import type { FinalizeCoverDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import { booksApi, axios } from "@/lib/api";
+import type { FinalizeCoverDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as FinalizeCoverDto;
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.finalizeCover({
-      finalizeCoverDto: body,
-    });
+    const resp = await booksApi.finalizeCover(body);
 
     return NextResponse.json(
       {

@@ -1,14 +1,10 @@
-import { createServerSdk } from "@/lib/sdk";
+import { booksApi, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
-import axios from "axios";
 
 export async function POST(request: NextRequest) {
   try {
     const { bookId } = await request.json();
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.setLastAccessed({
-      updateLastAccessedDto: { bookId },
-    });
+    const resp = await booksApi.setLastAccessed({ bookId });
 
     return NextResponse.json({ status: "ok" }, { status: resp.status });
   } catch (error) {

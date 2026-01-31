@@ -1,15 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSdk } from "@/lib/sdk";
-import type { FinalizeBookDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import { booksApi, axios } from "@/lib/api";
+import type { FinalizeBookDto } from "@/lib/types";
 
 export async function POST(request: NextRequest) {
   try {
     const body = (await request.json()) as FinalizeBookDto;
-    const { booksApi } = createServerSdk();
-    const resp = await booksApi.finalizeBook({
-      finalizeBookDto: body,
-    });
+    const resp = await booksApi.finalizeBook(body);
 
     if (!resp.data.bookId || resp.data.status !== "ready") {
       return NextResponse.json(

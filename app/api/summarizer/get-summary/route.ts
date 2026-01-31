@@ -1,15 +1,11 @@
-import { createServerSdk } from "@/lib/sdk";
+import { summarizerApi, axios } from "@/lib/api";
 import { NextRequest, NextResponse } from "next/server";
-import type { GetSummaryDto } from "@satoru-satoshi/summarize-api-sdk";
-import axios from "axios";
+import type { GetSummaryDto } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
   try {
     const body = (await req.json()) as GetSummaryDto;
-    const { summarizerApi } = createServerSdk();
-    const resp = await summarizerApi.getSummary({
-      getSummaryDto: body,
-    });
+    const resp = await summarizerApi.getSummary(body);
 
     return NextResponse.json(resp.data, { status: resp.status });
   } catch (error) {

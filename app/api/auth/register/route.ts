@@ -1,18 +1,25 @@
 import { NextRequest, NextResponse } from "next/server";
-import { setTokensToCookies, createServerSdk } from "@/lib/sdk";
-import { cookies } from "next/headers";
-import type { RegisterDto } from "@satoru-satoshi/summarize-api-sdk";
+import { authApi, setTokensToCookies, axios } from "@/lib/api";
+import type { RegisterDto } from "@/lib/types";
 
 export async function POST(req: NextRequest) {
-  const { authApi } = createServerSdk();
+  try {
+    const registerDto = (await req.json()) as RegisterDto;
 
-  const registerDto = (await req.json()) as RegisterDto;
+    const resp = await authApi.register(registerDto);
 
-  const resp = await authApi.register({ registerDto });
+    await setTokensToCookies(resp.data.tokens);
 
-  const out = NextResponse.json(resp.data?.user ?? {}, { status: resp.status });
-
-  await setTokensToCookies(resp.data?.tokens, cookies());
-
-  return out;
+    return NextResponse.json(resp.data?.user ?? {}, { status: resp.status });
+  } catch (error) {
+    if (axios.isAxiosError(error) && error.response) {
+      return NextResponse.json(error.response.data, {
+        status: error.response.status,
+      });
+    }
+    return NextResponse.json(
+      { error: "Registration failed" },
+      { status: 500 }
+    );
+  }
 }
