@@ -1,11 +1,4 @@
-import * as pdfjsLib from "pdfjs-dist";
 import ePub from "epubjs";
-
-// Configure PDF.js worker - use local worker file
-if (typeof window !== "undefined") {
-  // Try local worker first, fallback to CDN
-  pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf-worker/pdf.worker.min.mjs";
-}
 
 export interface BookMetadata {
   title?: string;
@@ -19,6 +12,14 @@ export interface BookMetadata {
  * Extract metadata from a PDF file
  */
 async function extractPdfMetadata(file: File): Promise<BookMetadata> {
+  // Dynamic import to avoid SSR issues with pdfjs-dist
+  const pdfjsLib = await import("pdfjs-dist");
+
+  // Configure PDF.js worker
+  if (typeof window !== "undefined") {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf-worker/pdf.worker.min.mjs";
+  }
+
   try {
     const arrayBuffer = await file.arrayBuffer();
     const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -33,11 +34,11 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
       const viewport = page.getViewport({ scale: 1.5 });
 
       // Create canvas to render the page
-      const canvas = document.createElement('canvas');
-      const context = canvas.getContext('2d');
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
 
       if (!context) {
-        throw new Error('Failed to get canvas 2D context');
+        throw new Error("Failed to get canvas 2D context");
       }
 
       canvas.width = viewport.width;
@@ -52,7 +53,7 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
       await page.render(renderContext).promise;
 
       // Convert canvas to data URL
-      coverImage = canvas.toDataURL('image/jpeg', 0.8);
+      coverImage = canvas.toDataURL("image/jpeg", 0.8);
     } catch (coverError) {
       console.warn("Failed to extract PDF cover image:", coverError);
     }
@@ -87,7 +88,7 @@ async function extractEpubMetadata(file: File): Promise<BookMetadata> {
       const cover = await book.coverUrl();
       if (cover) {
         // If it's a blob URL, fetch it and convert to data URL
-        if (cover.startsWith('blob:')) {
+        if (cover.startsWith("blob:")) {
           const response = await fetch(cover);
           const blob = await response.blob();
           coverImage = await new Promise<string>((resolve) => {

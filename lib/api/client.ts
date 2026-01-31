@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import type { Tokens } from "@/lib/types";
 
-const API_URL = process.env.API_URL || "https://summarizer-gateway.vercel.app";
+const API_URL = process.env.API_URL + '/api';
 
 // Create axios instance
 function createAxiosInstance(): AxiosInstance {

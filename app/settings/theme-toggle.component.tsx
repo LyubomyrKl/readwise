@@ -13,10 +13,11 @@ import { Laptop, Moon, Sun } from "lucide-react";
 export function ThemeToggle() {
   const { theme, setTheme, resolvedTheme } = useTheme();
 
-  const current =
-    theme && theme === "system"
+  const current = !theme
+    ? "Theme"
+    : theme === "system"
       ? `System (${resolvedTheme ?? ""})`
-      : theme?.[0]!.toUpperCase() + theme!.slice(1);
+      : theme.charAt(0).toUpperCase() + theme.slice(1);
 
   return (
     <div className="flex items-center gap-3">

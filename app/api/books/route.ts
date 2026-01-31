@@ -7,6 +7,7 @@ export async function GET() {
 
     return NextResponse.json(resp.data ?? [], { status: resp.status });
   } catch (error) {
+      console.log(error);
     if (axios.isAxiosError(error) && error.response) {
       return NextResponse.json(error.response.data, {
         status: error.response.status,
