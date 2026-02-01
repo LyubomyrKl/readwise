@@ -202,14 +202,6 @@ export class BookResponse {
   updatedAt!: Date;
 }
 
-export class DownloadResponse {
-  @ApiProperty()
-  headers!: DownloadHeaders;
-
-  @ApiProperty()
-  statusCode!: number;
-}
-
 export class CoverPresignResponse {
   @ApiProperty({
     description: 'Presigned upload info for cover',
@@ -268,15 +260,6 @@ export class UpdateSpentTimeDto {
   @IsString()
   @IsNotEmpty()
   amount!: number;
-}
-
-export interface DownloadHeaders {
-  'Content-Type': string;
-  'Accept-Ranges': string;
-  'Content-Disposition': string;
-  'Content-Length': string;
-  'Content-Range'?: string;
-   Location: string;
 }
 
 export class CreateBookDto {

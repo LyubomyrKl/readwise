@@ -5,9 +5,8 @@ import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { SummaryRequestResponse, SummaryResponse } from './summarizer.models';
 import {
   BOOK_WITH_RELATIONS,
-  BookWithRelations,
+  convertBookToResponse,
 } from '@/modules/books/book.helpers';
-import { BookResponse } from '@/modules/books/book.models';
 import { BOOK_ERROR_MESSAGES} from "@/modules/books/book.constants";
 import { SummaryType } from '@prisma/client';
 
@@ -18,39 +17,6 @@ export class SummarizerService {
     private readonly s3Service: S3Service,
     private readonly prisma: PrismaService,
   ) {}
-
-  private async convertBookToResponse(
-    book: BookWithRelations,
-  ): Promise<BookResponse> {
-
-    return {
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      coverUrl: book.customCoverStorageKey
-        ? await this.s3Service.generatePresignedCoverDownloadUrl(
-          book.customCoverStorageKey,
-        )
-        : undefined,
-      fileUrl: await this.s3Service.generatePresignedDownloadUrl(book.fileStorageKey),
-      description: book.description,
-      spentTime: book.spentTime,
-      pageCount: book.pageCount,
-      pagePassCount: book.pagePassCount,
-      summaryKey: book.summaryStorageKey,
-      lastAccessed: book.lastAccessed,
-      isFinished: book.isFinished,
-      isFavorite: book.isFavorite,
-      mime: book.mime,
-      sizeBytes: book.sizeBytes.toString(),
-      status: book.status,
-      notes: book.notes || [],
-      highlights: book.highlights || [],
-      tags: book.tags || [],
-      createdAt: book.createdAt,
-      updatedAt: book.updatedAt,
-    };
-  }
 
   async requestSummary(
     userId: string,
@@ -106,7 +72,7 @@ export class SummarizerService {
 
     const summary = await this.s3Service.getJsonObject(book.summaryStorageKey);
 
-    const convertedBook = await this.convertBookToResponse(book);
+    const convertedBook = await convertBookToResponse(book, this.s3Service);
 
     return {
       ...convertedBook,

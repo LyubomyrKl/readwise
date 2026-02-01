@@ -25,7 +25,7 @@ import {
   UpdateLastAccessedResponse,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
-import { BOOK_WITH_RELATIONS, BookWithRelations } from './book.helpers';
+import { BOOK_WITH_RELATIONS, BookWithRelations, convertBookToResponse } from './book.helpers';
 import { SuccessEmptyResponse } from '@/app.models';
 
 @Injectable()
@@ -68,39 +68,6 @@ export class BooksService {
     }
 
     return book;
-  }
-
-  private async convertBookToResponse(
-    book: BookWithRelations,
-  ): Promise<BookResponse> {
-
-    return {
-      id: book.id,
-      title: book.title,
-      author: book.author,
-      coverUrl: book.customCoverStorageKey
-        ? await this.s3.generatePresignedCoverDownloadUrl(
-            book.customCoverStorageKey,
-          )
-        : undefined,
-      fileUrl: await this.s3.generatePresignedDownloadUrl(book.fileStorageKey),
-      description: book.description,
-      spentTime: book.spentTime,
-      pageCount: book.pageCount,
-      pagePassCount: book.pagePassCount,
-      summaryKey: book.summaryStorageKey,
-      lastAccessed: book.lastAccessed,
-      isFinished: book.isFinished,
-      isFavorite: book.isFavorite,
-      mime: book.mime,
-      sizeBytes: book.sizeBytes.toString(),
-      status: book.status,
-      notes: book.notes || [],
-      highlights: book.highlights || [],
-      tags: book.tags || [],
-      createdAt: book.createdAt,
-      updatedAt: book.updatedAt,
-    };
   }
 
   async createBookAndPresign(
@@ -226,24 +193,22 @@ export class BooksService {
     });
 
     return await Promise.all(
-      books.map((book) => this.convertBookToResponse(book)),
+      books.map((book) => convertBookToResponse(book, this.s3)),
     );
   }
 
   async getBook(userId: string, bookId: string): Promise<BookResponse> {
     const book = await this.findBookByIdAndUser(bookId, userId);
-    return await this.convertBookToResponse(book);
+    return await convertBookToResponse(book, this.s3);
   }
 
   async setLastAccessed(bookId: string, userId: string): Promise<UpdateLastAccessedResponse> {
-    const book = await this.findBookByIdAndUser(bookId, userId);
+    await this.findBookByIdAndUser(bookId, userId);
 
-    if(book){
-      await this.prisma.book.update({
-        where: { id: bookId },
-        data: { lastAccessed: new Date() },
-      });
-    }
+    await this.prisma.book.update({
+      where: { id: bookId },
+      data: { lastAccessed: new Date() },
+    });
 
     return { bookId };
   }
