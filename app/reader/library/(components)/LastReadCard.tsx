@@ -69,8 +69,8 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
             <CardDescription>Pick up right where you stopped</CardDescription>
           </CardHeader>
 
-          <CardContent className="grid grid-cols-1 gap-6 pb-2 md:grid-cols-[220px_1fr]">
-            <div className="relative mx-auto h-[300px] w-[220px] overflow-hidden rounded-2xl shadow-md md:mx-0">
+          <CardContent className="grid grid-cols-1 gap-4 sm:gap-6 pb-2 md:grid-cols-[220px_1fr]">
+            <div className="relative mx-auto h-[240px] w-[180px] sm:h-[300px] sm:w-[220px] overflow-hidden rounded-2xl shadow-md md:mx-0">
               <BookCover
                 title={lastBook.title}
                 author={lastBook.author}
@@ -80,11 +80,11 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
             </div>
 
             <div className="flex flex-col justify-between">
-              <div className="space-y-3">
-                <h2 className="text-lg font-semibold leading-tight sm:text-xl">
+              <div className="space-y-2 sm:space-y-3">
+                <h2 className="text-base sm:text-lg font-semibold leading-tight md:text-xl">
                   {lastBook.title}
                 </h2>
-                <p className="text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-muted-foreground">
                   by {lastBook.author}
                 </p>
                 <div className="mt-2 flex flex-wrap items-center gap-4 text-sm">
@@ -93,7 +93,7 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
                     {prettyDate(lastBook.lastAccessed as unknown as string)}
                   </span>}
                 </div>
-                <p className="mt-4 text-sm leading-relaxed text-muted-foreground">
+                <p className="mt-2 sm:mt-4 text-xs sm:text-sm leading-relaxed text-muted-foreground line-clamp-3 sm:line-clamp-none">
                   {lastBook.description as unknown as string}
                 </p>
                 <div className="mt-4">
@@ -124,21 +124,21 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
                 ))}
               </div>
 
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button asChild size="sm">
+              <div className="mt-4 sm:mt-6 flex flex-wrap gap-2 sm:gap-3">
+                <Button asChild size="sm" className="flex-1 sm:flex-none">
                   <Link href={ROUTES.reader.bookReader(lastBook.id)}>
                     Continue reading
                     <ChevronRight className="ml-1 h-4 w-4" />
                   </Link>
                 </Button>
-                <Button asChild size="sm" variant="secondary">
+                <Button asChild size="sm" variant="secondary" className="flex-1 sm:flex-none">
                   <Link href={ROUTES.reader.bookProfile(lastBook.id)}>View details</Link>
                 </Button>
               </div>
             </div>
           </CardContent>
 
-          <CardFooter className="flex flex-wrap items-center gap-4 border-t bg-muted/30 px-6 py-4">
+          <CardFooter className="flex flex-wrap items-center gap-2 sm:gap-4 border-t bg-muted/30 px-3 sm:px-6 py-3 sm:py-4">
               {lastBook.pageCount && <Stat label="Total pages" value={lastBook.pageCount}/>}
             <Stat label="Notes" value={lastBook.notes.length} icon={<NotebookPen  className="h-4 w-4"/>}/>
             <Stat label="Highlights" value={lastBook.highlights.length} icon={<Bookmark className="h-4 w-4" />} />

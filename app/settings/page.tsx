@@ -80,18 +80,18 @@ export default function SettingsPage() {
             viewport: { once: true, margin: "-10%" },
           }
         : {})}
-      className="grid gap-6 md:grid-cols-2 md:grid-rows-2"
+      className="grid gap-4 sm:gap-6 md:grid-cols-2 md:grid-rows-2"
     >
       {/* Left column: spans 2 rows */}
       <Child {...(enabled ? { variants: item } : {})} className="md:row-span-2">
         <Card className="h-full overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-          <CardHeader className="gap-1 pb-2">
-            <CardTitle className="text-xl">Appearance</CardTitle>
-            <CardDescription>
+          <CardHeader className="gap-1 pb-2 px-4 sm:px-6">
+            <CardTitle className="text-lg sm:text-xl">Appearance</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">
               Choose how the app looks on your device.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex h-full flex-col space-y-4 pb-4">
+          <CardContent className="flex h-full flex-col space-y-4 pb-4 px-4 sm:px-6">
             <div>
               <div className="mb-2 text-sm text-muted-foreground">Theme</div>
               <ThemeToggle />
@@ -196,18 +196,18 @@ export default function SettingsPage() {
         className="md:col-start-2 md:row-start-1"
       >
         <Card className="h-full overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-          <CardHeader className="gap-1 pb-2">
-            <CardTitle className="text-xl">Account</CardTitle>
-            <CardDescription>Manage your session.</CardDescription>
+          <CardHeader className="gap-1 pb-2 px-4 sm:px-6">
+            <CardTitle className="text-lg sm:text-xl">Account</CardTitle>
+            <CardDescription className="text-xs sm:text-sm">Manage your session.</CardDescription>
           </CardHeader>
-          <CardContent className="flex h-full items-center justify-between pb-4">
+          <CardContent className="flex h-full flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-4 px-4 sm:px-6">
             <div>
               <div className="text-sm font-medium">Sign out</div>
               <p className="text-xs text-muted-foreground">
                 You will be redirected to login.
               </p>
             </div>
-            <Button variant="destructive" onClick={logout} disabled={pending}>
+            <Button variant="destructive" onClick={logout} disabled={pending} className="w-full sm:w-auto">
               <LogOut className="mr-2 h-4 w-4" />
               {pending ? "Signing out…" : "Logout"}
             </Button>

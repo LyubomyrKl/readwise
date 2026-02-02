@@ -108,13 +108,13 @@ export function BookCard({ book, onFavoriteChange }: BookCardProps) {
           </div>
         </CardContent>
 
-        <CardContent className="p-3 space-y-2">
+        <CardContent className="p-2 sm:p-3 space-y-1.5 sm:space-y-2">
           <TooltipProvider>
             <Tooltip open={truncated ? undefined : false}>
               <TooltipTrigger asChild>
                 <h3
                   ref={titleRef}
-                  className="pointer-events-auto text-sm font-semibold leading-snug line-clamp-2 min-h-[2.25rem]"
+                  className="pointer-events-auto text-xs sm:text-sm font-semibold leading-snug line-clamp-2 min-h-[2rem] sm:min-h-[2.25rem]"
                 >
                   {book.title}
                 </h3>
@@ -124,8 +124,8 @@ export function BookCard({ book, onFavoriteChange }: BookCardProps) {
               </TooltipContent>
             </Tooltip>
           </TooltipProvider>
-          <div className="flex items-center justify-between gap-2">
-            <p className="text-xs text-muted-foreground line-clamp-1 flex-1">
+          <div className="flex items-center justify-between gap-1 sm:gap-2">
+            <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1 flex-1">
               {book.author}
             </p>
             {(isFavorite || book.isFinished) && (
@@ -149,17 +149,17 @@ export function BookCard({ book, onFavoriteChange }: BookCardProps) {
                 value={(book.pagePassCount / book.pageCount) * 100}
                 className="h-1"
               />
-              <div className="flex justify-between text-[11px] text-muted-foreground">
+              <div className="flex justify-between text-[10px] sm:text-[11px] text-muted-foreground">
                 <span>
                   {book.pagePassCount}/{book.pageCount} pages
                 </span>
-                <span>{book.spentTime}h spent</span>
+                <span>{book.spentTime}h</span>
               </div>
             </>
           )}
           {!book.pageCount && (
-            <div className="flex justify-end text-[11px] text-muted-foreground">
-              <span>{book.spentTime}h spent</span>
+            <div className="flex justify-end text-[10px] sm:text-[11px] text-muted-foreground">
+              <span>{book.spentTime}h</span>
             </div>
           )}
         </CardContent>

@@ -132,7 +132,7 @@ export function FileDropZone({
           // Disabled state
           "opacity-50 cursor-not-allowed": disabled,
         },
-        compact ? "p-6" : "p-8 sm:p-12",
+        compact ? "p-4 sm:p-6" : "p-4 sm:p-8 md:p-12",
         className
       )}
       role="button"
@@ -303,7 +303,7 @@ export function FileDropZone({
                   {compact ? "Add more files" : "Drop files here or browse"}
                 </p>
                 {!compact && (
-                  <p className="text-muted-foreground text-sm">
+                  <p className="text-muted-foreground text-xs sm:text-sm">
                     PDF, EPUB, TXT up to {MAX_FILE_SIZE / 1024 / 1024}MB each
                   </p>
                 )}

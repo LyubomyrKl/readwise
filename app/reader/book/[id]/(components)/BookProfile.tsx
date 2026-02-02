@@ -180,7 +180,7 @@ export default function BookProfile({
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-background/80 backdrop-blur sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-6 py-4">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
             <button
               onClick={onBack}
@@ -222,8 +222,8 @@ export default function BookProfile({
       </div>
 
       {/* Main Content */}
-      <div className="max-w-4xl mx-auto px-6 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           {/* Book Cover & Actions */}
           <div className="lg:col-span-1">
             <div className="sticky top-24">
@@ -407,18 +407,18 @@ export default function BookProfile({
           <div className="lg:col-span-2 space-y-8">
             {/* Title & Author */}
             <div>
-              <h1 className="text-3xl font-bold mb-3 leading-tight">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-3 leading-tight">
                 {book.title}
               </h1>
 
               {/* Enhanced Author Section */}
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full flex items-center justify-center">
-                  <User className="h-5 w-5 text-primary" />
+              <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
+                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full flex items-center justify-center">
+                  <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
                 <div>
-                  <div className="text-lg font-medium">{book.author}</div>
-                  <div className="text-sm text-muted-foreground">Author</div>
+                  <div className="text-base sm:text-lg font-medium">{book.author}</div>
+                  <div className="text-xs sm:text-sm text-muted-foreground">Author</div>
                 </div>
               </div>
 
@@ -448,7 +448,7 @@ export default function BookProfile({
             </div>
 
             {/* Metadata Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="grid grid-cols-2 gap-3 sm:gap-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -573,33 +573,33 @@ export default function BookProfile({
                 Reading Statistics
               </h3>
 
-              <div className="bg-muted/30 rounded-xl p-6 space-y-6">
-                <div className="grid grid-cols-3 gap-6">
+              <div className="bg-muted/30 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
+                <div className="grid grid-cols-3 gap-2 sm:gap-6">
                   {/* Reading Time */}
                   <div className="text-center">
-                    <div className="text-2xl font-bold mb-1">
+                    <div className="text-lg sm:text-2xl font-bold mb-1">
                       {readingTimeHours > 0
                         ? `${readingTimeHours}h`
                         : `${readingTimeMinutes}m`}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">
                       Time Spent
                     </div>
                   </div>
 
                   {/* Sessions */}
                   <div className="text-center border-x border-muted">
-                    <div className="text-2xl font-bold mb-1">
+                    <div className="text-lg sm:text-2xl font-bold mb-1">
                       {Math.max(1, Math.floor(book.spentTime / 0.5))}
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">
                       Sessions
                     </div>
                   </div>
 
                   {/* Average */}
                   <div className="text-center">
-                    <div className="text-2xl font-bold mb-1">
+                    <div className="text-lg sm:text-2xl font-bold mb-1">
                       {Math.round(
                         (book.spentTime /
                           Math.max(1, Math.floor(book.spentTime / 0.5))) *
@@ -607,7 +607,7 @@ export default function BookProfile({
                       )}
                       m
                     </div>
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-[10px] sm:text-xs text-muted-foreground">
                       Avg Session
                     </div>
                   </div>

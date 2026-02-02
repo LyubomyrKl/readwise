@@ -1,10 +1,11 @@
 "use client";
-import { SidebarProvider, useSidebar } from "@/components/ui/sidebar";
+import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
 import { Library, UploadCloud, FolderOpen, Sparkles } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "../(consts)/routes";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const nav: Section[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },
@@ -21,7 +22,8 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   const { setOpen, open } = useSidebar();
   const sidebarRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
-  
+  const isMobile = useIsMobile();
+
   const isBookReaderRoute = pathname?.match(/\/reader\/book\/[^/]+\/reader/) !== null;
 
   useEffect(() => {
@@ -51,7 +53,13 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
       <div ref={sidebarRef}>
         <AppSidebar Icon={Sparkles} sidebarTitle="Summarizer" nav={nav} />
       </div>
-      <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto">
+      <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
+        {/* Mobile sidebar trigger */}
+        {isMobile && (
+          <div className="fixed top-3 left-3 z-50 md:hidden">
+            <SidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
+          </div>
+        )}
         {children}
       </main>
     </div>

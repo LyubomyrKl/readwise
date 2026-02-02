@@ -242,14 +242,14 @@ function BulkUploadContent() {
     const totalPendingCount = pendingFiles.length;
 
     return (
-        <section className="p-6 max-w-4xl mx-auto space-y-8">
+        <section className="p-4 sm:p-6 max-w-4xl mx-auto space-y-6 sm:space-y-8">
             {/* Header */}
             <div className="space-y-2">
                 <div className="flex items-center gap-2">
-                    <Upload className="h-6 w-6 text-primary" />
-                    <h1 className="text-2xl font-semibold">Upload Books</h1>
+                    <Upload className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                    <h1 className="text-xl sm:text-2xl font-semibold">Upload Books</h1>
                 </div>
-                <p className="text-muted-foreground">
+                <p className="text-sm sm:text-base text-muted-foreground">
                     Drop your files to add them to your library. We support bulk uploads
                     of PDF, EPUB, and TXT files.
                 </p>
@@ -272,10 +272,10 @@ function BulkUploadContent() {
                         className="space-y-4"
                     >
                         {/* Section header */}
-                        <div className="flex items-center justify-between">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                             <div className="flex items-center gap-2">
                                 <Sparkles className="h-5 w-5 text-amber-500" />
-                                <h2 className="text-lg font-medium">
+                                <h2 className="text-base sm:text-lg font-medium">
                                     Ready to Upload ({validPendingCount}/{totalPendingCount})
                                 </h2>
                             </div>
@@ -284,12 +284,15 @@ function BulkUploadContent() {
                                     variant="outline"
                                     size="sm"
                                     onClick={() => setPendingFiles([])}
+                                    className="flex-1 sm:flex-none"
                                 >
                                     Clear All
                                 </Button>
                                 <Button
                                     onClick={uploadAllPending}
                                     disabled={validPendingCount === 0}
+                                    size="sm"
+                                    className="flex-1 sm:flex-none"
                                 >
                                     Upload {validPendingCount > 0 ? `(${validPendingCount})` : ""}
                                 </Button>
@@ -307,9 +310,9 @@ function BulkUploadContent() {
                                             : "border-amber-500/50 bg-amber-500/5"
                                     }`}
                                 >
-                                    <CardHeader className="pb-3">
-                                        <div className="flex items-start justify-between gap-4">
-                                            <div className="flex items-start gap-3 min-w-0">
+                                    <CardHeader className="pb-3 px-3 sm:px-6">
+                                        <div className="flex items-start justify-between gap-2 sm:gap-4">
+                                            <div className="flex items-start gap-2 sm:gap-3 min-w-0">
                                                 {/* Cover preview */}
                                                 <div className="relative w-12 h-16 rounded border overflow-hidden bg-muted shrink-0 group cursor-pointer">
                                                     {file.coverPreview || file.extractedCover ? (
@@ -339,11 +342,11 @@ function BulkUploadContent() {
                                                 </div>
 
                                                 <div className="min-w-0 flex-1">
-                                                    <CardTitle className="text-base truncate">
+                                                    <CardTitle className="text-sm sm:text-base truncate">
                                                         {file.file.name}
                                                     </CardTitle>
-                                                    <div className="flex items-center gap-2 mt-1">
-                            <span className="text-sm text-muted-foreground">
+                                                    <div className="flex flex-wrap items-center gap-1 sm:gap-2 mt-1">
+                            <span className="text-xs sm:text-sm text-muted-foreground">
                               {(file.file.size / 1024 / 1024).toFixed(1)} MB
                             </span>
                                                         {file.isParsingMetadata && (

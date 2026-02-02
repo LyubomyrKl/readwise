@@ -77,12 +77,12 @@ export default function Login() {
   const Wrapper: any = enabled ? motion.div : "div";
 
   return (
-    <div className="mx-auto grid min-h-svh w-full max-w-[1120px] place-items-center px-4">
+    <div className="mx-auto grid min-h-svh w-full max-w-[1120px] place-items-center px-3 sm:px-4">
       <Wrapper
         initial={{ opacity: 0, y: 16 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.35 }}
-        className="w-full max-w-[420px]"
+        className="w-full max-w-[420px] px-1 sm:px-0"
       >
         <Card className="border-0 bg-card/70 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg ring-1 ring-border/60">
           <CardHeader className="space-y-2">
@@ -90,7 +90,7 @@ export default function Login() {
               <Shield className="h-4 w-4" />
               <span className="text-xs tracking-wide">Secure area</span>
             </div>
-            <CardTitle className="text-2xl">Sign in</CardTitle>
+            <CardTitle className="text-xl sm:text-2xl">Sign in</CardTitle>
             <CardDescription>Access your library and workbench</CardDescription>
           </CardHeader>
 
@@ -180,7 +180,7 @@ export default function Login() {
 
             <Separator className="my-6" />
 
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0 text-sm text-muted-foreground">
               <Link
                 className="hover:text-foreground"
                 href={ROUTES.auth.register}

@@ -64,17 +64,17 @@ export default function LibraryPage() {
 
   return (
     <div className="relative min-h-screen w-full overflow-hidden">
-      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <div className="mb-6 flex items-center justify-between">
+      <section className="mx-auto w-full max-w-7xl px-3 py-4 sm:px-4 sm:py-8 md:px-6 lg:px-8">
+        <div className="mb-4 sm:mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
           <div>
-            <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+            <h1 className="text-xl font-semibold tracking-tight sm:text-2xl md:text-3xl">
               Library
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="mt-0.5 sm:mt-1 text-xs sm:text-sm text-muted-foreground">
               Your last read and all books
             </p>
           </div>
-          <Button asChild variant="secondary" className={'gap-0'}>
+          <Button asChild variant="secondary" className={'gap-0 w-full sm:w-auto'} size="sm">
                 <Link href={ROUTES.reader.ingest.uploadFiles}>
               <BookPlus className="mr-2 h-4 w-4" /> <span>Add books</span>
             </Link>

@@ -23,7 +23,7 @@ export default function PDFReaderMenu({
 }: PDFReaderMenuProps) {
   return (
     <>
-      <div className="fixed top-0 right-0 h-full w-72 bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl z-40">
+      <div className="fixed top-0 right-0 h-full w-full sm:w-72 bg-background/95 backdrop-blur-xl border-l border-border/50 shadow-2xl z-40">
         <div className="flex flex-col h-full">
           {/* Header */}
           <div className="flex items-center justify-between p-4 border-b border-border/50">

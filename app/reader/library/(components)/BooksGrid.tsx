@@ -76,7 +76,7 @@ export function BooksGrid({ books, filteredBooks, loading, error }: BooksGridPro
         hidden: { opacity: 0 },
         show: { opacity: 1, transition: { staggerChildren: 0.05 } },
       }}
-      className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5"
+      className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
     >
       {filteredBooks.map((b) => (
         <BookCard key={b.id} book={b} />
