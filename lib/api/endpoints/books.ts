@@ -46,7 +46,7 @@ export const booksApi = {
   async finalizeCover(dto: FinalizeCoverDto) {
     return withRefresh(() => {
       const client = getClient();
-      return client.post<FinalizeResponse>("/books/finalize-cover", dto);
+      return client.post<FinalizeResponse>("/books/cover/finalize", dto);
     });
   },
 

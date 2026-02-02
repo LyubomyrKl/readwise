@@ -211,6 +211,10 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
             }
 
             // Finalize the book
+            console.log(`[Upload ${uploadId}] Upload complete, finalizing book:`, {
+                bookId: response.bookId,
+                storageKey: response.storageKey,
+            });
             await apiFetch("POST", "/api/books/finalize", {
                 bookId: response.bookId,
             });
@@ -327,10 +331,16 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
 
             xhr.addEventListener("load", () => {
                 updateUpload(uploadId, { xhr: undefined });
+                console.log(`[Upload ${uploadId}] XHR completed:`, {
+                    status: xhr.status,
+                    statusText: xhr.statusText,
+                    response: xhr.responseText,
+                    headers: xhr.getAllResponseHeaders(),
+                });
                 if (xhr.status >= 200 && xhr.status < 300) {
                     resolve();
                 } else {
-                    reject(new Error(`Upload failed with status ${xhr.status}`));
+                    reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
                 }
             });
 
@@ -351,12 +361,11 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
 
             xhr.open("PUT", url);
             xhr.timeout = 5 * 60 * 1000; // 5 minute timeout
-
-            // Set headers
+            const headersSet: Record<string, string> = {};
             Object.entries(headers).forEach(([k, v]) => {
                 const key = k.toLowerCase();
                 if (key === "content-length") return;
-                if (key.startsWith("x-amz-checksum")) return;
+                headersSet[k] = v;
                 xhr.setRequestHeader(k, v);
             });
 
