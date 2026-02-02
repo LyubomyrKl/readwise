@@ -14,7 +14,6 @@ services:
       - POSTGRES_HOST=db
       - S3_HOST=minio
       - RABBITMQ_HOST=rabbitmq
-      - 100.96.93.46
     networks:
       - summarizer_net
     healthcheck:

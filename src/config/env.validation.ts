@@ -51,6 +51,10 @@ export class EnvironmentVariables {
   @IsString()
   S3_PUBLIC_HOST!: string;
 
+  @IsOptional()
+  @IsString()
+  S3_PUBLIC_PROTOCOL: string = 'http';
+
   @IsNotEmpty()
   @IsString()
   S3_ACCESS_KEY_ID!: string;

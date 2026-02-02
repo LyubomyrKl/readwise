@@ -24,6 +24,7 @@ export class S3Service {
   constructor(private readonly config: ConfigService<EnvironmentVariables>) {
     const host = this.config.get('S3_HOST', { infer: true })!;
     const publicHost = this.config.get('S3_PUBLIC_HOST', { infer: true })!;
+    const publicProtocol = this.config.get('S3_PUBLIC_PROTOCOL', { infer: true }) || 'http';
     const region = this.config.get('S3_REGION', { infer: true })!;
     const accessKeyId = this.config.get('S3_ACCESS_KEY_ID', { infer: true })!;
     const secretAccessKey = this.config.get('S3_SECRET_ACCESS_KEY', {
@@ -47,9 +48,9 @@ export class S3Service {
       forcePathStyle: true,
     });
 
-    // Public client - uses publicly accessible hostname for presigned URLs
+    // Public client - uses publicly accessible URL for presigned URLs
     this.publicClient = new S3Client({
-      endpoint: `http://${publicHost}:9000`,
+      endpoint: `${publicProtocol}://${publicHost}:9000`,
       region,
       credentials,
       forcePathStyle: true,
