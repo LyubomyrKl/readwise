@@ -13,13 +13,17 @@ import { EnvironmentVariables } from '@/config/env.validation';
 
 @Injectable()
 export class S3Service {
+  // Internal client for backend operations (copy, delete, check exists)
   private readonly client: S3Client;
+  // Public client for generating presigned URLs accessible by frontend
+  private readonly publicClient: S3Client;
   private readonly bucketName: string;
   private readonly coverBucketName: string;
   private readonly summariesBucketName: string;
 
   constructor(private readonly config: ConfigService<EnvironmentVariables>) {
-    const endpoint = this.config.get('S3_ENDPOINT', { infer: true })!;
+    const host = this.config.get('S3_HOST', { infer: true })!;
+    const publicHost = this.config.get('S3_PUBLIC_HOST', { infer: true })!;
     const region = this.config.get('S3_REGION', { infer: true })!;
     const accessKeyId = this.config.get('S3_ACCESS_KEY_ID', { infer: true })!;
     const secretAccessKey = this.config.get('S3_SECRET_ACCESS_KEY', {
@@ -33,14 +37,22 @@ export class S3Service {
       infer: true,
     })!;
 
+    const credentials = { accessKeyId, secretAccessKey };
+
+    // Internal client - uses Docker service name
     this.client = new S3Client({
-      endpoint,
+      endpoint: `http://${host}:9000`,
       region,
-      credentials: {
-        accessKeyId,
-        secretAccessKey,
-      },
-      forcePathStyle: true, // Required for MinIO
+      credentials,
+      forcePathStyle: true,
+    });
+
+    // Public client - uses publicly accessible hostname for presigned URLs
+    this.publicClient = new S3Client({
+      endpoint: `http://${publicHost}:9000`,
+      region,
+      credentials,
+      forcePathStyle: true,
     });
   }
 
@@ -54,9 +66,9 @@ export class S3Service {
       ContentType: contentType,
     });
 
-    // Generate presigned PUT URL
-    const url = await getSignedUrl(this.client, command, {
-      expiresIn: 3600, // 1 hour
+    // Use publicClient so URL is accessible by frontend
+    const url = await getSignedUrl(this.publicClient, command, {
+      expiresIn: 3600,
     });
 
     return {
@@ -73,8 +85,8 @@ export class S3Service {
       Key: key,
     });
 
-    return await getSignedUrl(this.client, command, {
-      expiresIn: 3600, // 1 hour
+    return await getSignedUrl(this.publicClient, command, {
+      expiresIn: 3600,
     });
   }
 
@@ -122,7 +134,7 @@ export class S3Service {
   async copyObject(sourceKey: string, destKey: string): Promise<void> {
     const command = new CopyObjectCommand({
       Bucket: this.bucketName,
-      CopySource: encodeURIComponent(`${this.bucketName}/${sourceKey}`),
+      CopySource: `${this.bucketName}/${encodeURIComponent(sourceKey)}`,
       Key: destKey,
     });
 
@@ -188,7 +200,7 @@ export class S3Service {
       ContentType: contentType,
     });
 
-    const url = await getSignedUrl(this.client, command, {
+    const url = await getSignedUrl(this.publicClient, command, {
       expiresIn: 3600,
     });
 
@@ -206,8 +218,8 @@ export class S3Service {
       Key: key,
     });
 
-    return await getSignedUrl(this.client, command, {
-      expiresIn: 3600, // 1 hour
+    return await getSignedUrl(this.publicClient, command, {
+      expiresIn: 3600,
     });
   }
 
@@ -228,7 +240,7 @@ export class S3Service {
   async copyCoverObject(sourceKey: string, destKey: string): Promise<void> {
     const command = new CopyObjectCommand({
       Bucket: this.coverBucketName,
-      CopySource: encodeURIComponent(`${this.coverBucketName}/${sourceKey}`),
+      CopySource: `${this.coverBucketName}/${encodeURIComponent(sourceKey)}`,
       Key: destKey,
     });
 

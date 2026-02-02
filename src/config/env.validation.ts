@@ -25,13 +25,31 @@ export class EnvironmentVariables {
   @Transform(({ value }: { value: string }) => value || '7d')
   JWT_REFRESH_TTL = '7d';
 
+  // Postgres
   @IsNotEmpty()
   @IsString()
-  DATABASE_URL!: string;
+  POSTGRES_HOST!: string;
 
   @IsNotEmpty()
   @IsString()
-  S3_ENDPOINT!: string;
+  POSTGRES_USER!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  POSTGRES_PASSWORD!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  POSTGRES_DB!: string;
+
+  // S3/MinIO
+  @IsNotEmpty()
+  @IsString()
+  S3_HOST!: string;
+
+  @IsNotEmpty()
+  @IsString()
+  S3_PUBLIC_HOST!: string;
 
   @IsNotEmpty()
   @IsString()
@@ -57,25 +75,18 @@ export class EnvironmentVariables {
   @IsString()
   S3_REGION = 'us-east-1';
 
-  @IsOptional()
+  // RabbitMQ
+  @IsNotEmpty()
   @IsString()
-  @Transform(({ value }: { value: string }) => value || 'localhost')
-  RABBITMQ_HOST = 'localhost';
+  RABBITMQ_HOST!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  @Transform(({ value }: { value: string }) => value || '5672')
-  RABBITMQ_PORT = '5672';
+  RABBITMQ_USER!: string;
 
-  @IsOptional()
+  @IsNotEmpty()
   @IsString()
-  @Transform(({ value }: { value: string }) => value || 'guest')
-  RABBITMQ_USER = 'guest';
-
-  @IsOptional()
-  @IsString()
-  @Transform(({ value }: { value: string }) => value || 'guest')
-  RABBITMQ_PASS = 'guest';
+  RABBITMQ_PASS!: string;
 }
 
 export function validate(config: Record<string, unknown>) {

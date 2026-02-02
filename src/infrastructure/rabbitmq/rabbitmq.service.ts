@@ -32,14 +32,12 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
   private readonly extractionQueueName = 'extract_request';
 
   constructor(private readonly config: ConfigService) {
-    const host = this.config.get<string>('RABBITMQ_HOST') || 'localhost';
-    const port = this.config.get<string>('RABBITMQ_PORT') || '5672';
-    const user = this.config.get<string>('RABBITMQ_USER') || 'guest';
-    const pass = this.config.get<string>('RABBITMQ_PASS') || 'guest';
+    const host = this.config.get<string>('RABBITMQ_HOST')!;
+    const user = this.config.get<string>('RABBITMQ_USER')!;
+    const pass = this.config.get<string>('RABBITMQ_PASS')!;
+    const url = `amqp://${user}:${pass}@${host}:5672`;
 
-    const url = `amqp://${user}:${pass}@${host}:${port}`;
-
-    this.logger.log(`RabbitMQService constructor - connecting to: ${url}`);
+    this.logger.log(`RabbitMQService constructor - connecting to RabbitMQ`);
 
     this.connection = amqp.connect([url], {
       heartbeatIntervalInSeconds: 30,
