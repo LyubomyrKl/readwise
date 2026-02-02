@@ -28,7 +28,7 @@ services:
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      MINIO_SERVER_URL: http://${PUBLIC_HOST}:9000
+      MINIO_SERVER_URL: https://${PUBLIC_HOST}:9000
     command: server /data --console-address ":9001"
     ports:
       - "9000:9000"
