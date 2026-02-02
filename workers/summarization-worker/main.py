@@ -27,6 +27,13 @@ load_dotenv()
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def build_s3_endpoint() -> str:
+    """Build S3 endpoint URL from environment components."""
+    host = os.getenv('S3_HOST', 'localhost')
+    port = os.getenv('S3_PORT', '9000')
+    return f"http://{host}:{port}"
+
 # Feature flag to enable new pipeline
 USE_NEW_PIPELINE = os.getenv('USE_NEW_PIPELINE', 'true').lower() == 'true'
 
@@ -38,17 +45,21 @@ class SummarizationWorker:
         self.queue_name = 'summary_request'
         self.use_new_pipeline = USE_NEW_PIPELINE
 
+        s3_endpoint = build_s3_endpoint()
+        s3_access_key = os.getenv('S3_ACCESS_KEY_ID', 'minioadmin')
+        s3_secret_key = os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin')
+
         self.s3 = S3Storage(
-            endpoint=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
-            access_key=os.getenv('S3_ACCESS_KEY_ID', 'minioadmin'),
-            secret_key=os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin')
+            endpoint=s3_endpoint,
+            access_key=s3_access_key,
+            secret_key=s3_secret_key
         )
 
         # Legacy summarizer (always available for backward compatibility)
         self.summarizer = TextSummarizer(
-            s3_endpoint=os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
-            s3_access_key=os.getenv('S3_ACCESS_KEY_ID', 'minioadmin'),
-            s3_secret_key=os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin'),
+            s3_endpoint=s3_endpoint,
+            s3_access_key=s3_access_key,
+            s3_secret_key=s3_secret_key,
             ollama_base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
             ollama_model=os.getenv('OLLAMA_MODEL', 'qwen2.5:14b-instruct-q5_k_m')
         )

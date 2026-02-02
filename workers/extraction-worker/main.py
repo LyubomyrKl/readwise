@@ -22,6 +22,13 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
+def build_s3_endpoint() -> str:
+    """Build S3 endpoint URL from environment components."""
+    host = os.getenv('S3_HOST', 'localhost')
+    port = os.getenv('S3_PORT', '9000')
+    return f"http://{host}:{port}"
+
+
 def clean_text(text: str) -> str:
     if not text or not isinstance(text, str):
         return text
@@ -52,7 +59,7 @@ class ExtractionWorker:
         
         # Initialize extractors
         s3_config = {
-            's3_endpoint': os.getenv('S3_ENDPOINT', 'http://localhost:9000'),
+            's3_endpoint': build_s3_endpoint(),
             's3_access_key': os.getenv('S3_ACCESS_KEY_ID', 'minioadmin'),
             's3_secret_key': os.getenv('S3_SECRET_ACCESS_KEY', 'minioadmin')
         }

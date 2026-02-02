@@ -1,9 +1,26 @@
 #!/usr/bin/env python3
 
 import logging
+import os
 from prisma import Prisma
 
 logger = logging.getLogger(__name__)
+
+
+def build_database_url() -> str:
+    """Build DATABASE_URL from environment components."""
+    host = os.getenv('POSTGRES_HOST', 'localhost')
+    port = os.getenv('POSTGRES_PORT', '5432')
+    user = os.getenv('POSTGRES_USER', 'postgres')
+    password = os.getenv('POSTGRES_PASSWORD', 'postgres')
+    db = os.getenv('POSTGRES_DB', 'appdb')
+    return f"postgresql://{user}:{password}@{host}:{port}/{db}?schema=public"
+
+
+# Set DATABASE_URL for Prisma before any client is created
+if not os.getenv('DATABASE_URL'):
+    os.environ['DATABASE_URL'] = build_database_url()
+
 
 class DatabaseManager:
     def __init__(self):

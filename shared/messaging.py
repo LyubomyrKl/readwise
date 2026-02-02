@@ -11,9 +11,18 @@ import sys
 
 logger = logging.getLogger(__name__)
 
+def build_amqp_url() -> str:
+    """Build AMQP URL from environment components."""
+    host = os.getenv('RABBITMQ_HOST', 'localhost')
+    port = os.getenv('RABBITMQ_PORT', '5672')
+    user = os.getenv('RABBITMQ_USER', 'guest')
+    password = os.getenv('RABBITMQ_PASS', 'guest')
+    return f"amqp://{user}:{password}@{host}:{port}/"
+
+
 class RabbitMQManager:
     def __init__(self, amqp_url: Optional[str] = None):
-        self.amqp_url = amqp_url or os.getenv('AMQP_URL', 'amqp://user:pass@localhost:5672/')
+        self.amqp_url = amqp_url or build_amqp_url()
         self.connection = None
         self.channel = None
         self.consumer_tag = None
