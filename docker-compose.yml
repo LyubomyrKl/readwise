@@ -3,12 +3,6 @@ services:
     build: .
     container_name: summarizer-workers
     env_file: .env
-    environment:
-      POSTGRES_HOST: db
-      S3_HOST: minio
-      RABBITMQ_HOST: rabbitmq
-      WORKER_ID: worker-1
-      WORKER_PREFETCH_COUNT: 1
     restart: unless-stopped
     networks:
       - summarizer_net
