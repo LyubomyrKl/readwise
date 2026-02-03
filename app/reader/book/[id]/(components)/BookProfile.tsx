@@ -26,6 +26,7 @@ import { IBook } from "@/app/reader/types";
 import { apiFetch } from "@/lib/fetcher";
 import { useBookMutations } from "@/hooks/useBookMutations";
 import { toast } from "sonner";
+import { ROUTES } from "@/app/(consts)/routes";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -71,7 +72,7 @@ export default function BookProfile({
     try {
       await deleteBook(book.id, () => {
         toast.success("Book deleted successfully");
-        router.push("/library");
+        router.push(ROUTES.reader.library);
       });
     } catch {
       toast.error("Failed to delete book");
