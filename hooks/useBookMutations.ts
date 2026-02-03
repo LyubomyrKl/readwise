@@ -3,6 +3,7 @@ import { apiFetch } from "@/lib/fetcher";
 
 type BookMutationCallbacks = {
   onFavoriteChange?: (bookId: string, isFavorite: boolean) => void;
+  onDeleteSuccess?: (bookId: string) => void;
   onError?: (error: Error) => void;
 };
 
@@ -69,9 +70,26 @@ export function useBookMutations(callbacks?: BookMutationCallbacks) {
     []
   );
 
+  const deleteBook = useCallback(
+    async (bookId: string, onSuccess?: () => void) => {
+      try {
+        await apiFetch("DELETE", "/api/books/[id]", undefined, { id: bookId });
+        callbacks?.onDeleteSuccess?.(bookId);
+        onSuccess?.();
+      } catch (error) {
+        if (error instanceof Error) {
+          callbacks?.onError?.(error);
+        }
+        throw error;
+      }
+    },
+    [callbacks]
+  );
+
   return {
     setFavorite,
     updateLastAccessed,
     updateSpentTime,
+    deleteBook,
   };
 }

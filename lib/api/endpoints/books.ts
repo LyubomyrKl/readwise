@@ -59,4 +59,11 @@ export const booksApi = {
       return client.post("/books/last-accessed", dto);
     });
   },
+
+  async deleteBook(id: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.delete(`/books/${id}`);
+    });
+  },
 };

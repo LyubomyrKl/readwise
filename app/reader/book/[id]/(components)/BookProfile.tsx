@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import {
   BookOpen,
   Clock,
@@ -19,11 +20,23 @@ import {
   TrendingUp,
   Sparkles,
   Loader2,
+  Trash2,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import { apiFetch } from "@/lib/fetcher";
 import { useBookMutations } from "@/hooks/useBookMutations";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 interface BookProfileProps {
   book: IBook;
@@ -36,20 +49,35 @@ export default function BookProfile({
   onStartReading,
   onBack,
 }: BookProfileProps) {
+  const router = useRouter();
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
   const [isPending, startTransition] = useTransition();
+  const [isDeleting, setIsDeleting] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
     book.status === "processing"
   );
 
-  const { setFavorite } = useBookMutations({
-    onError: (error) => {
+  const { setFavorite, deleteBook } = useBookMutations({
+    onError: () => {
       // Revert optimistic update on error
       setIsFavorite(!isFavorite);
       toast.error("Failed to update favorite status");
     },
   });
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deleteBook(book.id, () => {
+        toast.success("Book deleted successfully");
+        router.push("/library");
+      });
+    } catch {
+      toast.error("Failed to delete book");
+      setIsDeleting(false);
+    }
+  };
 
   const handleFavoriteToggle = () => {
     const newValue = !isFavorite;
@@ -140,6 +168,38 @@ export default function BookProfile({
               <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <Share2 className="h-4 w-4" />
               </button>
+
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <button
+                    disabled={isDeleting}
+                    className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
+                  >
+                    {isDeleting ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-4 w-4" />
+                    )}
+                  </button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete Book</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Are you sure you want to delete &quot;{book.title}&quot;? This action cannot be undone. All notes, highlights, and reading progress will be permanently removed.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      onClick={handleDelete}
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
 
               <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
                 <MoreHorizontal className="h-4 w-4" />

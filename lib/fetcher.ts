@@ -20,6 +20,9 @@ type ApiRegistry = {
     "/api/books/[id]": { req: undefined; res: { data: BookResponse } };
     "/api/auth/me": { req: undefined; res: AuthBundle };
   };
+  DELETE: {
+    "/api/books/[id]": { req: undefined; res: { status: string } };
+  };
   POST: {
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
     "/api/books/setBookToFavorite": { req: SetBookToFavoriteDto; res: { bookId: string; status: string } };
