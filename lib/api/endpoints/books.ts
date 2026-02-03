@@ -1,17 +1,9 @@
 import { getClient, withRefresh } from "../client";
 import type {
-  CreateBookDto,
-  FinalizeBookDto,
-  FinalizeCoverDto,
-  PresignedUploadDto,
-  CoverUpdateDto,
   UpdateSpentTimeDto,
   SetBookToFavoriteDto,
   UpdateLastAccessedDto,
   BookResponse,
-  PresignResponse,
-  FinalizeResponse,
-  CoverPresignResponse,
 } from "@/lib/types";
 
 export const booksApi = {
@@ -29,45 +21,28 @@ export const booksApi = {
     });
   },
 
-  async createBookAndPresign(dto: CreateBookDto) {
+  async downloadBook(id: string) {
     return withRefresh(() => {
       const client = getClient();
-      return client.post<PresignResponse>("/books/presign", dto);
+      return client.get(`/books/${id}/download`, {
+        responseType: "arraybuffer",
+      });
     });
   },
 
-  async finalizeBook(dto: FinalizeBookDto) {
+  async downloadCover(id: string) {
     return withRefresh(() => {
       const client = getClient();
-      return client.post<FinalizeResponse>("/books/finalize", dto);
-    });
-  },
-
-  async finalizeCover(dto: FinalizeCoverDto) {
-    return withRefresh(() => {
-      const client = getClient();
-      return client.post<FinalizeResponse>("/books/cover/finalize", dto);
-    });
-  },
-
-  async coverPresign(dto: PresignedUploadDto) {
-    return withRefresh(() => {
-      const client = getClient();
-      return client.post<CoverPresignResponse>("/books/cover-presign", dto);
-    });
-  },
-
-  async updateCoverFinalize(dto: CoverUpdateDto) {
-    return withRefresh(() => {
-      const client = getClient();
-      return client.post<FinalizeResponse>("/books/update-cover", dto);
+      return client.get(`/books/${id}/cover`, {
+        responseType: "arraybuffer",
+      });
     });
   },
 
   async updateTimeSpent(dto: UpdateSpentTimeDto) {
     return withRefresh(() => {
       const client = getClient();
-      return client.post("/books/spent-time", dto);
+      return client.post("/books/time-spent", dto);
     });
   },
 

@@ -9,7 +9,6 @@ import React, {
     useEffect,
     ReactNode,
 } from "react";
-import { apiFetch } from "@/lib/fetcher";
 import {
     UploadFile,
     UploadProgress,
@@ -139,98 +138,39 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
         });
     }, [isPaused, maxConcurrent]);
 
-    // Process a single upload
+    // Process a single upload using multipart/form-data
     const processUpload = async (uploadData: UploadProgress) => {
         const uploadId = uploadData.id;
 
         try {
-            // Update status to processing
+            // Update status to uploading
             updateUpload(uploadId, {
-                status: "processing",
+                status: "uploading",
                 startTime: Date.now(),
             });
 
-            // Create presigned URL
-            const requestPayload = {
-                title: uploadData.file.title,
-                author: uploadData.file.author,
-                description: uploadData.file.description || "No description provided",
-                filename: uploadData.file.fileName,
-                mime: uploadData.file.mime,
-                sizeBytes: uploadData.file.sizeBytes,
-                pageCount: uploadData.file.pageCount || 0,
-                customCoverFilename: uploadData.file.customCoverFilename,
-                customCoverMime: uploadData.file.customCoverMime,
-            };
-
-            const presignResponse = await apiFetch(
-                "POST",
-                "/api/books/createBookAndPresign",
-                requestPayload
-            );
-
-            const response = {
-                bookId: presignResponse.bookId,
-                storageKey: presignResponse.storageKey,
-                upload: {
-                    url: presignResponse.upload.url,
-                    headers: presignResponse.upload.headers,
-                },
-                coverStorageKey: presignResponse.coverStorageKey,
-                coverUpload: {
-                    url: presignResponse.coverUpload?.url,
-                    headers: presignResponse.coverUpload?.headers || {},
-                },
-            };
-
-            // Update with presign data
-            updateUpload(uploadId, {
-                status: "uploading",
-                bookId: response.bookId,
-                storageKey: response.storageKey,
-                coverStorageKey: response.coverStorageKey,
-            });
-
-            // Upload main file with progress tracking
-            await uploadFileWithProgress(
-                uploadData.file.file,
-                response.upload.url,
-                response.upload.headers,
-                uploadId
-            );
-
-            // Upload cover if exists
-            if (uploadData.file.coverFile && response.coverUpload?.url) {
-                await uploadFileWithProgress(
-                    uploadData.file.coverFile,
-                    response.coverUpload.url,
-                    response.coverUpload.headers,
-                    uploadId,
-                    true
-                );
+            // Build FormData with all fields
+            const formData = new FormData();
+            formData.append("book", uploadData.file.file);
+            formData.append("title", uploadData.file.title);
+            formData.append("author", uploadData.file.author);
+            formData.append("description", uploadData.file.description || "No description provided");
+            if (uploadData.file.pageCount) {
+                formData.append("pageCount", String(uploadData.file.pageCount));
+            }
+            if (uploadData.file.coverFile) {
+                formData.append("cover", uploadData.file.coverFile);
             }
 
-            // Finalize the book
-            console.log(`[Upload ${uploadId}] Upload complete, finalizing book:`, {
-                bookId: response.bookId,
-                storageKey: response.storageKey,
-            });
-            await apiFetch("POST", "/api/books/finalize", {
-                bookId: response.bookId,
-            });
-
-            // Finalize cover if exists
-            if (uploadData.file.coverFile && response.coverStorageKey) {
-                await apiFetch("POST", "/api/books/finalizeCover", {
-                    bookId: response.bookId,
-                });
-            }
+            // Upload with progress tracking using XHR
+            const response = await uploadWithFormData(formData, uploadId);
 
             // Mark as completed
             updateUpload(uploadId, {
                 status: "completed",
                 progress: 100,
                 bytesUploaded: uploadData.size,
+                bookId: response.bookId,
                 speed: undefined,
                 eta: undefined,
             });
@@ -274,14 +214,11 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
         }
     };
 
-    // Upload file with XHR for progress and cancellation
-    const uploadFileWithProgress = (
-        file: File,
-        url: string,
-        headers: Record<string, string>,
-        uploadId: string,
-        isCover = false
-    ): Promise<void> => {
+    // Upload FormData with XHR for progress tracking
+    const uploadWithFormData = (
+        formData: FormData,
+        uploadId: string
+    ): Promise<{ bookId: string; status: string }> => {
         return new Promise((resolve, reject) => {
             const xhr = new XMLHttpRequest();
             let lastLoaded = 0;
@@ -294,10 +231,9 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                 if (event.lengthComputable) {
                     const progress = (event.loaded / event.total) * 100;
                     const now = Date.now();
-                    const timeDelta = (now - lastTime) / 1000; // seconds
+                    const timeDelta = (now - lastTime) / 1000;
                     const bytesDelta = event.loaded - lastLoaded;
 
-                    // Calculate speed (smoothed)
                     const instantSpeed = timeDelta > 0 ? bytesDelta / timeDelta : 0;
 
                     setUploads((prev) => {
@@ -313,10 +249,8 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                             u.id === uploadId
                                 ? {
                                     ...u,
-                                    progress: isCover ? Math.max(u.progress, progress) : progress,
-                                    bytesUploaded: isCover
-                                        ? Math.max(u.bytesUploaded, event.loaded)
-                                        : event.loaded,
+                                    progress,
+                                    bytesUploaded: event.loaded,
                                     speed: smoothedSpeed,
                                     eta,
                                 }
@@ -331,16 +265,22 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
 
             xhr.addEventListener("load", () => {
                 updateUpload(uploadId, { xhr: undefined });
-                console.log(`[Upload ${uploadId}] XHR completed:`, {
-                    status: xhr.status,
-                    statusText: xhr.statusText,
-                    response: xhr.responseText,
-                    headers: xhr.getAllResponseHeaders(),
-                });
                 if (xhr.status >= 200 && xhr.status < 300) {
-                    resolve();
+                    try {
+                        const response = JSON.parse(xhr.responseText);
+                        resolve(response);
+                    } catch {
+                        reject(new Error("Invalid response from server"));
+                    }
                 } else {
-                    reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.responseText}`));
+                    let errorMsg = `Upload failed with status ${xhr.status}`;
+                    try {
+                        const errorData = JSON.parse(xhr.responseText);
+                        errorMsg = errorData.error || errorMsg;
+                    } catch {
+                        // Use default error message
+                    }
+                    reject(new Error(errorMsg));
                 }
             });
 
@@ -359,17 +299,11 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                 reject(new Error("Upload timeout"));
             });
 
-            xhr.open("PUT", url);
-            xhr.timeout = 5 * 60 * 1000; // 5 minute timeout
-            const headersSet: Record<string, string> = {};
-            Object.entries(headers).forEach(([k, v]) => {
-                const key = k.toLowerCase();
-                if (key === "content-length") return;
-                headersSet[k] = v;
-                xhr.setRequestHeader(k, v);
-            });
-
-            xhr.send(file);
+            xhr.open("POST", "/api/books/upload");
+            xhr.withCredentials = true; // Send cookies for authentication
+            xhr.timeout = 10 * 60 * 1000; // 10 minute timeout for large files
+            // Don't set Content-Type - browser will set it with boundary for FormData
+            xhr.send(formData);
         });
     };
 

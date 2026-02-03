@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useTransition } from "react";
+import { useState, useTransition } from "react";
 import {
   BookOpen,
   Clock,
@@ -17,8 +17,6 @@ import {
   ArrowLeft,
   Award,
   TrendingUp,
-  Upload,
-  Camera,
   Sparkles,
   Loader2,
 } from "lucide-react";
@@ -41,12 +39,9 @@ export default function BookProfile({
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
   const [isPending, startTransition] = useTransition();
   const [showAllTags, setShowAllTags] = useState(false);
-  const [coverUrl, setCoverUrl] = useState(book.coverUrl);
-  const [isUploadingCover, setIsUploadingCover] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
     book.status === "processing"
   );
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { setFavorite } = useBookMutations({
     onError: (error) => {
@@ -94,73 +89,6 @@ export default function BookProfile({
     (book.spentTime - readingTimeHours) * 60
   );
 
-  const handleCoverUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
-  ) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      alert("Please select an image file");
-      return;
-    }
-
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert("File size must be less than 5MB");
-      return;
-    }
-
-    setIsUploadingCover(true);
-
-    // Create a preview URL immediately
-    const previewUrl = URL.createObjectURL(file);
-    setCoverUrl(previewUrl);
-
-    try {
-      // Step 1: Get presigned URL for cover upload
-      const presignData = await apiFetch("POST", "/api/books/coverPresign", {
-        bookId: book.id,
-        filename: file.name,
-        mime: file.type,
-      });
-
-      // Step 2: Upload file to presigned URL (raw fetch for S3)
-      const uploadResponse = await fetch(presignData.upload.url, {
-        method: "PUT",
-        headers: presignData.upload.headers,
-        body: file,
-      });
-
-      if (!uploadResponse.ok) {
-        throw new Error("Failed to upload cover");
-      }
-
-      // Step 3: Finalize the cover upload with the new route
-      await apiFetch("POST", "/api/books/updateCoverFinalize", {
-        bookId: book.id,
-        storageKey: presignData.storageKey,
-      });
-
-      // Clean up the preview URL since upload is complete
-      URL.revokeObjectURL(previewUrl);
-
-      // The cover URL will be updated when the book data is refetched
-      // For now, keep the preview URL as the cover
-    } catch (error) {
-      console.error("Error uploading cover:", error);
-      alert("Failed to upload cover. Please try again.");
-      setCoverUrl(book.coverUrl); // Revert to original
-      URL.revokeObjectURL(previewUrl); // Clean up
-    } finally {
-      setIsUploadingCover(false);
-    }
-  };
-
-  const handleCoverClick = () => {
-    fileInputRef.current?.click();
-  };
 
   const handleSummarize = async () => {
     try {
@@ -229,14 +157,13 @@ export default function BookProfile({
             <div className="sticky top-24">
               {/* Cover with Format Badge */}
               <div
-                className="relative aspect-[3/4] bg-muted rounded-2xl overflow-hidden shadow-lg mb-6 group cursor-pointer"
-                onClick={handleCoverClick}
+                className="relative aspect-[3/4] bg-muted rounded-2xl overflow-hidden shadow-lg mb-6"
               >
-                {coverUrl ? (
+                {book.coverUrl ? (
                   <img
-                    src={coverUrl}
+                    src={book.coverUrl}
                     alt={`${book.title} cover`}
-                    className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    className="w-full h-full object-cover"
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-primary/10 via-muted to-muted/50">
@@ -262,36 +189,7 @@ export default function BookProfile({
                     {formatFileSize(book.sizeBytes)}
                   </div>
                 </div>
-
-                {/* Upload Overlay */}
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                  <div className="flex gap-3">
-                    <div className="bg-background/90 backdrop-blur-sm px-3 py-2 rounded-lg text-sm font-medium border shadow-lg hover:bg-background/95 transition-colors">
-                      <Camera className="h-4 w-4 inline mr-2" />
-                      Change Cover
-                    </div>
-                  </div>
-                </div>
-
-                {/* Loading State */}
-                {isUploadingCover && (
-                  <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
-                    <div className="flex items-center gap-2 text-sm">
-                      <Upload className="h-4 w-4 animate-pulse" />
-                      Uploading...
-                    </div>
-                  </div>
-                )}
               </div>
-
-              {/* Hidden File Input */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/*"
-                onChange={handleCoverUpload}
-                className="hidden"
-              />
 
               {/* Primary Actions */}
               <div className="space-y-3 mb-6">

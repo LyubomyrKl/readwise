@@ -29,6 +29,7 @@ export function useReadingSession({
   const sessionStartTime = useRef<number>(Date.now());
   const lastSaveTime = useRef<number>(Date.now());
   const isMounted = useRef(true);
+  const hasUpdatedLastAccessed = useRef(false);
 
   // Calculate elapsed time since last save (in hours)
   const getElapsedHours = useCallback(() => {
@@ -58,9 +59,10 @@ export function useReadingSession({
     await saveProgress();
   }, [saveProgress]);
 
-  // Update last accessed on mount
+  // Update last accessed on mount (only once)
   useEffect(() => {
-    if (updateLastAccessedOnMount) {
+    if (updateLastAccessedOnMount && !hasUpdatedLastAccessed.current) {
+      hasUpdatedLastAccessed.current = true;
       updateLastAccessed(bookId);
     }
   }, [bookId, updateLastAccessed, updateLastAccessedOnMount]);

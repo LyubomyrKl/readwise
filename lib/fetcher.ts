@@ -1,9 +1,4 @@
 import type {
-  CreateBookDto,
-  FinalizeBookDto,
-  FinalizeCoverDto,
-  PresignedUploadDto,
-  CoverUpdateDto,
   UpdateSpentTimeDto,
   SetBookToFavoriteDto,
   UpdateLastAccessedDto,
@@ -11,12 +6,11 @@ import type {
   RegisterDto,
   RequestSummaryDto,
   GetSummaryDto,
-  FinalizeResponse,
   AuthBundle,
   Tokens,
   SummaryRequestResponse,
 } from "@/lib/types";
-import type { BookResponse, TransformedPresignRes, TransformedCoverPresignRes } from "@/app/api/books/schemas";
+import type { BookResponse } from "@/app/api/books/schemas";
 import type { SummaryResponse } from "@/app/api/summarizer/schemas";
 
 // API Registry mapping paths to request/response types
@@ -27,11 +21,6 @@ type ApiRegistry = {
     "/api/auth/me": { req: undefined; res: AuthBundle };
   };
   POST: {
-    "/api/books/createBookAndPresign": { req: CreateBookDto; res: TransformedPresignRes };
-    "/api/books/finalize": { req: FinalizeBookDto; res: FinalizeResponse };
-    "/api/books/finalizeCover": { req: FinalizeCoverDto; res: FinalizeResponse };
-    "/api/books/coverPresign": { req: PresignedUploadDto & { bookId?: string }; res: TransformedCoverPresignRes };
-    "/api/books/updateCoverFinalize": { req: CoverUpdateDto; res: FinalizeResponse };
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
     "/api/books/setBookToFavorite": { req: SetBookToFavoriteDto; res: { bookId: string; status: string } };
     "/api/books/updateLastAccessed": { req: UpdateLastAccessedDto; res: { status: string } };

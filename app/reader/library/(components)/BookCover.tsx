@@ -126,6 +126,7 @@ export function BookCover({ title, author, cover, className, backgroundStyle = '
         src={cover}
         alt={`${title} cover`}
         fill
+        unoptimized
         className={cn(
           "object-cover transition-transform duration-300 group-hover:scale-105",
           className

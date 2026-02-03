@@ -12,21 +12,10 @@ export type {
 
 // Book types
 export type {
-  CreateBookDto,
-  FinalizeBookDto,
-  FinalizeCoverDto,
-  PresignedUploadDto,
-  CoverUpdateDto,
   UpdateSpentTimeDto,
   SetBookToFavoriteDto,
   UpdateLastAccessedDto,
-  PresignUploadInfo,
-  PresignResponse,
-  FinalizeResponse,
-  CoverPresignResponse,
   BookResponse,
-  TransformedPresignRes,
-  TransformedCoverPresignRes,
 } from "./books";
 
 // Summarizer types

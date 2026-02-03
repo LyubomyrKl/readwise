@@ -1,7 +1,7 @@
 "use client";
 
 import {useParams} from "next/navigation";
-import {useEffect, useState} from "react";
+import {useEffect, useState, useRef} from "react";
 import {IBook} from "../../../types";
 import {apiFetch} from "@/lib/fetcher";
 import { ErrorState, Loader, Processing, SummaryReader, GenerateSummaryState} from './(components)';
@@ -36,8 +36,11 @@ export default function BookSummaryPage() {
   const [summary, setSummary] = useState<Summary | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    if (fetchedRef.current || !bookId) return;
+    fetchedRef.current = true;
     void fetchSummary(bookId);
   }, [bookId]);
 

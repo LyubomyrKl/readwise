@@ -3,7 +3,7 @@
 import Link from "next/link";
 import {BookPlus, Sparkles} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { LastReadCard, LibraryFilters, BooksGrid } from "./(components)";
 import { useCoverGradient } from "@/hooks/useCoverGradient";
 import { apiFetch } from "@/lib/fetcher";
@@ -24,9 +24,13 @@ export default function LibraryPage() {
   const [lastBook, setLastBook] = React.useState<IBook | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   // Fetch books on component mount
   useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+
     const fetchBooks = async () => {
       try {
         setLoading(true);

@@ -97,8 +97,14 @@ export default function EPUBReader({
     { target: containerRef, eventOptions: { passive: true } }
   );
 
+  const lastLocationRef = useRef<string | null>(null);
+
   const onLocationChanged = useCallback(
     async (epubcfi: string) => {
+      // Prevent duplicate calls with same location
+      if (lastLocationRef.current === epubcfi) return;
+      lastLocationRef.current = epubcfi;
+
       setLocation(epubcfi);
       localStorage.setItem(LOCATION_KEY(book.id), epubcfi);
 

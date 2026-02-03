@@ -44,10 +44,10 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
         {lastBook.coverUrl && <Image
           fill
           priority
+          unoptimized
           alt={'Book cover'}
           src={lastBook.coverUrl}
           className="object-cover blur-2xl opacity-20 scale-110"
-
         />}
         <div
           className="absolute inset-0"

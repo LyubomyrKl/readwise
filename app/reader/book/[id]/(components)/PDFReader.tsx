@@ -47,8 +47,43 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isScrolling, setIsScrolling] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
+  const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   const { engine, isLoading, error } = usePdfiumEngine();
+
+  // Pre-fetch PDF with credentials
+  useEffect(() => {
+    if (fetchedRef.current || !book.fileUrl) return;
+    fetchedRef.current = true;
+
+    const fetchPdf = async () => {
+      try {
+        const response = await fetch(book.fileUrl!, {
+          credentials: "include",
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+        }
+
+        const blob = await response.blob();
+        const url = URL.createObjectURL(blob);
+        setPdfBlobUrl(url);
+      } catch (err) {
+        setPdfLoadError(err instanceof Error ? err.message : "Failed to load PDF");
+      }
+    };
+
+    fetchPdf();
+
+    return () => {
+      if (pdfBlobUrl) {
+        URL.revokeObjectURL(pdfBlobUrl);
+      }
+    };
+  }, [book.fileUrl]);
 
   // Scroll detection for render quality
   useEffect(() => {
@@ -95,12 +130,12 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
   }, []);
 
   const plugins = useMemo(() => {
-    if (!book.fileUrl) return [] as any[];
+    if (!pdfBlobUrl) return [] as any[];
     return [
       createPluginRegistration(LoaderPluginPackage, {
         loadingOptions: {
           type: "url",
-          pdfFile: { id: book.id || "doc", url: book.fileUrl },
+          pdfFile: { id: book.id || "doc", url: pdfBlobUrl },
         },
       }),
       createPluginRegistration(ViewportPluginPackage),
@@ -108,7 +143,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
       createPluginRegistration(RenderPluginPackage),
       createPluginRegistration(ZoomPluginPackage),
     ];
-  }, [book.fileUrl, book.id]);
+  }, [pdfBlobUrl, book.id]);
 
   if (error) {
     return (
@@ -197,8 +232,12 @@ function PDFReaderContent({
   onPageChange?: (page: number) => void;
 }) {
   // Report page changes to parent for time tracking
+  const lastReportedPageRef = useRef<number>(0);
   useEffect(() => {
-    onPageChange?.(currentPage);
+    if (lastReportedPageRef.current !== currentPage) {
+      lastReportedPageRef.current = currentPage;
+      onPageChange?.(currentPage);
+    }
   }, [currentPage, onPageChange]);
   const { provides, state } = useZoom();
   const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;

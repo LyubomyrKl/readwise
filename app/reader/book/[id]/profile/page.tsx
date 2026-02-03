@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@/app/reader/book/[id]/(components)/BookProfile";
 import { IBook } from "../../../types";
@@ -16,14 +16,16 @@ export default function BookProfilePage() {
   const [book, setBook] = useState<IBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-
+  const fetchedRef = useRef(false);
 
   useEffect(() => {
+    if (fetchedRef.current || !bookId) return;
+    fetchedRef.current = true;
+
     async function fetchBook() {
       try {
         setLoading(true);
         const response = await apiFetch('GET', `/api/books/[id]`, undefined, {id: bookId});
-
         setBook(response.data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
@@ -32,9 +34,7 @@ export default function BookProfilePage() {
       }
     }
 
-    if (bookId) {
-      fetchBook();
-    }
+    fetchBook();
   }, [bookId]);
 
   const handleStartReading = () => {

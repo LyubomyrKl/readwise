@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "@/app/reader/book/[id]/(components)/PDFReader";
@@ -18,6 +18,7 @@ export default function BookReaderPage() {
   const [book, setBook] = useState<IBook | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
 
   // Initialize reading session (tracks time, updates lastAccessed)
   const { setCurrentPage, forceSave } = useReadingSession({
@@ -26,6 +27,9 @@ export default function BookReaderPage() {
   });
 
   useEffect(() => {
+    if (fetchedRef.current || !bookId) return;
+    fetchedRef.current = true;
+
     async function fetchBook() {
       try {
         setLoading(true);
@@ -38,9 +42,7 @@ export default function BookReaderPage() {
       }
     }
 
-    if (bookId) {
-      fetchBook();
-    }
+    fetchBook();
   }, [bookId]);
 
   // Handle back navigation with save
