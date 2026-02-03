@@ -54,6 +54,8 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
   const { engine, isLoading, error } = usePdfiumEngine();
 
   // Pre-fetch PDF with credentials
+  const blobUrlRef = useRef<string | null>(null);
+
   useEffect(() => {
     if (fetchedRef.current || !book.fileUrl) return;
     fetchedRef.current = true;
@@ -70,6 +72,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
 
         const blob = await response.blob();
         const url = URL.createObjectURL(blob);
+        blobUrlRef.current = url;
         setPdfBlobUrl(url);
       } catch (err) {
         setPdfLoadError(err instanceof Error ? err.message : "Failed to load PDF");
@@ -79,8 +82,9 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
     fetchPdf();
 
     return () => {
-      if (pdfBlobUrl) {
-        URL.revokeObjectURL(pdfBlobUrl);
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
       }
     };
   }, [book.fileUrl]);
@@ -157,7 +161,19 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
     );
   }
 
-  if (isLoading || !engine || !book.fileUrl) {
+  if (pdfLoadError) {
+    return (
+      <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
+        <div className="text-center space-y-2">
+          <div className="text-red-600 text-4xl">⚠️</div>
+          <div className="text-sm text-gray-700">Failed to load PDF</div>
+          <div className="text-xs text-gray-500">{pdfLoadError}</div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLoading || !engine || !book.fileUrl || !pdfBlobUrl) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
