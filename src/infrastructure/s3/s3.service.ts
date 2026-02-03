@@ -4,6 +4,7 @@ import {
   S3Client,
   GetObjectCommand,
   PutObjectCommand,
+  DeleteObjectCommand,
 } from '@aws-sdk/client-s3';
 import { EnvironmentVariables } from '@/config/env.validation';
 
@@ -88,6 +89,30 @@ export class S3Service {
   generateCoverStorageKey(userId: string, filename: string, mimeType?: string): string {
     const filenameWithExt = this.ensureExtension(filename, mimeType);
     return `${userId}-${Date.now()}-${filenameWithExt}`;
+  }
+
+  async deleteObject(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.bucketName,
+      Key: key,
+    });
+    await this.client.send(command);
+  }
+
+  async deleteCoverObject(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.coverBucketName,
+      Key: key,
+    });
+    await this.client.send(command);
+  }
+
+  async deleteSummaryObject(key: string): Promise<void> {
+    const command = new DeleteObjectCommand({
+      Bucket: this.summariesBucketName,
+      Key: key,
+    });
+    await this.client.send(command);
   }
 
   async getJsonObject(key: string): Promise<Record<string, unknown>> {

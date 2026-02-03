@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Delete,
   Param,
   Req,
   Res,
@@ -126,5 +127,15 @@ export class BooksController {
     @Body() dto: SetBookToFavoriteDto,
   ): Promise<SuccessEmptyResponse> {
     return this.booksService.setBookToFavorite(req.user.userId, dto);
+  }
+
+  @Delete(':id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Delete a book', response: SuccessEmptyResponse })
+  deleteBook(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SuccessEmptyResponse> {
+    return this.booksService.deleteBook(req.user.userId, id);
   }
 }

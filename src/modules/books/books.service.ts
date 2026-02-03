@@ -186,4 +186,54 @@ export class BooksService {
     });
     return { status: 'success' };
   }
+
+  async deleteBook(userId: string, bookId: string): Promise<SuccessEmptyResponse> {
+    const book = await this.findBookByIdAndUser(bookId, userId);
+
+    // Delete S3 files (fail silently - database deletion is more important)
+    const s3Deletions: Promise<void>[] = [];
+
+    if (book.fileStorageKey) {
+      s3Deletions.push(
+        this.s3.deleteObject(book.fileStorageKey).catch((err) => {
+          this.logger.warn(`Failed to delete book file ${book.fileStorageKey}`, err);
+        }),
+      );
+    }
+
+    if (book.customCoverStorageKey) {
+      s3Deletions.push(
+        this.s3.deleteCoverObject(book.customCoverStorageKey).catch((err) => {
+          this.logger.warn(`Failed to delete cover ${book.customCoverStorageKey}`, err);
+        }),
+      );
+    }
+
+    if (book.summaryStorageKey) {
+      s3Deletions.push(
+        this.s3.deleteSummaryObject(book.summaryStorageKey).catch((err) => {
+          this.logger.warn(`Failed to delete summary ${book.summaryStorageKey}`, err);
+        }),
+      );
+    }
+
+    if (book.extractionStorageKey) {
+      s3Deletions.push(
+        this.s3.deleteSummaryObject(book.extractionStorageKey).catch((err) => {
+          this.logger.warn(`Failed to delete extraction ${book.extractionStorageKey}`, err);
+        }),
+      );
+    }
+
+    await Promise.all(s3Deletions);
+
+    // Delete database record (Prisma cascade handles relations)
+    await this.prisma.book.delete({
+      where: { id: bookId },
+    });
+
+    this.logger.log(`Deleted book ${bookId} for user ${userId}`);
+
+    return { status: 'success' };
+  }
 }
