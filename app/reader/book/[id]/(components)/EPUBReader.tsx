@@ -11,6 +11,7 @@ import {
   Settings,
   Minus,
   Plus,
+  Loader2,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import EPUBReaderMenu from "./EPUBReaderMenu";
@@ -19,6 +20,14 @@ const ReactReader = dynamic(
   () => import("react-reader").then((m) => m.ReactReader),
   { ssr: false }
 );
+
+async function fetchEpubAsArrayBuffer(url: string): Promise<ArrayBuffer> {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`Failed to fetch EPUB: ${response.status}`);
+  }
+  return response.arrayBuffer();
+}
 
 export type EPUBReaderProps = {
   book: IBook;
@@ -59,6 +68,27 @@ export default function EPUBReader({
     if (typeof window === "undefined") return DEFAULT_FONT_SIZE;
     return Number(localStorage.getItem(FONT_SIZE_KEY)) || DEFAULT_FONT_SIZE;
   });
+  const [epubData, setEpubData] = useState<ArrayBuffer | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Fetch EPUB as ArrayBuffer to avoid epubjs making relative URL requests
+  useEffect(() => {
+    let cancelled = false;
+    setEpubData(null);
+    setLoadError(null);
+
+    fetchEpubAsArrayBuffer(book.fileUrl)
+      .then((data) => {
+        if (!cancelled) setEpubData(data);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err.message);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [book.fileUrl]);
 
   // Restore saved reading position
   useEffect(() => {
@@ -268,14 +298,27 @@ export default function EPUBReader({
 
       {/* Reader */}
       <div className="absolute inset-0">
-        <ReactReader
-          key={book.id}
-          url={book.fileUrl}
-          location={location ?? null}
-          locationChanged={onLocationChanged}
-          getRendition={onRendition}
-          epubOptions={{ allowScriptedContent: true }}
-        />
+        {loadError ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="text-center text-destructive">
+              <p>Failed to load book</p>
+              <p className="text-sm text-muted-foreground">{loadError}</p>
+            </div>
+          </div>
+        ) : !epubData ? (
+          <div className="flex items-center justify-center h-full">
+            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          <ReactReader
+            key={book.id}
+            url={epubData}
+            location={location ?? null}
+            locationChanged={onLocationChanged}
+            getRendition={onRendition}
+            epubOptions={{ allowScriptedContent: true }}
+          />
+        )}
       </div>
 
       {settingsOpen && (
