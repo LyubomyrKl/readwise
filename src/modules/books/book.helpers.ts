@@ -1,5 +1,4 @@
 import { Prisma } from '@prisma/client';
-import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookResponse } from './book.models';
 
 export const BOOK_WITH_RELATIONS = Prisma.validator<Prisma.BookFindManyArgs>()({
@@ -14,20 +13,15 @@ export type BookWithRelations = Prisma.BookGetPayload<
   typeof BOOK_WITH_RELATIONS
 >;
 
-export async function convertBookToResponse(
-  book: BookWithRelations,
-  s3Service: S3Service,
-): Promise<BookResponse> {
+export function convertBookToResponse(book: BookWithRelations): BookResponse {
   return {
     id: book.id,
     title: book.title,
     author: book.author,
     coverUrl: book.customCoverStorageKey
-      ? await s3Service.generatePresignedCoverDownloadUrl(
-          book.customCoverStorageKey,
-        )
+      ? `/books/${book.id}/cover`
       : undefined,
-    fileUrl: await s3Service.generatePresignedDownloadUrl(book.fileStorageKey),
+    fileUrl: `/books/${book.id}/download`,
     description: book.description,
     spentTime: book.spentTime,
     pageCount: book.pageCount,

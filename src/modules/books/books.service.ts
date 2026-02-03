@@ -5,23 +5,16 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { Book } from '@prisma/client';
+import { createHash } from 'crypto';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookFilesService } from './book.files.service';
 import {
-  CreateBookDto,
-  PresignedUploadDto,
   SetBookToFavoriteDto,
   UpdateSpentTimeDto,
-} from './book.models';
-import {
-  PresignResponse,
-  FinalizeResponse,
+  UploadBookDto,
+  UploadResponse,
   BookResponse,
-  PresignInfo,
-  CoverPresignResponse,
-  CoverUpdateDto,
   UpdateLastAccessedResponse,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
@@ -54,127 +47,68 @@ export class BooksService {
     return book;
   }
 
-  private async findPendingBookByIdAndUser(
-    bookId: string,
+  async uploadBook(
     userId: string,
-  ): Promise<Book> {
-    const book = await this.prisma.book.findFirst({
-      where: { id: bookId, userId, status: BOOK_STATUS.PENDING },
-      ...BOOK_WITH_RELATIONS,
-    });
+    files: { book?: Express.Multer.File[]; cover?: Express.Multer.File[] },
+    dto: UploadBookDto,
+  ): Promise<UploadResponse> {
+    const bookFile = files.book?.[0];
+    const coverFile = files.cover?.[0];
 
-    if (!book) {
-      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_ALREADY_FINALIZED);
+    if (!bookFile) {
+      throw new BadRequestException('Book file is required');
     }
 
-    return book;
-  }
+    const bookStorageKey = this.s3.generateStorageKey(
+      userId,
+      bookFile.originalname,
+      bookFile.mimetype,
+    );
 
-  async createBookAndPresign(
-    userId: string,
-    dto: CreateBookDto,
-  ): Promise<PresignResponse> {
-
-
-    const bookFilePresignInfo =
-      await this.bookFilesService.generateBookFilePresign(
+    let coverStorageKey: string | undefined;
+    if (coverFile) {
+      coverStorageKey = this.s3.generateCoverStorageKey(
         userId,
-        dto.filename,
-        dto.mime,
-      );
-
-    let customCover:
-      | {
-          storageKey: string;
-          presignInfo: PresignInfo;
-        }
-      | undefined;
-
-    if (dto.customCoverFilename && dto.customCoverMime) {
-      customCover = await this.bookFilesService.generateCustomCoverPresign(
-        userId,
-        dto.customCoverFilename,
-        dto.customCoverMime,
+        coverFile.originalname,
+        coverFile.mimetype,
       );
     }
 
     try {
+      await this.s3.uploadObject(bookStorageKey, bookFile.buffer, bookFile.mimetype);
+
+      if (coverFile && coverStorageKey) {
+        await this.s3.uploadCoverObject(coverStorageKey, coverFile.buffer, coverFile.mimetype);
+      }
+
+      const hash = createHash('sha256');
+      hash.update(bookFile.buffer);
+      const sha256 = hash.digest('hex');
+
       const book = await this.prisma.book.create({
         data: {
           userId,
           title: dto.title,
           author: dto.author,
-          customCoverStorageKey: customCover?.storageKey,
-          spentTime: 0,
           description: dto.description,
-          mime: dto.mime,
+          mime: bookFile.mimetype,
           pageCount: dto.pageCount,
-          sizeBytes: BigInt(dto.sizeBytes),
-          lastAccessed: new Date().toISOString(),
-          fileStorageKey: bookFilePresignInfo.storageKey,
-          status: BOOK_STATUS.PENDING,
-        },
-      });
-
-      this.logger.log(`Created book ${book.id} for user ${userId}`);
-
-      return {
-        bookId: book.id,
-        storageKey: bookFilePresignInfo.storageKey,
-        presignUploadInfo: bookFilePresignInfo.presignInfo,
-        customCoverStorageKey: customCover?.storageKey,
-        customCoverPresignInfo: customCover?.presignInfo,
-      };
-    } catch (error) {
-      this.logger.error(`Failed to create book for user ${userId}`, error);
-      throw new BadRequestException(BOOK_ERROR_MESSAGES.BOOK_CREATION_FAILED);
-    }
-  }
-
-  async finalizeBook(
-    userId: string,
-    bookId: string,
-  ): Promise<FinalizeResponse> {
-    const book = await this.findPendingBookByIdAndUser(bookId, userId);
-
-    try {
-      // Verify book file exists in storage
-      await this.bookFilesService.validateFileExists(book.fileStorageKey);
-
-      // Calculate file hash and generate final storage key
-      const { sha256, finalStorageKey } =
-        await this.bookFilesService.processBookFile(book, userId);
-
-      // Verify custom cover exists if provided
-      if (
-        book.customCoverStorageKey &&
-        typeof book.customCoverStorageKey === 'string'
-      ) {
-        await this.bookFilesService.validateFileExists(
-          book.customCoverStorageKey,
-          true,
-        );
-      }
-
-      // Update book with final details
-      await this.prisma.book.update({
-        where: { id: bookId },
-        data: {
+          sizeBytes: BigInt(bookFile.size),
+          lastAccessed: new Date(),
+          fileStorageKey: bookStorageKey,
+          customCoverStorageKey: coverStorageKey,
           sha256,
-          fileStorageKey: finalStorageKey,
+          spentTime: 0,
           status: BOOK_STATUS.READY,
         },
       });
 
-      this.logger.log(`Finalized book ${bookId} for user ${userId}`);
+      this.logger.log(`Uploaded and created book ${book.id} for user ${userId}`);
 
-      return { bookId, status: BOOK_STATUS.READY };
+      return { bookId: book.id, status: BOOK_STATUS.READY };
     } catch (error) {
-      this.logger.error(
-        `Failed to finalize book ${bookId} for user ${userId}`,
-        error,
-      );
-      throw error;
+      this.logger.error(`Failed to upload book for user ${userId}`, error);
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.BOOK_CREATION_FAILED);
     }
   }
 
@@ -192,14 +126,12 @@ export class BooksService {
       ...BOOK_WITH_RELATIONS,
     });
 
-    return await Promise.all(
-      books.map((book) => convertBookToResponse(book, this.s3)),
-    );
+    return books.map((book) => convertBookToResponse(book));
   }
 
   async getBook(userId: string, bookId: string): Promise<BookResponse> {
     const book = await this.findBookByIdAndUser(bookId, userId);
-    return await convertBookToResponse(book, this.s3);
+    return convertBookToResponse(book);
   }
 
   async setLastAccessed(bookId: string, userId: string): Promise<UpdateLastAccessedResponse> {
@@ -217,96 +149,41 @@ export class BooksService {
     userId: string,
     bookId: string,
     res: Response,
-  ): Promise<SuccessEmptyResponse> {
-     await this.bookFilesService.downloadBook(userId, bookId, res);
-     return { status: 'success'};
+  ): Promise<void> {
+    await this.bookFilesService.downloadBook(userId, bookId, res);
   }
 
-  async finalizeCoverUpload(
+  async downloadCover(
     userId: string,
     bookId: string,
-  ): Promise<SuccessEmptyResponse> {
-    return await this.bookFilesService.finalizeCoverUpload(userId, bookId);
+    res: Response,
+  ): Promise<void> {
+    await this.bookFilesService.downloadCover(userId, bookId, res);
   }
 
-  async coverPresign(
-    userId: string,
-    dto: PresignedUploadDto,
-  ): Promise<CoverPresignResponse> {
-    const response = await this.bookFilesService.generateCustomCoverPresign(
-      userId,
-      dto.filename,
-      dto.mime,
-    );
-
-    return {
-      storageKey: response.storageKey,
-      presignUploadInfo: response.presignInfo,
-    };
-  }
-
-  async coverUpdateFinalize(
-    userId: string,
-    dto: CoverUpdateDto,
-  ): Promise<FinalizeResponse> {
-    await this.findBookByIdAndUser(dto.bookId, userId);
-
-    try {
-      await this.prisma.book.update({
-        where: { id: dto.bookId },
-        data: {
-          customCoverStorageKey: dto.storageKey,
-          status: BOOK_STATUS.READY,
-        },
-      });
-
-      this.logger.log(
-        `Finalized cover for book ${dto.bookId} for user ${userId}`,
-      );
-
-      return { bookId: dto.bookId, status: BOOK_STATUS.READY };
-    } catch (error) {
-      this.logger.error(
-        `Failed to finalize cover for book ${dto.bookId} for user ${userId}`,
-        error,
-      );
-      throw error;
-    }
-  }
-
-  async updateSpentTime(userId: string, dto: UpdateSpentTimeDto ): Promise<SuccessEmptyResponse> {
+  async updateSpentTime(userId: string, dto: UpdateSpentTimeDto): Promise<SuccessEmptyResponse> {
     const book = await this.findBookByIdAndUser(dto.bookId, userId);
-
-    const spentTime = Number(book.spentTime) + dto.amount
+    const spentTime = Number(book.spentTime) + dto.amount;
 
     try {
       await this.prisma.book.update({
         where: { id: dto.bookId },
-        data: {
-          spentTime,
-        },
+        data: { spentTime },
       });
     } catch (error) {
-      this.logger.error(
-        `Failed to finalize cover for book ${dto.bookId} for user ${userId}`,
-        error,
-      );
+      this.logger.error(`Failed to update spent time for book ${dto.bookId}`, error);
       throw error;
     }
     return { status: 'success' };
   }
 
-   async setBookToFavorite(userId: string, dto: SetBookToFavoriteDto): Promise<SuccessEmptyResponse> {
+  async setBookToFavorite(userId: string, dto: SetBookToFavoriteDto): Promise<SuccessEmptyResponse> {
     const { bookId, isFavorite } = dto;
     const book = await this.findBookByIdAndUser(bookId, userId);
     await this.prisma.book.update({
-      where: {
-        id: book.id,
-      },
-      data: {
-        isFavorite,
-      }
-    })
-     return  { status: 'success' };
-   }
+      where: { id: book.id },
+      data: { isFavorite },
+    });
+    return { status: 'success' };
+  }
 }

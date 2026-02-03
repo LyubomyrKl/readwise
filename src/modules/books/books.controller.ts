@@ -6,25 +6,22 @@ import {
   Param,
   Req,
   Res,
+  UseInterceptors,
+  UploadedFiles,
 } from '@nestjs/common';
-import { ApiTags, ApiParam } from '@nestjs/swagger';
+import { ApiTags, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import type { Response } from 'express';
 
 import { BooksService } from './books.service';
 import {
-  CreateBookDto,
-  FinalizeBookDto,
-  FinalizeCoverDto,
-  PresignedUploadDto,
   SetBookToFavoriteDto,
   UpdateSpentTimeDto,
-  CoverUpdateDto,
   UpdateLastAccessedDto,
-  PresignResponse,
-  FinalizeResponse,
   BookResponse,
-  CoverPresignResponse,
   UpdateLastAccessedResponse,
+  UploadBookDto,
+  UploadResponse,
 } from './book.models';
 
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
@@ -35,31 +32,35 @@ import { SuccessEmptyResponse, UserModel } from '@/app.models';
 export class BooksController {
   constructor(private readonly booksService: BooksService) {}
 
-  @Post('presign')
-  @ApiEndpoint({ summary: 'Create book and presign upload', response: PresignResponse })
-  createBookAndPresign(
+  @Post('upload')
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'book', maxCount: 1 },
+      { name: 'cover', maxCount: 1 },
+    ]),
+  )
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['book', 'title', 'author', 'description'],
+      properties: {
+        book: { type: 'string', format: 'binary' },
+        cover: { type: 'string', format: 'binary' },
+        title: { type: 'string' },
+        author: { type: 'string' },
+        description: { type: 'string' },
+        pageCount: { type: 'number' },
+      },
+    },
+  })
+  @ApiEndpoint({ summary: 'Upload book with optional cover', response: UploadResponse })
+  uploadBook(
     @Req() req: UserModel,
-    @Body() dto: CreateBookDto,
-  ): Promise<PresignResponse> {
-    return this.booksService.createBookAndPresign(req.user.userId, dto);
-  }
-
-  @Post('finalize')
-  @ApiEndpoint({ summary: 'Finalize book upload', response: FinalizeResponse })
-  finalizeBook(
-    @Req() req: UserModel,
-    @Body() dto: FinalizeBookDto,
-  ): Promise<FinalizeResponse> {
-    return this.booksService.finalizeBook(req.user.userId, dto.bookId);
-  }
-
-  @Post('cover/finalize')
-  @ApiEndpoint({ summary: 'Finalize cover upload', response: SuccessEmptyResponse })
-  finalizeCover(
-    @Req() req: UserModel,
-    @Body() dto: FinalizeCoverDto,
-  ): Promise<SuccessEmptyResponse> {
-    return this.booksService.finalizeCoverUpload(req.user.userId, dto.bookId);
+    @UploadedFiles() files: { book?: Express.Multer.File[]; cover?: Express.Multer.File[] },
+    @Body() dto: UploadBookDto,
+  ): Promise<UploadResponse> {
+    return this.booksService.uploadBook(req.user.userId, files, dto);
   }
 
   @Get()
@@ -81,30 +82,23 @@ export class BooksController {
   @Get(':id/download')
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Download book file', response: SuccessEmptyResponse })
-  downloadBook(
+  async downloadBook(
     @Req() req: UserModel,
     @Param('id') id: string,
     @Res() res: Response,
-  ): Promise<SuccessEmptyResponse> {
-    return this.booksService.downloadBook(req.user.userId, id, res);
+  ): Promise<void> {
+    await this.booksService.downloadBook(req.user.userId, id, res);
   }
 
-  @Post('cover/presign')
-  @ApiEndpoint({ summary: 'Presign cover upload', response: CoverPresignResponse })
-  coverPresign(
+  @Get(':id/cover')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get book cover image', response: SuccessEmptyResponse })
+  async downloadCover(
     @Req() req: UserModel,
-    @Body() dto: PresignedUploadDto,
-  ): Promise<CoverPresignResponse> {
-    return this.booksService.coverPresign(req.user.userId, dto);
-  }
-
-  @Post('cover/update')
-  @ApiEndpoint({ summary: 'Finalize cover update', response: FinalizeResponse })
-  updateCoverFinalize(
-    @Req() req: UserModel,
-    @Body() dto: CoverUpdateDto,
-  ): Promise<FinalizeResponse> {
-    return this.booksService.coverUpdateFinalize(req.user.userId, dto);
+    @Param('id') id: string,
+    @Res() res: Response,
+  ): Promise<void> {
+    await this.booksService.downloadCover(req.user.userId, id, res);
   }
 
   @Post('last-accessed')

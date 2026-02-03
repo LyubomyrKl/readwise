@@ -1,19 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import type { BookStatus } from '@prisma/client';
 import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
-
-import {
-  IsNumber,
-  IsOptional,
-  Min,
-  Max,
-  IsUUID,
-  IsMimeType,
-  Length,
-  Matches,
-} from 'class-validator';
+import { IsNumber, IsOptional, IsUUID, Length } from 'class-validator';
 import { Transform } from 'class-transformer';
-import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './book.constants';
+import { BOOK_CONSTRAINTS } from './book.constants';
 import type { JsonValue } from '@prisma/client/runtime/edge';
 
 export class NoteResponse {
@@ -91,52 +80,6 @@ export class BookTagResponse {
   createdAt!: Date;
 }
 
-export class PresignInfo {
-  @ApiProperty({ description: 'Presigned upload URL' })
-  url!: string;
-
-  @ApiProperty({ description: 'Required headers for upload' })
-  headers!: Record<string, string>;
-}
-
-export class PresignResponse {
-  @ApiProperty({ description: 'Created book ID' })
-  bookId!: string;
-
-  @ApiProperty({ description: 'Storage key for book file' })
-  storageKey!: string;
-
-  @ApiProperty({
-    description: 'Presigned upload info for book file',
-    type: PresignInfo,
-  })
-  presignUploadInfo!: PresignInfo;
-
-  @ApiProperty({
-    description: 'Storage key for custom cover file',
-    required: false,
-  })
-  customCoverStorageKey?: string;
-
-  @ApiProperty({
-    description: 'Presigned upload info for custom cover',
-    type: PresignInfo,
-    required: false,
-  })
-  customCoverPresignInfo?: PresignInfo;
-}
-
-export class FinalizeResponse {
-  @ApiProperty({ description: 'Book ID' })
-  bookId!: string;
-
-  @ApiProperty({
-    description: 'Book status after finalization',
-    enum: ['ready'],
-  })
-  status!: BookStatus;
-}
-
 export class BookResponse {
   @ApiProperty()
   id!: string;
@@ -181,7 +124,7 @@ export class BookResponse {
   mime!: string;
 
   @ApiProperty()
-  sizeBytes!: string; // BigInt converted to string
+  sizeBytes!: string;
 
   @ApiProperty()
   status!: string;
@@ -202,67 +145,45 @@ export class BookResponse {
   updatedAt!: Date;
 }
 
-export class CoverPresignResponse {
-  @ApiProperty({
-    description: 'Presigned upload info for cover',
-    type: PresignInfo,
-  })
-  presignUploadInfo!: PresignInfo;
-
-  @ApiProperty({ description: 'Storage key for cover file' })
-  storageKey!: string;
-}
-
-export class CoverUpdateDto {
-  @ApiProperty({
-    description: 'Book ID to update cover for',
-    example: 'uuid-here',
-  })
-  @IsString()
-  @IsNotEmpty()
-  bookId!: string;
-
-  @ApiProperty({ description: 'Cover filename', example: 'cover.jpg' })
-  @IsString()
-  @IsNotEmpty()
-  storageKey!: string;
-}
-
 export class UpdateLastAccessedDto {
-  @ApiProperty({
-    description: 'Book ID to update last accessed',
-  })
+  @ApiProperty({ description: 'Book ID to update last accessed' })
   @IsString()
   @IsNotEmpty()
   bookId!: string;
 }
 
 export class UpdateLastAccessedResponse {
-  @ApiProperty({
-    description: 'Book ID to update last accessed',
-  })
+  @ApiProperty({ description: 'Book ID' })
   @IsString()
   @IsNotEmpty()
   bookId!: string;
 }
 
 export class UpdateSpentTimeDto {
-  @ApiProperty({
-    description: 'Book ID to update last accessed',
-  })
+  @ApiProperty({ description: 'Book ID' })
   @IsString()
   @IsNotEmpty()
   bookId!: string;
 
-  @ApiProperty({
-    description: 'Amount of time',
-  })
-  @IsString()
+  @ApiProperty({ description: 'Amount of time in seconds' })
+  @IsNumber()
   @IsNotEmpty()
   amount!: number;
 }
 
-export class CreateBookDto {
+export class SetBookToFavoriteDto {
+  @ApiProperty({ description: 'Book ID', example: 'uuid-here' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  bookId!: string;
+
+  @ApiProperty({ description: 'Whether book is favorite', example: true })
+  @IsBoolean()
+  isFavorite!: boolean;
+}
+
+export class UploadBookDto {
   @ApiProperty({ description: 'Book title', example: 'The Great Gatsby' })
   @IsString()
   @IsNotEmpty()
@@ -281,10 +202,7 @@ export class CreateBookDto {
   )
   author!: string;
 
-  @ApiProperty({
-    description: 'Book description',
-    example: 'A classic American novel',
-  })
+  @ApiProperty({ description: 'Book description', example: 'A classic American novel' })
   @IsString()
   @IsNotEmpty()
   @Length(1, BOOK_CONSTRAINTS.MAX_DESCRIPTION_LENGTH)
@@ -293,115 +211,19 @@ export class CreateBookDto {
   )
   description!: string;
 
-  @ApiProperty({ description: 'Original filename', example: 'book.epub' })
-  @IsString()
-  @IsNotEmpty()
-  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
-  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
-    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
-  })
-  filename!: string;
-
-  @ApiProperty({
-    description: 'MIME type of the book file',
-    example: 'application/epub+zip',
-  })
-  @IsString()
-  @IsNotEmpty()
-  @IsMimeType()
-  mime!: string;
-
-  @ApiProperty({
-    description: 'File size in bytes',
-    example: 2048576,
-    minimum: 1,
-    maximum: BOOK_CONSTRAINTS.MAX_BOOK_SIZE,
-  })
-  @IsNumber()
-  @Min(BOOK_CONSTRAINTS.MIN_FILE_SIZE)
-  @Max(BOOK_CONSTRAINTS.MAX_BOOK_SIZE)
-  sizeBytes!: number;
-
-  @ApiPropertyOptional({
-    description: 'Custom cover filename',
-    example: 'cover.jpg',
-  })
+  @ApiPropertyOptional({ description: 'Page count', example: 100 })
   @IsOptional()
-  @IsString()
-  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
-  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
-    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
-  })
-  customCoverFilename?: string;
-
-  @ApiPropertyOptional({
-    description: 'Custom cover MIME type',
-    example: 'image/jpeg',
-  })
-  @IsOptional()
-  @IsString()
-  @IsMimeType()
-  @Matches(BOOK_CONSTRAINTS.COVER_MIME_PATTERN, {
-    message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
-  })
-  customCoverMime?: string;
-
-  @ApiPropertyOptional({
-    description: 'Page Number',
-    example: 100,
-    maximum: BOOK_CONSTRAINTS.MAX_PAGE_COUNT,
-  })
   @IsNumber()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? parseInt(value, 10) : value,
+  )
   pageCount?: number;
 }
 
-export class FinalizeBookDto {
-  @ApiProperty({ description: 'Book ID to finalize', example: 'uuid-here' })
-  @IsString()
-  @IsNotEmpty()
-  @IsUUID()
-  bookId!: string;
-}
-
-export class FinalizeCoverDto {
-  @ApiProperty({
-    description: 'Book ID to finalize cover for',
-    example: 'uuid-here',
-  })
-  @IsString()
-  @IsNotEmpty()
-  bookId!: string;
-}
-
-export class PresignedUploadDto {
-  @ApiProperty({ description: 'Cover filename', example: 'cover.jpg' })
-  @IsString()
-  @IsNotEmpty()
-  @Length(1, BOOK_CONSTRAINTS.MAX_FILENAME_LENGTH)
-  @Matches(BOOK_CONSTRAINTS.FILENAME_PATTERN, {
-    message: BOOK_ERROR_MESSAGES.INVALID_FILENAME,
-  })
-  filename!: string;
-
-  @ApiProperty({ description: 'Cover MIME type', example: 'image/jpeg' })
-  @IsString()
-  @IsNotEmpty()
-  @IsMimeType()
-  @Matches(BOOK_CONSTRAINTS.COVER_MIME_PATTERN, {
-    message: BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED,
-  })
-  mime!: string;
-}
-
-
-export class SetBookToFavoriteDto {
-  @ApiProperty({ description: 'Book ID to finalize', example: 'uuid-here' })
-  @IsString()
-  @IsNotEmpty()
-  @IsUUID()
+export class UploadResponse {
+  @ApiProperty({ description: 'Created book ID' })
   bookId!: string;
 
-  @ApiPropertyOptional({ description: 'Boolean that shows whether or not book is favorite', example: true })
-  @IsBoolean()
-  isFavorite!: boolean;
+  @ApiProperty({ description: 'Book status' })
+  status!: string;
 }

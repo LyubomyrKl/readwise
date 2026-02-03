@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { RabbitMQService } from '@/infrastructure/rabbitmq/rabbitmq.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
@@ -9,9 +10,12 @@ import {
 } from '@/modules/books/book.helpers';
 import { BOOK_ERROR_MESSAGES} from "@/modules/books/book.constants";
 import { SummaryType } from '@prisma/client';
+import { EnvironmentVariables } from '@/config/env.validation';
 
 @Injectable()
 export class SummarizerService {
+  private readonly apiBaseUrl: string;
+
   constructor(
     private readonly rabbitMQService: RabbitMQService,
     private readonly s3Service: S3Service,
@@ -72,7 +76,7 @@ export class SummarizerService {
 
     const summary = await this.s3Service.getJsonObject(book.summaryStorageKey);
 
-    const convertedBook = await convertBookToResponse(book, this.s3Service);
+    const convertedBook = convertBookToResponse(book);
 
     return {
       ...convertedBook,
