@@ -11,7 +11,6 @@ This repository contains the Docker infrastructure setup for the Summarizer appl
 - **Port**: 5432
 - **Database**: appdb
 - **Credentials**: postgres/postgres
-
 ### MinIO Object Storage
 
 - **Image**: minio/minio:latest
