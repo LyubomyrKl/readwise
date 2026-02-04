@@ -80,6 +80,20 @@ export class BookTagResponse {
   createdAt!: Date;
 }
 
+export class ReadingPositionResponse {
+  @ApiProperty({ enum: ['pdf', 'epub'] })
+  type!: 'pdf' | 'epub';
+
+  @ApiPropertyOptional()
+  page?: number;
+
+  @ApiPropertyOptional()
+  cfi?: string;
+
+  @ApiPropertyOptional()
+  percentage?: number;
+}
+
 export class BookResponse {
   @ApiProperty()
   id!: string;
@@ -137,6 +151,9 @@ export class BookResponse {
 
   @ApiProperty({ type: [BookTagResponse] })
   tags!: BookTagResponse[];
+
+  @ApiPropertyOptional({ type: ReadingPositionResponse, nullable: true })
+  readingPosition?: ReadingPositionResponse | null;
 
   @ApiProperty()
   createdAt!: Date;
@@ -227,3 +244,39 @@ export class UploadResponse {
   @ApiProperty({ description: 'Book status' })
   status!: string;
 }
+
+// Reading Position types
+export class ReadingPositionDto {
+  @ApiProperty({ enum: ['pdf', 'epub'], description: 'Type of book format' })
+  @IsString()
+  @IsNotEmpty()
+  type!: 'pdf' | 'epub';
+
+  @ApiPropertyOptional({ description: 'Current page number (for PDF)' })
+  @IsOptional()
+  @IsNumber()
+  page?: number;
+
+  @ApiPropertyOptional({ description: 'CFI location string (for EPUB)' })
+  @IsOptional()
+  @IsString()
+  cfi?: string;
+
+  @ApiPropertyOptional({ description: 'Reading progress percentage (0-100)' })
+  @IsOptional()
+  @IsNumber()
+  percentage?: number;
+}
+
+export class UpdateReadingPositionDto {
+  @ApiProperty({ description: 'Book ID' })
+  @IsString()
+  @IsNotEmpty()
+  @IsUUID()
+  bookId!: string;
+
+  @ApiProperty({ type: ReadingPositionDto, description: 'Reading position data' })
+  @IsNotEmpty()
+  position!: ReadingPositionDto;
+}
+

@@ -29,6 +29,7 @@ model Book {
   extractionStorageKey  String?
   summaryType           SummaryType?
   lastAccessed          DateTime     @default(now())
+  readingPosition       Json?        // { type: 'pdf' | 'epub', page?: number, cfi?: string, percentage?: number }
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 

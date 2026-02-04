@@ -23,6 +23,7 @@ import {
   UpdateLastAccessedResponse,
   UploadBookDto,
   UploadResponse,
+  UpdateReadingPositionDto,
 } from './book.models';
 
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
@@ -127,6 +128,15 @@ export class BooksController {
     @Body() dto: SetBookToFavoriteDto,
   ): Promise<SuccessEmptyResponse> {
     return this.booksService.setBookToFavorite(req.user.userId, dto);
+  }
+
+  @Post('reading-position')
+  @ApiEndpoint({ summary: 'Update reading position', response: SuccessEmptyResponse })
+  updateReadingPosition(
+    @Req() req: UserModel,
+    @Body() dto: UpdateReadingPositionDto,
+  ): Promise<SuccessEmptyResponse> {
+    return this.booksService.updateReadingPosition(req.user.userId, dto);
   }
 
   @Delete(':id')

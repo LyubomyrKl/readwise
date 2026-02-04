@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { BookResponse } from './book.models';
+import { BookResponse, ReadingPositionResponse } from './book.models';
 
 export const BOOK_WITH_RELATIONS = Prisma.validator<Prisma.BookFindManyArgs>()({
   include: {
@@ -14,6 +14,20 @@ export type BookWithRelations = Prisma.BookGetPayload<
 >;
 
 export function convertBookToResponse(book: BookWithRelations): BookResponse {
+  // Parse reading position from JSON
+  let readingPosition: ReadingPositionResponse | null = null;
+  if (book.readingPosition && typeof book.readingPosition === 'object') {
+    const pos = book.readingPosition as Record<string, unknown>;
+    if (pos.type === 'pdf' || pos.type === 'epub') {
+      readingPosition = {
+        type: pos.type,
+        page: typeof pos.page === 'number' ? pos.page : undefined,
+        cfi: typeof pos.cfi === 'string' ? pos.cfi : undefined,
+        percentage: typeof pos.percentage === 'number' ? pos.percentage : undefined,
+      };
+    }
+  }
+
   return {
     id: book.id,
     title: book.title,
@@ -36,6 +50,7 @@ export function convertBookToResponse(book: BookWithRelations): BookResponse {
     notes: book.notes || [],
     highlights: book.highlights || [],
     tags: book.tags || [],
+    readingPosition,
     createdAt: book.createdAt,
     updatedAt: book.updatedAt,
   };

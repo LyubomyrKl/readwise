@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { createHash } from 'crypto';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { BookFilesService } from './book.files.service';
@@ -16,6 +17,7 @@ import {
   UploadResponse,
   BookResponse,
   UpdateLastAccessedResponse,
+  UpdateReadingPositionDto,
 } from './book.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
 import { BOOK_WITH_RELATIONS, BookWithRelations, convertBookToResponse } from './book.helpers';
@@ -184,6 +186,21 @@ export class BooksService {
       where: { id: book.id },
       data: { isFavorite },
     });
+    return { status: 'success' };
+  }
+
+  async updateReadingPosition(userId: string, dto: UpdateReadingPositionDto): Promise<SuccessEmptyResponse> {
+    const { bookId, position } = dto;
+    await this.findBookByIdAndUser(bookId, userId);
+
+    await this.prisma.book.update({
+      where: { id: bookId },
+      data: {
+        readingPosition: position as unknown as Prisma.InputJsonValue,
+        lastAccessed: new Date(),
+      },
+    });
+
     return { status: 'success' };
   }
 
