@@ -16,6 +16,16 @@ export type {
   SetBookToFavoriteDto,
   UpdateLastAccessedDto,
   BookResponse,
+  ReadingPosition,
+  UpdateReadingPositionDto,
+  HighlightAnchor,
+  CreateHighlightDto,
+  UpdateHighlightDto,
+  HighlightResponse,
+  NoteAnchor,
+  CreateNoteDto,
+  UpdateNoteDto,
+  NoteResponse,
 } from "./books";
 
 // Summarizer types

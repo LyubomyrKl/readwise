@@ -9,6 +9,9 @@ import EPUBReader from "@/app/reader/book/[id]/(components)/EPUBReader";
 import { IBook } from "../../../types";
 import { apiFetch } from "@/lib/fetcher";
 import { useReadingSession } from "@/hooks/useReadingSession";
+import { useHighlights } from "@/hooks/useHighlights";
+import { useNotes } from "@/hooks/useNotes";
+import type { ReadingPosition, CreateHighlightDto, HighlightResponse } from "@/lib/types";
 
 export default function BookReaderPage() {
   const params = useParams();
@@ -19,12 +22,6 @@ export default function BookReaderPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
-
-  // Initialize reading session (tracks time, updates lastAccessed)
-  const { setCurrentPage, forceSave } = useReadingSession({
-    bookId,
-    autoSaveInterval: 30_000, // Save every 30 seconds
-  });
 
   useEffect(() => {
     if (fetchedRef.current || !bookId) return;
@@ -45,11 +42,56 @@ export default function BookReaderPage() {
     fetchBook();
   }, [bookId]);
 
+  // Initialize reading session with position from book data
+  const { position, setPosition, forceSave } = useReadingSession({
+    bookId,
+    initialPosition: book?.readingPosition,
+    autoSaveInterval: 30_000, // Save every 30 seconds
+  });
+
+  // Initialize highlights management
+  const {
+    highlights,
+    createHighlight,
+    updateHighlight,
+    deleteHighlight,
+  } = useHighlights({
+    bookId,
+    initialHighlights: book?.highlights || [],
+  });
+
+  // Initialize notes management
+  const {
+    notes,
+    createNote,
+    updateNote,
+    deleteNote,
+  } = useNotes({
+    bookId,
+    initialNotes: book?.notes || [],
+  });
+
   // Handle back navigation with save
   const handleBack = useCallback(async () => {
     await forceSave();
     router.back();
   }, [forceSave, router]);
+
+  // Handle position change from readers
+  const handlePositionChange = useCallback(
+    (newPosition: ReadingPosition) => {
+      setPosition(newPosition);
+    },
+    [setPosition]
+  );
+
+  // Handle highlight creation
+  const handleCreateHighlight = useCallback(
+    async (dto: CreateHighlightDto): Promise<HighlightResponse | null> => {
+      return createHighlight(dto);
+    },
+    [createHighlight]
+  );
 
   if (loading) {
     return (
@@ -96,8 +138,17 @@ export default function BookReaderPage() {
       <div className="relative w-full h-full">
         <EPUBReader
           book={book}
+          initialPosition={position}
+          highlights={highlights}
+          notes={notes}
           onBackAction={handleBack}
-          onPageChange={setCurrentPage}
+          onPositionChange={handlePositionChange}
+          onCreateHighlight={handleCreateHighlight}
+          onUpdateHighlight={updateHighlight}
+          onDeleteHighlight={deleteHighlight}
+          onCreateNote={createNote}
+          onUpdateNote={updateNote}
+          onDeleteNote={deleteNote}
         />
       </div>
     );
@@ -107,8 +158,17 @@ export default function BookReaderPage() {
     <div className="relative w-full h-full">
       <VirtualPDFReader
         book={book}
+        initialPosition={position}
+        highlights={highlights}
+        notes={notes}
         onBackAction={handleBack}
-        onPageChange={setCurrentPage}
+        onPositionChange={handlePositionChange}
+        onCreateHighlight={handleCreateHighlight}
+        onUpdateHighlight={updateHighlight}
+        onDeleteHighlight={deleteHighlight}
+        onCreateNote={createNote}
+        onUpdateNote={updateNote}
+        onDeleteNote={deleteNote}
       />
     </div>
   );

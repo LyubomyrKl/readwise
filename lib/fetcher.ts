@@ -2,6 +2,13 @@ import type {
   UpdateSpentTimeDto,
   SetBookToFavoriteDto,
   UpdateLastAccessedDto,
+  UpdateReadingPositionDto,
+  CreateHighlightDto,
+  UpdateHighlightDto,
+  CreateNoteDto,
+  UpdateNoteDto,
+  HighlightResponse,
+  NoteResponse,
   LoginDto,
   RegisterDto,
   RequestSummaryDto,
@@ -18,21 +25,32 @@ type ApiRegistry = {
   GET: {
     "/api/books": { req: undefined; res: BookResponse[] };
     "/api/books/[id]": { req: undefined; res: { data: BookResponse } };
+    "/api/books/[id]/highlights": { req: undefined; res: HighlightResponse[] };
+    "/api/books/[id]/notes": { req: undefined; res: NoteResponse[] };
     "/api/auth/me": { req: undefined; res: AuthBundle };
   };
   DELETE: {
     "/api/books/[id]": { req: undefined; res: { status: string } };
+    "/api/highlights/[id]": { req: undefined; res: { status: string } };
+    "/api/notes/[id]": { req: undefined; res: { status: string } };
   };
   POST: {
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
     "/api/books/setBookToFavorite": { req: SetBookToFavoriteDto; res: { bookId: string; status: string } };
     "/api/books/updateLastAccessed": { req: UpdateLastAccessedDto; res: { status: string } };
+    "/api/books/readingPosition": { req: UpdateReadingPositionDto; res: { status: string } };
+    "/api/books/[id]/highlights": { req: CreateHighlightDto; res: HighlightResponse };
+    "/api/books/[id]/notes": { req: CreateNoteDto; res: NoteResponse };
     "/api/auth/login": { req: LoginDto; res: AuthBundle };
     "/api/auth/register": { req: RegisterDto; res: AuthBundle };
     "/api/auth/refresh": { req: object; res: Tokens };
     "/api/auth/logout": { req: object; res: void };
     "/api/summarizer": { req: RequestSummaryDto; res: SummaryRequestResponse };
     "/api/summarizer/get-summary": { req: GetSummaryDto; res: SummaryResponse };
+  };
+  PATCH: {
+    "/api/highlights/[id]": { req: UpdateHighlightDto; res: HighlightResponse };
+    "/api/notes/[id]": { req: UpdateNoteDto; res: NoteResponse };
   };
 };
 

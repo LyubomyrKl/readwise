@@ -1,8 +1,12 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 import { useBookMutations } from "./useBookMutations";
+import { apiFetch } from "@/lib/fetcher";
+import type { ReadingPosition } from "@/lib/types";
 
 type UseReadingSessionOptions = {
   bookId: string;
+  /** Initial reading position from book data */
+  initialPosition?: ReadingPosition | null;
   /** Interval in ms to auto-save progress (default: 30 seconds) */
   autoSaveInterval?: number;
   /** Whether to update last accessed on mount (default: true) */
@@ -10,10 +14,11 @@ type UseReadingSessionOptions = {
 };
 
 /**
- * Hook for tracking reading sessions with automatic time persistence.
+ * Hook for tracking reading sessions with automatic time and position persistence.
  *
  * Features:
  * - Tracks elapsed reading time
+ * - Tracks and persists reading position (page for PDF, CFI for EPUB)
  * - Auto-saves progress at configurable intervals
  * - Saves on page visibility change (tab switch, minimize)
  * - Saves on unmount (leaving reader)
@@ -21,6 +26,7 @@ type UseReadingSessionOptions = {
  */
 export function useReadingSession({
   bookId,
+  initialPosition,
   autoSaveInterval = 30_000,
   updateLastAccessedOnMount = true,
 }: UseReadingSessionOptions) {
@@ -31,6 +37,13 @@ export function useReadingSession({
   const isMounted = useRef(true);
   const hasUpdatedLastAccessed = useRef(false);
 
+  // Position tracking
+  const [position, setPositionState] = useState<ReadingPosition | null>(initialPosition || null);
+  const positionRef = useRef<ReadingPosition | null>(initialPosition || null);
+  const lastSavedPositionRef = useRef<string | null>(
+    initialPosition ? JSON.stringify(initialPosition) : null
+  );
+
   // Calculate elapsed time since last save (in hours)
   const getElapsedHours = useCallback(() => {
     const now = Date.now();
@@ -38,20 +51,44 @@ export function useReadingSession({
     return elapsedMs / (1000 * 60 * 60); // Convert to hours
   }, []);
 
-  // Save progress to backend
+  // Save position to backend
+  const savePosition = useCallback(async () => {
+    const currentPosition = positionRef.current;
+    if (!currentPosition) return;
+
+    const positionString = JSON.stringify(currentPosition);
+    // Skip if position hasn't changed
+    if (positionString === lastSavedPositionRef.current) return;
+
+    try {
+      await apiFetch("POST", "/api/books/readingPosition", {
+        bookId,
+        position: currentPosition,
+      });
+      lastSavedPositionRef.current = positionString;
+    } catch (error) {
+      console.error("Failed to save reading position:", error);
+    }
+  }, [bookId]);
+
+  // Save progress to backend (time + position)
   const saveProgress = useCallback(async () => {
     const elapsedHours = getElapsedHours();
 
-    // Only save if at least 1 second has passed (avoid spam)
-    if (elapsedHours < 1 / 3600) return;
+    // Save time if at least 1 second has passed
+    if (elapsedHours >= 1 / 3600) {
+      await updateSpentTime(bookId, elapsedHours);
+      lastSaveTime.current = Date.now();
+    }
 
-    await updateSpentTime(bookId, elapsedHours);
-    lastSaveTime.current = Date.now();
-  }, [bookId, getElapsedHours, updateSpentTime]);
+    // Always try to save position
+    await savePosition();
+  }, [bookId, getElapsedHours, updateSpentTime, savePosition]);
 
-  // Update current page (kept for potential future use)
-  const setCurrentPage = useCallback(() => {
-    // Page tracking - can be extended for progress persistence
+  // Update current position
+  const setPosition = useCallback((newPosition: ReadingPosition) => {
+    positionRef.current = newPosition;
+    setPositionState(newPosition);
   }, []);
 
   // Force save (call this before navigation)
@@ -111,13 +148,24 @@ export function useReadingSession({
   useEffect(() => {
     const handleBeforeUnload = () => {
       const elapsedHours = (Date.now() - lastSaveTime.current) / (1000 * 60 * 60);
+
+      // Save time spent
       if (elapsedHours >= 1 / 3600) {
-        // Use sendBeacon for reliable save on page close
-        const payload = JSON.stringify({
+        const timePayload = JSON.stringify({
           bookId,
           amount: elapsedHours,
         });
-        navigator.sendBeacon("/api/books/updateSpentTime", payload);
+        navigator.sendBeacon("/api/books/updateSpentTime", timePayload);
+      }
+
+      // Save position
+      const currentPosition = positionRef.current;
+      if (currentPosition) {
+        const positionPayload = JSON.stringify({
+          bookId,
+          position: currentPosition,
+        });
+        navigator.sendBeacon("/api/books/readingPosition", positionPayload);
       }
     };
 
@@ -128,7 +176,8 @@ export function useReadingSession({
   }, [bookId]);
 
   return {
-    setCurrentPage,
+    position,
+    setPosition,
     forceSave,
     sessionStartTime: sessionStartTime.current,
   };

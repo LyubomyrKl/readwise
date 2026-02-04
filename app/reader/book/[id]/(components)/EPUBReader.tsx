@@ -12,9 +12,22 @@ import {
   Minus,
   Plus,
   Loader2,
+  BookMarked,
+  StickyNote,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import EPUBReaderMenu from "./EPUBReaderMenu";
+import HighlightPopover, { HIGHLIGHT_COLORS } from "./HighlightPopover";
+import NotesPanel from "./NotesPanel";
+import type {
+  ReadingPosition,
+  HighlightResponse,
+  NoteResponse,
+  CreateHighlightDto,
+  CreateNoteDto,
+  UpdateHighlightDto,
+  UpdateNoteDto,
+} from "@/lib/types";
 
 const ReactReader = dynamic(
   () => import("react-reader").then((m) => m.ReactReader),
@@ -31,14 +44,17 @@ async function fetchEpubAsArrayBuffer(url: string): Promise<ArrayBuffer> {
 
 export type EPUBReaderProps = {
   book: IBook;
+  initialPosition?: ReadingPosition | null;
+  highlights?: HighlightResponse[];
+  notes?: NoteResponse[];
   onBackAction?: () => void;
-  onPageChange?: (page: number) => void;
-  onCreateHighlightAction?: (h: { cfiRange: string; text?: string }) => void;
-  onLocationPersistAction?: (
-    bookId: string,
-    cfi: string,
-    progressPct: number
-  ) => void;
+  onPositionChange?: (position: ReadingPosition) => void;
+  onCreateHighlight?: (dto: CreateHighlightDto) => Promise<HighlightResponse | null>;
+  onUpdateHighlight?: (id: string, dto: UpdateHighlightDto) => Promise<boolean>;
+  onDeleteHighlight?: (id: string) => Promise<boolean>;
+  onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
+  onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
+  onDeleteNote?: (id: string) => Promise<boolean>;
 };
 
 const LOCATION_KEY = (id: string) => `epub.cfi.${id}`;
@@ -52,24 +68,50 @@ const clamp = (v: number, min: number, max: number) =>
 
 export default function EPUBReader({
   book,
+  initialPosition,
+  highlights = [],
+  notes = [],
   onBackAction,
-  onPageChange,
-  onCreateHighlightAction,
-  onLocationPersistAction,
+  onPositionChange,
+  onCreateHighlight,
+  onUpdateHighlight,
+  onDeleteHighlight,
+  onCreateNote,
+  onUpdateNote,
+  onDeleteNote,
 }: EPUBReaderProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<any>(null);
 
-  const [location, setLocation] = useState<string | null>(null);
-  const [progress, setProgress] = useState(0);
+  // Initialize location from server position or fallback to localStorage
+  const [location, setLocation] = useState<string | null>(() => {
+    if (initialPosition?.type === "epub" && initialPosition.cfi) {
+      return initialPosition.cfi;
+    }
+    if (typeof window !== "undefined") {
+      return localStorage.getItem(LOCATION_KEY(book.id));
+    }
+    return null;
+  });
+  const [progress, setProgress] = useState(
+    () => initialPosition?.percentage || 0
+  );
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [notesPanelOpen, setNotesPanelOpen] = useState(false);
   const [fontSize, setFontSize] = useState<number>(() => {
     if (typeof window === "undefined") return DEFAULT_FONT_SIZE;
     return Number(localStorage.getItem(FONT_SIZE_KEY)) || DEFAULT_FONT_SIZE;
   });
   const [epubData, setEpubData] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Highlight popover state
+  const [selectionInfo, setSelectionInfo] = useState<{
+    cfiRange: string;
+    text: string;
+    position: { x: number; y: number };
+  } | null>(null);
 
   // Fetch EPUB as ArrayBuffer to avoid epubjs making relative URL requests
   useEffect(() => {
@@ -90,11 +132,31 @@ export default function EPUBReader({
     };
   }, [book.fileUrl]);
 
-  // Restore saved reading position
+  // Apply existing highlights when rendition is ready
+  const appliedHighlightsRef = useRef<Set<string>>(new Set());
   useEffect(() => {
-    const saved = localStorage.getItem(LOCATION_KEY(book.id));
-    if (saved) setLocation(saved);
-  }, [book.id]);
+    const r = renditionRef.current;
+    if (!r || highlights.length === 0) return;
+
+    highlights.forEach((h) => {
+      if (appliedHighlightsRef.current.has(h.id)) return;
+      if (h.anchor && typeof h.anchor === "object" && "cfi" in h.anchor) {
+        try {
+          r.annotations.add(
+            "highlight",
+            (h.anchor as { cfi: string }).cfi,
+            {},
+            undefined,
+            {
+              fill: h.color || HIGHLIGHT_COLORS[0].value,
+              "fill-opacity": 0.35,
+            }
+          );
+          appliedHighlightsRef.current.add(h.id);
+        } catch {}
+      }
+    });
+  }, [highlights]);
 
   // Apply font size to rendition
   useEffect(() => {
@@ -136,6 +198,7 @@ export default function EPUBReader({
       lastLocationRef.current = epubcfi;
 
       setLocation(epubcfi);
+      // Keep localStorage as a local cache/fallback
       localStorage.setItem(LOCATION_KEY(book.id), epubcfi);
 
       const r = renditionRef.current;
@@ -145,16 +208,16 @@ export default function EPUBReader({
           const progressPct = Math.round(pct * 100);
           setProgress(progressPct);
 
-          // Calculate approximate page from percentage
-          const totalPages = book.pageCount || 100;
-          const currentPage = Math.round((pct * totalPages));
-          onPageChange?.(currentPage);
-
-          onLocationPersistAction?.(book.id, epubcfi, progressPct);
+          // Report position change to parent for server persistence
+          onPositionChange?.({
+            type: "epub",
+            cfi: epubcfi,
+            percentage: progressPct,
+          });
         } catch {}
       }
     },
-    [book.id, book.pageCount, onPageChange, onLocationPersistAction]
+    [book.id, onPositionChange]
   );
 
   const onRendition = useCallback(
@@ -164,6 +227,25 @@ export default function EPUBReader({
       try {
         rendition.themes.fontSize(`${fontSize}%`);
       } catch {}
+
+      // Apply existing highlights
+      highlights.forEach((h) => {
+        if (h.anchor && typeof h.anchor === "object" && "cfi" in h.anchor) {
+          try {
+            rendition.annotations.add(
+              "highlight",
+              (h.anchor as { cfi: string }).cfi,
+              {},
+              undefined,
+              {
+                fill: h.color || HIGHLIGHT_COLORS[0].value,
+                "fill-opacity": 0.35,
+              }
+            );
+            appliedHighlightsRef.current.add(h.id);
+          } catch {}
+        }
+      });
 
       rendition.on("keyup", (e: KeyboardEvent) => {
         if (e.key === "ArrowRight") rendition.next();
@@ -176,38 +258,152 @@ export default function EPUBReader({
         }
       });
 
-      rendition.on("selected", async (cfiRange: string) => {
+      rendition.on("selected", async (cfiRange: string, contents: any) => {
         const text = await rendition.book
           .getRange(cfiRange)
           ?.then((range: Range) => range.toString())
           .catch(() => "");
 
-        onCreateHighlightAction?.({ cfiRange, text });
+        if (!text?.trim()) return;
 
+        // Get selection position for popover
         try {
-          rendition.annotations.add("highlight", cfiRange, {}, undefined, {
-            fill: "#ffe066",
-            "fill-opacity": 0.35,
+          const selection = contents.window.getSelection();
+          if (selection && selection.rangeCount > 0) {
+            const range = selection.getRangeAt(0);
+            const rect = range.getBoundingClientRect();
+            const iframe = contents.document.defaultView.frameElement;
+            const iframeRect = iframe?.getBoundingClientRect() || { left: 0, top: 0 };
+
+            setSelectionInfo({
+              cfiRange,
+              text,
+              position: {
+                x: iframeRect.left + rect.left + rect.width / 2,
+                y: iframeRect.top + rect.top,
+              },
+            });
+          }
+        } catch {
+          // Fallback: show popover in center
+          setSelectionInfo({
+            cfiRange,
+            text,
+            position: { x: window.innerWidth / 2, y: 100 },
           });
-        } catch {}
+        }
       });
     },
-    [fontSize, onCreateHighlightAction]
+    [fontSize, highlights]
   );
+
+  const handleHighlight = useCallback(
+    async (color: string) => {
+      if (!selectionInfo || !renditionRef.current) return;
+
+      // Add visual highlight
+      try {
+        renditionRef.current.annotations.add(
+          "highlight",
+          selectionInfo.cfiRange,
+          {},
+          undefined,
+          { fill: color, "fill-opacity": 0.35 }
+        );
+      } catch {}
+
+      // Persist to backend
+      if (onCreateHighlight) {
+        await onCreateHighlight({
+          text: selectionInfo.text,
+          anchor: {
+            type: "epub",
+            cfi: selectionInfo.cfiRange,
+          },
+          color,
+        });
+      }
+
+      setSelectionInfo(null);
+    },
+    [selectionInfo, onCreateHighlight]
+  );
+
+  const handleAddNote = useCallback(async () => {
+    if (!selectionInfo) return;
+
+    // First create the highlight
+    let highlightId: string | undefined;
+    if (onCreateHighlight) {
+      const highlight = await onCreateHighlight({
+        text: selectionInfo.text,
+        anchor: {
+          type: "epub",
+          cfi: selectionInfo.cfiRange,
+        },
+        color: HIGHLIGHT_COLORS[0].value,
+      });
+      highlightId = highlight?.id;
+
+      // Add visual highlight
+      try {
+        renditionRef.current?.annotations.add(
+          "highlight",
+          selectionInfo.cfiRange,
+          {},
+          undefined,
+          { fill: HIGHLIGHT_COLORS[0].value, "fill-opacity": 0.35 }
+        );
+      } catch {}
+    }
+
+    // Then create the note
+    if (onCreateNote) {
+      await onCreateNote({
+        body: `Note on: "${selectionInfo.text.slice(0, 100)}${selectionInfo.text.length > 100 ? "..." : ""}"`,
+        anchor: {
+          type: "epub",
+          cfi: selectionInfo.cfiRange,
+        },
+      });
+    }
+
+    setSelectionInfo(null);
+    setNotesPanelOpen(true);
+  }, [selectionInfo, onCreateHighlight, onCreateNote]);
 
   const goPrev = () => renditionRef.current?.prev();
   const goNext = () => renditionRef.current?.next();
+
+  const handleNavigateToNote = useCallback((note: NoteResponse) => {
+    if (note.anchor && typeof note.anchor === "object" && "cfi" in note.anchor) {
+      const cfi = (note.anchor as { cfi: string }).cfi;
+      renditionRef.current?.display(cfi);
+    }
+    setNotesPanelOpen(false);
+  }, []);
 
   return (
     <div
       className="relative h-[calc(100dvh-0px)] w-full select-none"
       ref={containerRef}
       onDoubleClick={() => {
-        if (!menuVisible && !settingsOpen) setMenuVisible(true);
+        if (!menuVisible && !settingsOpen && !notesPanelOpen) setMenuVisible(true);
       }}
     >
+      {/* Highlight popover */}
+      {selectionInfo && (
+        <HighlightPopover
+          position={selectionInfo.position}
+          selectedText={selectionInfo.text}
+          onHighlight={handleHighlight}
+          onAddNote={handleAddNote}
+          onClose={() => setSelectionInfo(null)}
+        />
+      )}
+
       {/* Quick menu */}
-      {menuVisible && !settingsOpen && (
+      {menuVisible && !settingsOpen && !notesPanelOpen && (
         <>
           <div
             className="absolute inset-0 z-20"
@@ -255,7 +451,9 @@ export default function EPUBReader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setFontSize((f) => Math.max(MIN_FONT_SIZE, f - 10))}
+                  onClick={() =>
+                    setFontSize((f) => Math.max(MIN_FONT_SIZE, f - 10))
+                  }
                   aria-label="Decrease font size"
                   className="rounded-full"
                 >
@@ -265,11 +463,33 @@ export default function EPUBReader({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => setFontSize((f) => Math.min(MAX_FONT_SIZE, f + 10))}
+                  onClick={() =>
+                    setFontSize((f) => Math.min(MAX_FONT_SIZE, f + 10))
+                  }
                   aria-label="Increase font size"
                   className="rounded-full"
                 >
                   <Plus className="h-4 w-4" />
+                </Button>
+
+                <div className="w-px h-6 bg-border" />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setNotesPanelOpen(true);
+                    setMenuVisible(false);
+                  }}
+                  aria-label="Notes"
+                  className="rounded-full relative"
+                >
+                  <StickyNote className="h-4 w-4" />
+                  {notes.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                      {notes.length}
+                    </span>
+                  )}
                 </Button>
 
                 <Button
@@ -327,6 +547,19 @@ export default function EPUBReader({
           onFontSizeChange={setFontSize}
           progress={progress}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {notesPanelOpen && (
+        <NotesPanel
+          notes={notes}
+          highlights={highlights}
+          onClose={() => setNotesPanelOpen(false)}
+          onNavigateToNote={handleNavigateToNote}
+          onCreateNote={onCreateNote}
+          onUpdateNote={onUpdateNote}
+          onDeleteNote={onDeleteNote}
+          onDeleteHighlight={onDeleteHighlight}
         />
       )}
     </div>

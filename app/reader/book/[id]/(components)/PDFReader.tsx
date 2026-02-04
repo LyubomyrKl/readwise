@@ -13,6 +13,7 @@ import {
   Settings,
   Minus,
   Plus,
+  StickyNote,
 } from "lucide-react";
 
 import { ViewportPluginPackage } from "@embedpdf/plugin-viewport";
@@ -27,24 +28,62 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 
 import { IBook } from "@/app/reader/types";
 import PDFReaderMenu from "./PDFReaderMenu";
+import NotesPanel from "./NotesPanel";
+import type {
+  ReadingPosition,
+  HighlightResponse,
+  NoteResponse,
+  CreateHighlightDto,
+  CreateNoteDto,
+  UpdateHighlightDto,
+  UpdateNoteDto,
+} from "@/lib/types";
 
 type Props = {
   book: IBook;
+  initialPosition?: ReadingPosition | null;
+  highlights?: HighlightResponse[];
+  notes?: NoteResponse[];
   onBackAction?: () => void;
-  onPageChange?: (page: number) => void;
+  onPositionChange?: (position: ReadingPosition) => void;
+  onCreateHighlight?: (dto: CreateHighlightDto) => Promise<HighlightResponse | null>;
+  onUpdateHighlight?: (id: string, dto: UpdateHighlightDto) => Promise<boolean>;
+  onDeleteHighlight?: (id: string) => Promise<boolean>;
+  onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
+  onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
+  onDeleteNote?: (id: string) => Promise<boolean>;
 };
 
 const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 3;
 const DEFAULT_ZOOM = 1;
 
-export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
+export default function PDFReader({
+  book,
+  initialPosition,
+  highlights = [],
+  notes = [],
+  onBackAction,
+  onPositionChange,
+
+  onDeleteHighlight,
+  onCreateNote,
+  onUpdateNote,
+  onDeleteNote,
+}: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [, setRenderKey] = useState(0);
   const [devicePixelRatio, setDevicePixelRatio] = useState(1);
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  // Initialize page from saved position
+  const [currentPage, setCurrentPage] = useState(() => {
+    if (initialPosition?.type === "pdf" && initialPosition.page) {
+      return initialPosition.page;
+    }
+    return 1;
+  });
   const [totalPages, setTotalPages] = useState(1);
   const [isScrolling, setIsScrolling] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
@@ -67,7 +106,9 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
         });
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch PDF: ${response.status} ${response.statusText}`);
+          throw new Error(
+            `Failed to fetch PDF: ${response.status} ${response.statusText}`
+          );
         }
 
         const blob = await response.blob();
@@ -75,7 +116,9 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
         blobUrlRef.current = url;
         setPdfBlobUrl(url);
       } catch (err) {
-        setPdfLoadError(err instanceof Error ? err.message : "Failed to load PDF");
+        setPdfLoadError(
+          err instanceof Error ? err.message : "Failed to load PDF"
+        );
       }
     };
 
@@ -153,7 +196,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
-          <div className="text-red-600 text-4xl">⚠️</div>
+          <div className="text-red-600 text-4xl">Warning</div>
           <div className="text-sm text-gray-700">Failed to init PDF engine</div>
           <div className="text-xs text-gray-500">{String(error)}</div>
         </div>
@@ -165,7 +208,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
-          <div className="text-red-600 text-4xl">⚠️</div>
+          <div className="text-red-600 text-4xl">Warning</div>
           <div className="text-sm text-gray-700">Failed to load PDF</div>
           <div className="text-xs text-gray-500">{pdfLoadError}</div>
         </div>
@@ -177,7 +220,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
     return (
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
-          <div className="animate-pulse text-gray-600">Loading PDF…</div>
+          <div className="animate-pulse text-gray-600">Loading PDF...</div>
           <div className="text-xs text-gray-500 truncate max-w-xs">
             {book.title || "Document"}
           </div>
@@ -191,7 +234,7 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
       className="relative h-[calc(100dvh-0px)] w-full select-none"
       ref={containerRef}
       onDoubleClick={() => {
-        if (!menuVisible && !settingsOpen) setMenuVisible(true);
+        if (!menuVisible && !settingsOpen && !notesPanelOpen) setMenuVisible(true);
       }}
     >
       <EmbedPDF engine={engine} plugins={plugins}>
@@ -203,13 +246,21 @@ export default function PDFReader({ book, onBackAction, onPageChange }: Props) {
           setMenuVisible={setMenuVisible}
           settingsOpen={settingsOpen}
           setSettingsOpen={setSettingsOpen}
+          notesPanelOpen={notesPanelOpen}
+          setNotesPanelOpen={setNotesPanelOpen}
           currentPage={currentPage}
           setCurrentPage={setCurrentPage}
           totalPages={totalPages}
           setTotalPages={setTotalPages}
           setRenderKey={setRenderKey}
           onBackAction={onBackAction}
-          onPageChange={onPageChange}
+          onPositionChange={onPositionChange}
+          notes={notes}
+          highlights={highlights}
+          onCreateNote={onCreateNote}
+          onUpdateNote={onUpdateNote}
+          onDeleteNote={onDeleteNote}
+          onDeleteHighlight={onDeleteHighlight}
         />
       </EmbedPDF>
     </div>
@@ -224,13 +275,18 @@ function PDFReaderContent({
   setMenuVisible,
   settingsOpen,
   setSettingsOpen,
+  notesPanelOpen,
+  setNotesPanelOpen,
   currentPage,
-  setCurrentPage,
   totalPages,
-  setTotalPages,
-  setRenderKey,
   onBackAction,
-  onPageChange,
+  onPositionChange,
+  notes,
+  highlights,
+  onCreateNote,
+  onUpdateNote,
+  onDeleteNote,
+  onDeleteHighlight,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   devicePixelRatio: number;
@@ -239,22 +295,35 @@ function PDFReaderContent({
   setMenuVisible: (v: boolean) => void;
   settingsOpen: boolean;
   setSettingsOpen: (v: boolean) => void;
+  notesPanelOpen: boolean;
+  setNotesPanelOpen: (v: boolean) => void;
   currentPage: number;
   setCurrentPage: (p: number) => void;
   totalPages: number;
   setTotalPages: (p: number) => void;
   setRenderKey: (fn: (k: number) => number) => void;
   onBackAction?: () => void;
-  onPageChange?: (page: number) => void;
+  onPositionChange?: (position: ReadingPosition) => void;
+  notes: NoteResponse[];
+  highlights: HighlightResponse[];
+  onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
+  onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
+  onDeleteNote?: (id: string) => Promise<boolean>;
+  onDeleteHighlight?: (id: string) => Promise<boolean>;
 }) {
-  // Report page changes to parent for time tracking
+  // Report page changes to parent for position tracking
   const lastReportedPageRef = useRef<number>(0);
   useEffect(() => {
-    if (lastReportedPageRef.current !== currentPage) {
+    if (lastReportedPageRef.current !== currentPage && totalPages > 0) {
       lastReportedPageRef.current = currentPage;
-      onPageChange?.(currentPage);
+      const percentage = Math.round((currentPage / totalPages) * 100);
+      onPositionChange?.({
+        type: "pdf",
+        page: currentPage,
+        percentage,
+      });
     }
-  }, [currentPage, onPageChange]);
+  }, [currentPage, totalPages, onPositionChange]);
   const { provides, state } = useZoom();
   const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;
   const zoomPercent = Math.round(currentZoom * 100);
@@ -317,7 +386,7 @@ function PDFReaderContent({
   return (
     <>
       {/* Quick menu */}
-      {menuVisible && !settingsOpen && (
+      {menuVisible && !settingsOpen && !notesPanelOpen && (
         <>
           <div
             className="absolute inset-0 z-20"
@@ -382,6 +451,26 @@ function PDFReaderContent({
                   <Plus className="h-4 w-4" />
                 </Button>
 
+                <div className="w-px h-6 bg-border" />
+
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    setNotesPanelOpen(true);
+                    setMenuVisible(false);
+                  }}
+                  aria-label="Notes"
+                  className="rounded-full relative"
+                >
+                  <StickyNote className="h-4 w-4" />
+                  {notes.length > 0 && (
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                      {notes.length}
+                    </span>
+                  )}
+                </Button>
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -430,6 +519,18 @@ function PDFReaderContent({
           currentPage={currentPage}
           totalPages={totalPages}
           onClose={() => setSettingsOpen(false)}
+        />
+      )}
+
+      {notesPanelOpen && (
+        <NotesPanel
+          notes={notes}
+          highlights={highlights}
+          onClose={() => setNotesPanelOpen(false)}
+          onCreateNote={onCreateNote}
+          onUpdateNote={onUpdateNote}
+          onDeleteNote={onDeleteNote}
+          onDeleteHighlight={onDeleteHighlight}
         />
       )}
     </>
