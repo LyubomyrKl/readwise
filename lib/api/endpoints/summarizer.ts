@@ -17,7 +17,7 @@ export const summarizerApi = {
   async getSummary(dto: GetSummaryDto) {
     return withRefresh(() => {
       const client = getClient();
-      return client.post<SummaryResponse>("/summarizer/get", dto);
+      return client.post<SummaryResponse>("/summarizer/summary", dto);
     });
   },
 };
