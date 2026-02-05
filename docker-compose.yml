@@ -9,7 +9,7 @@ services:
     restart: unless-stopped
     network_mode: host
     env_file:
-      - .env.docker
+      - .env
     healthcheck:
       test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
       interval: 60s
