@@ -24,6 +24,10 @@ from orchestration.pipeline_builder import PipelineBuilder
 
 load_dotenv()
 
+# Download required NLTK data
+import nltk
+nltk.download('punkt_tab', quiet=True)
+
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
