@@ -102,11 +102,16 @@ class SummarizationWorker:
         self.prefetch_count = int(os.getenv('WORKER_PREFETCH_COUNT', '1'))
         self.worker_id = os.getenv('WORKER_ID', 'summarization-worker-1')
 
-    async def process_summarization(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3):
+    async def process_summarization(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3, force: bool = False):
         """Process summarization for a book"""
         book = await self.db.get_book(book_id)
         if not book:
             logger.error(f"Book not found: {book_id}")
+            return
+
+        # Check if summary already exists (idempotency check for redelivered messages)
+        if book.summaryStorageKey and book.summaryType == summary_type and not force:
+            logger.info(f"Summary already exists for book {book_id} ({summary_type}), skipping duplicate processing")
             return
 
         logger.info(f"Processing {summary_type} summarization for: {book.title}")
@@ -224,10 +229,14 @@ class SummarizationWorker:
             message_data = json.loads(body)
             logger.info(f"[{self.worker_id}] Received: {message_data}")
 
+            # Check if message was redelivered to avoid duplicate processing
+            if method.redelivered:
+                logger.warning(f"[{self.worker_id}] Redelivered message detected, checking if already processed...")
+
             asyncio.run(self.process_message_async(message_data))
 
             ch.basic_ack(delivery_tag=method.delivery_tag)
-            logger.info(f"[{self.worker_id}] Message processed")
+            logger.info(f"[{self.worker_id}] Message acknowledged")
 
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON: {e}")

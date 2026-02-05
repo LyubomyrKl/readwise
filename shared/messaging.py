@@ -17,7 +17,10 @@ def build_amqp_url() -> str:
     port = os.getenv('RABBITMQ_PORT', '5672')
     user = os.environ['RABBITMQ_USER']
     password = os.environ['RABBITMQ_PASS']
-    return f"amqp://{user}:{password}@{host}:{port}/"
+    # Disable heartbeat (0) to prevent timeout during long-running tasks
+    # The connection will be kept alive by TCP keepalive instead
+    heartbeat = os.getenv('RABBITMQ_HEARTBEAT', '0')
+    return f"amqp://{user}:{password}@{host}:{port}/?heartbeat={heartbeat}"
 
 
 class RabbitMQManager:
