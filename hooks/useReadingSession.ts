@@ -43,6 +43,17 @@ export function useReadingSession({
   const lastSavedPositionRef = useRef<string | null>(
     initialPosition ? JSON.stringify(initialPosition) : null
   );
+  const initializedFromPropsRef = useRef(false);
+
+  // Sync position when initialPosition prop changes from undefined to a value
+  useEffect(() => {
+    if (initialPosition && !initializedFromPropsRef.current) {
+      initializedFromPropsRef.current = true;
+      positionRef.current = initialPosition;
+      setPositionState(initialPosition);
+      lastSavedPositionRef.current = JSON.stringify(initialPosition);
+    }
+  }, [initialPosition]);
 
   // Calculate elapsed time since last save (in hours)
   const getElapsedHours = useCallback(() => {

@@ -19,7 +19,7 @@ import {
 import { ViewportPluginPackage } from "@embedpdf/plugin-viewport";
 import { Viewport } from "@embedpdf/plugin-viewport/react";
 import { ScrollPluginPackage } from "@embedpdf/plugin-scroll";
-import { Scroller } from "@embedpdf/plugin-scroll/react";
+import { Scroller, useScroll } from "@embedpdf/plugin-scroll/react";
 import { LoaderPluginPackage } from "@embedpdf/plugin-loader";
 import { RenderPluginPackage } from "@embedpdf/plugin-render";
 import { RenderLayer } from "@embedpdf/plugin-render/react";
@@ -67,15 +67,11 @@ export default function PDFReader({
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
-  // Initialize page from saved position
-  const [currentPage, setCurrentPage] = useState(() => {
-    if (initialPosition?.type === "pdf" && initialPosition.page) {
-      return initialPosition.page;
-    }
-    return 1;
-  });
-  const [totalPages, setTotalPages] = useState(1);
-  const [isScrolling, setIsScrolling] = useState(false);
+  // Get initial page from saved position
+  const initialPage = initialPosition?.type === "pdf" && initialPosition.page
+    ? initialPosition.page
+    : 1;
+    const [isScrolling, setIsScrolling] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
@@ -176,11 +172,13 @@ export default function PDFReader({
         },
       }),
       createPluginRegistration(ViewportPluginPackage),
-      createPluginRegistration(ScrollPluginPackage),
+      createPluginRegistration(ScrollPluginPackage, {
+        initialPage: initialPage,
+      }),
       createPluginRegistration(RenderPluginPackage),
       createPluginRegistration(ZoomPluginPackage),
     ];
-  }, [pdfBlobUrl, book.id]);
+  }, [pdfBlobUrl, book.id, initialPage]);
 
   if (error) {
     return (
@@ -238,10 +236,6 @@ export default function PDFReader({
           setSettingsOpen={setSettingsOpen}
           notesPanelOpen={notesPanelOpen}
           setNotesPanelOpen={setNotesPanelOpen}
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          totalPages={totalPages}
-          setTotalPages={setTotalPages}
           setRenderKey={setRenderKey}
           onBackAction={onBackAction}
           onPositionChange={onPositionChange}
@@ -265,8 +259,6 @@ function PDFReaderContent({
   setSettingsOpen,
   notesPanelOpen,
   setNotesPanelOpen,
-  currentPage,
-  totalPages,
   onBackAction,
   onPositionChange,
   notes,
@@ -283,10 +275,6 @@ function PDFReaderContent({
   setSettingsOpen: (v: boolean) => void;
   notesPanelOpen: boolean;
   setNotesPanelOpen: (v: boolean) => void;
-  currentPage: number;
-  setCurrentPage: (p: number) => void;
-  totalPages: number;
-  setTotalPages: (p: number) => void;
   setRenderKey: (fn: (k: number) => number) => void;
   onBackAction?: () => void;
   onPositionChange?: (position: ReadingPosition) => void;
@@ -295,6 +283,11 @@ function PDFReaderContent({
   onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
   onDeleteNote?: (id: string) => Promise<boolean>;
 }) {
+  // Use scroll hook to get current page and total pages
+  const { state: scrollState, scrollToNextPage, scrollToPreviousPage } = useScroll();
+  const currentPage = scrollState?.currentPage ?? 1;
+  const totalPages = scrollState?.totalPages ?? 1;
+
   // Report page changes to parent for position tracking
   const lastReportedPageRef = useRef<number>(0);
   useEffect(() => {
@@ -308,6 +301,7 @@ function PDFReaderContent({
       });
     }
   }, [currentPage, totalPages, onPositionChange]);
+
   const { provides, state } = useZoom();
   const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;
   const zoomPercent = Math.round(currentZoom * 100);
@@ -400,6 +394,7 @@ function PDFReaderContent({
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => scrollToPreviousPage?.()}
                   aria-label="Previous page"
                   className="rounded-full"
                 >
@@ -409,6 +404,7 @@ function PDFReaderContent({
                 <Button
                   variant="ghost"
                   size="sm"
+                  onClick={() => scrollToNextPage?.()}
                   aria-label="Next page"
                   className="rounded-full"
                 >
