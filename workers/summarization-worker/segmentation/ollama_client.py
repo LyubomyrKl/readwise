@@ -1,6 +1,7 @@
 """Ollama client for embeddings and LLM calls."""
 
 import json
+import os
 import requests
 import numpy as np
 from typing import Dict
@@ -11,13 +12,14 @@ class OllamaClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:11434",
-        llm_model: str = "qwen2.5:14b-instruct-q5_k_m",
-        embed_model: str = "bge-m3"
+        base_url: str = None,
+        llm_model: str = None,
+        embed_model: str = None
     ):
-        self.base_url = base_url
-        self.llm_model = llm_model
-        self.embed_model = embed_model
+        # Use environment variables as defaults
+        self.base_url = base_url or os.environ['OLLAMA_BASE_URL']
+        self.llm_model = llm_model or os.environ['OLLAMA_MODEL']
+        self.embed_model = embed_model or os.environ['OLLAMA_EMBED_MODEL']
 
     def get_embedding(self, text: str) -> np.ndarray:
         """Get L2-normalized embedding from bge-m3 via Ollama."""

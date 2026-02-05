@@ -20,8 +20,14 @@ class TextSummarizer:
     """Orchestrates text summarization using chunking and LLM"""
 
     def __init__(self, s3_endpoint: str, s3_access_key: str, s3_secret_key: str,
-                 ollama_base_url: str = "http://localhost:11434",
-                 ollama_model: str = "qwen2.5:14b-instruct-q5_k_m"):
+                 ollama_base_url: str = None,
+                 ollama_model: str = None):
+        # Use environment variables as defaults
+        if ollama_base_url is None:
+            ollama_base_url = os.environ['OLLAMA_BASE_URL']
+        if ollama_model is None:
+            ollama_model = os.environ['OLLAMA_MODEL']
+
         self.s3 = S3Storage(s3_endpoint, s3_access_key, s3_secret_key)
         self.llm = LLMClient(ollama_base_url, ollama_model)
 

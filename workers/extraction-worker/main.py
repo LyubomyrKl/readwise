@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 def build_s3_endpoint() -> str:
     """Build S3 endpoint URL from environment components."""
-    host = os.getenv('S3_HOST', 'localhost')
+    host = os.environ['S3_HOST']
     port = os.getenv('S3_PORT', '9000')
     return f"http://{host}:{port}"
 

@@ -9,10 +9,10 @@ logger = logging.getLogger(__name__)
 
 def build_database_url() -> str:
     """Build DATABASE_URL from environment components."""
-    host = os.getenv('POSTGRES_HOST', 'localhost')
+    host = os.environ['POSTGRES_HOST']
     port = os.getenv('POSTGRES_PORT', '5432')
-    user = os.getenv('POSTGRES_USER', 'postgres')
-    password = os.getenv('POSTGRES_PASSWORD', 'postgres')
+    user = os.environ['POSTGRES_USER']
+    password = os.environ['POSTGRES_PASSWORD']
     db = os.getenv('POSTGRES_DB', 'appdb')
     return f"postgresql://{user}:{password}@{host}:{port}/{db}?schema=public"
 

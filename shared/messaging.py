@@ -13,10 +13,10 @@ logger = logging.getLogger(__name__)
 
 def build_amqp_url() -> str:
     """Build AMQP URL from environment components."""
-    host = os.getenv('RABBITMQ_HOST', 'localhost')
+    host = os.environ['RABBITMQ_HOST']
     port = os.getenv('RABBITMQ_PORT', '5672')
-    user = os.getenv('RABBITMQ_USER', 'guest')
-    password = os.getenv('RABBITMQ_PASS', 'guest')
+    user = os.environ['RABBITMQ_USER']
+    password = os.environ['RABBITMQ_PASS']
     return f"amqp://{user}:{password}@{host}:{port}/"
 
 

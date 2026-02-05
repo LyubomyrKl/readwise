@@ -1,6 +1,8 @@
 """Central configuration via environment variables."""
 
+import os
 from enum import Enum
+from pydantic import Field
 from pydantic_settings import BaseSettings
 
 
@@ -26,14 +28,16 @@ class SummarizationStrategy(str, Enum):
 class SummarizationSettings(BaseSettings):
     """Central configuration for summarization pipeline.
 
-    All settings can be overridden via environment variables with SUMMARIZER_ prefix.
-    Example: SUMMARIZER_OLLAMA_BASE_URL=http://localhost:11434
+    All settings can be overridden via environment variables with SUMMARIZER_ prefix
+    or via OLLAMA_* environment variables.
+    Example: SUMMARIZER_OLLAMA_BASE_URL=http://100.96.63.127:11434
     """
 
-    # LLM Configuration
-    ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen2.5:14b-instruct-q5_k_m"
-    ollama_embed_model: str = "bge-m3"
+    # LLM Configuration - read from environment (required)
+    # Uses OLLAMA_* env vars directly, or SUMMARIZER_OLLAMA_* with prefix
+    ollama_base_url: str = Field(default_factory=lambda: os.environ.get('OLLAMA_BASE_URL', ''))
+    ollama_model: str = Field(default_factory=lambda: os.environ.get('OLLAMA_MODEL', ''))
+    ollama_embed_model: str = Field(default_factory=lambda: os.environ.get('OLLAMA_EMBED_MODEL', ''))
     llm_max_concurrent: int = 5
     llm_timeout: float = 120.0
     llm_retry_attempts: int = 3

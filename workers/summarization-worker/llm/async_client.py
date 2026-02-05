@@ -24,14 +24,23 @@ class AsyncLLMClient:
 
     def __init__(
         self,
-        base_url: str = "http://localhost:11434",
-        model: str = "qwen2.5:14b-instruct-q5_k_m",
-        embed_model: str = "bge-m3",
+        base_url: str = None,
+        model: str = None,
+        embed_model: str = None,
         max_concurrent: int = 5,
         timeout: float = 120.0,
         retry_config: Optional[RetryConfig] = None,
         tokenizer_encoding: str = "cl100k_base",
     ):
+        import os
+        # Use environment variables as defaults
+        if base_url is None:
+            base_url = os.environ['OLLAMA_BASE_URL']
+        if model is None:
+            model = os.environ['OLLAMA_MODEL']
+        if embed_model is None:
+            embed_model = os.environ['OLLAMA_EMBED_MODEL']
+
         self.base_url = base_url.rstrip("/")
         self.model = model
         self.embed_model = embed_model

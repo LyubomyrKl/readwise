@@ -1,5 +1,6 @@
 """Main DeterministicSegmenter class that orchestrates text segmentation."""
 
+import os
 from typing import Dict, List
 import tiktoken
 
@@ -23,10 +24,18 @@ class DeterministicSegmenter:
 
     def __init__(
         self,
-        ollama_base_url: str = "http://localhost:11434",
-        llm_model: str = "qwen2.5:14b-instruct-q5_k_m",
-        embed_model: str = "bge-m3"
+        ollama_base_url: str = None,
+        llm_model: str = None,
+        embed_model: str = None
     ):
+        # Use environment variables as defaults
+        if ollama_base_url is None:
+            ollama_base_url = os.environ['OLLAMA_BASE_URL']
+        if llm_model is None:
+            llm_model = os.environ['OLLAMA_MODEL']
+        if embed_model is None:
+            embed_model = os.environ['OLLAMA_EMBED_MODEL']
+
         self.ollama_client = OllamaClient(
             base_url=ollama_base_url,
             llm_model=llm_model,

@@ -30,17 +30,25 @@ class PipelineBuilder:
     # LLM Configuration
     def with_ollama(
         self,
-        base_url: str = "http://localhost:11434",
-        model: str = "qwen2.5:14b-instruct-q5_k_m",
-        embed_model: str = "bge-m3",
+        base_url: str = None,
+        model: str = None,
+        embed_model: str = None,
     ) -> "PipelineBuilder":
         """Configure Ollama LLM settings.
 
         Args:
-            base_url: Ollama server URL
-            model: Model name for completions
-            embed_model: Model name for embeddings
+            base_url: Ollama server URL (defaults to OLLAMA_BASE_URL env var)
+            model: Model name for completions (defaults to OLLAMA_MODEL env var)
+            embed_model: Model name for embeddings (defaults to OLLAMA_EMBED_MODEL env var)
         """
+        import os
+        if base_url is None:
+            base_url = os.environ['OLLAMA_BASE_URL']
+        if model is None:
+            model = os.environ['OLLAMA_MODEL']
+        if embed_model is None:
+            embed_model = os.environ['OLLAMA_EMBED_MODEL']
+
         self._settings.ollama_base_url = base_url
         self._settings.ollama_model = model
         self._settings.ollama_embed_model = embed_model

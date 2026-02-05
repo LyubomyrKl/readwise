@@ -30,7 +30,7 @@ logger = logging.getLogger(__name__)
 
 def build_s3_endpoint() -> str:
     """Build S3 endpoint URL from environment components."""
-    host = os.getenv('S3_HOST', 'localhost')
+    host = os.environ['S3_HOST']
     port = os.getenv('S3_PORT', '9000')
     return f"http://{host}:{port}"
 
@@ -60,8 +60,8 @@ class SummarizationWorker:
             s3_endpoint=s3_endpoint,
             s3_access_key=s3_access_key,
             s3_secret_key=s3_secret_key,
-            ollama_base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
-            ollama_model=os.getenv('OLLAMA_MODEL', 'qwen2.5:14b-instruct-q5_k_m')
+            ollama_base_url=os.environ['OLLAMA_BASE_URL'],
+            ollama_model=os.environ['OLLAMA_MODEL']
         )
 
         # New pipeline (configured via environment/feature flags)
@@ -79,9 +79,9 @@ class SummarizationWorker:
 
             # Configure Ollama
             builder.with_ollama(
-                base_url=os.getenv('OLLAMA_BASE_URL', 'http://localhost:11434'),
-                model=os.getenv('OLLAMA_MODEL', 'qwen2.5:14b-instruct-q5_k_m'),
-                embed_model=os.getenv('OLLAMA_EMBED_MODEL', 'bge-m3'),
+                base_url=os.environ['OLLAMA_BASE_URL'],
+                model=os.environ['OLLAMA_MODEL'],
+                embed_model=os.environ['OLLAMA_EMBED_MODEL'],
             )
 
             self.pipeline_builder = builder
@@ -89,7 +89,11 @@ class SummarizationWorker:
         else:
             self.pipeline_builder = None
 
-        self.segmenter = DeterministicSegmenter()
+        self.segmenter = DeterministicSegmenter(
+            ollama_base_url=os.environ['OLLAMA_BASE_URL'],
+            llm_model=os.environ['OLLAMA_MODEL'],
+            embed_model=os.environ['OLLAMA_EMBED_MODEL'],
+        )
 
         self.prefetch_count = int(os.getenv('WORKER_PREFETCH_COUNT', '1'))
         self.worker_id = os.getenv('WORKER_ID', 'summarization-worker-1')

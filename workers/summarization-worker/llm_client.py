@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import logging
+import os
 import openai
 import tiktoken
 
@@ -10,7 +11,13 @@ logger = logging.getLogger(__name__)
 class LLMClient:
     """Simple LLM client for summarization using Ollama"""
 
-    def __init__(self, base_url: str = "http://localhost:11434", model: str = "qwen2.5:14b-instruct-q5_k_m"):
+    def __init__(self, base_url: str = None, model: str = None):
+        # Use environment variables as defaults
+        if base_url is None:
+            base_url = os.environ['OLLAMA_BASE_URL']
+        if model is None:
+            model = os.environ['OLLAMA_MODEL']
+
         self.client = openai.OpenAI(
             base_url=f"{base_url}/v1",
             api_key="ollama"

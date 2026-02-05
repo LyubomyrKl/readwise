@@ -5,6 +5,20 @@ import subprocess
 import sys
 import signal
 import os
+from pathlib import Path
+
+from dotenv import load_dotenv
+
+# Get the directory where this script is located
+SCRIPT_DIR = Path(__file__).parent.resolve()
+
+# Load environment variables from .env.local (for local development)
+env_local = SCRIPT_DIR / ".env.local"
+if env_local.exists():
+    load_dotenv(env_local)
+else:
+    # Fall back to .env if .env.local doesn't exist
+    load_dotenv(SCRIPT_DIR / ".env")
 
 processes = []
 
@@ -25,14 +39,14 @@ def main():
     signal.signal(signal.SIGTERM, signal_handler)
 
     extraction_worker = subprocess.Popen(
-        [sys.executable, "/app/workers/extraction-worker/main.py"],
+        [sys.executable, str(SCRIPT_DIR / "workers" / "extraction-worker" / "main.py")],
         env={**os.environ, "WORKER_ID": os.environ.get("WORKER_ID", "worker") + "-extraction"},
     )
     processes.append(extraction_worker)
     print("Started extraction worker")
 
     summarization_worker = subprocess.Popen(
-        [sys.executable, "/app/workers/summarization-worker/main.py"],
+        [sys.executable, str(SCRIPT_DIR / "workers" / "summarization-worker" / "main.py")],
         env={**os.environ, "WORKER_ID": os.environ.get("WORKER_ID", "worker") + "-summarization"},
     )
     processes.append(summarization_worker)
