@@ -3,8 +3,14 @@ import { BookResponse, ReadingPositionResponse } from './book.models';
 
 export const BOOK_WITH_RELATIONS = Prisma.validator<Prisma.BookFindManyArgs>()({
   include: {
-    notes: true,
-    highlights: true,
+    notes: {
+      where: { deletedAt: null },
+      orderBy: [{ isPinned: 'desc' }, { createdAt: 'desc' }],
+    },
+    highlights: {
+      where: { deletedAt: null },
+      orderBy: { createdAt: 'asc' },
+    },
     tags: { include: { tag: true } },
   },
 });
