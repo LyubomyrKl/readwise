@@ -1,10 +1,14 @@
-datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
-}
+// AUTO-GENERATED - Do not edit directly!
+// Edit: summarizer-shared/prisma/schema.base.prisma
+// Then run: ./sync-prisma.sh
 
 generator client {
   provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
 }
 
 // ===== book.model.prisma =====
@@ -41,10 +45,10 @@ model Book {
 }
 
 enum BookStatus {
-  pending // presigned but not ready
-  processing // if later you trigger a pipeline
-  ready // some job is done, like OCR
-  error // failed during some stage
+  pending
+  processing
+  ready
+  error
 }
 
 enum SummaryType {
@@ -56,8 +60,8 @@ model Note {
   id         String      @id @default(cuid())
   userId     String
   bookId     String
-  body       String // markdown allowed
-  anchor     Json? // selector, see below
+  body       String
+  anchor     Json?
   isPinned   Boolean     @default(false)
   isArchived Boolean     @default(false)
   createdAt  DateTime    @default(now())
@@ -75,10 +79,10 @@ model Highlight {
   id        String         @id @default(cuid())
   userId    String
   bookId    String
-  color     String? // hex
-  text      String // captured exact text
-  anchor    Json // selector, see below
-  noteId    String? // optional attached note
+  color     String?
+  text      String
+  anchor    Json
+  noteId    String?
   createdAt DateTime       @default(now())
   updatedAt DateTime       @updatedAt
   deletedAt DateTime?
@@ -90,7 +94,6 @@ model Highlight {
   @@index([userId, bookId, createdAt])
 }
 
-// ===== refresh-token.model.prisma =====
 model RefreshToken {
   id        String    @id @default(cuid())
   userId    String
@@ -103,12 +106,11 @@ model RefreshToken {
   @@index([userId])
 }
 
-// ===== search-item.model.prisma =====
 model SearchItem {
   id        String          @id @default(cuid())
   userId    String
   bookId    String
-  ownerType SearchOwnerType // 'chunk' | 'note' | 'highlight' | 'summary'
+  ownerType SearchOwnerType
   ownerId   String
   text      String
   meta      Json?
@@ -130,7 +132,6 @@ enum SearchOwnerType {
   tag
 }
 
-// ===== tags.model.prisma =====
 model Tag {
   id          String   @id @default(cuid())
   userId      String
@@ -156,7 +157,7 @@ model BookTag {
   book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([bookId, tagId]) // one tag per book
+  @@id([bookId, tagId])
   @@index([tagId])
 }
 
@@ -168,7 +169,7 @@ model NoteTag {
   note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
   tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([noteId, tagId]) // one tag per note
+  @@id([noteId, tagId])
   @@index([tagId])
 }
 
@@ -180,11 +181,10 @@ model HighlightTag {
   highlight Highlight @relation(fields: [highlightId], references: [id], onDelete: Cascade)
   tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
 
-  @@id([highlightId, tagId]) // one tag per highlight
+  @@id([highlightId, tagId])
   @@index([tagId])
 }
 
-// ===== user.model.prisma =====
 model User {
   id            String         @id @default(cuid())
   email         String         @unique
