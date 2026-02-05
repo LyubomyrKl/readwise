@@ -67,10 +67,12 @@ export default function PDFReader({
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
-  // Get initial page from saved position
-  const initialPage = initialPosition?.type === "pdf" && initialPosition.page
-    ? initialPosition.page
-    : 1;
+  // Get initial page from saved position - only capture once
+  const initialPageRef = useRef<number | null>(null);
+  if (initialPageRef.current === null && initialPosition?.type === "pdf" && initialPosition.page) {
+    initialPageRef.current = initialPosition.page;
+  }
+  const initialPage = initialPageRef.current ?? 1;
     const [isScrolling, setIsScrolling] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
@@ -173,12 +175,13 @@ export default function PDFReader({
       }),
       createPluginRegistration(ViewportPluginPackage),
       createPluginRegistration(ScrollPluginPackage, {
-        initialPage: initialPage,
+        initialPage: initialPageRef.current ?? 1,
       }),
       createPluginRegistration(RenderPluginPackage),
       createPluginRegistration(ZoomPluginPackage),
     ];
-  }, [pdfBlobUrl, book.id, initialPage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pdfBlobUrl, book.id]);
 
   if (error) {
     return (
