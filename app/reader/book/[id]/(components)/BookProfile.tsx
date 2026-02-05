@@ -36,8 +36,14 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface BookProfileProps {
   book: IBook;
@@ -55,6 +61,7 @@ export default function BookProfile({
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
     book.status === "processing"
   );
@@ -166,23 +173,34 @@ export default function BookProfile({
                 )}
               </button>
 
-              <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <Share2 className="h-4 w-4" />
-              </button>
-
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <button
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem>
+                    <Share2 className="h-4 w-4" />
+                    Share
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    variant="destructive"
+                    onClick={() => setShowDeleteDialog(true)}
                     disabled={isDeleting}
-                    className="p-2 rounded-lg text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-50"
                   >
                     {isDeleting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <Trash2 className="h-4 w-4" />
                     )}
-                  </button>
-                </AlertDialogTrigger>
+                    Delete Book
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Book</AlertDialogTitle>
@@ -201,10 +219,6 @@ export default function BookProfile({
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
-
-              <button className="p-2 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors">
-                <MoreHorizontal className="h-4 w-4" />
-              </button>
             </div>
           </div>
         </div>
@@ -274,7 +288,7 @@ export default function BookProfile({
 
                   <button className="flex items-center justify-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm">
                     <Bookmark className="h-4 w-4" />
-                    {book.highlights.length} Notes
+                    {book.notes.length} Notes
                   </button>
                 </div>
 
@@ -468,14 +482,26 @@ export default function BookProfile({
                 )}
 
                 <div className="flex items-center gap-3">
-                  <Bookmark className="h-4 w-4 text-muted-foreground" />
+                  <FileText className="h-4 w-4 text-muted-foreground" />
                   <div>
                     <div className="text-sm text-muted-foreground">
-                      Highlights
+                      Notes
                     </div>
-                    <div className="font-medium">{book.highlights.length}</div>
+                    <div className="font-medium">{book.notes.length}</div>
                   </div>
                 </div>
+
+                {book.mime === "application/epub+zip" && (
+                  <div className="flex items-center gap-3">
+                    <Bookmark className="h-4 w-4 text-muted-foreground" />
+                    <div>
+                      <div className="text-sm text-muted-foreground">
+                        Highlights
+                      </div>
+                      <div className="font-medium">{book.highlights.length}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 

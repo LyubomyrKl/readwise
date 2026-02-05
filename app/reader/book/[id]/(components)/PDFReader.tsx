@@ -31,24 +31,17 @@ import PDFReaderMenu from "./PDFReaderMenu";
 import NotesPanel from "./NotesPanel";
 import type {
   ReadingPosition,
-  HighlightResponse,
   NoteResponse,
-  CreateHighlightDto,
   CreateNoteDto,
-  UpdateHighlightDto,
   UpdateNoteDto,
 } from "@/lib/types";
 
 type Props = {
   book: IBook;
   initialPosition?: ReadingPosition | null;
-  highlights?: HighlightResponse[];
   notes?: NoteResponse[];
   onBackAction?: () => void;
   onPositionChange?: (position: ReadingPosition) => void;
-  onCreateHighlight?: (dto: CreateHighlightDto) => Promise<HighlightResponse | null>;
-  onUpdateHighlight?: (id: string, dto: UpdateHighlightDto) => Promise<boolean>;
-  onDeleteHighlight?: (id: string) => Promise<boolean>;
   onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
   onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
   onDeleteNote?: (id: string) => Promise<boolean>;
@@ -61,12 +54,9 @@ const DEFAULT_ZOOM = 1;
 export default function PDFReader({
   book,
   initialPosition,
-  highlights = [],
   notes = [],
   onBackAction,
   onPositionChange,
-
-  onDeleteHighlight,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -256,11 +246,9 @@ export default function PDFReader({
           onBackAction={onBackAction}
           onPositionChange={onPositionChange}
           notes={notes}
-          highlights={highlights}
           onCreateNote={onCreateNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
-          onDeleteHighlight={onDeleteHighlight}
         />
       </EmbedPDF>
     </div>
@@ -282,11 +270,9 @@ function PDFReaderContent({
   onBackAction,
   onPositionChange,
   notes,
-  highlights,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
-  onDeleteHighlight,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   devicePixelRatio: number;
@@ -305,11 +291,9 @@ function PDFReaderContent({
   onBackAction?: () => void;
   onPositionChange?: (position: ReadingPosition) => void;
   notes: NoteResponse[];
-  highlights: HighlightResponse[];
   onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
   onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
   onDeleteNote?: (id: string) => Promise<boolean>;
-  onDeleteHighlight?: (id: string) => Promise<boolean>;
 }) {
   // Report page changes to parent for position tracking
   const lastReportedPageRef = useRef<number>(0);
@@ -525,12 +509,11 @@ function PDFReaderContent({
       {notesPanelOpen && (
         <NotesPanel
           notes={notes}
-          highlights={highlights}
+          showHighlights={false}
           onClose={() => setNotesPanelOpen(false)}
           onCreateNote={onCreateNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
-          onDeleteHighlight={onDeleteHighlight}
         />
       )}
     </>

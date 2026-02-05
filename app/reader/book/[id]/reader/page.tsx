@@ -159,13 +159,9 @@ export default function BookReaderPage() {
       <VirtualPDFReader
         book={book}
         initialPosition={position}
-        highlights={highlights}
         notes={notes}
         onBackAction={handleBack}
         onPositionChange={handlePositionChange}
-        onCreateHighlight={handleCreateHighlight}
-        onUpdateHighlight={updateHighlight}
-        onDeleteHighlight={deleteHighlight}
         onCreateNote={createNote}
         onUpdateNote={updateNote}
         onDeleteNote={deleteNote}

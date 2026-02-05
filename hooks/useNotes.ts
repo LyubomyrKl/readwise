@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { apiFetch } from "@/lib/fetcher";
 import type { NoteResponse, CreateNoteDto, UpdateNoteDto } from "@/lib/types";
 
@@ -11,14 +11,32 @@ type UseNotesOptions = {
  * Hook for managing notes with CRUD operations and optimistic updates.
  */
 export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
-  // Use a ref to track if we've initialized from props
-  const initializedRef = useRef(false);
-  const [notes, setNotes] = useState<NoteResponse[]>(() => {
-    initializedRef.current = true;
-    return initialNotes;
-  });
+  const [notes, setNotes] = useState<NoteResponse[]>(initialNotes);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  // Fetch notes from server on mount
+  useEffect(() => {
+    if (fetchedRef.current || !bookId) return;
+    fetchedRef.current = true;
+
+    async function fetchNotes() {
+      setIsLoading(true);
+      try {
+        const notesList = await apiFetch("GET", "/api/books/[id]/notes", undefined, {
+          id: bookId,
+        });
+        setNotes(notesList);
+      } catch (err) {
+        console.error("Failed to fetch notes:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchNotes();
+  }, [bookId]);
 
   const createNote = useCallback(
     async (dto: CreateNoteDto): Promise<NoteResponse | null> => {

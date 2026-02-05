@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { apiFetch } from "@/lib/fetcher";
 import type {
   HighlightResponse,
@@ -18,14 +18,32 @@ export function useHighlights({
   bookId,
   initialHighlights = [],
 }: UseHighlightsOptions) {
-  // Use a ref to track if we've initialized from props
-  const initializedRef = useRef(false);
-  const [highlights, setHighlights] = useState<HighlightResponse[]>(() => {
-    initializedRef.current = true;
-    return initialHighlights;
-  });
+  const [highlights, setHighlights] = useState<HighlightResponse[]>(initialHighlights);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  // Fetch highlights from server on mount
+  useEffect(() => {
+    if (fetchedRef.current || !bookId) return;
+    fetchedRef.current = true;
+
+    async function fetchHighlights() {
+      setIsLoading(true);
+      try {
+        const highlightsList = await apiFetch("GET", "/api/books/[id]/highlights", undefined, {
+          id: bookId,
+        });
+        setHighlights(highlightsList);
+      } catch (err) {
+        console.error("Failed to fetch highlights:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+
+    fetchHighlights();
+  }, [bookId]);
 
   const createHighlight = useCallback(
     async (dto: CreateHighlightDto): Promise<HighlightResponse | null> => {

@@ -14,6 +14,7 @@ import {
   Loader2,
   BookMarked,
   StickyNote,
+  List,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import EPUBReaderMenu from "./EPUBReaderMenu";
@@ -106,6 +107,11 @@ export default function EPUBReader({
   const [epubData, setEpubData] = useState<ArrayBuffer | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // TOC (table of contents) state
+  const [toc, setToc] = useState<any[]>([]);
+  const [showToc, setShowToc] = useState(false);
+  const hasToc = toc.length > 0;
+
   // Highlight popover state
   const [selectionInfo, setSelectionInfo] = useState<{
     cfiRange: string;
@@ -196,6 +202,9 @@ export default function EPUBReader({
       // Prevent duplicate calls with same location
       if (lastLocationRef.current === epubcfi) return;
       lastLocationRef.current = epubcfi;
+
+      // Close TOC when navigating
+      setShowToc(false);
 
       setLocation(epubcfi);
       // Keep localStorage as a local cache/fallback
@@ -375,6 +384,10 @@ export default function EPUBReader({
   const goPrev = () => renditionRef.current?.prev();
   const goNext = () => renditionRef.current?.next();
 
+  const handleTocChange = useCallback((newToc: any[]) => {
+    setToc(newToc || []);
+  }, []);
+
   const handleNavigateToNote = useCallback((note: NoteResponse) => {
     if (note.anchor && typeof note.anchor === "object" && "cfi" in note.anchor) {
       const cfi = (note.anchor as { cfi: string }).cfi;
@@ -474,6 +487,21 @@ export default function EPUBReader({
 
                 <div className="w-px h-6 bg-border" />
 
+                {hasToc && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => {
+                      setShowToc(true);
+                      setMenuVisible(false);
+                    }}
+                    aria-label="Table of Contents"
+                    className="rounded-full"
+                  >
+                    <List className="h-4 w-4" />
+                  </Button>
+                )}
+
                 <Button
                   variant="ghost"
                   size="sm"
@@ -536,6 +564,8 @@ export default function EPUBReader({
             location={location ?? null}
             locationChanged={onLocationChanged}
             getRendition={onRendition}
+            tocChanged={handleTocChange}
+            showToc={showToc}
             epubOptions={{ allowScriptedContent: true }}
           />
         )}
