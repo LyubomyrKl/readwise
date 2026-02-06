@@ -38,11 +38,12 @@ model Book {
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  notes       Note[]
-  highlights  Highlight[]
-  searchItems SearchItem[]
-  tags        BookTag[]
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes         Note[]
+  highlights    Highlight[]
+  searchItems   SearchItem[]
+  tags          BookTag[]
+  learningNotes LearningNote[]
 }
 
 enum BookStatus {
@@ -91,6 +92,7 @@ model Highlight {
   user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   book      Book           @relation(fields: [bookId], references: [id], onDelete: Cascade)
   note      Note?          @relation(fields: [noteId], references: [id], onDelete: SetNull)
+  learningNotes LearningNote[]
 
   @@index([userId, bookId, createdAt])
 }
@@ -200,4 +202,172 @@ model User {
   highlights  Highlight[]
   tags        Tag[]
   searchItems SearchItem[]
+
+  // Learning system
+  learningNotes      LearningNote[]
+  learningCards      LearningCard[]
+  cardReviews        CardReview[]
+  learningSessions   LearningSession[]
+  learningStats      UserLearningStats?
+  learningSettings   UserLearningSettings?
+}
+
+// ===== learning.model.prisma =====
+
+model LearningNote {
+  id                  String         @id @default(cuid())
+  userId              String
+  bookId              String?
+  highlightId         String?
+  targetSentence      String         // L2 sentence (required)
+  meaning             String         // L1 translation (required)
+  targetWord          String         // Focus word/grammar (required)
+  notes               String?
+  alternativePhrasing String?
+  sourceType          NoteSourceType @default(manual)
+  isArchived          Boolean        @default(false)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  deletedAt           DateTime?
+
+  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  highlight Highlight?     @relation(fields: [highlightId], references: [id], onDelete: SetNull)
+  cards     LearningCard[]
+
+  @@index([userId, createdAt])
+  @@index([userId, bookId])
+}
+
+enum NoteSourceType {
+  manual
+  highlight
+  ai_generated
+}
+
+model LearningCard {
+  id                 String    @id @default(cuid())
+  userId             String
+  noteId             String
+  cardType           CardType
+  front              String
+  back               String
+  clozeIndex         Int?
+  difficulty         Float     @default(0.3)
+  stability          Float     @default(0.4)
+  retrievability     Float     @default(1.0)
+  state              CardState @default(new)
+  dueAt              DateTime  @default(now())
+  lastReviewedAt     DateTime?
+  lapseCount         Int       @default(0)
+  reviewCount        Int       @default(0)
+  consecutiveCorrect Int       @default(0)
+  avgResponseTime    Float?
+  hesitationCount    Int       @default(0)
+  isActive           Boolean   @default(true)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user    User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  note    LearningNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  reviews CardReview[]
+
+  @@unique([noteId, cardType, clozeIndex])
+  @@index([userId, state, dueAt])
+  @@index([userId, cardType, state])
+}
+
+enum CardType {
+  recognition
+  production
+  cloze
+  grammar
+}
+
+enum CardState {
+  new
+  learning
+  review
+  relearning
+}
+
+model CardReview {
+  id                 String       @id @default(cuid())
+  userId             String
+  cardId             String
+  rating             ReviewRating
+  responseTimeMs     Int
+  wasHesitant        Boolean      @default(false)
+  previousDifficulty Float
+  previousStability  Float
+  previousState      CardState
+  newDifficulty      Float
+  newStability       Float
+  newInterval        Int
+  reviewedAt         DateTime     @default(now())
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  card LearningCard @relation(fields: [cardId], references: [id], onDelete: Cascade)
+
+  @@index([userId, reviewedAt])
+  @@index([cardId, reviewedAt])
+}
+
+enum ReviewRating {
+  again
+  hard
+  good
+  easy
+}
+
+model LearningSession {
+  id               String    @id @default(cuid())
+  userId           String
+  startedAt        DateTime  @default(now())
+  endedAt          DateTime?
+  newCardsStudied  Int       @default(0)
+  reviewsCompleted Int       @default(0)
+  correctCount     Int       @default(0)
+  incorrectCount   Int       @default(0)
+  totalTimeMs      Int       @default(0)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, startedAt])
+}
+
+model UserLearningStats {
+  id                 String    @id @default(cuid())
+  userId             String    @unique
+  totalNotes         Int       @default(0)
+  matureCards        Int       @default(0)
+  youngCards         Int       @default(0)
+  retentionRate      Float     @default(0)
+  productionAccuracy Float     @default(0)
+  avgResponseTime    Float     @default(0)
+  currentStreak      Int       @default(0)
+  longestStreak      Int       @default(0)
+  lastStudyDate      DateTime?
+  dailyNewCardLimit  Int       @default(20)
+  dailyReviewLimit   Int       @default(200)
+  currentLoadScore   Float     @default(0)
+  updatedAt          DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserLearningSettings {
+  id                  String  @id @default(cuid())
+  userId              String  @unique
+  generateRecognition Boolean @default(true)
+  generateProduction  Boolean @default(true)
+  generateCloze       Boolean @default(true)
+  generateGrammar     Boolean @default(false)
+  newCardsPerDay      Int     @default(20)
+  maxReviewsPerDay    Int     @default(200)
+  showResponseTime    Boolean @default(true)
+  enforceProduction   Boolean @default(true)
+  requireTyping       Boolean @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
