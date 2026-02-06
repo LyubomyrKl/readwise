@@ -106,6 +106,16 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
 
   if (r.status === 204) return {} as ResOf<M, P>;
 
+  // Handle 401 Unauthorized - redirect to login
+  if (r.status === 401) {
+    // Only redirect if we're in the browser
+    if (typeof window !== "undefined") {
+      const currentPath = window.location.pathname;
+      window.location.href = `/auth/login?next=${encodeURIComponent(currentPath)}`;
+    }
+    throw new Error("Unauthorized");
+  }
+
   if (!r.ok) {
     const errorMsg = await safeMsg(r);
     console.error(`API Error [${method} ${resolvedPath}]:`, errorMsg, "Status:", r.status);

@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
 import { ROUTES } from "@/app/(consts)/routes";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
 import { apiFetch } from "@/lib/fetcher";
 
@@ -61,7 +61,11 @@ export default function Register() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { enabled } = useMotion();
+
+  // Get the redirect URL from query params, default to library
+  const redirectTo = searchParams.get("next") || ROUTES.reader.library;
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(RegisterSchema),
@@ -85,7 +89,7 @@ export default function Register() {
           return;
         }
 
-        router.replace(ROUTES.home);
+        router.replace(redirectTo);
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Network error";
         setServerError(errorMessage);
@@ -298,13 +302,4 @@ export default function Register() {
       </Wrapper>
     </div>
   );
-}
-
-async function safeMsg(r: Response) {
-  try {
-    const data = await r.json();
-    return data?.message || data?.error;
-  } catch {
-    return null;
-  }
 }

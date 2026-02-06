@@ -3,26 +3,36 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { ROUTES } from "./app/(consts)/routes";
 
-const PROTECTED = new Set<string>([
-  ROUTES.reader.library,
-  ROUTES.reader.bookProfile("*"), // Placeholder for book ID
-  ROUTES.reader.ingest.uploadFiles,
-  ROUTES.settings,
-]);
+// Protected route patterns - use regex for dynamic routes
+const PROTECTED_PATTERNS: RegExp[] = [
+  /^\/reader\/library$/,
+  /^\/reader\/book\/[^/]+/, // Matches /reader/book/{id} and any subpaths
+  /^\/reader\/ingest\/upload$/,
+  /^\/settings$/,
+];
 
-function needsAuth(path: string) {
-  if (PROTECTED.has(path)) return true;
+// Public routes that should redirect to reader if already logged in
+const AUTH_ROUTES = [ROUTES.auth.login, ROUTES.auth.register];
 
-  return false;
+function needsAuth(path: string): boolean {
+  return PROTECTED_PATTERNS.some((pattern) => pattern.test(path));
+}
+
+function isAuthRoute(path: string): boolean {
+  return AUTH_ROUTES.includes(path);
 }
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  if (!needsAuth(pathname)) return NextResponse.next();
-
   const token = req.cookies.get("access_token")?.value;
 
-  if (!token) {
+  // If on auth page and already logged in, redirect to reader
+  if (isAuthRoute(pathname) && token) {
+    return NextResponse.redirect(new URL(ROUTES.reader.library, req.url));
+  }
+
+  // If protected route and no token, redirect to login
+  if (needsAuth(pathname) && !token) {
     const url = new URL(ROUTES.auth.login, req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);
@@ -30,3 +40,10 @@ export function middleware(req: NextRequest) {
 
   return NextResponse.next();
 }
+
+export const config = {
+  matcher: [
+    // Match all paths except static files and api routes
+    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
+  ],
+};
