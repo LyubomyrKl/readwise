@@ -13,19 +13,28 @@ interface Chunk {
   summary_tokens: number;
 }
 
+interface SectionSummary {
+  content: string;
+  token_count: number;
+  entities: unknown[];
+}
+
 interface SummarySection {
   id: string;
   title: string;
   level: string;
   start_char: number;
   end_char: number;
-  content: string;
+  content?: string;
   subsections?: SummarySection[];
   chunks?: Chunk[];
+  chunk_ids?: string[];
+  summary?: SectionSummary;
 }
 
 export interface Summary {
   sections: SummarySection[];
+  document_summary?: SectionSummary;
 }
 
 export default function BookSummaryPage() {

@@ -61,23 +61,40 @@ const FONTS = {
 // Helpers
 // ============================================================================
 
+const getContent = (section: { content?: string; summary?: { content: string }; chunks?: { content: string }[] }): string => {
+  // Try direct content first
+  if (section.content) return section.content;
+  // Then try summary.content
+  if (section.summary?.content) return section.summary.content;
+  // Then try concatenating chunks
+  if (section.chunks?.length) {
+    return section.chunks.map(c => c.content).join("\n\n");
+  }
+  return "";
+};
+
 const flattenSections = (summary: Summary): Section[] => {
   const sections: Section[] = [];
 
   summary.sections.forEach((chapter, chapterIdx) => {
-    sections.push({
-      id: chapter.id,
-      title: chapter.title,
-      content: chapter.content,
-      level: "chapter",
-      chapterNum: chapterIdx + 1,
-    });
+    const chapterContent = getContent(chapter);
+
+    // Only add chapter as a section if it has content or no subsections
+    if (chapterContent || !chapter.subsections?.length) {
+      sections.push({
+        id: chapter.id,
+        title: chapter.title,
+        content: chapterContent,
+        level: "chapter",
+        chapterNum: chapterIdx + 1,
+      });
+    }
 
     chapter.subsections?.forEach((sub, subIdx) => {
       sections.push({
         id: sub.id,
         title: sub.title,
-        content: sub.content,
+        content: getContent(sub),
         level: "section",
         chapterNum: chapterIdx + 1,
         sectionNum: subIdx + 1,
@@ -243,11 +260,15 @@ export const SummaryReader = ({ summary }: { summary: Summary }) => {
                     color: t.text,
                   }}
                 >
-                  {currentSection.content.split(/\n\n+/).map((para, i) => (
-                    <p key={i} className="mb-6 last:mb-0">
-                      {para}
-                    </p>
-                  ))}
+                  {currentSection.content ? (
+                    currentSection.content.split(/\n\n+/).map((para, i) => (
+                      <p key={i} className="mb-6 last:mb-0">
+                        {para}
+                      </p>
+                    ))
+                  ) : (
+                    <p className="text-center" style={{ color: t.muted }}>No content available</p>
+                  )}
                 </motion.div>
 
                 {/* Footer Navigation Hint */}
