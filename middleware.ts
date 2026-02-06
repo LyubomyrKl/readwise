@@ -8,6 +8,7 @@ const PROTECTED_PATTERNS: RegExp[] = [
   /^\/reader\/library$/,
   /^\/reader\/book\/[^/]+/, // Matches /reader/book/{id} and any subpaths
   /^\/reader\/ingest\/upload$/,
+  /^\/learning(\/|$)/, // Matches /learning and all subpaths
   /^\/settings$/,
 ];
 
@@ -19,7 +20,7 @@ function needsAuth(path: string): boolean {
 }
 
 function isAuthRoute(path: string): boolean {
-  return AUTH_ROUTES.includes(path);
+  return (AUTH_ROUTES as readonly string[]).includes(path);
 }
 
 export function middleware(req: NextRequest) {

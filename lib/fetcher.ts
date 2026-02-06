@@ -16,6 +16,20 @@ import type {
   AuthBundle,
   Tokens,
   SummaryRequestResponse,
+  CreateLearningNoteDto,
+  UpdateLearningNoteDto,
+  ValidateNoteDto,
+  SubmitReviewDto,
+  EndSessionDto,
+  UpdateSettingsDto,
+  ValidationResultResponse,
+  LearningNoteResponse,
+  StudyQueueResponse,
+  SessionStartResponse,
+  ReviewResultResponse,
+  StatsResponse,
+  DailyStatsResponse,
+  SettingsResponse,
 } from "@/lib/types";
 import type { BookResponse } from "@/app/api/books/schemas";
 import type { SummaryResponse } from "@/app/api/summarizer/schemas";
@@ -28,11 +42,19 @@ type ApiRegistry = {
     "/api/books/[id]/highlights": { req: undefined; res: HighlightResponse[] };
     "/api/books/[id]/notes": { req: undefined; res: NoteResponse[] };
     "/api/auth/me": { req: undefined; res: AuthBundle };
+    // Learning endpoints
+    "/api/learning/notes": { req: undefined; res: LearningNoteResponse[] };
+    "/api/learning/notes/[id]": { req: undefined; res: LearningNoteResponse };
+    "/api/learning/study/queue": { req: undefined; res: StudyQueueResponse };
+    "/api/learning/stats": { req: undefined; res: StatsResponse };
+    "/api/learning/stats/daily": { req: undefined; res: DailyStatsResponse[] };
+    "/api/learning/settings": { req: undefined; res: SettingsResponse };
   };
   DELETE: {
     "/api/books/[id]": { req: undefined; res: { status: string } };
     "/api/highlights/[id]": { req: undefined; res: { status: string } };
     "/api/notes/[id]": { req: undefined; res: { status: string } };
+    "/api/learning/notes/[id]": { req: undefined; res: { status: string } };
   };
   POST: {
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
@@ -47,10 +69,19 @@ type ApiRegistry = {
     "/api/auth/logout": { req: object; res: void };
     "/api/summarizer": { req: RequestSummaryDto; res: SummaryRequestResponse };
     "/api/summarizer/get-summary": { req: GetSummaryDto; res: SummaryResponse };
+    // Learning endpoints
+    "/api/learning/notes": { req: CreateLearningNoteDto; res: LearningNoteResponse };
+    "/api/learning/notes/validate": { req: ValidateNoteDto; res: ValidationResultResponse };
+    "/api/learning/notes/from-highlight/[highlightId]": { req: CreateLearningNoteDto; res: LearningNoteResponse };
+    "/api/learning/study/session/start": { req: object; res: SessionStartResponse };
+    "/api/learning/study/session/end": { req: EndSessionDto; res: { status: string } };
+    "/api/learning/study/review": { req: SubmitReviewDto; res: ReviewResultResponse };
   };
   PATCH: {
     "/api/highlights/[id]": { req: UpdateHighlightDto; res: HighlightResponse };
     "/api/notes/[id]": { req: UpdateNoteDto; res: NoteResponse };
+    "/api/learning/notes/[id]": { req: UpdateLearningNoteDto; res: LearningNoteResponse };
+    "/api/learning/settings": { req: UpdateSettingsDto; res: SettingsResponse };
   };
 };
 

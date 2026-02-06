@@ -38,3 +38,26 @@ export type {
   SummaryResponse,
   SummaryRequestResponse,
 } from "./summarizer";
+
+// Learning types
+export type {
+  CardType,
+  CardState,
+  ReviewRating,
+  NoteSourceType,
+  CreateLearningNoteDto,
+  UpdateLearningNoteDto,
+  ValidateNoteDto,
+  SubmitReviewDto,
+  EndSessionDto,
+  UpdateSettingsDto,
+  ValidationResultResponse,
+  LearningCardResponse,
+  LearningNoteResponse,
+  StudyQueueResponse,
+  SessionStartResponse,
+  ReviewResultResponse,
+  StatsResponse,
+  DailyStatsResponse,
+  SettingsResponse,
+} from "./learning";

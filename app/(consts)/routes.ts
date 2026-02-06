@@ -7,6 +7,14 @@ export const ROUTES = Object.freeze({
       uploadFiles: "/reader/ingest/upload"
     },
   },
+  learning: {
+    dashboard: "/learning",
+    study: "/learning/study",
+    notes: "/learning/notes",
+    notesNew: "/learning/notes/new",
+    stats: "/learning/stats",
+    settings: "/learning/settings",
+  },
   auth: {
     login: "/auth/login",
     register: "/auth/register",
