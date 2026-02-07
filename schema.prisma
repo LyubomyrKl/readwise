@@ -30,10 +30,11 @@ model Book {
   sha256                String?
   fileStorageKey        String
   status                BookStatus   @default(pending)
-  summaryStorageKey     String?
-  extractionStorageKey  String?
-  summaryType           SummaryType?
-  lastAccessed          DateTime     @default(now())
+  summaryStorageKey       String?
+  extractionStorageKey    String?
+  summaryType             SummaryType?
+  summarizationStrategy   SummarizationStrategy?
+  lastAccessed            DateTime     @default(now())
   readingPosition       Json?        // { type: 'pdf' | 'epub', page?: number, cfi?: string, percentage?: number }
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
@@ -56,6 +57,14 @@ enum BookStatus {
 enum SummaryType {
   extractive
   abstractive
+}
+
+enum SummarizationStrategy {
+  basic
+  structured
+  two_pass
+  chain_of_density
+  hybrid
 }
 
 model Note {
@@ -210,6 +219,9 @@ model User {
   learningSessions   LearningSession[]
   learningStats      UserLearningStats?
   learningSettings   UserLearningSettings?
+
+  // Dictionary system
+  dictionaryEntries  DictionaryEntry[]
 }
 
 // ===== learning.model.prisma =====
@@ -219,6 +231,7 @@ model LearningNote {
   userId              String
   bookId              String?
   highlightId         String?
+  dictionaryEntryId   String?        // Link to dictionary entry
   targetSentence      String         // L2 sentence (required)
   meaning             String         // L1 translation (required)
   targetWord          String         // Focus word/grammar (required)
@@ -230,19 +243,22 @@ model LearningNote {
   updatedAt           DateTime       @updatedAt
   deletedAt           DateTime?
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book      Book?          @relation(fields: [bookId], references: [id], onDelete: SetNull)
-  highlight Highlight?     @relation(fields: [highlightId], references: [id], onDelete: SetNull)
-  cards     LearningCard[]
+  user            User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book            Book?             @relation(fields: [bookId], references: [id], onDelete: SetNull)
+  highlight       Highlight?        @relation(fields: [highlightId], references: [id], onDelete: SetNull)
+  dictionaryEntry DictionaryEntry?  @relation(fields: [dictionaryEntryId], references: [id], onDelete: SetNull)
+  cards           LearningCard[]
 
   @@index([userId, createdAt])
   @@index([userId, bookId])
+  @@index([dictionaryEntryId])
 }
 
 enum NoteSourceType {
   manual
   highlight
   ai_generated
+  dictionary
 }
 
 model LearningCard {
@@ -370,4 +386,46 @@ model UserLearningSettings {
   requireTyping       Boolean @default(false)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ===== dictionary.model.prisma =====
+
+model DictionaryEntry {
+  id              String   @id @default(cuid())
+  userId          String
+  word            String           // The headword
+  partOfSpeech    String?          // noun, verb, adj, etc.
+  pronunciation   String?          // IPA notation
+  definition      String           // Primary definition in L1
+  nuance          String?          // Subtle usage notes, register, etc.
+  personalExample String           // REQUIRED - user's own sentence
+  sourceContext   String?          // Where did you encounter this word?
+  tags            String[]         // User-defined tags
+  masteryLevel    Int      @default(0) // 0=new, 1=has cards, 2=mature cards
+  lastReviewed    DateTime?        // Last time user opened this entry
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  deletedAt       DateTime?
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collocations  Collocation[]
+  learningNotes LearningNote[]
+
+  @@unique([userId, word])
+  @@index([userId, word])
+  @@index([userId, masteryLevel])
+  @@index([userId, createdAt])
+}
+
+model Collocation {
+  id          String   @id @default(cuid())
+  entryId     String
+  phrase      String           // The collocation phrase
+  translation String?          // Optional L1 translation
+  example     String?          // Example sentence using collocation
+  createdAt   DateTime @default(now())
+
+  entry DictionaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+
+  @@index([entryId])
 }

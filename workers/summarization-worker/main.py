@@ -17,10 +17,19 @@ from text_summarizer import TextSummarizer
 from segmentation import DeterministicSegmenter
 
 # New pipeline imports
-from config.settings import SummarizationSettings
+from config.settings import SummarizationSettings, SummarizationStrategy
 from config.feature_flags import FeatureFlags
 from orchestration.pipeline import SummarizationPipeline
 from orchestration.pipeline_builder import PipelineBuilder
+
+# Map string strategy names to enum values
+STRATEGY_MAP = {
+    'basic': SummarizationStrategy.BASIC,
+    'structured': SummarizationStrategy.STRUCTURED,
+    'two_pass': SummarizationStrategy.TWO_PASS,
+    'chain_of_density': SummarizationStrategy.CHAIN_OF_DENSITY,
+    'hybrid': SummarizationStrategy.HYBRID,
+}
 
 load_dotenv()
 
@@ -102,8 +111,23 @@ class SummarizationWorker:
         self.prefetch_count = int(os.getenv('WORKER_PREFETCH_COUNT', '1'))
         self.worker_id = os.getenv('WORKER_ID', 'summarization-worker-1')
 
-    async def process_summarization(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3, force: bool = False):
-        """Process summarization for a book"""
+    async def process_summarization(
+        self,
+        book_id: str,
+        summary_type: str = 'extractive',
+        summary_percent: float = 0.3,
+        strategy: str = 'structured',
+        force: bool = False
+    ):
+        """Process summarization for a book
+
+        Args:
+            book_id: ID of the book to summarize
+            summary_type: 'extractive' or 'abstractive'
+            summary_percent: Target summary length as percentage (0-1)
+            strategy: Summarization strategy ('basic', 'structured', 'two_pass', 'chain_of_density', 'hybrid')
+            force: Force re-summarization even if summary exists
+        """
         book = await self.db.get_book(book_id)
         if not book:
             logger.error(f"Book not found: {book_id}")
@@ -114,7 +138,7 @@ class SummarizationWorker:
             logger.info(f"Summary already exists for book {book_id} ({summary_type}), skipping duplicate processing")
             return
 
-        logger.info(f"Processing {summary_type} summarization for: {book.title}")
+        logger.info(f"Processing {summary_type} summarization with {strategy} strategy for: {book.title}")
 
         if not book.extractionStorageKey:
             logger.error(f"No extraction found for book {book_id}")
@@ -140,9 +164,9 @@ class SummarizationWorker:
 
         # Use new pipeline or legacy summarizer
         if self.use_new_pipeline and self.pipeline_builder:
-            logger.info(f"Using new pipeline for {summary_type} summarization...")
+            logger.info(f"Using new pipeline for {summary_type} summarization with {strategy} strategy...")
             summary_json, metadata = await self._process_with_new_pipeline(
-                json_data, summary_type, summary_percent
+                json_data, summary_type, summary_percent, strategy
             )
         else:
             logger.info(f"Using legacy summarizer for {summary_type} summarization...")
@@ -170,8 +194,27 @@ class SummarizationWorker:
 
         logger.info(f"Summarization complete: {metadata['original_tokens']:,} → {metadata['summary_tokens']:,} tokens")
 
-    async def _process_with_new_pipeline(self, json_data: dict, summary_type: str, summary_percent: float):
-        """Process using the new async pipeline."""
+    async def _process_with_new_pipeline(
+        self,
+        json_data: dict,
+        summary_type: str,
+        summary_percent: float,
+        strategy: str = 'structured'
+    ):
+        """Process using the new async pipeline.
+
+        Args:
+            json_data: Segmented book data
+            summary_type: 'extractive' or 'abstractive'
+            summary_percent: Target summary length as percentage (0-1)
+            strategy: Summarization strategy name
+        """
+        # Get the strategy enum value
+        strategy_enum = STRATEGY_MAP.get(strategy, SummarizationStrategy.STRUCTURED)
+
+        # Apply strategy to the pipeline builder
+        self.pipeline_builder.with_strategy(strategy_enum)
+
         pipeline = self.pipeline_builder.build()
 
         async with pipeline:
@@ -206,9 +249,12 @@ class SummarizationWorker:
             task_type = message_data.get('task', 'summarize')
 
             if task_type == 'summarize':
-                summary_type = message_data.get('summaryType', 'extractive')
+                # Support both field names for backwards compatibility
+                summary_type = message_data.get('summarizationType') or message_data.get('summaryType', 'extractive')
                 summary_percent = message_data.get('summaryPercent', 0.3)
-                await self.process_summarization(book_id, summary_type, summary_percent)
+                # Get strategy from message, default to 'structured'
+                strategy = message_data.get('summarizationStrategy', 'structured')
+                await self.process_summarization(book_id, summary_type, summary_percent, strategy)
             else:
                 logger.warning(f"Unknown task type: {task_type}")
 
