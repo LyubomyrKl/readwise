@@ -119,11 +119,15 @@
   body {
     @apply bg-background text-foreground;
   }
+}
 
-  /* Larger fonts on mobile for better readability */
-  @media (max-width: 640px) {
-    html {
-      font-size: 17px;
-    }
+/* Larger fonts on mobile for better readability - outside layer for higher specificity */
+@media screen and (max-width: 640px) {
+  html {
+    font-size: 18px !important;
+  }
+
+  body {
+    -webkit-text-size-adjust: 100%;
   }
 }
