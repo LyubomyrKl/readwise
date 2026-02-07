@@ -119,4 +119,11 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Larger fonts on mobile for better readability */
+  @media (max-width: 640px) {
+    html {
+      font-size: 17px;
+    }
+  }
 }
