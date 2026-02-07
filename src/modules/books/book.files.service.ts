@@ -4,7 +4,7 @@ import { Readable } from 'stream';
 import { Book } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
-import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './book.constants';
+import { BOOK_ERROR_MESSAGES } from './book.constants';
 
 @Injectable()
 export class BookFilesService {
@@ -13,23 +13,23 @@ export class BookFilesService {
     private readonly s3: S3Service,
   ) {}
 
-  private async findReadyBookByIdAndUser(
+  private async findBookByIdAndUser(
     bookId: string,
     userId: string,
   ): Promise<Book> {
     const book = await this.prisma.book.findFirst({
-      where: { id: bookId, userId, status: BOOK_STATUS.READY },
+      where: { id: bookId, userId },
     });
 
     if (!book) {
-      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_NOT_READY);
+      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_NOT_FOUND);
     }
 
     return book;
   }
 
   async downloadBook(userId: string, bookId: string, res: Response): Promise<void> {
-    const book = await this.findReadyBookByIdAndUser(bookId, userId);
+    const book = await this.findBookByIdAndUser(bookId, userId);
     const { stream, contentType, contentLength } = await this.s3.getBookStream(book.fileStorageKey);
 
     const filename = book.fileStorageKey.split('-').slice(2).join('-');
@@ -45,7 +45,7 @@ export class BookFilesService {
   }
 
   async downloadCover(userId: string, bookId: string, res: Response): Promise<void> {
-    const book = await this.findReadyBookByIdAndUser(bookId, userId);
+    const book = await this.findBookByIdAndUser(bookId, userId);
 
     if (!book.customCoverStorageKey) {
       throw new NotFoundException(BOOK_ERROR_MESSAGES.COVER_NOT_FOUND);
