@@ -101,7 +101,7 @@ export function AppSwitcher({ className, showLabel = true }: AppSwitcherProps) {
         })}
         <DropdownMenuItem asChild>
           <Link
-            href={ROUTES.settings}
+            href={ROUTES.settings.root}
             className="flex items-center gap-3 cursor-pointer border-t mt-1 pt-1"
           >
             <Settings className="h-4 w-4" />

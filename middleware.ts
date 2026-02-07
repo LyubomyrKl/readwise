@@ -9,7 +9,8 @@ const PROTECTED_PATTERNS: RegExp[] = [
   /^\/reader\/book\/[^/]+/, // Matches /reader/book/{id} and any subpaths
   /^\/reader\/ingest\/upload$/,
   /^\/learning(\/|$)/, // Matches /learning and all subpaths
-  /^\/settings$/,
+  /^\/dictionary(\/|$)/, // Matches /dictionary and all subpaths
+  /^\/settings(\/|$)/, // Matches /settings and all subpaths
 ];
 
 // Public routes that should redirect to reader if already logged in

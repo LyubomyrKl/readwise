@@ -1,66 +1,69 @@
 "use client";
 
-import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { cn } from "@/lib/utils";
+import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { AppSidebar, NavItem, ActionButton } from "@/app/(components)/AppSidebar";
 import { BookOpen, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { AppSwitcher } from "@/components/AppSwitcher";
+import { useRef, useEffect } from "react";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { ROUTES } from "@/app/(consts)/routes";
 
-const navItems = [
-  { href: "/dictionary", label: "All Words", icon: BookOpen },
+const nav: NavItem[] = [
+  { title: "All Words", icon: BookOpen, href: ROUTES.dictionary.list },
 ];
+
+const actionButton: ActionButton = {
+  title: "Add Word",
+  href: ROUTES.dictionary.new,
+  icon: Plus,
+};
+
+function LayoutInner({ children }: { children: React.ReactNode }) {
+  const { setOpen, open } = useSidebar();
+  const sidebarRef = useRef<HTMLDivElement>(null);
+  const isMobile = useIsMobile();
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (!open) return;
+      if (
+        sidebarRef.current &&
+        !sidebarRef.current.contains(e.target as Node)
+      ) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open, setOpen]);
+
+  return (
+    <div className="flex grow min-h-dvh">
+      <div ref={sidebarRef}>
+        <AppSidebar nav={nav} actionButton={actionButton} />
+      </div>
+      <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
+        {/* Mobile sidebar trigger */}
+        {isMobile && (
+          <div className="fixed top-3 left-3 z-50 md:hidden">
+            <SidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
+          </div>
+        )}
+        <div className="p-4 md:p-6">
+          {children}
+        </div>
+      </main>
+    </div>
+  );
+}
 
 export default function DictionaryLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const pathname = usePathname();
-
   return (
-    <div className="flex min-h-screen">
-      {/* Sidebar */}
-      <aside className="w-64 border-r bg-muted/30 p-4 flex flex-col">
-        <div className="mb-6">
-          <AppSwitcher />
-        </div>
-
-        <nav className="space-y-1 flex-1">
-          {navItems.map((item) => {
-            const isActive =
-              pathname === item.href ||
-              (item.href !== "/dictionary" && pathname.startsWith(item.href + "/"));
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                className={cn(
-                  "flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors",
-                  isActive
-                    ? "bg-primary text-primary-foreground"
-                    : "hover:bg-muted"
-                )}
-              >
-                <item.icon className="h-4 w-4" />
-                {item.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="pt-4 border-t">
-          <Link href="/dictionary/new">
-            <Button className="w-full" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Word
-            </Button>
-          </Link>
-        </div>
-      </aside>
-
-      {/* Main content */}
-      <main className="flex-1 p-6">{children}</main>
-    </div>
+    <SidebarProvider defaultOpen={true}>
+      <LayoutInner>{children}</LayoutInner>
+    </SidebarProvider>
   );
 }

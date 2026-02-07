@@ -1,13 +1,13 @@
 "use client";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
-import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
+import { AppSidebar, NavItem } from "@/app/(components)/AppSidebar";
 import { Library, UploadCloud } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "../(consts)/routes";
 import { useIsMobile } from "@/hooks/use-mobile";
 
-const nav: Section[] = [
+const nav: NavItem[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },
   {
     title: "Ingest",

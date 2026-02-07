@@ -13,7 +13,6 @@ export const ROUTES = Object.freeze({
     notes: "/learning/notes",
     notesNew: "/learning/notes/new",
     stats: "/learning/stats",
-    settings: "/learning/settings",
   },
   dictionary: {
     list: "/dictionary",
@@ -24,6 +23,12 @@ export const ROUTES = Object.freeze({
     login: "/auth/login",
     register: "/auth/register",
   },
-  settings: "/settings",
+  settings: {
+    root: "/settings",
+    appearance: "/settings/appearance",
+    reader: "/settings/reader",
+    learning: "/settings/learning",
+    account: "/settings/account",
+  },
   home: "/",
 } as const);
