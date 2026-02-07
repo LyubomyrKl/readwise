@@ -23,9 +23,9 @@ interface UploadStatusCardProps {
 export function UploadStatusCard({ file, onRemove }: UploadStatusCardProps) {
   return (
     <Card className="overflow-hidden border-2">
-      <CardContent className="p-6">
-        <div className="flex items-start gap-4">
-          <div className={`flex-shrink-0 w-12 h-12 rounded-full flex items-center justify-center ${
+      <CardContent className="p-3 sm:p-6">
+        <div className="flex items-start gap-3 sm:gap-4">
+          <div className={`flex-shrink-0 w-10 h-10 sm:w-12 sm:h-12 rounded-full flex items-center justify-center ${
             file.status === "completed"
               ? "bg-green-500/10"
               : file.status === "error"
@@ -33,24 +33,24 @@ export function UploadStatusCard({ file, onRemove }: UploadStatusCardProps) {
               : "bg-primary/10"
           }`}>
             {file.status === "completed" && (
-              <CheckCircle className="h-6 w-6 text-green-500" />
+              <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-500" />
             )}
             {file.status === "error" && (
-              <AlertCircle className="h-6 w-6 text-destructive" />
+              <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-destructive" />
             )}
             {(file.status === "uploading" || file.status === "processing") && (
-              <Loader2 className="h-6 w-6 text-primary animate-spin" />
+              <Loader2 className="h-5 w-5 sm:h-6 sm:w-6 text-primary animate-spin" />
             )}
             {file.status === "pending" && (
-              <FileText className="h-6 w-6 text-muted-foreground" />
+              <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-muted-foreground" />
             )}
           </div>
 
-          <div className="flex-1 min-w-0 space-y-3">
-            <div className="flex items-start justify-between gap-4">
+          <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
+            <div className="flex items-start justify-between gap-2 sm:gap-4">
               <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-lg truncate">{file.title}</h3>
-                <p className="text-sm text-muted-foreground truncate">
+                <h3 className="font-semibold text-base sm:text-lg truncate">{file.title}</h3>
+                <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>
               </div>

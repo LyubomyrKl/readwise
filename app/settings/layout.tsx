@@ -40,9 +40,9 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         <AppSidebar nav={nav} showSettings={false} />
       </div>
       <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
-        {/* Mobile sidebar trigger */}
+        {/* Mobile sidebar trigger - positioned to avoid overlap with page back buttons */}
         {isMobile && (
-          <div className="fixed top-3 left-3 z-50 md:hidden">
+          <div className="fixed top-3 right-3 z-50 md:hidden">
             <SidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
           </div>
         )}

@@ -44,9 +44,11 @@ export type ActionButton = {
 function ActiveLink({
   href,
   children,
+  onNavigate,
 }: {
   href: string;
   children: React.ReactNode;
+  onNavigate?: () => void;
 }) {
   const pathname = usePathname();
   const isExactMatch = pathname === href;
@@ -55,7 +57,7 @@ function ActiveLink({
 
   return (
     <SidebarMenuButton asChild isActive={!!active}>
-      <Link href={href}>{children}</Link>
+      <Link href={href} onClick={onNavigate}>{children}</Link>
     </SidebarMenuButton>
   );
 }
@@ -67,9 +69,16 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ nav, actionButton, showSettings = true }: AppSidebarProps) {
-  const { setOpen, open, isMobile, openMobile } = useSidebar();
+  const { setOpen, setOpenMobile, open, isMobile, openMobile } = useSidebar();
 
   const showLabel = isMobile ? openMobile : open;
+
+  // Close sidebar on mobile after navigation
+  const handleNavigate = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <Sidebar collapsible="icon" onClick={() => setOpen(true)}>
@@ -88,7 +97,7 @@ export function AppSidebar({ nav, actionButton, showSettings = true }: AppSideba
                 const Icon = entry.icon;
                 return (
                   <SidebarMenuItem key={i}>
-                    <ActiveLink href={entry.href}>
+                    <ActiveLink href={entry.href} onNavigate={handleNavigate}>
                       <Icon className="h-4 w-4" />
                       <span>{entry.title}</span>
                     </ActiveLink>
@@ -117,7 +126,7 @@ export function AppSidebar({ nav, actionButton, showSettings = true }: AppSideba
                       <SidebarMenuSub>
                         {entry.items.map((it) => (
                           <SidebarMenuSubItem key={it.href}>
-                            <ActiveLink href={it.href}>
+                            <ActiveLink href={it.href} onNavigate={handleNavigate}>
                               <span>{it.title}</span>
                             </ActiveLink>
                           </SidebarMenuSubItem>
@@ -152,7 +161,7 @@ export function AppSidebar({ nav, actionButton, showSettings = true }: AppSideba
         <SidebarFooter>
           <SidebarMenu>
             <SidebarMenuItem>
-              <ActiveLink href="/settings">
+              <ActiveLink href="/settings" onNavigate={handleNavigate}>
                 <Settings className="h-4 w-4" />
                 <span>Settings</span>
               </ActiveLink>
