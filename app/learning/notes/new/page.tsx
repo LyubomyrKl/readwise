@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, AlertCircle, Loader2, ArrowLeft } from "lucide-react";
+import { toast } from "sonner";
 import Link from "next/link";
 
 export default function NewNotePage() {
@@ -78,9 +79,11 @@ export default function NewNotePage() {
         notes: formData.notes || undefined,
         alternativePhrasing: formData.alternativePhrasing || undefined,
       });
+      toast.success("Note created with learning cards");
       router.push("/learning/notes");
     } catch (error) {
-      console.error("Failed to create note:", error);
+      const message = error instanceof Error ? error.message : "Failed to create note";
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }

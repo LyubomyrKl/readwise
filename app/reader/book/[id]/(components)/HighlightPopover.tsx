@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import { Highlighter, MessageSquarePlus, X } from "lucide-react";
+import { Highlighter, MessageSquarePlus, X, Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { toast } from "sonner";
 
 const HIGHLIGHT_COLORS = [
   { name: "Yellow", value: "#ffe066" },
@@ -16,8 +17,8 @@ const HIGHLIGHT_COLORS = [
 type HighlightPopoverProps = {
   position: { x: number; y: number };
   selectedText: string;
-  onHighlight: (color: string) => void;
-  onAddNote: () => void;
+  onHighlight: (color: string) => void | Promise<void>;
+  onAddNote: () => void | Promise<void>;
   onClose: () => void;
 };
 
@@ -29,8 +30,33 @@ export default function HighlightPopover({
   onClose,
 }: HighlightPopoverProps) {
   const [selectedColor, setSelectedColor] = useState(HIGHLIGHT_COLORS[0].value);
+  const [isHighlighting, setIsHighlighting] = useState(false);
+  const [isAddingNote, setIsAddingNote] = useState(false);
 
   if (!selectedText.trim()) return null;
+
+  const handleHighlight = async () => {
+    setIsHighlighting(true);
+    try {
+      await onHighlight(selectedColor);
+      toast.success("Text highlighted");
+    } catch {
+      toast.error("Failed to create highlight");
+    } finally {
+      setIsHighlighting(false);
+    }
+  };
+
+  const handleAddNote = async () => {
+    setIsAddingNote(true);
+    try {
+      await onAddNote();
+    } catch {
+      toast.error("Failed to add note");
+    } finally {
+      setIsAddingNote(false);
+    }
+  };
 
   return (
     <div
@@ -64,10 +90,15 @@ export default function HighlightPopover({
       <Button
         variant="ghost"
         size="sm"
-        onClick={() => onHighlight(selectedColor)}
+        onClick={handleHighlight}
+        disabled={isHighlighting || isAddingNote}
         className="h-8 px-2"
       >
-        <Highlighter className="h-4 w-4 mr-1" />
+        {isHighlighting ? (
+          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+        ) : (
+          <Highlighter className="h-4 w-4 mr-1" />
+        )}
         Highlight
       </Button>
 
@@ -75,10 +106,15 @@ export default function HighlightPopover({
       <Button
         variant="ghost"
         size="sm"
-        onClick={onAddNote}
+        onClick={handleAddNote}
+        disabled={isHighlighting || isAddingNote}
         className="h-8 px-2"
       >
-        <MessageSquarePlus className="h-4 w-4 mr-1" />
+        {isAddingNote ? (
+          <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+        ) : (
+          <MessageSquarePlus className="h-4 w-4 mr-1" />
+        )}
         Note
       </Button>
 

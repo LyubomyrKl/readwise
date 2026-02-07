@@ -12,6 +12,7 @@ import {
 import { BookOpen, Brain, BookMarked, ChevronDown, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/app/(consts)/routes";
+import { useSidebar } from "@/components/ui/sidebar";
 
 type AppId = "reader" | "learning" | "dictionary";
 
@@ -54,9 +55,16 @@ interface AppSwitcherProps {
 
 export function AppSwitcher({ className, showLabel = true }: AppSwitcherProps) {
   const pathname = usePathname();
+  const { isMobile, setOpenMobile } = useSidebar();
 
   const currentApp = apps.find((app) => pathname?.startsWith(app.matchPath)) || apps[0];
   const CurrentIcon = currentApp.icon;
+
+  const handleLinkClick = () => {
+    if (isMobile) {
+      setOpenMobile(false);
+    }
+  };
 
   return (
     <DropdownMenu>
@@ -87,6 +95,7 @@ export function AppSwitcher({ className, showLabel = true }: AppSwitcherProps) {
             <DropdownMenuItem key={app.id} asChild>
               <Link
                 href={app.href}
+                onClick={handleLinkClick}
                 className={cn(
                   "flex items-center gap-3 cursor-pointer",
                   isActive && "bg-accent"
@@ -104,6 +113,7 @@ export function AppSwitcher({ className, showLabel = true }: AppSwitcherProps) {
         <DropdownMenuItem asChild>
           <Link
             href={ROUTES.settings.root}
+            onClick={handleLinkClick}
             className="flex items-center gap-3 cursor-pointer border-t mt-1 pt-1"
           >
             <Settings className="h-4 w-4" />

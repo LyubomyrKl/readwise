@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Loader2, ArrowLeft, Info, Sparkles } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 import { CollocationListInput } from "./CollocationInput";
 import { useDictionaryEntries, useCreateCards } from "@/hooks/useDictionary";
 import type { CreateDictionaryEntryDto, CreateCollocationDto } from "@/lib/types";
@@ -98,16 +99,19 @@ export function EntryForm() {
       };
 
       const entry = await createEntry(dto);
+      toast.success(`"${entry.word}" added to dictionary`);
 
       // Optionally create cards
       if (createCardsAfter) {
         await createCards(entry.id);
+        toast.success("Learning cards created");
       }
 
       router.push("/dictionary");
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to create entry";
       setError(message);
+      toast.error(message);
     } finally {
       setIsSubmitting(false);
     }
@@ -158,7 +162,7 @@ export function EntryForm() {
                     setFormData((prev) => ({ ...prev, partOfSpeech: value }))
                   }
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className='w-full'>
                     <SelectValue placeholder="Select..." />
                   </SelectTrigger>
                   <SelectContent>
@@ -296,19 +300,19 @@ export function EntryForm() {
                   type="button"
                   variant="outline"
                   onClick={() => router.push("/dictionary")}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isCreatingCards}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   className="flex-1"
-                  disabled={isSubmitting || !isFormValid}
+                  disabled={isSubmitting || isCreatingCards || !isFormValid}
                 >
-                  {isSubmitting ? (
+                  {isSubmitting || isCreatingCards ? (
                     <>
                       <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      {createCardsAfter ? "Saving & Creating Cards..." : "Saving..."}
+                      {isCreatingCards ? "Creating Cards..." : createCardsAfter ? "Saving & Creating Cards..." : "Saving..."}
                     </>
                   ) : createCardsAfter ? (
                     <>

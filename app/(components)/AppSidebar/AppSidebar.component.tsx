@@ -67,13 +67,15 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ nav, actionButton, showSettings = true }: AppSidebarProps) {
-  const { setOpen, open } = useSidebar();
+  const { setOpen, open, isMobile, openMobile } = useSidebar();
+
+  const showLabel = isMobile ? openMobile : open;
 
   return (
     <Sidebar collapsible="icon" onClick={() => setOpen(true)}>
       <SidebarHeader>
-        <div className={open ? "px-1 py-1" : "flex justify-center py-1"}>
-          <AppSwitcher showLabel={open} />
+        <div className="px-1 py-1">
+          <AppSwitcher showLabel={showLabel} />
         </div>
       </SidebarHeader>
 

@@ -16,6 +16,7 @@ import { BookCover } from "./BookCover";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 import { ROUTES } from "@/app/(consts)/routes";
 import { BookCheck, BookHeart, Heart, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useBookMutations } from "@/hooks/useBookMutations";
 
 type BookCardProps = {
@@ -34,10 +35,12 @@ export function BookCard({ book, onFavoriteChange }: BookCardProps) {
   const { setFavorite } = useBookMutations({
     onFavoriteChange: (bookId, newValue) => {
       onFavoriteChange?.(bookId, newValue);
+      toast.success(newValue ? "Added to favorites" : "Removed from favorites");
     },
     onError: () => {
       // Revert on error
       setIsFavorite(!isFavorite);
+      toast.error("Failed to update favorite status");
     },
   });
 

@@ -12,7 +12,9 @@ import {
   Check,
   Highlighter,
   StickyNote,
+  Loader2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import type {
   NoteResponse,
@@ -47,6 +49,10 @@ export default function NotesPanel({
 }: NotesPanelProps) {
   const [activeTab, setActiveTab] = useState<"notes" | "highlights">("notes");
   const [isCreating, setIsCreating] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [togglingPinId, setTogglingPinId] = useState<string | null>(null);
   const [newNoteBody, setNewNoteBody] = useState("");
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteBody, setEditingNoteBody] = useState("");
@@ -54,18 +60,34 @@ export default function NotesPanel({
   const handleCreateNote = useCallback(async () => {
     if (!newNoteBody.trim() || !onCreateNote) return;
 
-    await onCreateNote({ body: newNoteBody.trim() });
-    setNewNoteBody("");
-    setIsCreating(false);
+    setIsSaving(true);
+    try {
+      await onCreateNote({ body: newNoteBody.trim() });
+      setNewNoteBody("");
+      setIsCreating(false);
+      toast.success("Note created");
+    } catch {
+      toast.error("Failed to create note");
+    } finally {
+      setIsSaving(false);
+    }
   }, [newNoteBody, onCreateNote]);
 
   const handleUpdateNote = useCallback(
     async (noteId: string) => {
       if (!editingNoteBody.trim() || !onUpdateNote) return;
 
-      await onUpdateNote(noteId, { body: editingNoteBody.trim() });
-      setEditingNoteId(null);
-      setEditingNoteBody("");
+      setIsUpdating(true);
+      try {
+        await onUpdateNote(noteId, { body: editingNoteBody.trim() });
+        setEditingNoteId(null);
+        setEditingNoteBody("");
+        toast.success("Note updated");
+      } catch {
+        toast.error("Failed to update note");
+      } finally {
+        setIsUpdating(false);
+      }
     },
     [editingNoteBody, onUpdateNote]
   );
@@ -73,7 +95,15 @@ export default function NotesPanel({
   const handleTogglePin = useCallback(
     async (note: NoteResponse) => {
       if (!onUpdateNote) return;
-      await onUpdateNote(note.id, { isPinned: !note.isPinned });
+      setTogglingPinId(note.id);
+      try {
+        await onUpdateNote(note.id, { isPinned: !note.isPinned });
+        toast.success(note.isPinned ? "Note unpinned" : "Note pinned");
+      } catch {
+        toast.error("Failed to update pin status");
+      } finally {
+        setTogglingPinId(null);
+      }
     },
     [onUpdateNote]
   );
@@ -81,7 +111,15 @@ export default function NotesPanel({
   const handleDeleteNote = useCallback(
     async (noteId: string) => {
       if (!onDeleteNote) return;
-      await onDeleteNote(noteId);
+      setDeletingId(noteId);
+      try {
+        await onDeleteNote(noteId);
+        toast.success("Note deleted");
+      } catch {
+        toast.error("Failed to delete note");
+      } finally {
+        setDeletingId(null);
+      }
     },
     [onDeleteNote]
   );
@@ -89,7 +127,15 @@ export default function NotesPanel({
   const handleDeleteHighlight = useCallback(
     async (highlightId: string) => {
       if (!onDeleteHighlight) return;
-      await onDeleteHighlight(highlightId);
+      setDeletingId(highlightId);
+      try {
+        await onDeleteHighlight(highlightId);
+        toast.success("Highlight deleted");
+      } catch {
+        toast.error("Failed to delete highlight");
+      } finally {
+        setDeletingId(null);
+      }
     },
     [onDeleteHighlight]
   );
@@ -191,14 +237,16 @@ export default function NotesPanel({
                       setIsCreating(false);
                       setNewNoteBody("");
                     }}
+                    disabled={isSaving}
                   >
                     Cancel
                   </Button>
                   <Button
                     size="sm"
                     onClick={handleCreateNote}
-                    disabled={!newNoteBody.trim()}
+                    disabled={!newNoteBody.trim() || isSaving}
                   >
+                    {isSaving ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}
                     Save
                   </Button>
                 </div>
@@ -240,15 +288,16 @@ export default function NotesPanel({
                             setEditingNoteId(null);
                             setEditingNoteBody("");
                           }}
+                          disabled={isUpdating}
                         >
                           Cancel
                         </Button>
                         <Button
                           size="sm"
                           onClick={() => handleUpdateNote(note.id)}
-                          disabled={!editingNoteBody.trim()}
+                          disabled={!editingNoteBody.trim() || isUpdating}
                         >
-                          <Check className="h-3 w-3 mr-1" />
+                          {isUpdating ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Check className="h-3 w-3 mr-1" />}
                           Save
                         </Button>
                       </div>
@@ -269,13 +318,18 @@ export default function NotesPanel({
                             size="icon"
                             className="h-6 w-6"
                             onClick={() => handleTogglePin(note)}
+                            disabled={togglingPinId === note.id}
                           >
-                            <Pin
-                              className={cn(
-                                "h-3 w-3",
-                                note.isPinned && "fill-current text-primary"
-                              )}
-                            />
+                            {togglingPinId === note.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Pin
+                                className={cn(
+                                  "h-3 w-3",
+                                  note.isPinned && "fill-current text-primary"
+                                )}
+                              />
+                            )}
                           </Button>
                           <Button
                             variant="ghost"
@@ -290,8 +344,13 @@ export default function NotesPanel({
                             size="icon"
                             className="h-6 w-6 text-destructive hover:text-destructive"
                             onClick={() => handleDeleteNote(note.id)}
+                            disabled={deletingId === note.id}
                           >
-                            <Trash2 className="h-3 w-3" />
+                            {deletingId === note.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3 w-3" />
+                            )}
                           </Button>
                         </div>
                       </div>
@@ -331,8 +390,13 @@ export default function NotesPanel({
                       size="icon"
                       className="h-6 w-6 text-destructive hover:text-destructive"
                       onClick={() => handleDeleteHighlight(highlight.id)}
+                      disabled={deletingId === highlight.id}
                     >
-                      <Trash2 className="h-3 w-3" />
+                      {deletingId === highlight.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="h-3 w-3" />
+                      )}
                     </Button>
                   </div>
                 </div>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { Sparkles, Loader2 } from 'lucide-react';
+import { toast } from 'sonner';
 import { apiFetch } from '@/lib/fetcher';
 import { IBook } from '@/app/reader/types';
 import {
@@ -21,6 +22,7 @@ const STRATEGIES_WITH_EXTRACTIVE: SummarizationStrategy[] = ['basic', 'structure
 export const GenerateSummaryState = ({book, setBookProcessing, setError}: SummaryProps) => {
   const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
   const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
+  const [isGenerating, setIsGenerating] = useState(false);
 
   // Check if current strategy supports extractive mode
   const supportsExtractiveMode = STRATEGIES_WITH_EXTRACTIVE.includes(strategy);
@@ -36,6 +38,7 @@ export const GenerateSummaryState = ({book, setBookProcessing, setError}: Summar
   const handleGenerateSummary = async () => {
     if (!book) return;
 
+    setIsGenerating(true);
     try {
       setBookProcessing(book);
 
@@ -45,8 +48,13 @@ export const GenerateSummaryState = ({book, setBookProcessing, setError}: Summar
         summarizationStrategy: strategy,
       });
 
+      toast.success("Summary generation started");
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to generate summary. Please try again.");
+      const message = error instanceof Error ? error.message : "Failed to generate summary. Please try again.";
+      setError(message);
+      toast.error(message);
+    } finally {
+      setIsGenerating(false);
     }
   };
 
@@ -111,10 +119,15 @@ export const GenerateSummaryState = ({book, setBookProcessing, setError}: Summar
 
         <button
           onClick={handleGenerateSummary}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors"
+          disabled={isGenerating}
+          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Sparkles className="w-4 h-4" />
-          Generate Summary
+          {isGenerating ? (
+            <Loader2 className="w-4 h-4 animate-spin" />
+          ) : (
+            <Sparkles className="w-4 h-4" />
+          )}
+          {isGenerating ? "Starting..." : "Generate Summary"}
         </button>
       </div>
     </div>

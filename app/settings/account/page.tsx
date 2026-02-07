@@ -33,6 +33,7 @@ export default function AccountSettingsPage() {
     start(async () => {
       try {
         await apiFetch("POST", "/api/auth/logout", {});
+        toast.success("Signed out successfully");
         router.push(ROUTES.auth.login);
       } catch {
         toast.error("Logout failed", {

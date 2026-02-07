@@ -8,6 +8,7 @@ import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Brain, ArrowLeft, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 import { useMotion } from "../../(providers)/MotionProvider/MotionProvider";
 import Link from "next/link";
 import { ROUTES } from "@/app/(consts)/routes";
@@ -39,11 +40,21 @@ export default function LearningSettingsPage() {
   }
 
   const handleToggle = async (key: keyof typeof settings, value: boolean) => {
-    await updateSettings({ [key]: value });
+    try {
+      await updateSettings({ [key]: value });
+      toast.success("Setting updated");
+    } catch {
+      toast.error("Failed to update setting");
+    }
   };
 
   const handleSlider = async (key: keyof typeof settings, value: number) => {
-    await updateSettings({ [key]: value });
+    try {
+      await updateSettings({ [key]: value });
+      toast.success("Setting updated");
+    } catch {
+      toast.error("Failed to update setting");
+    }
   };
 
   return (
