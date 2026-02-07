@@ -18,7 +18,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
+const metadata: Metadata = {
   title: "Summarizer",
   description: "Read, learn, and master languages with AI-powered tools",
   manifest: "/manifest.json",
