@@ -236,7 +236,7 @@ export const SummaryReader = ({ summary }: { summary: Summary }) => {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.15 }}
-                    className="font-bold leading-[1.15] tracking-tight"
+                    className="font-bold leading-[1.15] tracking-tight break-words"
                     style={{
                       color: t.text,
                       fontSize: currentSection.level === "chapter" ? "2.5rem" : "2rem",
@@ -492,7 +492,7 @@ const TOCSheet = ({
                 }}
               >
                 <p
-                  className={cn("font-medium leading-snug", isChapter ? "text-base" : "text-sm")}
+                  className={cn("font-medium leading-snug break-words", isChapter ? "text-base" : "text-sm")}
                   style={{ color: isActive ? theme.accent : theme.text }}
                 >
                   {isChapter ? `${section.chapterNum}. ` : ""}

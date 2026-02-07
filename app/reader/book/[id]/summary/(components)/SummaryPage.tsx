@@ -34,8 +34,8 @@ export const SummaryPage = ({summary}: SummaryProps) => {
                   {index + 1}
                 </div>
               </div>
-              <div className="flex-1 min-w-0">
-                <h3 className={`font-semibold mb-3 ${
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <h3 className={`font-semibold mb-3 break-words ${
                   section.level === 'chapter' ? 'text-2xl' :
                     section.level === 'subsection' ? 'text-xl' : 'text-lg'
                 }`}>
@@ -53,8 +53,8 @@ export const SummaryPage = ({summary}: SummaryProps) => {
                     {section.subsections.map((subsection, subIndex) => {
                       const subContent = getContent(subsection);
                       return (
-                        <div key={subsection.id || subIndex} className="mb-4">
-                          <h4 className="font-medium text-lg mb-2">
+                        <div key={subsection.id || subIndex} className="mb-4 min-w-0">
+                          <h4 className="font-medium text-lg mb-2 break-words">
                             {subsection.title}
                           </h4>
                           {subContent && (

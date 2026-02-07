@@ -226,10 +226,10 @@ export function BookCover({ title, author, cover, className, backgroundStyle = '
         )}
 
         <div className="flex-1 flex flex-col justify-center space-y-4">
-          <div className="text-center">
+          <div className="text-center overflow-hidden">
             <h3
               className="text-sm font-bold leading-tight text-white/95 tracking-wide line-clamp-4 px-2
-                          drop-shadow-sm"
+                          drop-shadow-sm break-words"
             >
               {title}
             </h3>
@@ -239,20 +239,20 @@ export function BookCover({ title, author, cover, className, backgroundStyle = '
         <div className="text-center mt-auto">
           {backgroundStyle === 'modern' ? (
             /* Modern author styling */
-            <div className="relative">
+            <div className="relative overflow-hidden">
               <div className={`w-16 h-px bg-gradient-to-r ${theme.accent} opacity-40 mx-auto mb-3`} />
-              <p className="text-xs text-white/80 font-medium tracking-wide line-clamp-2">
+              <p className="text-xs text-white/80 font-medium tracking-wide line-clamp-2 break-words">
                 {author}
               </p>
             </div>
           ) : (
             /* Classic author styling */
-            <div className="relative">
+            <div className="relative overflow-hidden">
               {/* Simple line accent above author */}
               <div className={`w-12 h-px bg-gradient-to-r ${theme.accent} opacity-40 mx-auto mb-3`} />
-              
+
               {/* Clean author typography */}
-              <p className="text-xs text-white/75 font-light tracking-wide line-clamp-2 italic">
+              <p className="text-xs text-white/75 font-light tracking-wide line-clamp-2 italic break-words">
                 {author}
               </p>
             </div>

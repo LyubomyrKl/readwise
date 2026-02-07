@@ -46,10 +46,10 @@ export function UploadStatusCard({ file, onRemove }: UploadStatusCardProps) {
             )}
           </div>
 
-          <div className="flex-1 min-w-0 space-y-2 sm:space-y-3">
+          <div className="flex-1 min-w-0 overflow-hidden space-y-2 sm:space-y-3">
             <div className="flex items-start justify-between gap-2 sm:gap-4">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-base sm:text-lg truncate">{file.title}</h3>
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <h3 className="font-semibold text-base sm:text-lg truncate" title={file.title}>{file.title}</h3>
                 <p className="text-xs sm:text-sm text-muted-foreground truncate">
                   {file.name} • {(file.size / 1024 / 1024).toFixed(2)} MB
                 </p>

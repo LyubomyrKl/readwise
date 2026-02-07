@@ -236,7 +236,7 @@ export default function BookProfile({
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Book</AlertDialogTitle>
-                    <AlertDialogDescription>
+                    <AlertDialogDescription className="break-words">
                       Are you sure you want to delete &quot;{book.title}&quot;? This action cannot be undone. All notes, highlights, and reading progress will be permanently removed.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
@@ -487,18 +487,18 @@ export default function BookProfile({
           {/* Book Details */}
           <div className="lg:col-span-2 space-y-8">
             {/* Title & Author */}
-            <div>
-              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-3 leading-tight">
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-bold mb-2 sm:mb-3 leading-tight break-words" title={book.title}>
                 {book.title}
               </h1>
 
               {/* Enhanced Author Section */}
               <div className="flex items-center gap-2 sm:gap-3 mb-3 sm:mb-4">
-                <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full flex items-center justify-center">
+                <div className="flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-br from-primary/20 to-primary/5 rounded-full flex items-center justify-center">
                   <User className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
-                <div>
-                  <div className="text-base sm:text-lg font-medium">{book.author}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="text-base sm:text-lg font-medium truncate" title={book.author}>{book.author}</div>
                   <div className="text-xs sm:text-sm text-muted-foreground">Author</div>
                 </div>
               </div>

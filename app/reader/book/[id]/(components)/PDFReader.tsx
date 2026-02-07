@@ -211,7 +211,7 @@ export default function PDFReader({
       <div className="flex h-[100dvh] w-full items-center justify-center bg-gray-50">
         <div className="text-center space-y-2">
           <div className="animate-pulse text-gray-600">Loading PDF...</div>
-          <div className="text-xs text-gray-500 truncate max-w-xs">
+          <div className="text-xs text-gray-500 truncate max-w-xs px-4" title={book.title || "Document"}>
             {book.title || "Document"}
           </div>
         </div>

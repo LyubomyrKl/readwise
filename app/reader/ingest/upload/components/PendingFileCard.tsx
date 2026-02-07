@@ -85,10 +85,10 @@ export function PendingFileCard({
           </div>
 
           {/* File Info */}
-          <div className="flex-1 min-w-0">
+          <div className="flex-1 min-w-0 overflow-hidden">
             <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <h3 className="font-semibold text-lg truncate">
+              <div className="flex-1 min-w-0 overflow-hidden">
+                <h3 className="font-semibold text-lg truncate" title={file.title || file.file.name}>
                   {file.title || file.file.name}
                 </h3>
                 <p className="text-sm text-muted-foreground truncate">
