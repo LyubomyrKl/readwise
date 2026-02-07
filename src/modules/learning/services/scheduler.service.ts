@@ -196,7 +196,7 @@ export class SchedulerService {
   private determineState(
     current: CardState,
     rating: ReviewRating,
-    lapseCount: number,
+    _lapseCount: number,
   ): CardState {
     // Any failure puts card into learning/relearning
     if (rating === ReviewRating.AGAIN) {

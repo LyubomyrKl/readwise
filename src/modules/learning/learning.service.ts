@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { ValidatorService } from './services/validator.service';
 import { CardGeneratorService } from './services/card-generator.service';
@@ -121,18 +122,25 @@ export class LearningService {
     // Get user settings for card generation
     const settings = await this.getOrCreateSettings(userId);
 
+    // Determine source type
+    let sourceType: 'manual' | 'highlight' | 'ai_generated' = 'manual';
+    if (dto.highlightId) {
+      sourceType = 'highlight';
+    }
+
     // Create note
     const note = await this.prisma.learningNote.create({
       data: {
         userId,
         bookId: dto.bookId || null,
         highlightId: dto.highlightId || null,
+        dictionaryEntryId: dto.dictionaryEntryId || null,
         targetSentence: dto.targetSentence,
         meaning: dto.meaning,
         targetWord: dto.targetWord,
         notes: dto.notes || null,
         alternativePhrasing: dto.alternativePhrasing || null,
-        sourceType: dto.highlightId ? 'highlight' : 'manual',
+        sourceType,
       },
     });
 
@@ -690,7 +698,9 @@ export class LearningService {
     return correct / reviews.length;
   }
 
-  private mapNoteToResponse(note: any): LearningNoteResponse {
+  private mapNoteToResponse(
+    note: Prisma.LearningNoteGetPayload<{ include: { cards: true } }>,
+  ): LearningNoteResponse {
     return {
       id: note.id,
       userId: note.userId,
@@ -706,12 +716,14 @@ export class LearningService {
       createdAt: note.createdAt,
       updatedAt: note.updatedAt,
       cards: (note.cards || [])
-        .filter((c: any) => c.isActive)
-        .map((c: any) => this.mapCardToResponse(c)),
+        .filter((c) => c.isActive)
+        .map((c) => this.mapCardToResponse(c)),
     };
   }
 
-  private mapCardToResponse(card: any): LearningCardResponse {
+  private mapCardToResponse(
+    card: Prisma.LearningCardGetPayload<object>,
+  ): LearningCardResponse {
     return {
       id: card.id,
       noteId: card.noteId,

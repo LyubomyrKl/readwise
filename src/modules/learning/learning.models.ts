@@ -76,6 +76,11 @@ export class CreateLearningNoteDto {
   @IsOptional()
   @IsString()
   highlightId?: string;
+
+  @ApiPropertyOptional({ description: 'Source dictionary entry ID' })
+  @IsOptional()
+  @IsString()
+  dictionaryEntryId?: string;
 }
 
 export class UpdateLearningNoteDto {

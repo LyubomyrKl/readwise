@@ -10,6 +10,7 @@ import { SummarizerModule } from './modules/summarizer/summarizer.module';
 import { HighlightsModule } from './modules/highlights/highlights.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { LearningModule } from './modules/learning/learning.module';
+import { DictionaryModule } from './modules/dictionary/dictionary.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { S3Module } from './infrastructure/s3/s3.module';
 import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
@@ -30,6 +31,7 @@ import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
     HighlightsModule,
     NotesModule,
     LearningModule,
+    DictionaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

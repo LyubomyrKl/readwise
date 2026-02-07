@@ -115,7 +115,7 @@ export class CardGeneratorService {
 
     // Find all occurrences of target word (case-insensitive)
     const regex = new RegExp(`\\b${this.escapeRegex(targetWord)}\\b`, 'gi');
-    let match;
+    let match: RegExpExecArray | null;
     let clozeIndex = 0;
     const matches: { index: number; text: string }[] = [];
 

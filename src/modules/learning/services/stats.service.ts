@@ -5,7 +5,6 @@ import {
   StatsResponse,
   DailyStatsResponse,
   CardType,
-  CardState,
 } from '../learning.models';
 
 @Injectable()
@@ -81,16 +80,13 @@ export class StatsService {
       select: { stability: true, state: true },
     });
 
-    let mature = 0;
     let young = 0;
     let newCount = 0;
 
     for (const card of cards) {
       if (card.state === 'new') {
         newCount++;
-      } else if (card.stability >= this.MATURE_STABILITY_DAYS) {
-        mature++;
-      } else {
+      } else if (card.stability < this.MATURE_STABILITY_DAYS) {
         young++;
       }
     }
@@ -219,7 +215,7 @@ export class StatsService {
       }),
     );
 
-    let checkDate = new Date(lastStudy);
+    const checkDate = new Date(lastStudy);
     while (true) {
       const dateKey = `${checkDate.getFullYear()}-${checkDate.getMonth()}-${checkDate.getDate()}`;
       if (studyDates.has(dateKey)) {
@@ -272,7 +268,7 @@ export class StatsService {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const [dueCards, todayReviews, todayLapses, avgDifficulty] =
+    const [dueCards, , todayLapses, avgDifficulty] =
       await Promise.all([
         this.prisma.learningCard.count({
           where: {
