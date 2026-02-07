@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BookOpen, Plus, BarChart3, Brain } from "lucide-react";
+import { BookOpen, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppSwitcher } from "@/components/AppSwitcher";
 
 const navItems = [
   { href: "/dictionary", label: "All Words", icon: BookOpen },
@@ -22,10 +23,7 @@ export default function DictionaryLayout({
       {/* Sidebar */}
       <aside className="w-64 border-r bg-muted/30 p-4 flex flex-col">
         <div className="mb-6">
-          <Link href="/dictionary" className="flex items-center gap-2">
-            <BookOpen className="h-6 w-6" />
-            <span className="font-semibold text-lg">Dictionary</span>
-          </Link>
+          <AppSwitcher />
         </div>
 
         <nav className="space-y-1 flex-1">
@@ -56,20 +54,6 @@ export default function DictionaryLayout({
             <Button className="w-full" variant="outline">
               <Plus className="h-4 w-4 mr-2" />
               Add Word
-            </Button>
-          </Link>
-        </div>
-
-        <div className="pt-4 space-y-2">
-          <Link href="/learning/study">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
-              <Brain className="h-4 w-4 mr-2" />
-              Language Trainer
-            </Button>
-          </Link>
-          <Link href="/reader/library">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
-              Back to Reader
             </Button>
           </Link>
         </div>

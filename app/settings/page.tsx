@@ -26,6 +26,7 @@ import {
 import { ROUTES } from "../(consts)/routes";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/fetcher";
+import { useRouter } from "next/navigation";
 
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
@@ -52,13 +53,14 @@ export default function SettingsPage() {
   const [pending, start] = useTransition();
   const { enabled, mode, setMode } = useMotion();
   const { backgroundStyle, setBackgroundStyle } = useBookCover();
+  const router = useRouter();
 
   async function logout() {
     start(async () => {
       try {
         await apiFetch("POST", "/api/auth/logout", {});
-        location.assign(ROUTES.auth.login);
-      } catch (e) {
+        router.push(ROUTES.auth.login);
+      } catch {
         toast.error("Logout failed", {
           description: "Please try again later.",
           duration: 3000,
@@ -190,17 +192,16 @@ export default function SettingsPage() {
         </Card>
       </Child>
 
-      {/* Right column row 2 */}
       <Child
         {...(enabled ? { variants: item } : {})}
         className="md:col-start-2 md:row-start-1"
       >
-        <Card className="h-full overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
+        <Card className="overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
           <CardHeader className="gap-1 pb-2 px-4 sm:px-6">
             <CardTitle className="text-lg sm:text-xl">Account</CardTitle>
             <CardDescription className="text-xs sm:text-sm">Manage your session.</CardDescription>
           </CardHeader>
-          <CardContent className="flex h-full flex-col sm:flex-row gap-3 sm:items-center sm:justify-between pb-4 px-4 sm:px-6">
+          <CardContent className="flex h-full flex-col sm:flex-row gap-3 sm:justify-between pb-4 px-4 sm:px-6">
             <div>
               <div className="text-sm font-medium">Sign out</div>
               <p className="text-xs text-muted-foreground">
@@ -214,36 +215,6 @@ export default function SettingsPage() {
           </CardContent>
         </Card>
       </Child>
-
-      {/* Right column row 1
-      <Child
-        {...(enabled ? { variants: item } : {})}
-        className="md:col-start-2 md:row-start-"
-      >
-        <Card className="h-full overflow-hidden border-0 shadow-lg ring-1 ring-border/60">
-          <CardHeader className="gap-1 pb-2">
-            <CardTitle className="text-xl">Animations</CardTitle>
-            <CardDescription>
-              Control the animation effects in the app.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex h-full items-center justify-between pb-4">
-            <div className="text-sm text-muted-foreground">
-              Advanced animations are {enabled ? "on" : "off"}.
-            </div>
-            <Select value={mode} onValueChange={(v) => setMode(v as any)}>
-              <SelectTrigger className="w-[160px]">
-                <SelectValue placeholder="System" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="system">System</SelectItem>
-                <SelectItem value="on">On</SelectItem>
-                <SelectItem value="off">Off</SelectItem>
-              </SelectContent>
-            </Select>
-          </CardContent>
-        </Card>
-      </Child> */}
     </Wrapper>
   );
 }

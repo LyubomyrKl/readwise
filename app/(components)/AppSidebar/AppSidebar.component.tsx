@@ -21,7 +21,7 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { Settings, ChevronRight } from "lucide-react";
-import { motion, useReducedMotion, Variants } from "framer-motion";
+import { AppSwitcher } from "@/components/AppSwitcher";
 
 export type SubItem = { title: string; href: string };
 
@@ -33,8 +33,6 @@ export type Section =
       items: SubItem[];
       defaultOpen?: boolean;
     };
-
-const ease = [0.2, 0.8, 0.2, 1];
 
 function ActiveLink({
   href,
@@ -54,60 +52,16 @@ function ActiveLink({
 
 type AppSidebarProps = {
   nav: Section[];
-  sidebarTitle?: string;
-  Icon: React.ElementType;
 };
 
-export function AppSidebar({ nav, sidebarTitle, Icon }: AppSidebarProps) {
+export function AppSidebar({ nav }: AppSidebarProps) {
   const { setOpen, open } = useSidebar();
-
-  const prefersReduced = useReducedMotion();
-
-  const titleVariants: Variants = prefersReduced
-    ? {
-        open: { opacity: 1 },
-        shut: { opacity: 0 },
-      }
-    : {
-        open: {
-          opacity: 1,
-          scaleX: 1,
-          x: 0,
-          transition: {
-            opacity: { duration: 0.15 },
-            scaleX: { duration: 0.25, ease: [0.25, 0.8, 0.25, 1] },
-            x: { type: "spring", stiffness: 300, damping: 24 },
-          },
-        },
-        shut: {
-          opacity: 0,
-          scaleX: 0.8,
-          x: -8,
-          transition: {
-            opacity: { duration: 0.1 },
-            scaleX: { duration: 0.15, ease: "easeInOut" },
-            x: { duration: 0.15, ease: "easeInOut" },
-          },
-        },
-      };
 
   return (
     <Sidebar collapsible="icon" onClick={() => setOpen(true)}>
       <SidebarHeader>
-        <div className="flex items-center gap-2 px-2 py-1">
-          {/* Icon stays always visible */}
-          <Icon className="size-5 shrink-0" />
-
-          {/* Animate only the text */}
-          <motion.span
-            className="font-semibold origin-left overflow-hidden whitespace-nowrap"
-            variants={titleVariants}
-            initial={false}
-            animate={open ? "open" : "shut"}
-            aria-hidden={!open}
-          >
-            {sidebarTitle}
-          </motion.span>
+        <div className="px-1 py-1">
+          <AppSwitcher showLabel={open} />
         </div>
       </SidebarHeader>
 

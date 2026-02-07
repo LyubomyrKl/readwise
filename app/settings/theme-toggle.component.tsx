@@ -20,11 +20,11 @@ export function ThemeToggle() {
       : theme.charAt(0).toUpperCase() + theme.slice(1);
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="space-y-3">
       <Preview />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" className="min-w-[160px] justify-between">
+          <Button variant="outline" className="w-full justify-between">
             <span className="flex items-center gap-2">
               {resolvedTheme === "dark" ? (
                 <Moon className="h-4 w-4" />
@@ -54,9 +54,9 @@ export function ThemeToggle() {
 function Preview() {
   return (
     <div className="grid grid-cols-3 gap-2 rounded-xl border p-3">
-      <div className="h-8 w-16 rounded-md bg-background shadow-sm ring-1 ring-border" />
-      <div className="h-8 w-16 rounded-md bg-primary/80" />
-      <div className="h-8 w-16 rounded-md bg-muted" />
+      <div className="h-8 w-full rounded-md bg-background shadow-sm ring-1 ring-border" />
+      <div className="h-8 w-full rounded-md bg-primary/80" />
+      <div className="h-8 w-full rounded-md bg-muted" />
       <div className="col-span-3 h-8 rounded-md border bg-card" />
     </div>
   );

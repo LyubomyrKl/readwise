@@ -1,7 +1,7 @@
 "use client";
 import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar, Section } from "@/app/(components)/AppSidebar";
-import { Library, UploadCloud, FolderOpen, Sparkles } from "lucide-react";
+import { Library, UploadCloud } from "lucide-react";
 import { useRef, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "../(consts)/routes";
@@ -51,7 +51,7 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex grow min-h-dvh">
       <div ref={sidebarRef}>
-        <AppSidebar Icon={Sparkles} sidebarTitle="Summarizer" nav={nav} />
+        <AppSidebar nav={nav} />
       </div>
       <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
         {/* Mobile sidebar trigger */}

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BookOpen, Brain, BarChart3, Settings, Plus, BookMarked } from "lucide-react";
+import { BookOpen, Brain, BarChart3, Settings, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { AppSwitcher } from "@/components/AppSwitcher";
 
 const navItems = [
   { href: "/learning/study", label: "Study", icon: Brain },
@@ -25,10 +26,7 @@ export default function LearningLayout({
       {/* Sidebar */}
       <aside className="w-64 border-r bg-muted/30 p-4 flex flex-col">
         <div className="mb-6">
-          <Link href="/learning" className="flex items-center gap-2">
-            <Brain className="h-6 w-6" />
-            <span className="font-semibold text-lg">Language Trainer</span>
-          </Link>
+          <AppSwitcher />
         </div>
 
         <nav className="space-y-1 flex-1">
@@ -58,20 +56,6 @@ export default function LearningLayout({
             <Button className="w-full" variant="outline">
               <Plus className="h-4 w-4 mr-2" />
               Add Note
-            </Button>
-          </Link>
-        </div>
-
-        <div className="pt-4 space-y-2">
-          <Link href="/dictionary">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
-              <BookMarked className="h-4 w-4 mr-2" />
-              Dictionary
-            </Button>
-          </Link>
-          <Link href="/reader/library">
-            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
-              Back to Reader
             </Button>
           </Link>
         </div>
