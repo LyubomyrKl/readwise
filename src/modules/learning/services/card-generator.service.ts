@@ -71,11 +71,11 @@ export class CardGeneratorService {
       front = highlightedSentence;
     }
 
-    front += `\n\n_Focus: ${note.targetWord}_`;
+    front += `\n\nFocus: ${note.targetWord}`;
 
     let back = note.meaning;
     if (note.notes) {
-      back += `\n\n_Note: ${note.notes}_`;
+      back += `\n\nNote: ${note.notes}`;
     }
 
     return {
@@ -90,11 +90,11 @@ export class CardGeneratorService {
    * Tests active language production (most important for fluency)
    */
   private generateProductionCard(note: NoteData): GeneratedCard {
-    const front = `Translate to target language:\n\n"${note.meaning}"\n\n_Use: ${note.targetWord}_`;
+    const front = `Translate to target language:\n\n"${note.meaning}"\n\nUse: ${note.targetWord}`;
 
     let back = note.targetSentence;
     if (note.alternativePhrasing) {
-      back += `\n\n_Alternative: ${note.alternativePhrasing}_`;
+      back += `\n\nAlternative: ${note.alternativePhrasing}`;
     }
 
     return {
@@ -130,7 +130,7 @@ export class CardGeneratorService {
         '[...]' +
         sentence.substring(m.index + m.text.length);
 
-      const front = `${clozeSentence}\n\n_Meaning: ${note.meaning}_`;
+      const front = `${clozeSentence}\n\nMeaning: ${note.meaning}_`;
 
       cards.push({
         cardType: CardType.CLOZE,
@@ -144,7 +144,7 @@ export class CardGeneratorService {
 
     // If no exact match found, create a single cloze with hint
     if (cards.length === 0) {
-      const front = `Complete the sentence:\n\n${sentence}\n\n_Hint: Use a form of "${targetWord}"_\n_Meaning: ${note.meaning}_`;
+      const front = `Complete the sentence:\n\n${sentence}\n\n_Hint: Use a form of "${targetWord}"\nMeaning: ${note.meaning}`;
 
       cards.push({
         cardType: CardType.CLOZE,
@@ -165,7 +165,7 @@ export class CardGeneratorService {
     // Extract base form hint from notes if available
     const baseFormHint = this.extractBaseForm(note.notes || '');
 
-    const front = `Conjugate/decline correctly:\n\nBase: ${baseFormHint || note.targetWord}\nContext: "${note.meaning}"\n\n_Produce the correct form_`;
+    const front = `Conjugate/decline correctly:\n\nBase: ${baseFormHint || note.targetWord}\nContext: "${note.meaning}"\n\nProduce the correct form`;
 
     const back = `${note.targetWord}\n\nFull sentence: ${note.targetSentence}`;
 
