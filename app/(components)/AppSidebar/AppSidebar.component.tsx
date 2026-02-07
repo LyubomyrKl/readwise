@@ -72,7 +72,7 @@ export function AppSidebar({ nav, actionButton, showSettings = true }: AppSideba
   return (
     <Sidebar collapsible="icon" onClick={() => setOpen(true)}>
       <SidebarHeader>
-        <div className="px-1 py-1">
+        <div className={open ? "px-1 py-1" : "flex justify-center py-1"}>
           <AppSwitcher showLabel={open} />
         </div>
       </SidebarHeader>

@@ -63,8 +63,10 @@ export function AppSwitcher({ className, showLabel = true }: AppSwitcherProps) {
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
+          size={showLabel ? "default" : "icon"}
           className={cn(
-            "flex items-center gap-2 px-2 h-auto py-1.5 hover:bg-muted/50",
+            "flex items-center hover:bg-muted/50",
+            showLabel ? "gap-2 px-2 h-auto py-1.5" : "h-8 w-8",
             className
           )}
         >
