@@ -4,6 +4,7 @@ import "./globals.css";
 
 import { UploadWidget } from "./(components)/UploadWidget";
 import { Providers } from "./(providers)/Providers";
+import { ServiceWorkerRegistration } from "./(components)/ServiceWorkerRegistration";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -75,6 +76,7 @@ export default function RootLayout({
           {children}
 
           <UploadWidget />
+          <ServiceWorkerRegistration />
         </Providers>
       </body>
     </html>

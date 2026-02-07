@@ -121,13 +121,28 @@
   }
 }
 
-/* Larger fonts on mobile for better readability - outside layer for higher specificity */
+/* Larger fonts on mobile for better readability */
 @media screen and (max-width: 640px) {
+  :root {
+    font-size: 18px;
+  }
+
   html {
-    font-size: 18px !important;
+    font-size: 18px;
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
   }
 
   body {
-    -webkit-text-size-adjust: 100%;
+    font-size: 1rem;
+  }
+
+  /* Increase small text sizes */
+  .text-xs {
+    font-size: 0.8rem;
+  }
+
+  .text-sm {
+    font-size: 0.925rem;
   }
 }
