@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useState } from "react";
+import { useTransition, useState, Suspense } from "react";
 import { motion } from "framer-motion";
 import {
   User,
@@ -56,6 +56,42 @@ const RegisterSchema = z
 type RegisterValues = z.infer<typeof RegisterSchema>;
 
 export default function Register() {
+  return (
+    <Suspense fallback={<RegisterFallback />}>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterFallback() {
+  return (
+    <div className="mx-auto grid min-h-svh w-full max-w-[1120px] place-items-center px-3 sm:px-4">
+      <div className="w-full max-w-[480px] px-1 sm:px-0">
+        <Card className="border-0 bg-card/70 backdrop-blur supports-[backdrop-filter]:bg-card/60 shadow-lg ring-1 ring-border/60">
+          <CardHeader className="space-y-2">
+            <div className="flex items-center gap-2 text-muted-foreground">
+              <Shield className="h-4 w-4" />
+              <span className="text-xs tracking-wide">Create your account</span>
+            </div>
+            <CardTitle className="text-xl sm:text-2xl">Register</CardTitle>
+            <CardDescription>Join to access your library and workbench</CardDescription>
+          </CardHeader>
+          <CardContent className="animate-pulse">
+            <div className="space-y-6">
+              <div className="h-10 bg-muted rounded" />
+              <div className="h-10 bg-muted rounded" />
+              <div className="h-10 bg-muted rounded" />
+              <div className="h-10 bg-muted rounded" />
+              <div className="h-10 bg-muted rounded" />
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function RegisterContent() {
   const [showPwd, setShowPwd] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);

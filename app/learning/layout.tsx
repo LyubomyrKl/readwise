@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
-import { BookOpen, Brain, BarChart3, Settings, Plus } from "lucide-react";
+import { BookOpen, Brain, BarChart3, Settings, Plus, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 const navItems = [
@@ -62,7 +62,13 @@ export default function LearningLayout({
           </Link>
         </div>
 
-        <div className="pt-4">
+        <div className="pt-4 space-y-2">
+          <Link href="/dictionary">
+            <Button variant="ghost" className="w-full justify-start text-muted-foreground">
+              <BookMarked className="h-4 w-4 mr-2" />
+              Dictionary
+            </Button>
+          </Link>
           <Link href="/reader/library">
             <Button variant="ghost" className="w-full justify-start text-muted-foreground">
               Back to Reader

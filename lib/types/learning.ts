@@ -15,6 +15,7 @@ export interface CreateLearningNoteDto {
   alternativePhrasing?: string;
   bookId?: string;
   highlightId?: string;
+  dictionaryEntryId?: string;
 }
 
 export interface UpdateLearningNoteDto {

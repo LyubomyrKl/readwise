@@ -61,3 +61,15 @@ export type {
   DailyStatsResponse,
   SettingsResponse,
 } from "./learning";
+
+// Dictionary types
+export type {
+  CreateCollocationDto,
+  CreateDictionaryEntryDto,
+  UpdateDictionaryEntryDto,
+  DictionarySearchQuery,
+  CollocationResponse,
+  DictionaryEntryResponse,
+  DictionaryStatsResponse,
+  DictionarySearchResult,
+} from "./dictionary";

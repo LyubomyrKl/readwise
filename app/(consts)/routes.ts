@@ -15,6 +15,11 @@ export const ROUTES = Object.freeze({
     stats: "/learning/stats",
     settings: "/learning/settings",
   },
+  dictionary: {
+    list: "/dictionary",
+    new: "/dictionary/new",
+    entry: (id: string) => `/dictionary/${id}`,
+  },
   auth: {
     login: "/auth/login",
     register: "/auth/register",
