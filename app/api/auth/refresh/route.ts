@@ -5,7 +5,7 @@ export async function POST(req: NextRequest) {
   const refreshToken = req.cookies.get("refresh_token")?.value;
 
   if (!refreshToken) {
-    const url = new URL("/auth/login", req.url);
+    const url = new URL("/api/auth/login", req.url);
     url.searchParams.set("next", req.nextUrl.pathname);
     return NextResponse.redirect(url);
   }

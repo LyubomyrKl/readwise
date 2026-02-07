@@ -146,3 +146,7 @@
     font-size: 0.925rem;
   }
 }
+
+html {
+    color-scheme: light dark; /* both supported, or just one if you want */
+}

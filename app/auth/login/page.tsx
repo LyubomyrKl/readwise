@@ -105,7 +105,7 @@ function LoginContent() {
         return;
       }
 
-      router.replace(redirectTo);
+      router.replace('/');
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : "Network error";
       setServerError(errorMessage);
