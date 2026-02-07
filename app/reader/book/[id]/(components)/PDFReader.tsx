@@ -180,7 +180,6 @@ export default function PDFReader({
       createPluginRegistration(RenderPluginPackage),
       createPluginRegistration(ZoomPluginPackage),
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pdfBlobUrl, book.id]);
 
   if (error) {

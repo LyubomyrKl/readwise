@@ -145,7 +145,6 @@ export async function extractBookMetadata(file: File): Promise<BookMetadata> {
     }
 
     // For TXT files or other formats, we don't have a reliable way to determine page count
-    console.log("File type not supported for metadata extraction:", fileName);
     return { pageCount: null };
   } catch (error) {
     console.error("Failed to extract book metadata:", error);

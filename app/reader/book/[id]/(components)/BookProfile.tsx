@@ -172,8 +172,7 @@ export default function BookProfile({
     }
   };
 
-  // @ts-ignore
-    return (
+  return (
     <div className="min-h-screen bg-background">
       {/* Header */}
       <div className="border-b bg-background/80 backdrop-blur sticky top-0 z-10">

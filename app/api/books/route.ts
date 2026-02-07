@@ -14,7 +14,6 @@ export async function GET() {
       headers: { "Cache-Control": "no-store" },
     });
   } catch (error) {
-    console.log(error);
     if (axios.isAxiosError(error) && error.response) {
       return NextResponse.json(error.response.data, {
         status: error.response.status,

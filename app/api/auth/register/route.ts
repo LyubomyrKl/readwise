@@ -12,6 +12,9 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(resp.data?.user ?? {}, { status: resp.status });
   } catch (error) {
+    if (error instanceof SyntaxError) {
+      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    }
     if (axios.isAxiosError(error) && error.response) {
       return NextResponse.json(error.response.data, {
         status: error.response.status,
