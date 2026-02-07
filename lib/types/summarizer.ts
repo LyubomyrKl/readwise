@@ -1,8 +1,57 @@
 import type { BookResponse } from "./books";
 
+// Summary Types
+export type SummaryType = 'extractive' | 'abstractive';
+
+export const SUMMARY_TYPES: { value: SummaryType; label: string; description: string }[] = [
+  {
+    value: 'extractive',
+    label: 'Extractive',
+    description: 'Extracts key sentences directly from the text'
+  },
+  {
+    value: 'abstractive',
+    label: 'Abstractive',
+    description: 'Generates new text that paraphrases the content'
+  },
+];
+
+// Summarization Strategies
+export type SummarizationStrategy = 'basic' | 'structured' | 'two_pass' | 'chain_of_density' | 'hybrid';
+
+export const SUMMARIZATION_STRATEGIES: { value: SummarizationStrategy; label: string; description: string }[] = [
+  {
+    value: 'basic',
+    label: 'Basic',
+    description: 'Simple and fast summarization'
+  },
+  {
+    value: 'structured',
+    label: 'Structured',
+    description: 'Better prompts with strict constraints (recommended)'
+  },
+  {
+    value: 'two_pass',
+    label: 'Two-Pass',
+    description: 'Extracts key info, then synthesizes (best factuality)'
+  },
+  {
+    value: 'chain_of_density',
+    label: 'Chain of Density',
+    description: 'Progressive density increase (most information-dense)'
+  },
+  {
+    value: 'hybrid',
+    label: 'Hybrid',
+    description: 'Extractive then abstractive (best for technical content)'
+  },
+];
+
 // Summarizer Request DTOs
 export interface RequestSummaryDto {
   bookId: string;
+  summaryType?: SummaryType;
+  summarizationStrategy?: SummarizationStrategy;
 }
 
 export interface GetSummaryDto {

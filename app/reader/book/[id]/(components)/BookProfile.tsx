@@ -44,6 +44,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  SummaryType,
+  SummarizationStrategy,
+  SUMMARY_TYPES,
+  SUMMARIZATION_STRATEGIES,
+} from "@/lib/types";
+
+// Only these strategies support extractive mode
+const STRATEGIES_WITH_EXTRACTIVE: SummarizationStrategy[] = ['basic', 'structured'];
 
 interface BookProfileProps {
   book: IBook;
@@ -62,9 +71,23 @@ export default function BookProfile({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showAllTags, setShowAllTags] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
     book.status === "processing"
   );
+  const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
+  const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
+
+  // Check if current strategy supports extractive mode
+  const supportsExtractiveMode = STRATEGIES_WITH_EXTRACTIVE.includes(strategy);
+
+  const handleStrategyChange = (newStrategy: SummarizationStrategy) => {
+    setStrategy(newStrategy);
+    // Auto-switch to abstractive if the new strategy doesn't support extractive
+    if (!STRATEGIES_WITH_EXTRACTIVE.includes(newStrategy) && summaryType === 'extractive') {
+      setSummaryType('abstractive');
+    }
+  };
 
   const { setFavorite, deleteBook } = useBookMutations({
     onError: () => {
@@ -126,16 +149,26 @@ export default function BookProfile({
   );
 
 
+  const handleOpenSummaryDialog = () => {
+    setShowSummaryDialog(true);
+  };
+
   const handleSummarize = async () => {
     try {
+      setShowSummaryDialog(false);
+      setIsGeneratingSummary(true);
+
       await apiFetch("POST", "/api/summarizer", {
         bookId: book.id,
+        summaryType,
+        summarizationStrategy: strategy,
       });
 
-      setIsGeneratingSummary(true);
+      toast.success("Summary generation started");
     } catch (error) {
       console.error("Error generating summary:", error);
-      alert("Failed to generate summary. Please try again.");
+      setIsGeneratingSummary(false);
+      toast.error("Failed to generate summary. Please try again.");
     }
   };
 
@@ -305,7 +338,7 @@ export default function BookProfile({
                     </button>
                   ) : (
                     <button
-                      onClick={handleSummarize}
+                      onClick={handleOpenSummaryDialog}
                       disabled={isGeneratingSummary}
                       className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 text-sm font-medium disabled:cursor-not-allowed"
                     >
@@ -320,6 +353,82 @@ export default function BookProfile({
                     </button>
                   )}
                 </div>
+
+                {/* Summary Options Dialog */}
+                <AlertDialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
+                  <AlertDialogContent className="max-w-lg">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="flex items-center gap-2">
+                        <Sparkles className="h-5 w-5 text-purple-500" />
+                        Generate Summary
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Choose how you want to summarize this book.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+
+                    <div className="space-y-4 py-4">
+                      {/* Strategy Selection */}
+                      <div>
+                        <label className="block text-sm font-medium mb-2">
+                          Summarization Strategy
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                          {SUMMARIZATION_STRATEGIES.map((s) => (
+                            <button
+                              key={s.value}
+                              onClick={() => handleStrategyChange(s.value)}
+                              className={`p-2 rounded-lg border-2 transition-all text-left ${
+                                strategy === s.value
+                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                                  : 'border-border hover:border-purple-300'
+                              }`}
+                            >
+                              <div className="font-medium text-xs">{s.label}</div>
+                              <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{s.description}</div>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Summary Type Selection - only for strategies that support it */}
+                      {supportsExtractiveMode && (
+                        <div>
+                          <label className="block text-sm font-medium mb-2">
+                            Summary Type
+                          </label>
+                          <div className="flex gap-2">
+                            {SUMMARY_TYPES.map((type) => (
+                              <button
+                                key={type.value}
+                                onClick={() => setSummaryType(type.value)}
+                                className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                                  summaryType === type.value
+                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
+                                    : 'border-border hover:border-purple-300'
+                                }`}
+                              >
+                                <div className="font-medium text-xs">{type.label}</div>
+                                <div className="text-[10px] text-muted-foreground mt-0.5">{type.description}</div>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleSummarize}
+                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                      >
+                        <Sparkles className="h-4 w-4 mr-2" />
+                        Generate
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
 
               {/* Quick Stats */}

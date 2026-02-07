@@ -50,11 +50,11 @@ export function useCoverGradient(src?: string) {
         radial-gradient(1000px 520px at 50% -10%, ${primary.replace(
           ")",
           ",0.35)"
-        )} 0%, transparent 60%),
+        )} 0%, transparent 30%),
         radial-gradient(1200px 640px at 50% -25%, ${accent.replace(
           ")",
           ",0.25)"
-        )} 0%, transparent 70%),
+        )} 0%, transparent 30%),
         linear-gradient(to bottom, ${deepBg} 0%, ${deepBg} 35%, rgba(0,0,0,0) 60%),
         linear-gradient(to bottom, rgba(0,0,0,0) 0%, rgba(0,0,0,.04) 40%, rgba(0,0,0,.06) 100%)
       `;

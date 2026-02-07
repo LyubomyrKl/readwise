@@ -30,6 +30,8 @@ export type {
 
 // Summarizer types
 export type {
+  SummaryType,
+  SummarizationStrategy,
   RequestSummaryDto,
   GetSummaryDto,
   SummarySubsection,
@@ -38,6 +40,8 @@ export type {
   SummaryResponse,
   SummaryRequestResponse,
 } from "./summarizer";
+
+export { SUMMARY_TYPES, SUMMARIZATION_STRATEGIES } from "./summarizer";
 
 // Learning types
 export type {
