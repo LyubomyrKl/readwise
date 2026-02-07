@@ -1,35 +1,55 @@
 "use client";
 import React from "react";
+import { useRouter } from "next/navigation";
 import { Library, Brain, BookMarked } from "lucide-react";
-import Link from "next/link";
 import { ROUTES } from "./(consts)/routes";
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-4 pb-16 gap-8 sm:p-8 sm:pb-20 sm:gap-16 md:p-20">
-      <main className="flex flex-col sm:flex-row sm:justify-center gap-6 sm:gap-[32px] row-start-2 items-center sm:items-start w-full max-w-sm sm:max-w-none">
-        <Link
-          href={ROUTES.reader.library}
-          className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto"
-        >
-          <Library />
-          Reader
-        </Link>
-        <Link
-          href={ROUTES.learning.dashboard}
-          className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto"
-        >
-          <Brain />
-          Language Trainer
-        </Link>
+  const router = useRouter();
 
-        <Link
-          href={ROUTES.dictionary.list}
-          className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto"
-        >
-          <BookMarked />
-          Dictionary
-        </Link>
+  const navItems = [
+    { href: ROUTES.reader.library, label: "Reader", icon: <Library /> },
+    { href: ROUTES.learning.dashboard, label: "Language Trainer", icon: <Brain /> },
+    { href: ROUTES.dictionary.list, label: "Dictionary", icon: <BookMarked /> },
+  ];
+
+  // Navigate using Next.js router
+  const handleNavClick = (href: string) => {
+    router.push(href);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col sm:flex-row font-sans">
+      {/* Sidebar for desktop */}
+      <aside className="hidden sm:flex flex-col w-48 bg-gray-100 dark:bg-gray-800 p-6 gap-4">
+        {navItems.map((item) => (
+          <button
+            key={item.href}
+            onClick={() => handleNavClick(item.href)}
+            className="flex items-center gap-3 p-3 rounded-lg bg-foreground text-background hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors font-medium"
+          >
+            {item.icon}
+            {item.label}
+          </button>
+        ))}
+      </aside>
+
+      {/* Main content */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 gap-6 sm:gap-10">
+        <h1 className="text-2xl sm:text-3xl font-bold">Welcome!</h1>
+
+        {/* Mobile nav */}
+        <div className="flex sm:hidden gap-4">
+          {navItems.map((item) => (
+            <button
+              key={item.href}
+              onClick={() => handleNavClick(item.href)}
+              className="flex items-center gap-2 p-3 rounded-full bg-foreground text-background hover:bg-[#383838] dark:hover:bg-[#ccc] transition-colors"
+            >
+              {item.icon}
+            </button>
+          ))}
+        </div>
       </main>
     </div>
   );
