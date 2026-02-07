@@ -207,13 +207,16 @@ export class BooksService {
   async deleteBook(userId: string, bookId: string): Promise<SuccessEmptyResponse> {
     const book = await this.findBookByIdAndUser(bookId, userId);
 
-    // Delete S3 files (fail silently - database deletion is more important)
+    // Delete S3 files - log errors but continue with DB deletion
+    // Orphaned S3 files can be cleaned up later; DB consistency is critical
     const s3Deletions: Promise<void>[] = [];
+    const failedKeys: string[] = [];
 
     if (book.fileStorageKey) {
       s3Deletions.push(
         this.s3.deleteObject(book.fileStorageKey).catch((err) => {
-          this.logger.warn(`Failed to delete book file ${book.fileStorageKey}`, err);
+          failedKeys.push(book.fileStorageKey);
+          this.logger.error(`Failed to delete book file ${book.fileStorageKey}`, err);
         }),
       );
     }
@@ -221,7 +224,8 @@ export class BooksService {
     if (book.customCoverStorageKey) {
       s3Deletions.push(
         this.s3.deleteCoverObject(book.customCoverStorageKey).catch((err) => {
-          this.logger.warn(`Failed to delete cover ${book.customCoverStorageKey}`, err);
+          failedKeys.push(book.customCoverStorageKey!);
+          this.logger.error(`Failed to delete cover ${book.customCoverStorageKey}`, err);
         }),
       );
     }
@@ -229,7 +233,8 @@ export class BooksService {
     if (book.summaryStorageKey) {
       s3Deletions.push(
         this.s3.deleteSummaryObject(book.summaryStorageKey).catch((err) => {
-          this.logger.warn(`Failed to delete summary ${book.summaryStorageKey}`, err);
+          failedKeys.push(book.summaryStorageKey!);
+          this.logger.error(`Failed to delete summary ${book.summaryStorageKey}`, err);
         }),
       );
     }
@@ -237,7 +242,8 @@ export class BooksService {
     if (book.extractionStorageKey) {
       s3Deletions.push(
         this.s3.deleteSummaryObject(book.extractionStorageKey).catch((err) => {
-          this.logger.warn(`Failed to delete extraction ${book.extractionStorageKey}`, err);
+          failedKeys.push(book.extractionStorageKey!);
+          this.logger.error(`Failed to delete extraction ${book.extractionStorageKey}`, err);
         }),
       );
     }

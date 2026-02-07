@@ -330,7 +330,6 @@ export class CardGeneratorService {
     word: string,
   ): { index: number; text: string } | null {
     const lowerWord = word.toLowerCase();
-    const lowerSentence = sentence.toLowerCase();
 
     // Try exact match first
     const exactRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'gi');

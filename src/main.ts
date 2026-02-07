@@ -11,8 +11,13 @@ async function bootstrap() {
     const app = await NestFactory.create(AppModule);
 
     app.setGlobalPrefix('api');
+
+    const corsOrigin = process.env.CORS_ORIGIN;
+    if (!corsOrigin && process.env.NODE_ENV === 'production') {
+      logger.warn('CORS_ORIGIN not set in production - defaulting to same-origin only');
+    }
     app.enableCors({
-      origin: process.env.CORS_ORIGIN || true,
+      origin: corsOrigin || (process.env.NODE_ENV === 'production' ? false : true),
       credentials: true,
     });
     

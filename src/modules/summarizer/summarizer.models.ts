@@ -89,5 +89,5 @@ export class SummaryResponse extends BookResponse{
       ]
     },
   })
-  summary: Record<string, any>;
+  summary: Record<string, unknown>;
 }

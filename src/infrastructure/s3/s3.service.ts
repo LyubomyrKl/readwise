@@ -122,20 +122,25 @@ export class S3Service {
     });
 
     const response = await this.client.send(command);
-    const chunks: Uint8Array[] = [];
+    const chunks: Buffer[] = [];
 
     if (response.Body) {
       const reader = response.Body.transformToWebStream().getReader();
       let result = await reader.read();
       while (!result.done) {
-        chunks.push(result.value);
+        chunks.push(Buffer.from(result.value));
         result = await reader.read();
       }
     }
 
     const buffer = Buffer.concat(chunks);
     const jsonString = buffer.toString('utf-8');
-    return JSON.parse(jsonString) as Record<string, unknown>;
+
+    try {
+      return JSON.parse(jsonString) as Record<string, unknown>;
+    } catch (error) {
+      throw new Error(`Failed to parse JSON from S3 object: ${error instanceof Error ? error.message : 'Invalid JSON'}`);
+    }
   }
 
   private ensureExtension(filename: string, mimeType?: string): string {
