@@ -2,7 +2,7 @@
 
 import logging
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from config.settings import SummarizationSettings, SummaryType
 from config.feature_flags import FeatureFlags
@@ -23,6 +23,12 @@ from validation.validation_loop import ValidationLoop
 
 logger = logging.getLogger(__name__)
 
+# Type alias for progress callback
+ProgressCallback = Callable[[str, str, int, int], None]
+
+# Type alias for section completion callback (section_index, section_data) -> None
+SectionCallback = Callable[[int, Dict[str, Any]], None]
+
 
 class SummarizationPipeline:
     """Main orchestrator for the enhanced summarization pipeline.
@@ -41,6 +47,7 @@ class SummarizationPipeline:
         settings: Optional[SummarizationSettings] = None,
         features: Optional[FeatureFlags] = None,
         llm_client: Optional[AsyncLLMClient] = None,
+        progress_callback: Optional[ProgressCallback] = None,
     ):
         """Initialize the pipeline.
 
@@ -48,10 +55,14 @@ class SummarizationPipeline:
             settings: Configuration settings
             features: Feature flags
             llm_client: Optional pre-configured LLM client
+            progress_callback: Optional callback for progress updates.
+                Signature: (section_title, subsection_title, original_tokens, summary_tokens) -> None
         """
         self.settings = settings or SummarizationSettings()
         self.features = features or FeatureFlags()
         self._llm_client = llm_client
+        self._progress_callback = progress_callback
+        self._section_callback: Optional[SectionCallback] = None
         self._is_open = False
 
         # Components (initialized on open)
@@ -154,6 +165,25 @@ class SummarizationPipeline:
         if not self._is_open:
             raise RuntimeError("Pipeline is not open. Use 'async with' context manager.")
 
+    async def count_total_chunks(self, json_data: Dict[str, Any]) -> int:
+        """Pre-count total chunks for progress bar initialization.
+
+        Args:
+            json_data: Segmented JSON with sections/subsections
+
+        Returns:
+            Total number of chunks
+        """
+        self._ensure_open()
+        total = 0
+        for section in json_data.get("sections", []):
+            for subsection in section.get("subsections", []):
+                content = subsection.get("content", "")
+                if content:
+                    chunks = await self._chunk_content(content)
+                    total += len(chunks)
+        return total
+
     async def _chunk_content(
         self, content: str, context: Optional[SummarizationContext] = None
     ) -> List[Chunk]:
@@ -235,13 +265,14 @@ class SummarizationPipeline:
             Tuple of (summaries, subsection metadata)
         """
         content = subsection.get("content", "")
+        subsection_title = subsection.get("title", "")
         if not content:
             return [], {}
 
         # Set section context
         if self._context_manager:
             self._context_manager.set_section_context(
-                title=subsection.get("title", ""),
+                title=subsection_title,
                 context=f"Part of {section_title}" if section_title else "",
             )
 
@@ -261,6 +292,15 @@ class SummarizationPipeline:
             # Summarize with validation
             summary = await self._summarize_chunk(chunk, context, ratio)
             summaries.append(summary)
+
+            # Report progress
+            if self._progress_callback:
+                self._progress_callback(
+                    section_title,
+                    subsection_title,
+                    summary.original_tokens,
+                    summary.token_count,
+                )
 
             # Update context after each chunk
             if self._context_manager:
@@ -288,6 +328,8 @@ class SummarizationPipeline:
         json_data: Dict[str, Any],
         summary_type: str = "abstractive",
         summary_percent: float = 0.3,
+        skip_section_indices: Optional[List[int]] = None,
+        preloaded_sections: Optional[List[Dict[str, Any]]] = None,
     ) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         """Process a segmented document through the pipeline.
 
@@ -295,6 +337,8 @@ class SummarizationPipeline:
             json_data: Segmented JSON with sections/subsections
             summary_type: Type of summarization
             summary_percent: Target summary percentage
+            skip_section_indices: Section indices to skip (already processed)
+            preloaded_sections: Already processed section data to include in results
 
         Returns:
             Tuple of (result_json, metadata)
@@ -320,8 +364,28 @@ class SummarizationPipeline:
         all_chunk_summaries = {}
         total_original_tokens = 0
         total_summary_tokens = 0
+        sections = json_data.get("sections", [])
 
-        for section in json_data.get("sections", []):
+        # Handle resume: build a map of preloaded sections by index
+        skip_indices = set(skip_section_indices or [])
+        preloaded_map: Dict[int, Dict[str, Any]] = {}
+        if preloaded_sections:
+            for i, section_data in zip(sorted(skip_indices), preloaded_sections):
+                preloaded_map[i] = section_data
+                # Count tokens from preloaded sections
+                for subsection in section_data.get("subsections", []):
+                    for chunk in subsection.get("chunks", []):
+                        total_original_tokens += chunk.get("original_tokens", 0)
+                        total_summary_tokens += chunk.get("summary_tokens", 0)
+
+        for section_index, section in enumerate(sections):
+            # Skip already processed sections (resume support)
+            if section_index in skip_indices:
+                if section_index in preloaded_map:
+                    result_sections.append(preloaded_map[section_index])
+                    logger.info(f"Skipping section {section_index} (resumed from checkpoint)")
+                continue
+
             section_result = {
                 "id": section.get("id"),
                 "title": section.get("title"),
@@ -378,6 +442,10 @@ class SummarizationPipeline:
                 }
 
             result_sections.append(section_result)
+
+            # Notify section completion for checkpointing
+            if self._section_callback:
+                self._section_callback(section_index, section_result)
 
             # Reset context for next section (but keep entities)
             if self._context_manager:
@@ -460,6 +528,24 @@ class SummarizationPipeline:
         )
 
         return result_json, metadata
+
+    def set_progress_callback(self, callback: Optional[ProgressCallback]) -> None:
+        """Set the progress callback.
+
+        Args:
+            callback: Progress callback function or None to disable.
+                Signature: (section_title, subsection_title, original_tokens, summary_tokens) -> None
+        """
+        self._progress_callback = callback
+
+    def set_section_callback(self, callback: Optional[SectionCallback]) -> None:
+        """Set the section completion callback for checkpointing.
+
+        Args:
+            callback: Section callback function or None to disable.
+                Signature: (section_index, section_data) -> None
+        """
+        self._section_callback = callback
 
     @property
     def stats(self) -> Dict[str, Any]:

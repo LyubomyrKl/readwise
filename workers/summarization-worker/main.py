@@ -15,6 +15,8 @@ from shared.messaging import RabbitMQManager
 from shared.s3_storage import S3Storage
 from text_summarizer import TextSummarizer
 from segmentation import DeterministicSegmenter
+from progress import SummarizationProgress
+from checkpoint import CheckpointManager, Checkpoint
 
 # New pipeline imports
 from config.settings import SummarizationSettings, SummarizationStrategy
@@ -67,6 +69,9 @@ class SummarizationWorker:
             access_key=s3_access_key,
             secret_key=s3_secret_key
         )
+
+        # Checkpoint manager for resumable summarization
+        self.checkpoint_manager = CheckpointManager(self.s3)
 
         # Legacy summarizer (always available for backward compatibility)
         self.summarizer = TextSummarizer(
@@ -138,6 +143,13 @@ class SummarizationWorker:
             logger.info(f"Summary already exists for book {book_id} ({summary_type}), skipping duplicate processing")
             return
 
+        # Check if book was previously interrupted (has checkpoint)
+        has_checkpoint = self.checkpoint_manager.exists(book_id, summary_type)
+        if book.status == 'processing' and has_checkpoint:
+            logger.info(f"Detected interrupted summarization for {book_id}, will resume from checkpoint")
+        elif book.status == 'processing':
+            logger.warning(f"Book {book_id} was in processing state but no checkpoint found, starting fresh")
+
         logger.info(f"Processing {summary_type} summarization with {strategy} strategy for: {book.title}")
 
         if not book.extractionStorageKey:
@@ -166,7 +178,8 @@ class SummarizationWorker:
         if self.use_new_pipeline and self.pipeline_builder:
             logger.info(f"Using new pipeline for {summary_type} summarization with {strategy} strategy...")
             summary_json, metadata = await self._process_with_new_pipeline(
-                json_data, summary_type, summary_percent, strategy
+                json_data, summary_type, summary_percent, strategy,
+                book_title=book.title, book_id=book_id
             )
         else:
             logger.info(f"Using legacy summarizer for {summary_type} summarization...")
@@ -199,15 +212,19 @@ class SummarizationWorker:
         json_data: dict,
         summary_type: str,
         summary_percent: float,
-        strategy: str = 'structured'
+        strategy: str = 'structured',
+        book_title: str = '',
+        book_id: str = ''
     ):
-        """Process using the new async pipeline.
+        """Process using the new async pipeline with checkpoint support.
 
         Args:
             json_data: Segmented book data
             summary_type: 'extractive' or 'abstractive'
             summary_percent: Target summary length as percentage (0-1)
             strategy: Summarization strategy name
+            book_title: Book title for progress display
+            book_id: Book ID for checkpointing
         """
         # Get the strategy enum value
         strategy_enum = STRATEGY_MAP.get(strategy, SummarizationStrategy.STRUCTURED)
@@ -216,13 +233,102 @@ class SummarizationWorker:
         self.pipeline_builder.with_strategy(strategy_enum)
 
         pipeline = self.pipeline_builder.build()
+        total_sections = len(json_data.get('sections', []))
+
+        # Check for existing checkpoint (resume support)
+        checkpoint = self.checkpoint_manager.load(book_id, summary_type)
+        skip_indices = []
+        preloaded_sections = []
+
+        if checkpoint:
+            # Validate checkpoint matches current request
+            if (checkpoint.strategy == strategy and
+                checkpoint.summary_percent == summary_percent and
+                checkpoint.total_sections == total_sections):
+                skip_indices = checkpoint.completed_section_indices
+                preloaded_sections = checkpoint.completed_sections
+                logger.info(
+                    f"Resuming from checkpoint: {len(skip_indices)}/{total_sections} sections complete"
+                )
+            else:
+                # Checkpoint doesn't match, start fresh
+                logger.warning(
+                    f"Checkpoint parameters mismatch, starting fresh "
+                    f"(checkpoint: {checkpoint.strategy}/{checkpoint.summary_percent}, "
+                    f"request: {strategy}/{summary_percent})"
+                )
+                self.checkpoint_manager.delete(book_id, summary_type)
+                checkpoint = None
+
+        # Create new checkpoint if none exists
+        if not checkpoint:
+            checkpoint = Checkpoint(
+                book_id=book_id,
+                summary_type=summary_type,
+                strategy=strategy,
+                summary_percent=summary_percent,
+                total_sections=total_sections,
+            )
 
         async with pipeline:
-            summary_json, metadata = await pipeline.process(
-                json_data=json_data,
-                summary_type=summary_type,
-                summary_percent=summary_percent,
+            # Pre-count chunks for progress bar (only for remaining sections)
+            total_chunks = await pipeline.count_total_chunks(json_data)
+            # Adjust for already completed chunks
+            completed_chunks = sum(
+                len(sub.get('chunks', []))
+                for sec in preloaded_sections
+                for sub in sec.get('subsections', [])
             )
+
+            # Create progress tracker
+            progress = SummarizationProgress(
+                total_chunks=total_chunks,
+                total_sections=total_sections,
+                book_title=book_title,
+                summary_type=summary_type,
+            )
+            # Update progress for already completed chunks
+            progress.stats.processed_chunks = completed_chunks
+            progress.stats.processed_sections = len(skip_indices)
+
+            # Wire up the progress callback
+            def on_chunk_progress(section_title: str, subsection_title: str,
+                                  original_tokens: int, summary_tokens: int):
+                progress.update_chunk(
+                    section_title=section_title,
+                    subsection_title=subsection_title,
+                    original_tokens=original_tokens,
+                    summary_tokens=summary_tokens,
+                )
+
+            # Wire up section completion callback for checkpointing
+            def on_section_complete(section_index: int, section_data: dict):
+                checkpoint.add_completed_section(section_index, section_data)
+                self.checkpoint_manager.save(checkpoint)
+                progress.update_section(section_data.get('title', ''))
+                logger.debug(f"Checkpoint saved after section {section_index}")
+
+            pipeline.set_progress_callback(on_chunk_progress)
+            pipeline.set_section_callback(on_section_complete)
+            progress.start()
+
+            try:
+                summary_json, metadata = await pipeline.process(
+                    json_data=json_data,
+                    summary_type=summary_type,
+                    summary_percent=summary_percent,
+                    skip_section_indices=skip_indices,
+                    preloaded_sections=preloaded_sections,
+                )
+                # Update section count
+                progress.stats.processed_sections = total_sections
+
+                # Delete checkpoint on successful completion
+                self.checkpoint_manager.delete(book_id, summary_type)
+                logger.info("Summarization complete, checkpoint deleted")
+
+            finally:
+                progress.finish()
 
         return summary_json, metadata
 
