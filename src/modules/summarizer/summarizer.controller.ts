@@ -23,7 +23,12 @@ export class SummarizerController {
     @Req() req: UserModel,
     @Body() dto: RequestSummaryDto,
   ): Promise<SummaryRequestResponse> {
-    return this.summarizerService.requestSummary(req.user.userId, dto.bookId, "extractive");
+    return this.summarizerService.requestSummary(
+      req.user.userId,
+      dto.bookId,
+      dto.summaryType ?? 'extractive',
+      dto.summarizationStrategy,
+    );
   }
 
   @Post('summary')

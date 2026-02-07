@@ -37,6 +37,12 @@ export enum NoteSourceType {
   MANUAL = 'manual',
   HIGHLIGHT = 'highlight',
   AI_GENERATED = 'ai_generated',
+  DICTIONARY = 'dictionary',
+}
+
+export enum CardSourceType {
+  SENTENCE = 'sentence', // highlight, manual - sentence-based learning
+  DICTIONARY = 'dictionary', // vocabulary learning from dictionary entries
 }
 
 // ===== DTOs =====
@@ -81,6 +87,14 @@ export class CreateLearningNoteDto {
   @IsOptional()
   @IsString()
   dictionaryEntryId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Source type for card generation (dictionary uses word-focused templates)',
+    enum: ['sentence', 'dictionary'],
+  })
+  @IsOptional()
+  @IsString()
+  sourceType?: 'sentence' | 'dictionary';
 }
 
 export class UpdateLearningNoteDto {

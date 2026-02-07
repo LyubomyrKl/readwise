@@ -29,10 +29,11 @@ model Book {
   sha256                String?
   fileStorageKey        String
   status                BookStatus   @default(pending)
-  summaryStorageKey     String?
-  extractionStorageKey  String?
-  summaryType           SummaryType?
-  lastAccessed          DateTime     @default(now())
+  summaryStorageKey       String?
+  extractionStorageKey    String?
+  summaryType             SummaryType?
+  summarizationStrategy   SummarizationStrategy?
+  lastAccessed            DateTime     @default(now())
   readingPosition       Json?        // { type: 'pdf' | 'epub', page?: number, cfi?: string, percentage?: number }
   createdAt             DateTime     @default(now())
   updatedAt             DateTime     @updatedAt
@@ -55,6 +56,14 @@ enum BookStatus {
 enum SummaryType {
   extractive
   abstractive
+}
+
+enum SummarizationStrategy {
+  basic
+  structured
+  two_pass
+  chain_of_density
+  hybrid
 }
 
 model Note {
@@ -248,6 +257,7 @@ enum NoteSourceType {
   manual
   highlight
   ai_generated
+  dictionary
 }
 
 model LearningCard {

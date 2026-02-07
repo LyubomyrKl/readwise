@@ -5,7 +5,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SummaryType } from '@prisma/client';
+import { SummaryType, SummarizationStrategy } from '@prisma/client';
 import * as amqp from 'amqp-connection-manager';
 import { ConfirmChannel } from 'amqplib';
 import { randomUUID } from 'crypto';
@@ -15,6 +15,7 @@ type SummaryRequestMessage = {
   type: 'summary_request';
   summaryPercent: number;
   summarizationType: SummaryType;
+  summarizationStrategy: SummarizationStrategy;
   version: 1;
   userId: string;
   bookId: string;
@@ -89,6 +90,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
     userId: string,
     bookId: string,
     type: SummaryType,
+    strategy: SummarizationStrategy = SummarizationStrategy.structured,
   ): Promise<{ success: boolean; message: string }> {
     const message: SummaryRequestMessage = {
       messageId: randomUUID(),
@@ -98,6 +100,7 @@ export class RabbitMQService implements OnModuleInit, OnModuleDestroy {
       summaryPercent: 0.4,
       bookId,
       summarizationType: type,
+      summarizationStrategy: strategy,
       requestedAt: new Date().toISOString(),
       autoSummarize: true,
     };

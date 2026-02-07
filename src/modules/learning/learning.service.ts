@@ -28,6 +28,7 @@ import {
   SettingsResponse,
   CardType,
   CardState,
+  CardSourceType,
   ReviewRating,
   NoteSourceType,
 } from './learning.models';
@@ -122,11 +123,19 @@ export class LearningService {
     // Get user settings for card generation
     const settings = await this.getOrCreateSettings(userId);
 
-    // Determine source type
-    let sourceType: 'manual' | 'highlight' | 'ai_generated' = 'manual';
-    if (dto.highlightId) {
-      sourceType = 'highlight';
+    // Determine source type for note storage
+    let sourceType: NoteSourceType = NoteSourceType.MANUAL;
+    if (dto.dictionaryEntryId || dto.sourceType === 'dictionary') {
+      sourceType = NoteSourceType.DICTIONARY;
+    } else if (dto.highlightId) {
+      sourceType = NoteSourceType.HIGHLIGHT;
     }
+
+    // Determine card source type for card generation templates
+    const cardSourceType =
+      sourceType === NoteSourceType.DICTIONARY
+        ? CardSourceType.DICTIONARY
+        : CardSourceType.SENTENCE;
 
     // Create note
     const note = await this.prisma.learningNote.create({
@@ -144,7 +153,7 @@ export class LearningService {
       },
     });
 
-    // Generate cards
+    // Generate cards with appropriate source type
     const generatedCards = this.cardGenerator.generateCards(
       {
         id: note.id,
@@ -159,6 +168,7 @@ export class LearningService {
         generateProduction: settings.generateProduction,
         generateCloze: settings.generateCloze,
         generateGrammar: settings.generateGrammar,
+        sourceType: cardSourceType,
       },
     );
 
@@ -641,13 +651,19 @@ export class LearningService {
 
     const settings = await this.getOrCreateSettings(userId);
 
+    // Determine card source type from note's source type
+    const cardSourceType =
+      note.sourceType === NoteSourceType.DICTIONARY
+        ? CardSourceType.DICTIONARY
+        : CardSourceType.SENTENCE;
+
     // Deactivate old cards
     await this.prisma.learningCard.updateMany({
       where: { noteId },
       data: { isActive: false },
     });
 
-    // Generate new cards
+    // Generate new cards with appropriate source type
     const generatedCards = this.cardGenerator.generateCards(
       {
         id: note.id,
@@ -662,6 +678,7 @@ export class LearningService {
         generateProduction: settings.generateProduction,
         generateCloze: settings.generateCloze,
         generateGrammar: settings.generateGrammar,
+        sourceType: cardSourceType,
       },
     );
 

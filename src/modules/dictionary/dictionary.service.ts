@@ -346,13 +346,14 @@ export class DictionaryService {
       notes = `Collocations:\n${collocationsText}`;
     }
 
-    // Create learning note using existing service
+    // Create learning note using existing service with dictionary source type
     const learningNote = await this.learningService.createNote(userId, {
       targetSentence: entry.personalExample,
       meaning,
       targetWord: entry.word,
       notes,
       dictionaryEntryId: entry.id,
+      sourceType: 'dictionary',
     });
 
     // Update mastery level

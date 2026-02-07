@@ -1,7 +1,8 @@
 import { BookResponse } from '@/modules/books/book.models';
 
-import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsString, IsNotEmpty, IsOptional, IsEnum } from 'class-validator';
+import { SummaryType, SummarizationStrategy } from '@prisma/client';
 
 export class RequestSummaryDto {
   @ApiProperty({
@@ -11,6 +12,26 @@ export class RequestSummaryDto {
   @IsString()
   @IsNotEmpty()
   bookId: string;
+
+  @ApiPropertyOptional({
+    description: 'Type of summarization to perform (extractive or abstractive)',
+    enum: SummaryType,
+    default: SummaryType.extractive,
+    example: 'extractive',
+  })
+  @IsOptional()
+  @IsEnum(SummaryType)
+  summaryType?: SummaryType;
+
+  @ApiPropertyOptional({
+    description: 'Summarization strategy to use',
+    enum: SummarizationStrategy,
+    default: SummarizationStrategy.structured,
+    example: 'structured',
+  })
+  @IsOptional()
+  @IsEnum(SummarizationStrategy)
+  summarizationStrategy?: SummarizationStrategy;
 }
 
 export class GetSummaryDto {
