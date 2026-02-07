@@ -37,11 +37,15 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  console.log("[POST /api/dictionary/entries] API_URL:", process.env.API_URL);
   try {
     const body = await request.json();
+    console.log("[POST /api/dictionary/entries] Body:", JSON.stringify(body));
     const resp = await dictionaryApi.createEntry(body);
+    console.log("[POST /api/dictionary/entries] Success:", resp.status);
     return NextResponse.json(resp.data, { status: resp.status });
   } catch (error) {
+    console.error("[POST /api/dictionary/entries] Error:", error);
     if (axios.isAxiosError(error) && error.response) {
       return NextResponse.json(error.response.data, {
         status: error.response.status,
