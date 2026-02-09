@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Settings, ChevronRight, Plus, PanelLeft } from "lucide-react";
+import { Settings, ChevronRight, Plus } from "lucide-react";
 import { AppSwitcher } from "@/components/AppSwitcher";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,7 +18,6 @@ import {
   MobileSidebarContent,
   useMobileSidebar,
 } from "@/components/MobileSidebar";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 export type SubItem = { title: string; href: string };
 
@@ -189,30 +188,39 @@ function DesktopSidebar({
   actionButton?: ActionButton;
   showSettings: boolean;
 }) {
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
+  const sidebarRef = useRef<HTMLElement>(null);
+
+  // Close on click outside
+  useEffect(() => {
+    if (!expanded) return;
+
+    const handleClickOutside = (e: MouseEvent) => {
+      if (sidebarRef.current && !sidebarRef.current.contains(e.target as Node)) {
+        setExpanded(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [expanded]);
 
   return (
-    <div
+    <aside
+      ref={sidebarRef}
+      onClick={() => !expanded && setExpanded(true)}
       className={cn(
-        "hidden md:flex h-full flex-col border-r border-sidebar-border transition-all duration-200",
-        expanded ? "w-64" : "w-12"
+        "hidden md:flex h-dvh sticky top-0 shrink-0 flex-col border-r border-sidebar-border transition-all duration-200",
+        expanded ? "w-64" : "w-12 cursor-pointer hover:bg-sidebar-accent/50"
       )}
     >
-      <div className="flex-1">
-        <SidebarNav
-          nav={nav}
-          actionButton={actionButton}
-          showSettings={showSettings}
-          expanded={expanded}
-        />
-      </div>
-      <button
-        onClick={() => setExpanded(!expanded)}
-        className="flex items-center justify-center p-2 hover:bg-sidebar-accent border-t border-sidebar-border"
-      >
-        <PanelLeft className={cn("h-4 w-4 transition-transform", !expanded && "rotate-180")} />
-      </button>
-    </div>
+      <SidebarNav
+        nav={nav}
+        actionButton={actionButton}
+        showSettings={showSettings}
+        expanded={expanded}
+      />
+    </aside>
   );
 }
 
@@ -245,12 +253,7 @@ type AppSidebarProps = {
 };
 
 export function AppSidebar({ nav, actionButton, showSettings = true }: AppSidebarProps) {
-  const isMobile = useIsMobile();
-
-  if (isMobile) {
-    return null; // Mobile sidebar is rendered separately via MobileSidebarContent
-  }
-
+  // CSS handles visibility via hidden md:flex - no JS needed, avoids hydration mismatch
   return (
     <DesktopSidebar
       nav={nav}

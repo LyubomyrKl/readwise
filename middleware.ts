@@ -26,15 +26,18 @@ function isAuthRoute(path: string): boolean {
 
 export function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
-  const token = req.cookies.get("access_token")?.value;
+  const accessToken = req.cookies.get("access_token")?.value;
+  const refreshToken = req.cookies.get("refresh_token")?.value;
 
-  // If on auth page and already logged in, redirect to reader
-  if (isAuthRoute(pathname) && token) {
+  // If on auth page and has tokens, redirect to reader
+  // (if access_token expired but refresh_token exists, page will handle refresh)
+  if (isAuthRoute(pathname) && (accessToken || refreshToken)) {
     return NextResponse.redirect(new URL(ROUTES.reader.library, req.url));
   }
 
-  // If protected route and no token, redirect to login
-  if (needsAuth(pathname) && !token) {
+  // If protected route and no tokens at all, redirect to login
+  // Allow through if refresh_token exists - the page will handle token refresh
+  if (needsAuth(pathname) && !accessToken && !refreshToken) {
     const url = new URL(ROUTES.auth.login, req.url);
     url.searchParams.set("next", pathname);
     return NextResponse.redirect(url);

@@ -10,7 +10,6 @@ import {
 import { Library, UploadCloud } from "lucide-react";
 import { usePathname } from "next/navigation";
 import { ROUTES } from "../(consts)/routes";
-import { useIsMobile } from "@/hooks/use-mobile";
 
 const nav: NavItem[] = [
   { title: "Library", icon: Library, href: ROUTES.reader.library },
@@ -25,7 +24,6 @@ const nav: NavItem[] = [
 
 export default function Layout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isMobile = useIsMobile();
   const isBookReaderRoute = pathname?.match(/\/reader\/book\/[^/]+\/reader/) !== null;
 
   if (isBookReaderRoute) {
@@ -37,12 +35,10 @@ export default function Layout({ children }: { children: React.ReactNode }) {
       <div className="flex min-h-dvh">
         <AppSidebar nav={nav} />
         <AppMobileSidebar nav={nav} />
-        <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
-          {isMobile && (
-            <div className="fixed top-3 right-3 z-30 md:hidden">
-              <MobileSidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
-            </div>
-          )}
+        <main className="flex-1 min-h-dvh min-w-0 overflow-y-auto relative">
+          <div className="fixed top-3 right-3 z-30 md:hidden">
+            <MobileSidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
+          </div>
           {children}
         </main>
       </div>

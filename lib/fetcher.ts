@@ -156,12 +156,41 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
 
   if (r.status === 204) return {} as ResOf<M, P>;
 
-  // Handle 401 Unauthorized - redirect to login
+  // Handle 401 Unauthorized - try to refresh token first
   if (r.status === 401) {
-    // Only redirect if we're in the browser
     if (typeof window !== "undefined") {
-      const currentPath = window.location.pathname;
-      window.location.href = `/auth/login?next=${encodeURIComponent(currentPath)}`;
+      try {
+        const refreshResponse = await fetch("/api/auth/refresh", {
+          method: "POST",
+          credentials: "include",
+        });
+
+        if (refreshResponse.ok) {
+          // Retry the original request with new token
+          const retryResponse = await fetch(resolvedPath, {
+            method: method as string,
+            credentials: "include",
+            body: hasBody ? JSON.stringify(body) : undefined,
+            headers: {
+              ...(hasBody ? { "content-type": "application/json" } : {}),
+              ...(init.headers ?? {}),
+            },
+            ...init,
+          });
+
+          if (retryResponse.status === 204) return {} as ResOf<M, P>;
+          if (retryResponse.ok) {
+            return (await retryResponse.json()) as ResOf<M, P>;
+          }
+        }
+
+        // Refresh failed or retry failed - redirect to login
+        const currentPath = window.location.pathname;
+        window.location.href = `/auth/login?next=${encodeURIComponent(currentPath)}`;
+      } catch {
+        const currentPath = window.location.pathname;
+        window.location.href = `/auth/login?next=${encodeURIComponent(currentPath)}`;
+      }
     }
     throw new Error("Unauthorized");
   }

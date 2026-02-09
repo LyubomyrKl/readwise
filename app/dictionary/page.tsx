@@ -77,7 +77,7 @@ export default function DictionaryPage() {
         </div>
         <Link href="/dictionary/new">
           <Button>
-            <Plus className="h-4 w-4 mr-2" />
+            <Plus className="h-4 w-3 mr-2" />
             Add Word
           </Button>
         </Link>
