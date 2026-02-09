@@ -7,6 +7,15 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
+  // Clean up any stuck body styles when sheet unmounts
+  React.useEffect(() => {
+    return () => {
+      // Remove any lingering scroll lock or pointer-events styles on unmount
+      document.body.style.pointerEvents = ''
+      document.body.style.overflow = ''
+    }
+  }, [])
+
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
 }
 
