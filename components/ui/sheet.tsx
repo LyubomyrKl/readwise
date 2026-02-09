@@ -7,12 +7,21 @@ import { XIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 function Sheet({ ...props }: React.ComponentProps<typeof SheetPrimitive.Root>) {
-  // Clean up any stuck body styles when sheet unmounts
+  // Clean up any stuck body/html styles when sheet unmounts
   React.useEffect(() => {
     return () => {
       // Remove any lingering scroll lock or pointer-events styles on unmount
-      document.body.style.pointerEvents = ''
-      document.body.style.overflow = ''
+      // This handles cases where navigation happens before Radix cleanup completes
+      requestAnimationFrame(() => {
+        document.body.style.pointerEvents = ''
+        document.body.style.overflow = ''
+        document.body.style.paddingRight = ''
+        document.body.style.marginRight = ''
+        document.documentElement.style.overflow = ''
+        document.documentElement.style.pointerEvents = ''
+        document.body.removeAttribute('data-scroll-locked')
+        document.documentElement.removeAttribute('data-scroll-locked')
+      })
     }
   }, [])
 
