@@ -110,7 +110,7 @@ function SidebarProvider({
     return () => window.removeEventListener("keydown", handleKeyDown)
   }, [toggleSidebar])
 
-  // Close mobile sidebar on route change to prevent stuck overlays
+  // Close mobile sidebar on route change
   const pathname = usePathname()
   React.useEffect(() => {
     setOpenMobile(false)
@@ -189,7 +189,7 @@ function Sidebar({
 
   if (isMobile) {
     return (
-      <Sheet open={openMobile} onOpenChange={setOpenMobile} modal={false} {...props}>
+      <Sheet open={openMobile} onOpenChange={setOpenMobile} {...props}>
         <SheetContent
           data-sidebar="sidebar"
           data-slot="sidebar"

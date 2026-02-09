@@ -1,6 +1,6 @@
 "use client";
 
-import { SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
+import { SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { AppSidebar, NavItem, ActionButton } from "@/app/(components)/AppSidebar";
 import { Brain, BookOpen, BarChart3, Plus } from "lucide-react";
 import { useRef, useEffect } from "react";
@@ -19,7 +19,11 @@ const actionButton: ActionButton = {
   icon: Plus,
 };
 
-function LayoutInner({ children }: { children: React.ReactNode }) {
+export default function LearningLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { setOpen, open } = useSidebar();
   const sidebarRef = useRef<HTMLDivElement>(null);
   const isMobile = useIsMobile();
@@ -44,7 +48,6 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         <AppSidebar nav={nav} actionButton={actionButton} />
       </div>
       <main className="flex-1 min-h-dvh min-w-0 w-full overflow-y-auto relative">
-        {/* Mobile sidebar trigger - positioned to avoid overlap with page back buttons */}
         {isMobile && (
           <div className="fixed top-3 right-3 z-50 md:hidden">
             <SidebarTrigger className="bg-background/80 backdrop-blur-sm shadow-md border" />
@@ -55,17 +58,5 @@ function LayoutInner({ children }: { children: React.ReactNode }) {
         </div>
       </main>
     </div>
-  );
-}
-
-export default function LearningLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <SidebarProvider defaultOpen={true}>
-      <LayoutInner>{children}</LayoutInner>
-    </SidebarProvider>
   );
 }

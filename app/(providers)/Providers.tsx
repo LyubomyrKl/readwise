@@ -4,7 +4,7 @@ import { ThemeProvider } from "next-themes";
 import { MotionProvider } from "./MotionProvider";
 import { UploadProvider } from "./UploadProvider";
 import { BookCoverProvider } from "./BookCoverProvider/BookCoverProvider";
-import { NavigationCleanup } from "./NavigationCleanup";
+import { SidebarProvider } from "@/components/ui/sidebar";
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
@@ -16,8 +16,9 @@ export function Providers({ children }: { children: React.ReactNode }) {
       <MotionProvider>
         <UploadProvider>
           <BookCoverProvider>
-            <NavigationCleanup />
-            {children}
+            <SidebarProvider defaultOpen={true}>
+              {children}
+            </SidebarProvider>
           </BookCoverProvider>
         </UploadProvider>
       </MotionProvider>
