@@ -233,18 +233,18 @@ export default function BookProfile({
               </DropdownMenu>
 
               <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-                <AlertDialogContent>
+                <AlertDialogContent className="mx-4 sm:mx-auto">
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete Book</AlertDialogTitle>
                     <AlertDialogDescription className="break-words">
                       Are you sure you want to delete &quot;{book.title}&quot;? This action cannot be undone. All notes, highlights, and reading progress will be permanently removed.
                     </AlertDialogDescription>
                   </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+                    <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
                     <AlertDialogAction
                       onClick={handleDelete}
-                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      className="w-full sm:w-auto bg-destructive text-destructive-foreground hover:bg-destructive/90"
                     >
                       Delete
                     </AlertDialogAction>
@@ -261,10 +261,10 @@ export default function BookProfile({
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-8">
           {/* Book Cover & Actions */}
           <div className="lg:col-span-1">
-            <div className="sticky top-24">
+            <div className="lg:sticky lg:top-24">
               {/* Cover with Format Badge */}
               <div
-                className="relative aspect-[3/4] bg-muted rounded-2xl overflow-hidden shadow-lg mb-6"
+                className="relative aspect-[4/3] sm:aspect-[3/4] bg-muted rounded-2xl overflow-hidden shadow-lg mb-6 max-w-[280px] mx-auto lg:max-w-none"
               >
                 {book.coverUrl ? (
                   <img
@@ -355,7 +355,7 @@ export default function BookProfile({
 
                 {/* Summary Options Dialog */}
                 <AlertDialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
-                  <AlertDialogContent className="max-w-lg">
+                  <AlertDialogContent className="max-w-lg mx-4 sm:mx-auto">
                     <AlertDialogHeader>
                       <AlertDialogTitle className="flex items-center gap-2">
                         <Sparkles className="h-5 w-5 text-purple-500" />
@@ -372,7 +372,7 @@ export default function BookProfile({
                         <label className="block text-sm font-medium mb-2">
                           Summarization Strategy
                         </label>
-                        <div className="grid grid-cols-2 gap-2">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                           {SUMMARIZATION_STRATEGIES.map((s) => (
                             <button
                               key={s.value}
@@ -396,12 +396,12 @@ export default function BookProfile({
                           <label className="block text-sm font-medium mb-2">
                             Summary Type
                           </label>
-                          <div className="flex gap-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             {SUMMARY_TYPES.map((type) => (
                               <button
                                 key={type.value}
                                 onClick={() => setSummaryType(type.value)}
-                                className={`flex-1 p-2 rounded-lg border-2 transition-all ${
+                                className={`p-2 rounded-lg border-2 transition-all text-left ${
                                   summaryType === type.value
                                     ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
                                     : 'border-border hover:border-purple-300'
@@ -416,11 +416,11 @@ export default function BookProfile({
                       )}
                     </div>
 
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
+                      <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
                       <AlertDialogAction
                         onClick={handleSummarize}
-                        className="bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
+                        className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
                       >
                         <Sparkles className="h-4 w-4 mr-2" />
                         Generate
@@ -529,7 +529,7 @@ export default function BookProfile({
             </div>
 
             {/* Metadata Grid */}
-            <div className="grid grid-cols-2 gap-3 sm:gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
               <div className="space-y-4">
                 <div className="flex items-center gap-3">
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -667,22 +667,22 @@ export default function BookProfile({
               </h3>
 
               <div className="bg-muted/30 rounded-xl p-4 sm:p-6 space-y-4 sm:space-y-6">
-                <div className="grid grid-cols-3 gap-2 sm:gap-6">
+                <div className="grid grid-cols-3 gap-3 sm:gap-6">
                   {/* Reading Time */}
                   <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold mb-1">
+                    <div className="text-base sm:text-2xl font-bold mb-1">
                       {readingTimeHours > 0
                         ? `${readingTimeHours}h`
                         : `${readingTimeMinutes}m`}
                     </div>
                     <div className="text-[10px] sm:text-xs text-muted-foreground">
-                      Time Spent
+                      Time
                     </div>
                   </div>
 
                   {/* Sessions */}
                   <div className="text-center border-x border-muted">
-                    <div className="text-lg sm:text-2xl font-bold mb-1">
+                    <div className="text-base sm:text-2xl font-bold mb-1">
                       {Math.max(1, Math.floor(book.spentTime / 0.5))}
                     </div>
                     <div className="text-[10px] sm:text-xs text-muted-foreground">
@@ -692,16 +692,15 @@ export default function BookProfile({
 
                   {/* Average */}
                   <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold mb-1">
+                    <div className="text-base sm:text-2xl font-bold mb-1">
                       {Math.round(
                         (book.spentTime /
                           Math.max(1, Math.floor(book.spentTime / 0.5))) *
                           60
-                      )}
-                      m
+                      )}m
                     </div>
                     <div className="text-[10px] sm:text-xs text-muted-foreground">
-                      Avg Session
+                      Avg
                     </div>
                   </div>
                 </div>

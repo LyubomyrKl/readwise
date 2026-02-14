@@ -141,7 +141,7 @@ export function EntryForm() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Word and Part of Speech */}
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="word">
                   Word <span className="text-red-500">*</span>

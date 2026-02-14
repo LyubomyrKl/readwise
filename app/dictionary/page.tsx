@@ -60,31 +60,34 @@ export default function DictionaryPage() {
   return (
     <div className="max-w-4xl mx-auto">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-semibold">Dictionary</h1>
           {stats && (
-            <p className="text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               {stats.totalEntries} entries &bull; {stats.entriesWithCards} with
-              cards &bull;{" "}
+              cards
               {stats.entriesNeedingCards > 0 && (
-                <span className="text-amber-500">
-                  {stats.entriesNeedingCards} need cards
-                </span>
+                <>
+                  {" "}&bull;{" "}
+                  <span className="text-amber-500">
+                    {stats.entriesNeedingCards} need cards
+                  </span>
+                </>
               )}
             </p>
           )}
         </div>
-        <Link href="/dictionary/new">
-          <Button>
-            <Plus className="h-4 w-3 mr-2" />
+        <Link href="/dictionary/new" className="sm:flex-shrink-0">
+          <Button className="w-full sm:w-auto">
+            <Plus className="h-4 w-4 mr-2" />
             Add Word
           </Button>
         </Link>
       </div>
 
       {/* Filters */}
-      <div className="flex gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row gap-3 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -95,7 +98,7 @@ export default function DictionaryPage() {
           />
         </div>
         <Select value={masteryFilter} onValueChange={setMasteryFilter}>
-          <SelectTrigger className="w-[180px]">
+          <SelectTrigger className="w-full sm:w-[180px]">
             <SelectValue placeholder="Filter by mastery" />
           </SelectTrigger>
           <SelectContent>

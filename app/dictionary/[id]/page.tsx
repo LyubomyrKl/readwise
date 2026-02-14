@@ -207,14 +207,14 @@ export default function EntryDetailPage() {
 
       <Card>
         <CardHeader>
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
+          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
               {isEditing ? (
                 <Input
                   name="word"
                   value={formData.word}
                   onChange={handleChange}
-                  className="text-2xl font-bold h-auto py-1 px-2 w-auto"
+                  className="text-2xl font-bold h-auto py-1 px-2 w-full sm:w-auto"
                 />
               ) : (
                 <CardTitle className="text-2xl">{entry.word}</CardTitle>
@@ -225,7 +225,7 @@ export default function EntryDetailPage() {
                 masteryLevel={entry.masteryLevel}
               />
             </div>
-            <div className="flex gap-2">
+            <div className="flex gap-2 self-start">
               {isEditing ? (
                 <>
                   <Button
@@ -309,7 +309,7 @@ export default function EntryDetailPage() {
 
         <CardContent className="space-y-6">
           {/* Part of Speech & Pronunciation */}
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label className="text-sm text-muted-foreground">
                 Part of Speech

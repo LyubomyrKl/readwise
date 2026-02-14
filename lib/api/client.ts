@@ -95,12 +95,14 @@ export async function setTokensToCookies(tokens: Tokens): Promise<void> {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
+    maxAge: 15 * 60, // 15 minutes (matches backend access token TTL)
   });
   cookieStore.set("refresh_token", tokens.refreshToken, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
+    maxAge: 7 * 24 * 60 * 60, // 7 days (matches backend refresh token TTL)
   });
 }
 

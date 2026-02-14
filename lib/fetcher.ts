@@ -1,3 +1,28 @@
+// Refresh lock to prevent concurrent refresh attempts
+let refreshPromise: Promise<boolean> | null = null;
+
+async function refreshTokenOnce(): Promise<boolean> {
+  if (refreshPromise) {
+    return refreshPromise;
+  }
+
+  refreshPromise = (async () => {
+    try {
+      const refreshResponse = await fetch("/api/auth/refresh", {
+        method: "POST",
+        credentials: "include",
+      });
+      return refreshResponse.ok;
+    } catch {
+      return false;
+    } finally {
+      refreshPromise = null;
+    }
+  })();
+
+  return refreshPromise;
+}
+
 import type {
   UpdateSpentTimeDto,
   SetBookToFavoriteDto,
@@ -160,12 +185,9 @@ export async function apiFetch<M extends Methods, P extends Paths<M>>(
   if (r.status === 401) {
     if (typeof window !== "undefined") {
       try {
-        const refreshResponse = await fetch("/api/auth/refresh", {
-          method: "POST",
-          credentials: "include",
-        });
+        const refreshed = await refreshTokenOnce();
 
-        if (refreshResponse.ok) {
+        if (refreshed) {
           // Retry the original request with new token
           const retryResponse = await fetch(resolvedPath, {
             method: method as string,

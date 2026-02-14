@@ -260,7 +260,7 @@ export function CollocationListInput({
 
       {showForm && (
         <div className="space-y-3 p-3 border rounded-md bg-muted/30">
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             <div className="space-y-1">
               <Label htmlFor="new-collocation-phrase" className="text-xs">
                 Phrase *
