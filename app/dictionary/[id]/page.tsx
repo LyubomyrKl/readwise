@@ -35,6 +35,8 @@ import {
 import { MasteryBadge, AgingWarning } from "../components/MasteryBadge";
 import { CreateCardsButton } from "../components/CreateCardsButton";
 import { CollocationInput } from "../components/CollocationInput";
+import { GroupSelector } from "../components/GroupSelector";
+import { RelatedWords } from "../components/RelatedWords";
 import { toast } from "sonner";
 import type { UpdateDictionaryEntryDto } from "@/lib/types";
 
@@ -206,103 +208,109 @@ export default function EntryDetailPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-              {isEditing ? (
-                <Input
-                  name="word"
-                  value={formData.word}
-                  onChange={handleChange}
-                  className="text-2xl font-bold h-auto py-1 px-2 w-full sm:w-auto"
-                />
-              ) : (
-                <CardTitle className="text-2xl">{entry.word}</CardTitle>
-              )}
+        <CardHeader className="pb-4">
+          {/* Mobile: Stack vertically, Desktop: Side by side */}
+          <div className="space-y-3">
+            {/* Title row */}
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex-1 min-w-0">
+                {isEditing ? (
+                  <Input
+                    name="word"
+                    value={formData.word}
+                    onChange={handleChange}
+                    className="text-xl sm:text-2xl font-bold h-auto py-1 px-2"
+                  />
+                ) : (
+                  <CardTitle className="text-xl sm:text-2xl break-words">{entry.word}</CardTitle>
+                )}
+              </div>
+              {/* Action buttons - always visible */}
+              <div className="flex gap-1 sm:gap-2 flex-shrink-0">
+                {isEditing ? (
+                  <>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setIsEditing(false);
+                        setFormData({
+                          word: entry.word,
+                          partOfSpeech: entry.partOfSpeech || "",
+                          pronunciation: entry.pronunciation || "",
+                          definition: entry.definition,
+                          nuance: entry.nuance || "",
+                          personalExample: entry.personalExample,
+                          sourceContext: entry.sourceContext || "",
+                          tags: entry.tags.join(", "),
+                        });
+                      }}
+                      disabled={isSaving}
+                      className="px-2 sm:px-3"
+                    >
+                      <X className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Cancel</span>
+                    </Button>
+                    <Button size="sm" onClick={handleSave} disabled={isSaving} className="px-2 sm:px-3">
+                      {isSaving ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 sm:mr-1" />
+                          <span className="hidden sm:inline">Save</span>
+                        </>
+                      )}
+                    </Button>
+                  </>
+                ) : (
+                  <>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsEditing(true)}
+                      className="px-2 sm:px-3"
+                    >
+                      <Pencil className="h-4 w-4 sm:mr-1" />
+                      <span className="hidden sm:inline">Edit</span>
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" size="sm" className="px-2 sm:px-3">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="max-w-[calc(100vw-2rem)] sm:max-w-lg">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Delete entry?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            This will permanently delete "{entry.word}" from your
+                            dictionary. Any linked learning cards will remain but
+                            will no longer be connected to this entry.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="flex-col sm:flex-row gap-2">
+                          <AlertDialogCancel className="mt-0">Cancel</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDelete}
+                            disabled={isDeleting}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                          >
+                            {isDeleting ? "Deleting..." : "Delete"}
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )}
+              </div>
+            </div>
+            {/* Badges row */}
+            <div className="flex flex-wrap items-center gap-2">
               <MasteryBadge level={entry.masteryLevel} showLabel />
               <AgingWarning
                 createdAt={entry.createdAt}
                 masteryLevel={entry.masteryLevel}
               />
-            </div>
-            <div className="flex gap-2 self-start">
-              {isEditing ? (
-                <>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      setIsEditing(false);
-                      // Reset form data
-                      setFormData({
-                        word: entry.word,
-                        partOfSpeech: entry.partOfSpeech || "",
-                        pronunciation: entry.pronunciation || "",
-                        definition: entry.definition,
-                        nuance: entry.nuance || "",
-                        personalExample: entry.personalExample,
-                        sourceContext: entry.sourceContext || "",
-                        tags: entry.tags.join(", "),
-                      });
-                    }}
-                    disabled={isSaving}
-                  >
-                    <X className="h-4 w-4 mr-1" />
-                    Cancel
-                  </Button>
-                  <Button size="sm" onClick={handleSave} disabled={isSaving}>
-                    {isSaving ? (
-                      <>
-                        <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                        Saving...
-                      </>
-                    ) : (
-                      <>
-                        <Save className="h-4 w-4 mr-1" />
-                        Save
-                      </>
-                    )}
-                  </Button>
-                </>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsEditing(true)}
-                  >
-                    <Pencil className="h-4 w-4 mr-1" />
-                    Edit
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="sm">
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>Delete entry?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          This will permanently delete "{entry.word}" from your
-                          dictionary. Any linked learning cards will remain but
-                          will no longer be connected to this entry.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction
-                          onClick={handleDelete}
-                          disabled={isDeleting}
-                          className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                        >
-                          {isDeleting ? "Deleting..." : "Delete"}
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </>
-              )}
             </div>
           </div>
         </CardHeader>
@@ -433,6 +441,9 @@ export default function EntryDetailPage() {
             removingId={isRemoving}
           />
 
+          {/* Groups */}
+          <GroupSelector entryId={entry.id} />
+
           {/* Tags */}
           <div className="space-y-2">
             <Label className="text-sm text-muted-foreground">Tags</Label>
@@ -461,7 +472,7 @@ export default function EntryDetailPage() {
 
           {/* Cards section */}
           <div className="pt-4 border-t">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <Label className="text-sm text-muted-foreground">
                   Learning Cards
@@ -492,6 +503,11 @@ export default function EntryDetailPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Related Words */}
+      <div className="mt-6">
+        <RelatedWords word={entry.word} />
+      </div>
     </div>
   );
 }

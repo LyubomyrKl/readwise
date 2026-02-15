@@ -6,12 +6,16 @@ import type {
   CollocationResponse,
   CreateCollocationDto,
   CreateDictionaryEntryDto,
+  CreateSemanticGroupDto,
   DictionaryEntryResponse,
   DictionarySearchQuery,
   DictionarySearchResult,
   DictionaryStatsResponse,
   LearningNoteResponse,
+  SemanticGroupResponse,
   UpdateDictionaryEntryDto,
+  UpdateSemanticGroupDto,
+  WordWithRelatedResponse,
 } from "@/lib/types";
 
 // Hook for managing dictionary entries
@@ -268,4 +272,240 @@ export function useDictionarySearch() {
   }, []);
 
   return { results, isSearching, search, clearResults };
+}
+
+// Hook for managing semantic groups
+export function useSemanticGroups() {
+  const [groups, setGroups] = useState<SemanticGroupResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  const fetchGroups = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/dictionary/groups", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch groups");
+      const data = (await response.json()) as SemanticGroupResponse[];
+      setGroups(data);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch groups";
+      setError(message);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const createGroup = useCallback(async (dto: CreateSemanticGroupDto) => {
+    const response = await fetch("/api/dictionary/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(dto),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to create group");
+    }
+    const newGroup = (await response.json()) as SemanticGroupResponse;
+    setGroups((prev) => [...prev, newGroup].sort((a, b) => a.name.localeCompare(b.name)));
+    return newGroup;
+  }, []);
+
+  const updateGroup = useCallback(async (id: string, dto: UpdateSemanticGroupDto) => {
+    const response = await fetch(`/api/dictionary/groups/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(dto),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to update group");
+    }
+    const updated = (await response.json()) as SemanticGroupResponse;
+    setGroups((prev) => prev.map((g) => (g.id === id ? updated : g)));
+    return updated;
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string) => {
+    const response = await fetch(`/api/dictionary/groups/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to delete group");
+    }
+    setGroups((prev) => prev.filter((g) => g.id !== id));
+  }, []);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    fetchGroups();
+  }, [fetchGroups]);
+
+  return {
+    groups,
+    isLoading,
+    error,
+    fetchGroups,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+  };
+}
+
+// Hook for entry group management
+export function useEntryGroups(entryId: string | null) {
+  const [entryGroups, setEntryGroups] = useState<SemanticGroupResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUpdating, setIsUpdating] = useState(false);
+
+  const fetchEntryGroups = useCallback(async () => {
+    if (!entryId) return [];
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/dictionary/entries/${entryId}/groups`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch entry groups");
+      const data = (await response.json()) as SemanticGroupResponse[];
+      setEntryGroups(data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [entryId]);
+
+  const addToGroups = useCallback(
+    async (groupIds: string[]) => {
+      if (!entryId) return;
+      setIsUpdating(true);
+      try {
+        const response = await fetch(`/api/dictionary/entries/${entryId}/groups`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ groupIds }),
+        });
+        if (!response.ok) throw new Error("Failed to add to groups");
+        await fetchEntryGroups();
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [entryId, fetchEntryGroups]
+  );
+
+  const removeFromGroup = useCallback(
+    async (groupId: string) => {
+      if (!entryId) return;
+      setIsUpdating(true);
+      try {
+        const response = await fetch(`/api/dictionary/entries/${entryId}/groups/${groupId}`, {
+          method: "DELETE",
+          credentials: "include",
+        });
+        if (!response.ok) throw new Error("Failed to remove from group");
+        setEntryGroups((prev) => prev.filter((g) => g.id !== groupId));
+      } finally {
+        setIsUpdating(false);
+      }
+    },
+    [entryId]
+  );
+
+  useEffect(() => {
+    if (entryId) {
+      fetchEntryGroups();
+    }
+  }, [entryId, fetchEntryGroups]);
+
+  return {
+    entryGroups,
+    isLoading,
+    isUpdating,
+    fetchEntryGroups,
+    addToGroups,
+    removeFromGroup,
+  };
+}
+
+// Hook for word lookup with related words
+export function useWordLookup() {
+  const [data, setData] = useState<WordWithRelatedResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const lookupWord = useCallback(async (term: string) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/dictionary/word/${encodeURIComponent(term)}`, {
+        credentials: "include",
+      });
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`Word "${term}" not found`);
+        }
+        throw new Error("Failed to lookup word");
+      }
+      const result = (await response.json()) as WordWithRelatedResponse;
+      setData(result);
+      return result;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to lookup word";
+      setError(message);
+      setData(null);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const clear = useCallback(() => {
+    setData(null);
+    setError(null);
+  }, []);
+
+  return { data, isLoading, error, lookupWord, clear };
+}
+
+// Hook for group entries
+export function useGroupEntries(groupId: string | null) {
+  const [entries, setEntries] = useState<DictionarySearchResult[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchEntries = useCallback(async () => {
+    if (!groupId) return [];
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/dictionary/groups/${groupId}/entries`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch group entries");
+      const data = (await response.json()) as DictionarySearchResult[];
+      setEntries(data);
+      return data;
+    } catch {
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId]);
+
+  useEffect(() => {
+    if (groupId) {
+      fetchEntries();
+    }
+  }, [groupId, fetchEntries]);
+
+  return { entries, isLoading, fetchEntries };
 }

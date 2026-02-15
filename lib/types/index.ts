@@ -76,4 +76,10 @@ export type {
   DictionaryEntryResponse,
   DictionaryStatsResponse,
   DictionarySearchResult,
+  CreateSemanticGroupDto,
+  UpdateSemanticGroupDto,
+  AddEntryToGroupsDto,
+  SemanticGroupResponse,
+  RelatedWordResponse,
+  WordWithRelatedResponse,
 } from "./dictionary";

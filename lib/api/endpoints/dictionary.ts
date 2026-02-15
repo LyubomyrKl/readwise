@@ -9,6 +9,10 @@ import type {
   DictionarySearchResult,
   CollocationResponse,
   LearningNoteResponse,
+  CreateSemanticGroupDto,
+  UpdateSemanticGroupDto,
+  SemanticGroupResponse,
+  WordWithRelatedResponse,
 } from "@/lib/types";
 
 export const dictionaryApi = {
@@ -105,6 +109,72 @@ export const dictionaryApi = {
       return client.get<DictionarySearchResult[]>(
         `/dictionary/search?q=${encodeURIComponent(query)}`
       );
+    });
+  },
+
+  // Semantic Groups
+  async getGroups() {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SemanticGroupResponse[]>("/dictionary/groups");
+    });
+  },
+
+  async createGroup(dto: CreateSemanticGroupDto) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.post<SemanticGroupResponse>("/dictionary/groups", dto);
+    });
+  },
+
+  async updateGroup(id: string, dto: UpdateSemanticGroupDto) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.patch<SemanticGroupResponse>(`/dictionary/groups/${id}`, dto);
+    });
+  },
+
+  async deleteGroup(id: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.delete(`/dictionary/groups/${id}`);
+    });
+  },
+
+  async getGroupEntries(groupId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<DictionarySearchResult[]>(`/dictionary/groups/${groupId}/entries`);
+    });
+  },
+
+  // Entry-Group Management
+  async addEntryToGroups(entryId: string, groupIds: string[]) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.post(`/dictionary/entries/${entryId}/groups`, { groupIds });
+    });
+  },
+
+  async removeEntryFromGroup(entryId: string, groupId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.delete(`/dictionary/entries/${entryId}/groups/${groupId}`);
+    });
+  },
+
+  async getEntryGroups(entryId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SemanticGroupResponse[]>(`/dictionary/entries/${entryId}/groups`);
+    });
+  },
+
+  // Word Lookup with Related
+  async getWordWithRelated(term: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<WordWithRelatedResponse>(`/dictionary/word/${encodeURIComponent(term)}`);
     });
   },
 };

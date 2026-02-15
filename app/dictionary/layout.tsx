@@ -8,11 +8,12 @@ import {
   NavItem,
   ActionButton,
 } from "@/app/(components)/AppSidebar";
-import { BookOpen, Plus } from "lucide-react";
+import { BookOpen, Plus, Tags } from "lucide-react";
 import { ROUTES } from "@/app/(consts)/routes";
 
 const nav: NavItem[] = [
   { title: "All Words", icon: BookOpen, href: ROUTES.dictionary.list },
+  { title: "Groups", icon: Tags, href: "/dictionary/groups" },
 ];
 
 const actionButton: ActionButton = {

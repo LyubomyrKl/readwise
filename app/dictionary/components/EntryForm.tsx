@@ -19,6 +19,7 @@ import { Loader2, ArrowLeft, Info, Sparkles } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { CollocationListInput } from "./CollocationInput";
+import { GroupSelectorEdit } from "./GroupSelectorEdit";
 import { useDictionaryEntries, useCreateCards } from "@/hooks/useDictionary";
 import type { CreateDictionaryEntryDto, CreateCollocationDto } from "@/lib/types";
 
@@ -53,6 +54,7 @@ export function EntryForm() {
     tags: "",
   });
   const [collocations, setCollocations] = useState<CreateCollocationDto[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [createCardsAfter, setCreateCardsAfter] = useState(false);
 
   const handleChange = (
@@ -100,6 +102,21 @@ export function EntryForm() {
 
       const entry = await createEntry(dto);
       toast.success(`"${entry.word}" added to dictionary`);
+
+      // Add to groups if any selected
+      if (selectedGroupIds.length > 0) {
+        try {
+          await fetch(`/api/dictionary/entries/${entry.id}/groups`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            credentials: "include",
+            body: JSON.stringify({ groupIds: selectedGroupIds }),
+          });
+        } catch {
+          // Non-critical error, don't block navigation
+          console.error("Failed to add entry to groups");
+        }
+      }
 
       // Optionally create cards
       if (createCardsAfter) {
@@ -272,6 +289,12 @@ export function EntryForm() {
                 onChange={handleChange}
               />
             </div>
+
+            {/* Groups */}
+            <GroupSelectorEdit
+              selectedGroupIds={selectedGroupIds}
+              onChange={setSelectedGroupIds}
+            />
 
             {/* Error */}
             {error && (

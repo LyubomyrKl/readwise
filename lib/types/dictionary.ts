@@ -84,3 +84,45 @@ export interface DictionarySearchResult {
   definition: string;
   masteryLevel: number;
 }
+
+// ===== Semantic Groups =====
+
+export interface CreateSemanticGroupDto {
+  name: string;
+  description?: string;
+  color?: string;
+}
+
+export interface UpdateSemanticGroupDto {
+  name?: string;
+  description?: string;
+  color?: string;
+}
+
+export interface AddEntryToGroupsDto {
+  groupIds: string[];
+}
+
+export interface SemanticGroupResponse {
+  id: string;
+  name: string;
+  description?: string | null;
+  color?: string | null;
+  entryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RelatedWordResponse {
+  id: string;
+  word: string;
+  definition: string;
+  partOfSpeech?: string | null;
+  sharedGroups: string[];
+}
+
+export interface WordWithRelatedResponse {
+  entry: DictionaryEntryResponse;
+  groups: SemanticGroupResponse[];
+  relatedWords: RelatedWordResponse[];
+}
