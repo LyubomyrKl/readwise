@@ -74,7 +74,20 @@ export default function BookSummaryPage() {
 
   if (error)  return <ErrorState error={error}/>
 
-  if (book?.summaryKey && !summary) return <Processing/>
+  // Show processing UI when summary is being generated
+  const isProcessing = book?.status === 'processing' || (book?.summaryKey && !summary);
+  if (isProcessing) {
+    return (
+      <Processing
+        bookId={bookId}
+        onComplete={() => {
+          fetchedRef.current = false;
+          void fetchSummary(bookId);
+        }}
+        onError={(err) => setError(err)}
+      />
+    );
+  }
 
   if (!summary || !summary.sections) {
     return <GenerateSummaryState

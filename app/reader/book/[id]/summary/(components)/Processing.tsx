@@ -1,17 +1,104 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { motion } from "framer-motion";
-import { BookOpen, Sparkles, Brain, FileText } from "lucide-react";
+import { BookOpen, Sparkles, Brain, FileText, CheckCircle2, AlertCircle } from "lucide-react";
+import { apiFetch } from "@/lib/fetcher";
+import type { SummaryStatusResponse } from "@/lib/types";
+
+interface ProcessingProps {
+  bookId: string;
+  onComplete: () => void;
+  onError?: (error: string) => void;
+}
+
+const POLL_INTERVAL = 3000;
 
 const steps = [
-  { icon: BookOpen, label: "Reading content", active: true },
-  { icon: Brain, label: "Analyzing structure", active: true },
-  { icon: Sparkles, label: "Generating insights", active: true },
-  { icon: FileText, label: "Creating summary", active: false },
+  { icon: BookOpen, label: "Reading content", key: "reading" },
+  { icon: Brain, label: "Analyzing structure", key: "analyzing" },
+  { icon: Sparkles, label: "Generating insights", key: "generating" },
+  { icon: FileText, label: "Creating summary", key: "creating" },
 ];
 
-export const Processing = () => {
+export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => {
+  const [status, setStatus] = useState<SummaryStatusResponse["status"]>("processing");
+  const [progress, setProgress] = useState(0);
+  const [currentStep, setCurrentStep] = useState(0);
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const pollStatus = useCallback(async () => {
+    try {
+      const data = await apiFetch<SummaryStatusResponse>("GET", `/api/summarizer/status/${bookId}`);
+      setStatus(data.status);
+
+      if (data.isReady) {
+        setProgress(100);
+        setCurrentStep(steps.length);
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+        setTimeout(() => onComplete(), 500);
+      } else if (data.status === "error") {
+        if (progressIntervalRef.current) {
+          clearInterval(progressIntervalRef.current);
+        }
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+        }
+        onError?.("Summary generation failed. Please try again.");
+      }
+    } catch {
+      // Continue polling on error - it might be a temporary network issue
+    }
+  }, [bookId, onComplete, onError]);
+
+  useEffect(() => {
+    // Start polling
+    pollStatus();
+    pollIntervalRef.current = setInterval(pollStatus, POLL_INTERVAL);
+
+    // Simulate progress (will be overridden when complete)
+    progressIntervalRef.current = setInterval(() => {
+      setProgress((prev) => {
+        // Slow down as we approach 90% (never reach 100% until actually done)
+        if (prev >= 90) return prev;
+        const increment = Math.max(0.5, (90 - prev) / 30);
+        const newProgress = Math.min(90, prev + increment);
+
+        // Update current step based on progress
+        const stepProgress = newProgress / 100;
+        const newStep = Math.min(
+          Math.floor(stepProgress * steps.length),
+          steps.length - 1
+        );
+        setCurrentStep(newStep);
+
+        return newProgress;
+      });
+    }, 500);
+
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [pollStatus]);
+
+  const getStepStatus = (index: number) => {
+    if (status === "error") return "error";
+    if (index < currentStep) return "completed";
+    if (index === currentStep) return "active";
+    return "pending";
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-8">
       <div className="max-w-md w-full">
@@ -23,25 +110,29 @@ export const Processing = () => {
           {/* Animated Icon */}
           <motion.div
             className="relative w-28 h-28 mx-auto mb-8"
-            animate={{ rotate: 360 }}
-            transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+            animate={{ rotate: status === "error" ? 0 : 360 }}
+            transition={{ duration: 20, repeat: status === "error" ? 0 : Infinity, ease: "linear" }}
           >
             <div className="absolute inset-0 rounded-full bg-gradient-to-br from-primary/30 to-primary/5" />
             <motion.div
               className="absolute inset-2 rounded-full bg-gradient-to-br from-primary/20 to-transparent"
-              animate={{ scale: [1, 1.1, 1] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              animate={{ scale: status === "error" ? 1 : [1, 1.1, 1] }}
+              transition={{ duration: 2, repeat: status === "error" ? 0 : Infinity, ease: "easeInOut" }}
             />
             <div className="absolute inset-0 flex items-center justify-center">
               <motion.div
-                animate={{ rotate: -360 }}
-                transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
+                animate={{ rotate: status === "error" ? 0 : -360 }}
+                transition={{ duration: 20, repeat: status === "error" ? 0 : Infinity, ease: "linear" }}
               >
-                <Brain className="w-10 h-10 text-primary" />
+                {status === "error" ? (
+                  <AlertCircle className="w-10 h-10 text-destructive" />
+                ) : (
+                  <Brain className="w-10 h-10 text-primary" />
+                )}
               </motion.div>
             </div>
             {/* Orbiting dots */}
-            {[0, 1, 2].map((i) => (
+            {status !== "error" && [0, 1, 2].map((i) => (
               <motion.div
                 key={i}
                 className="absolute w-3 h-3 rounded-full bg-primary"
@@ -66,56 +157,93 @@ export const Processing = () => {
             ))}
           </motion.div>
 
-          <h2 className="text-2xl font-bold mb-3">Creating Your Summary</h2>
-          <p className="text-muted-foreground mb-8 leading-relaxed">
-            Our AI is analyzing the book and generating a comprehensive summary
-            tailored for you.
+          <h2 className="text-2xl font-bold mb-3">
+            {status === "error" ? "Generation Failed" : "Creating Your Summary"}
+          </h2>
+          <p className="text-muted-foreground mb-6 leading-relaxed">
+            {status === "error"
+              ? "Something went wrong. Please try again."
+              : "Our AI is analyzing the book and generating a comprehensive summary tailored for you."}
           </p>
+
+          {/* Progress Bar */}
+          {status !== "error" && (
+            <div className="mb-8">
+              <div className="flex justify-between text-sm mb-2">
+                <span className="text-muted-foreground">Progress</span>
+                <span className="font-medium">{Math.round(progress)}%</span>
+              </div>
+              <div className="h-2 bg-muted rounded-full overflow-hidden">
+                <motion.div
+                  className="h-full bg-primary rounded-full"
+                  initial={{ width: 0 }}
+                  animate={{ width: `${progress}%` }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                />
+              </div>
+            </div>
+          )}
 
           {/* Processing Steps */}
           <div className="space-y-3 text-left mb-8">
-            {steps.map((step, index) => (
-              <motion.div
-                key={step.label}
-                initial={{ opacity: 0, x: -20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: index * 0.2 }}
-                className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
-              >
-                <div
-                  className={`p-2 rounded-lg ${
-                    step.active
-                      ? "bg-primary/10 text-primary"
-                      : "bg-muted text-muted-foreground"
-                  }`}
+            {steps.map((step, index) => {
+              const stepStatus = getStepStatus(index);
+              return (
+                <motion.div
+                  key={step.label}
+                  initial={{ opacity: 0, x: -20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: index * 0.2 }}
+                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/30"
                 >
-                  <step.icon className="w-4 h-4" />
-                </div>
-                <span
-                  className={
-                    step.active ? "text-foreground" : "text-muted-foreground"
-                  }
-                >
-                  {step.label}
-                </span>
-                {step.active && (
-                  <motion.div
-                    className="ml-auto flex gap-1"
-                    animate={{ opacity: [0.3, 1, 0.3] }}
-                    transition={{ duration: 1.5, repeat: Infinity }}
+                  <div
+                    className={`p-2 rounded-lg ${
+                      stepStatus === "completed"
+                        ? "bg-green-500/10 text-green-500"
+                        : stepStatus === "active"
+                        ? "bg-primary/10 text-primary"
+                        : stepStatus === "error"
+                        ? "bg-destructive/10 text-destructive"
+                        : "bg-muted text-muted-foreground"
+                    }`}
                   >
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
-                    <div className="w-1.5 h-1.5 rounded-full bg-primary/30" />
-                  </motion.div>
-                )}
-              </motion.div>
-            ))}
+                    {stepStatus === "completed" ? (
+                      <CheckCircle2 className="w-4 h-4" />
+                    ) : (
+                      <step.icon className="w-4 h-4" />
+                    )}
+                  </div>
+                  <span
+                    className={
+                      stepStatus === "completed"
+                        ? "text-green-500"
+                        : stepStatus === "active"
+                        ? "text-foreground"
+                        : "text-muted-foreground"
+                    }
+                  >
+                    {step.label}
+                  </span>
+                  {stepStatus === "active" && (
+                    <motion.div
+                      className="ml-auto flex gap-1"
+                      animate={{ opacity: [0.3, 1, 0.3] }}
+                      transition={{ duration: 1.5, repeat: Infinity }}
+                    >
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/60" />
+                      <div className="w-1.5 h-1.5 rounded-full bg-primary/30" />
+                    </motion.div>
+                  )}
+                </motion.div>
+              );
+            })}
           </div>
 
           <div className="text-sm text-muted-foreground">
-            This usually takes 2-3 minutes. Feel free to wait or come back
-            later.
+            {status === "error"
+              ? "Please go back and try generating again."
+              : "This usually takes 2-3 minutes. Feel free to wait or come back later."}
           </div>
         </motion.div>
       </div>

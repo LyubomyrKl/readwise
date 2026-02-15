@@ -90,3 +90,10 @@ export interface SummaryRequestResponse {
   bookId: string;
   status: string;
 }
+
+export interface SummaryStatusResponse {
+  status: 'pending' | 'processing' | 'ready' | 'error';
+  bookId: string;
+  isReady: boolean;
+  summaryKey?: string;
+}

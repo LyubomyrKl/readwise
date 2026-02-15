@@ -39,6 +39,7 @@ export type {
   Summary,
   SummaryResponse,
   SummaryRequestResponse,
+  SummaryStatusResponse,
 } from "./summarizer";
 
 export { SUMMARY_TYPES, SUMMARIZATION_STRATEGIES } from "./summarizer";

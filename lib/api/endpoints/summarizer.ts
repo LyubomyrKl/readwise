@@ -4,6 +4,7 @@ import type {
   GetSummaryDto,
   SummaryRequestResponse,
   SummaryResponse,
+  SummaryStatusResponse,
 } from "@/lib/types";
 
 export const summarizerApi = {
@@ -18,6 +19,13 @@ export const summarizerApi = {
     return withRefresh(() => {
       const client = getClient();
       return client.post<SummaryResponse>("/summarizer/summary", dto);
+    });
+  },
+
+  async getStatus(bookId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SummaryStatusResponse>(`/summarizer/status/${bookId}`);
     });
   },
 };
