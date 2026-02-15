@@ -2,7 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { RabbitMQService } from '@/infrastructure/rabbitmq/rabbitmq.service';
 import { S3Service } from '@/infrastructure/s3/s3.service';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
-import { SummaryRequestResponse, SummaryResponse } from './summarizer.models';
+import { SummaryRequestResponse, SummaryResponse, SummaryStatusResponse } from './summarizer.models';
 import {
   BOOK_WITH_RELATIONS,
   convertBookToResponse,
@@ -79,6 +79,28 @@ export class SummarizerService {
     return {
       ...convertedBook,
       summary,
+    };
+  }
+
+  async getSummaryStatus(userId: string, bookId: string): Promise<SummaryStatusResponse> {
+    const book = await this.prisma.book.findFirst({
+      where: { id: bookId, userId },
+      select: {
+        id: true,
+        status: true,
+        summaryStorageKey: true
+      },
+    });
+
+    if (!book) {
+      throw new NotFoundException(BOOK_ERROR_MESSAGES.BOOK_NOT_FOUND);
+    }
+
+    return {
+      status: book.status,
+      bookId: book.id,
+      isReady: book.status === 'ready' && !!book.summaryStorageKey,
+      summaryKey: book.summaryStorageKey ?? undefined,
     };
   }
 }

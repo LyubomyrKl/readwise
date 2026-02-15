@@ -1,4 +1,4 @@
-import { Body, Controller, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 
 import { SummarizerService } from './summarizer.service';
@@ -7,6 +7,7 @@ import {
   GetSummaryDto,
   SummaryRequestResponse,
   SummaryResponse,
+  SummaryStatusResponse,
 } from './summarizer.models';
 
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
@@ -38,5 +39,14 @@ export class SummarizerController {
     @Body() dto: GetSummaryDto,
   ): Promise<SummaryResponse> {
     return this.summarizerService.getSummaryByBookId(req.user.userId, dto.bookId);
+  }
+
+  @Get('status/:bookId')
+  @ApiEndpoint({ summary: 'Get summary generation status', response: SummaryStatusResponse })
+  getStatus(
+    @Req() req: UserModel,
+    @Param('bookId') bookId: string,
+  ): Promise<SummaryStatusResponse> {
+    return this.summarizerService.getSummaryStatus(req.user.userId, bookId);
   }
 }

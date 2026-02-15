@@ -91,3 +91,30 @@ export class SummaryResponse extends BookResponse{
   })
   summary: Record<string, unknown>;
 }
+
+export class SummaryStatusResponse {
+  @ApiProperty({
+    description: 'Current status of the summary generation',
+    enum: ['pending', 'processing', 'ready', 'error'],
+    example: 'processing',
+  })
+  status: string;
+
+  @ApiProperty({
+    description: 'Book ID',
+    example: 'book-uuid-here',
+  })
+  bookId: string;
+
+  @ApiProperty({
+    description: 'Whether the summary is ready',
+    example: false,
+  })
+  isReady: boolean;
+
+  @ApiPropertyOptional({
+    description: 'S3 key of the summary (when ready)',
+    example: 'summaries/user-123/book-456/summary.json',
+  })
+  summaryKey?: string;
+}
