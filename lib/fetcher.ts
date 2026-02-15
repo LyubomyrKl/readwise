@@ -41,6 +41,7 @@ import type {
   AuthBundle,
   Tokens,
   SummaryRequestResponse,
+  SummaryStatusResponse,
   CreateLearningNoteDto,
   UpdateLearningNoteDto,
   ValidateNoteDto,
@@ -86,6 +87,8 @@ type ApiRegistry = {
     "/api/dictionary/entries/[id]": { req: undefined; res: DictionaryEntryResponse };
     "/api/dictionary/stats": { req: undefined; res: DictionaryStatsResponse };
     "/api/dictionary/search": { req: undefined; res: DictionarySearchResult[] };
+    // Summarizer endpoints
+    "/api/summarizer/status/[bookId]": { req: undefined; res: SummaryStatusResponse };
   };
   DELETE: {
     "/api/books/[id]": { req: undefined; res: { status: string } };

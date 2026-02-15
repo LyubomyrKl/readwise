@@ -6,6 +6,8 @@ import { BookOpen, Sparkles, Brain, FileText, CheckCircle2, AlertCircle } from "
 import { apiFetch } from "@/lib/fetcher";
 import type { SummaryStatusResponse } from "@/lib/types";
 
+type BookStatus = SummaryStatusResponse["status"];
+
 interface ProcessingProps {
   bookId: string;
   onComplete: () => void;
@@ -22,7 +24,7 @@ const steps = [
 ];
 
 export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => {
-  const [status, setStatus] = useState<SummaryStatusResponse["status"]>("processing");
+  const [status, setStatus] = useState<BookStatus>("processing");
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
@@ -30,7 +32,7 @@ export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => 
 
   const pollStatus = useCallback(async () => {
     try {
-      const data = await apiFetch<SummaryStatusResponse>("GET", `/api/summarizer/status/${bookId}`);
+      const data = await apiFetch("GET", "/api/summarizer/status/[bookId]", undefined, { bookId });
       setStatus(data.status);
 
       if (data.isReady) {
