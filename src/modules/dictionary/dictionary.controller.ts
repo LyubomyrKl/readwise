@@ -20,6 +20,11 @@ import {
   DictionaryStatsResponse,
   DictionarySearchResult,
   CollocationResponse,
+  CreateSemanticGroupDto,
+  UpdateSemanticGroupDto,
+  AddEntryToGroupsDto,
+  SemanticGroupResponse,
+  WordWithRelatedResponse,
 } from './dictionary.models';
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@/app.models';
@@ -138,5 +143,103 @@ export class DictionaryController {
     @Query('q') query: string,
   ): Promise<DictionarySearchResult[]> {
     return this.dictionaryService.searchEntries(req.user.userId, query);
+  }
+
+  // ===== Semantic Groups =====
+
+  @Get('groups')
+  @ApiEndpoint({ summary: 'Get all semantic groups', response: [SemanticGroupResponse] })
+  getGroups(@Req() req: UserModel): Promise<SemanticGroupResponse[]> {
+    return this.dictionaryService.getGroups(req.user.userId);
+  }
+
+  @Post('groups')
+  @ApiEndpoint({ summary: 'Create a semantic group', response: SemanticGroupResponse })
+  createGroup(
+    @Req() req: UserModel,
+    @Body() dto: CreateSemanticGroupDto,
+  ): Promise<SemanticGroupResponse> {
+    return this.dictionaryService.createGroup(req.user.userId, dto);
+  }
+
+  @Patch('groups/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Update a semantic group', response: SemanticGroupResponse })
+  updateGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Body() dto: UpdateSemanticGroupDto,
+  ): Promise<SemanticGroupResponse> {
+    return this.dictionaryService.updateGroup(req.user.userId, id, dto);
+  }
+
+  @Delete('groups/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Delete a semantic group', response: SuccessEmptyResponse })
+  async deleteGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SuccessEmptyResponse> {
+    await this.dictionaryService.deleteGroup(req.user.userId, id);
+    return { status: 'success' };
+  }
+
+  @Get('groups/:id/entries')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get all entries in a semantic group', response: [DictionarySearchResult] })
+  getGroupEntries(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<DictionarySearchResult[]> {
+    return this.dictionaryService.getGroupEntries(req.user.userId, id);
+  }
+
+  // ===== Entry-Group Management =====
+
+  @Post('entries/:id/groups')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Add entry to semantic groups', response: SuccessEmptyResponse })
+  async addEntryToGroups(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Body() dto: AddEntryToGroupsDto,
+  ): Promise<SuccessEmptyResponse> {
+    await this.dictionaryService.addEntryToGroups(req.user.userId, id, dto.groupIds);
+    return { status: 'success' };
+  }
+
+  @Delete('entries/:id/groups/:groupId')
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'groupId' })
+  @ApiEndpoint({ summary: 'Remove entry from a semantic group', response: SuccessEmptyResponse })
+  async removeEntryFromGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Param('groupId') groupId: string,
+  ): Promise<SuccessEmptyResponse> {
+    await this.dictionaryService.removeEntryFromGroup(req.user.userId, id, groupId);
+    return { status: 'success' };
+  }
+
+  @Get('entries/:id/groups')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get groups for an entry', response: [SemanticGroupResponse] })
+  getEntryGroups(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SemanticGroupResponse[]> {
+    return this.dictionaryService.getEntryGroups(req.user.userId, id);
+  }
+
+  // ===== Word Lookup with Related =====
+
+  @Get('word/:term')
+  @ApiParam({ name: 'term', description: 'The word to look up' })
+  @ApiEndpoint({ summary: 'Get word with its groups and related words', response: WordWithRelatedResponse })
+  getWordWithRelated(
+    @Req() req: UserModel,
+    @Param('term') term: string,
+  ): Promise<WordWithRelatedResponse> {
+    return this.dictionaryService.getWordWithRelated(req.user.userId, term);
   }
 }

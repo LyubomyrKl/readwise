@@ -221,6 +221,7 @@ model User {
 
   // Dictionary system
   dictionaryEntries  DictionaryEntry[]
+  semanticGroups     SemanticGroup[]
 }
 
 // ===== learning.model.prisma =====
@@ -406,9 +407,10 @@ model DictionaryEntry {
   updatedAt       DateTime @updatedAt
   deletedAt       DateTime?
 
-  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  collocations  Collocation[]
-  learningNotes LearningNote[]
+  user           User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  collocations   Collocation[]
+  learningNotes  LearningNote[]
+  semanticGroups EntrySemanticGroup[]
 
   @@unique([userId, word])
   @@index([userId, word])
@@ -427,4 +429,32 @@ model Collocation {
   entry DictionaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
 
   @@index([entryId])
+}
+
+model SemanticGroup {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  color       String?          // For UI display (hex color)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  entries EntrySemanticGroup[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model EntrySemanticGroup {
+  entryId   String
+  groupId   String
+  createdAt DateTime @default(now())
+
+  entry DictionaryEntry @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  group SemanticGroup   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+
+  @@id([entryId, groupId])
+  @@index([groupId])
 }

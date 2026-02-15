@@ -274,3 +274,98 @@ export class DictionarySearchResult {
   @ApiProperty()
   masteryLevel!: number;
 }
+
+// ===== Semantic Groups =====
+
+export class CreateSemanticGroupDto {
+  @ApiProperty({ description: 'Group name (e.g., "emotions", "cooking verbs")' })
+  @IsString()
+  @IsNotEmpty()
+  name!: string;
+
+  @ApiPropertyOptional({ description: 'Description of the group' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Hex color for UI display (e.g., "#3B82F6")' })
+  @IsOptional()
+  @IsString()
+  color?: string;
+}
+
+export class UpdateSemanticGroupDto {
+  @ApiPropertyOptional({ description: 'Group name' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional({ description: 'Description of the group' })
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ description: 'Hex color for UI display' })
+  @IsOptional()
+  @IsString()
+  color?: string;
+}
+
+export class AddEntryToGroupsDto {
+  @ApiProperty({ description: 'Group IDs to add the entry to', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  groupIds!: string[];
+}
+
+export class SemanticGroupResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiPropertyOptional()
+  description?: string | null;
+
+  @ApiPropertyOptional()
+  color?: string | null;
+
+  @ApiProperty({ description: 'Number of entries in this group' })
+  entryCount!: number;
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  updatedAt!: Date;
+}
+
+export class RelatedWordResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  word!: string;
+
+  @ApiProperty()
+  definition!: string;
+
+  @ApiPropertyOptional()
+  partOfSpeech?: string | null;
+
+  @ApiProperty({ description: 'Names of groups shared with the queried word', type: [String] })
+  sharedGroups!: string[];
+}
+
+export class WordWithRelatedResponse {
+  @ApiProperty({ type: DictionaryEntryResponse })
+  entry!: DictionaryEntryResponse;
+
+  @ApiProperty({ type: [SemanticGroupResponse] })
+  groups!: SemanticGroupResponse[];
+
+  @ApiProperty({ description: 'Related words from shared groups, ordered by overlap', type: [RelatedWordResponse] })
+  relatedWords!: RelatedWordResponse[];
+}

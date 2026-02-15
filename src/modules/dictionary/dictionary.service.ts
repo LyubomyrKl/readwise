@@ -17,6 +17,11 @@ import {
   DictionaryStatsResponse,
   DictionarySearchResult,
   CollocationResponse,
+  CreateSemanticGroupDto,
+  UpdateSemanticGroupDto,
+  SemanticGroupResponse,
+  RelatedWordResponse,
+  WordWithRelatedResponse,
 } from './dictionary.models';
 
 // Type for dictionary entry with includes
@@ -34,6 +39,10 @@ type CollocationData = Prisma.CollocationGetPayload<object>;
 
 @Injectable()
 export class DictionaryService {
+  // Simple in-memory cache for related words lookup
+  private relatedWordsCache = new Map<string, { data: WordWithRelatedResponse; expiresAt: number }>();
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly learningService: LearningService,
@@ -502,5 +511,397 @@ export class DictionaryService {
       createdAt: entry.createdAt,
       updatedAt: entry.updatedAt,
     };
+  }
+
+  // ===== Semantic Groups =====
+
+  async getGroups(userId: string): Promise<SemanticGroupResponse[]> {
+    const groups = await this.prisma.semanticGroup.findMany({
+      where: { userId },
+      include: {
+        _count: { select: { entries: true } },
+      },
+      orderBy: { name: 'asc' },
+    });
+
+    return groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      description: g.description,
+      color: g.color,
+      entryCount: g._count.entries,
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt,
+    }));
+  }
+
+  async createGroup(
+    userId: string,
+    dto: CreateSemanticGroupDto,
+  ): Promise<SemanticGroupResponse> {
+    const existing = await this.prisma.semanticGroup.findFirst({
+      where: { userId, name: { equals: dto.name, mode: 'insensitive' } },
+    });
+
+    if (existing) {
+      throw new ConflictException(`Group "${dto.name}" already exists`);
+    }
+
+    const group = await this.prisma.semanticGroup.create({
+      data: {
+        userId,
+        name: dto.name,
+        description: dto.description || null,
+        color: dto.color || null,
+      },
+    });
+
+    return {
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      color: group.color,
+      entryCount: 0,
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    };
+  }
+
+  async updateGroup(
+    userId: string,
+    groupId: string,
+    dto: UpdateSemanticGroupDto,
+  ): Promise<SemanticGroupResponse> {
+    const group = await this.prisma.semanticGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Semantic group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to update this group');
+    }
+
+    if (dto.name && dto.name.toLowerCase() !== group.name.toLowerCase()) {
+      const existing = await this.prisma.semanticGroup.findFirst({
+        where: {
+          userId,
+          name: { equals: dto.name, mode: 'insensitive' },
+          id: { not: groupId },
+        },
+      });
+
+      if (existing) {
+        throw new ConflictException(`Group "${dto.name}" already exists`);
+      }
+    }
+
+    const updated = await this.prisma.semanticGroup.update({
+      where: { id: groupId },
+      data: {
+        name: dto.name,
+        description: dto.description,
+        color: dto.color,
+      },
+      include: {
+        _count: { select: { entries: true } },
+      },
+    });
+
+    return {
+      id: updated.id,
+      name: updated.name,
+      description: updated.description,
+      color: updated.color,
+      entryCount: updated._count.entries,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    };
+  }
+
+  async deleteGroup(userId: string, groupId: string): Promise<void> {
+    const group = await this.prisma.semanticGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Semantic group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to delete this group');
+    }
+
+    await this.prisma.semanticGroup.delete({
+      where: { id: groupId },
+    });
+  }
+
+  // ===== Entry-Group Management =====
+
+  async addEntryToGroups(
+    userId: string,
+    entryId: string,
+    groupIds: string[],
+  ): Promise<void> {
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: { id: entryId, deletedAt: null },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Dictionary entry not found');
+    }
+
+    if (entry.userId !== userId) {
+      throw new ForbiddenException('Not authorized to modify this entry');
+    }
+
+    // Verify all groups belong to user
+    const groups = await this.prisma.semanticGroup.findMany({
+      where: { id: { in: groupIds }, userId },
+    });
+
+    if (groups.length !== groupIds.length) {
+      throw new NotFoundException('One or more groups not found');
+    }
+
+    // Create associations (skip existing)
+    await this.prisma.entrySemanticGroup.createMany({
+      data: groupIds.map((groupId) => ({
+        entryId,
+        groupId,
+      })),
+      skipDuplicates: true,
+    });
+
+    // Invalidate cache for this user
+    this.invalidateUserCache(userId);
+  }
+
+  async removeEntryFromGroup(
+    userId: string,
+    entryId: string,
+    groupId: string,
+  ): Promise<void> {
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: { id: entryId, deletedAt: null },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Dictionary entry not found');
+    }
+
+    if (entry.userId !== userId) {
+      throw new ForbiddenException('Not authorized to modify this entry');
+    }
+
+    await this.prisma.entrySemanticGroup.deleteMany({
+      where: { entryId, groupId },
+    });
+
+    // Invalidate cache for this user
+    this.invalidateUserCache(userId);
+  }
+
+  async getEntryGroups(userId: string, entryId: string): Promise<SemanticGroupResponse[]> {
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: { id: entryId, deletedAt: null },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Dictionary entry not found');
+    }
+
+    if (entry.userId !== userId) {
+      throw new ForbiddenException('Not authorized to access this entry');
+    }
+
+    const associations = await this.prisma.entrySemanticGroup.findMany({
+      where: { entryId },
+      include: {
+        group: {
+          include: {
+            _count: { select: { entries: true } },
+          },
+        },
+      },
+    });
+
+    return associations.map((a) => ({
+      id: a.group.id,
+      name: a.group.name,
+      description: a.group.description,
+      color: a.group.color,
+      entryCount: a.group._count.entries,
+      createdAt: a.group.createdAt,
+      updatedAt: a.group.updatedAt,
+    }));
+  }
+
+  async getGroupEntries(
+    userId: string,
+    groupId: string,
+  ): Promise<DictionarySearchResult[]> {
+    const group = await this.prisma.semanticGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Semantic group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to access this group');
+    }
+
+    const associations = await this.prisma.entrySemanticGroup.findMany({
+      where: { groupId },
+      include: {
+        entry: {
+          select: {
+            id: true,
+            word: true,
+            partOfSpeech: true,
+            definition: true,
+            masteryLevel: true,
+            deletedAt: true,
+          },
+        },
+      },
+      orderBy: { entry: { word: 'asc' } },
+    });
+
+    return associations
+      .filter((a) => a.entry.deletedAt === null)
+      .map((a) => ({
+        id: a.entry.id,
+        word: a.entry.word,
+        partOfSpeech: a.entry.partOfSpeech,
+        definition: a.entry.definition,
+        masteryLevel: a.entry.masteryLevel,
+      }));
+  }
+
+  // ===== Cache Helpers =====
+
+  private getCacheKey(userId: string, term: string): string {
+    return `${userId}:${term.toLowerCase()}`;
+  }
+
+  private invalidateUserCache(userId: string): void {
+    for (const key of this.relatedWordsCache.keys()) {
+      if (key.startsWith(`${userId}:`)) {
+        this.relatedWordsCache.delete(key);
+      }
+    }
+  }
+
+  // ===== Word Lookup with Related Words =====
+
+  async getWordWithRelated(userId: string, term: string): Promise<WordWithRelatedResponse> {
+    // Check cache first
+    const cacheKey = this.getCacheKey(userId, term);
+    const cached = this.relatedWordsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return cached.data;
+    }
+
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: {
+        userId,
+        word: { equals: term, mode: 'insensitive' },
+        deletedAt: null,
+      },
+      include: {
+        collocations: true,
+        learningNotes: {
+          where: { deletedAt: null },
+          select: { id: true },
+        },
+        semanticGroups: {
+          include: {
+            group: {
+              include: {
+                _count: { select: { entries: true } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!entry) {
+      throw new NotFoundException(`Word "${term}" not found`);
+    }
+
+    const entryResponse = this.mapEntryToResponse(entry);
+
+    const groups: SemanticGroupResponse[] = entry.semanticGroups.map((sg) => ({
+      id: sg.group.id,
+      name: sg.group.name,
+      description: sg.group.description,
+      color: sg.group.color,
+      entryCount: sg.group._count.entries,
+      createdAt: sg.group.createdAt,
+      updatedAt: sg.group.updatedAt,
+    }));
+
+    // Find related words from shared groups
+    const groupIds = entry.semanticGroups.map((sg) => sg.groupId);
+    let relatedWords: RelatedWordResponse[] = [];
+
+    if (groupIds.length > 0) {
+      const relatedEntries = await this.prisma.dictionaryEntry.findMany({
+        where: {
+          userId,
+          deletedAt: null,
+          id: { not: entry.id },
+          semanticGroups: {
+            some: { groupId: { in: groupIds } },
+          },
+        },
+        include: {
+          semanticGroups: {
+            where: { groupId: { in: groupIds } },
+            include: { group: true },
+          },
+        },
+        orderBy: { word: 'asc' },
+      });
+
+      // Build related words with shared group names
+      const relatedWithCounts = relatedEntries.map((re) => {
+        const sharedGroups = re.semanticGroups.map((sg) => sg.group.name);
+        return {
+          id: re.id,
+          word: re.word,
+          definition: re.definition,
+          partOfSpeech: re.partOfSpeech,
+          sharedGroups,
+          overlapCount: sharedGroups.length,
+        };
+      });
+
+      // Sort by overlap count (most shared groups first)
+      relatedWithCounts.sort((a, b) => b.overlapCount - a.overlapCount);
+
+      relatedWords = relatedWithCounts.map(({ overlapCount: _overlapCount, ...rest }) => rest);
+    }
+
+    const result: WordWithRelatedResponse = {
+      entry: entryResponse,
+      groups,
+      relatedWords,
+    };
+
+    // Cache the result
+    this.relatedWordsCache.set(cacheKey, {
+      data: result,
+      expiresAt: Date.now() + this.CACHE_TTL_MS,
+    });
+
+    return result;
   }
 }
