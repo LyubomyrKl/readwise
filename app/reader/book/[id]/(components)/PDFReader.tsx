@@ -573,11 +573,11 @@ function PDFReaderContent({
       )}
 
       {/* PDF Viewport */}
-      <div className="absolute inset-0">
+      <div className="absolute inset-0" data-pdf-viewport>
         <Viewport style={{ height: "100%", width: "100%" }}>
           <Scroller
             renderPage={({ width, height, pageIndex }) => (
-              <div style={{ width, height }}>
+              <div style={{ width, height }} data-page-index={pageIndex}>
                 <CrispRenderLayer
                   pageIndex={pageIndex}
                   baseDpr={devicePixelRatio}

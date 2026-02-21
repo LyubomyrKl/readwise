@@ -15,26 +15,37 @@ interface PdfGestureResult {
   isZooming: boolean;
 }
 
-interface TouchState {
+interface PinchState {
   initialDistance: number;
   initialZoom: number;
-  lastDistance: number;
-  center: { x: number; y: number };
+  centerX: number;
+  centerY: number;
 }
 
-// Calculate distance between two touch points
-function getDistance(touch1: Touch, touch2: Touch): number {
-  const dx = touch1.clientX - touch2.clientX;
-  const dy = touch1.clientY - touch2.clientY;
+function getDistance(t1: Touch, t2: Touch): number {
+  const dx = t1.clientX - t2.clientX;
+  const dy = t1.clientY - t2.clientY;
   return Math.sqrt(dx * dx + dy * dy);
 }
 
-// Calculate center point between two touches
-function getCenter(touch1: Touch, touch2: Touch): { x: number; y: number } {
+function getCenter(t1: Touch, t2: Touch): { x: number; y: number } {
   return {
-    x: (touch1.clientX + touch2.clientX) / 2,
-    y: (touch1.clientY + touch2.clientY) / 2,
+    x: (t1.clientX + t2.clientX) / 2,
+    y: (t1.clientY + t2.clientY) / 2,
   };
+}
+
+// Find the content element to apply transform to
+function findContentElement(container: HTMLElement): HTMLElement | null {
+  const viewport = container.querySelector('[data-pdf-viewport]');
+  if (viewport) {
+    // Find the first child that contains pages
+    const firstPage = viewport.querySelector('[data-page-index]');
+    if (firstPage && firstPage.parentElement) {
+      return firstPage.parentElement as HTMLElement;
+    }
+  }
+  return null;
 }
 
 export function usePdfGestures({
@@ -45,164 +56,168 @@ export function usePdfGestures({
   onZoomChange,
   enabled = true,
 }: PdfGestureOptions): PdfGestureResult {
-  const touchStateRef = useRef<TouchState | null>(null);
+  const pinchRef = useRef<PinchState | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
-  const isPinchingRef = useRef(false);
+  const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentZoomRef = useRef(currentZoom);
-  const zoomEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const visualScaleRef = useRef(1);
+  const contentElRef = useRef<HTMLElement | null>(null);
   const [isZooming, setIsZooming] = useState(false);
 
-  // Keep zoom ref updated
   useEffect(() => {
     currentZoomRef.current = currentZoom;
   }, [currentZoom]);
 
-  // Helper to mark zooming started
-  const startZooming = useCallback(() => {
-    if (zoomEndTimeoutRef.current) {
-      clearTimeout(zoomEndTimeoutRef.current);
-      zoomEndTimeoutRef.current = null;
-    }
+  const clamp = useCallback(
+    (z: number) => Math.max(minZoom, Math.min(maxZoom, z)),
+    [minZoom, maxZoom]
+  );
+
+  const startZoom = useCallback(() => {
+    if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
     setIsZooming(true);
   }, []);
 
-  // Helper to mark zooming ended (with delay for stabilization)
-  const endZooming = useCallback(() => {
-    if (zoomEndTimeoutRef.current) {
-      clearTimeout(zoomEndTimeoutRef.current);
-    }
-    zoomEndTimeoutRef.current = setTimeout(() => {
-      setIsZooming(false);
-      zoomEndTimeoutRef.current = null;
-    }, 50);
+  const endZoom = useCallback(() => {
+    if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
+    zoomTimeoutRef.current = setTimeout(() => setIsZooming(false), 150);
   }, []);
 
-  const clampZoom = useCallback(
-    (zoom: number) => Math.max(minZoom, Math.min(maxZoom, zoom)),
-    [minZoom, maxZoom]
-  );
+  // Apply visual transform during pinch (no re-render)
+  const applyVisualZoom = useCallback((scale: number, centerX: number, centerY: number) => {
+    const content = contentElRef.current;
+    if (content) {
+      visualScaleRef.current = scale;
+      content.style.transformOrigin = `${centerX}px ${centerY}px`;
+      content.style.transform = `scale(${scale})`;
+    }
+  }, []);
+
+  // Reset visual transform
+  const resetVisualZoom = useCallback(() => {
+    const content = contentElRef.current;
+    if (content) {
+      content.style.transform = '';
+      content.style.transformOrigin = '';
+      visualScaleRef.current = 1;
+    }
+  }, []);
 
   useEffect(() => {
     const container = containerRef.current;
     if (!container || !enabled) return;
 
-    // Handle touch start
-    const handleTouchStart = (e: TouchEvent) => {
+    const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
-        // Pinch start
         e.preventDefault();
-        isPinchingRef.current = true;
-        startZooming();
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const distance = getDistance(touch1, touch2);
+        startZoom();
 
-        touchStateRef.current = {
-          initialDistance: distance,
+        // Find content element for visual transform
+        if (!contentElRef.current) {
+          contentElRef.current = findContentElement(container);
+        }
+
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const center = getCenter(t1, t2);
+        const rect = container.getBoundingClientRect();
+
+        pinchRef.current = {
+          initialDistance: getDistance(t1, t2),
           initialZoom: currentZoomRef.current,
-          lastDistance: distance,
-          center: getCenter(touch1, touch2),
+          centerX: center.x - rect.left,
+          centerY: center.y - rect.top,
         };
       } else if (e.touches.length === 1) {
-        // Single touch - check for double tap
+        // Double tap detection
         const now = Date.now();
-        const touch = e.touches[0];
-        const lastTap = lastTapRef.current;
+        const t = e.touches[0];
+        const last = lastTapRef.current;
 
         if (
-          lastTap &&
-          now - lastTap.time < 300 &&
-          Math.abs(touch.clientX - lastTap.x) < 30 &&
-          Math.abs(touch.clientY - lastTap.y) < 30
+          last &&
+          now - last.time < 300 &&
+          Math.abs(t.clientX - last.x) < 30 &&
+          Math.abs(t.clientY - last.y) < 30
         ) {
-          // Double tap detected
           e.preventDefault();
-          startZooming();
-          const zoom = currentZoomRef.current;
-          // Toggle between 1x and 2x zoom
-          const newZoom = zoom < 1.5 ? 2 : 1;
-          onZoomChange(clampZoom(newZoom));
-          endZooming();
+          startZoom();
+          const newZoom = clamp(currentZoomRef.current < 1.5 ? 2 : 1);
+          onZoomChange(newZoom);
+          endZoom();
           lastTapRef.current = null;
         } else {
-          lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
+          lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
         }
       }
     };
 
-    // Handle touch move
-    const handleTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && touchStateRef.current) {
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && pinchRef.current) {
         e.preventDefault();
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const currentDistance = getDistance(touch1, touch2);
-        const state = touchStateRef.current;
 
-        // Calculate zoom based on pinch scale
-        const scale = currentDistance / state.initialDistance;
-        const newZoom = clampZoom(state.initialZoom * scale);
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const dist = getDistance(t1, t2);
+        const scale = dist / pinchRef.current.initialDistance;
 
-        // Only update if zoom changed meaningfully
-        if (Math.abs(newZoom - currentZoomRef.current) > 0.01) {
-          onZoomChange(newZoom);
-        }
+        // Calculate the target zoom
+        const targetZoom = clamp(pinchRef.current.initialZoom * scale);
+        // Calculate visual scale relative to current zoom
+        const visualScale = targetZoom / currentZoomRef.current;
 
-        state.lastDistance = currentDistance;
-        state.center = getCenter(touch1, touch2);
+        // Apply visual transform (smooth, no re-render)
+        applyVisualZoom(visualScale, pinchRef.current.centerX, pinchRef.current.centerY);
       }
     };
 
-    // Handle touch end
-    const handleTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2) {
-        // Pinch ended
-        if (isPinchingRef.current) {
-          isPinchingRef.current = false;
-          touchStateRef.current = null;
-          endZooming();
+    const onTouchEnd = (e: TouchEvent) => {
+      if (e.touches.length < 2 && pinchRef.current) {
+        // Calculate final zoom
+        const finalScale = visualScaleRef.current;
+        const finalZoom = clamp(currentZoomRef.current * finalScale);
+
+        // Reset visual transform first
+        resetVisualZoom();
+
+        // Apply actual zoom
+        if (Math.abs(finalZoom - currentZoomRef.current) > 0.01) {
+          onZoomChange(finalZoom);
         }
+
+        pinchRef.current = null;
+        endZoom();
       }
     };
 
-    // Handle touch cancel
-    const handleTouchCancel = () => {
-      isPinchingRef.current = false;
-      touchStateRef.current = null;
-      endZooming();
+    const onTouchCancel = () => {
+      if (pinchRef.current) {
+        resetVisualZoom();
+        pinchRef.current = null;
+        endZoom();
+      }
     };
 
-    // Prevent default browser pinch-zoom on the container
-    const handleGestureStart = (e: Event) => {
-      e.preventDefault();
-    };
+    // Prevent Safari gestures
+    const prevent = (e: Event) => e.preventDefault();
 
-    const handleGestureChange = (e: Event) => {
-      e.preventDefault();
-    };
-
-    // Add event listeners with proper options
-    container.addEventListener("touchstart", handleTouchStart, { passive: false });
-    container.addEventListener("touchmove", handleTouchMove, { passive: false });
-    container.addEventListener("touchend", handleTouchEnd, { passive: true });
-    container.addEventListener("touchcancel", handleTouchCancel, { passive: true });
-
-    // Safari gesture events
-    container.addEventListener("gesturestart", handleGestureStart, { passive: false });
-    container.addEventListener("gesturechange", handleGestureChange, { passive: false });
+    container.addEventListener("touchstart", onTouchStart, { passive: false });
+    container.addEventListener("touchmove", onTouchMove, { passive: false });
+    container.addEventListener("touchend", onTouchEnd, { passive: true });
+    container.addEventListener("touchcancel", onTouchCancel, { passive: true });
+    container.addEventListener("gesturestart", prevent, { passive: false });
+    container.addEventListener("gesturechange", prevent, { passive: false });
 
     return () => {
-      container.removeEventListener("touchstart", handleTouchStart);
-      container.removeEventListener("touchmove", handleTouchMove);
-      container.removeEventListener("touchend", handleTouchEnd);
-      container.removeEventListener("touchcancel", handleTouchCancel);
-      container.removeEventListener("gesturestart", handleGestureStart);
-      container.removeEventListener("gesturechange", handleGestureChange);
-      if (zoomEndTimeoutRef.current) {
-        clearTimeout(zoomEndTimeoutRef.current);
-      }
+      container.removeEventListener("touchstart", onTouchStart);
+      container.removeEventListener("touchmove", onTouchMove);
+      container.removeEventListener("touchend", onTouchEnd);
+      container.removeEventListener("touchcancel", onTouchCancel);
+      container.removeEventListener("gesturestart", prevent);
+      container.removeEventListener("gesturechange", prevent);
+      if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
     };
-  }, [containerRef, enabled, onZoomChange, clampZoom, startZooming, endZooming]);
+  }, [containerRef, enabled, onZoomChange, clamp, startZoom, endZoom, applyVisualZoom, resetVisualZoom]);
 
   return { isZooming };
 }
