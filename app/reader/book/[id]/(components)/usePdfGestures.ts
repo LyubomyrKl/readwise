@@ -20,6 +20,7 @@ interface PinchState {
   initialZoom: number;
   centerX: number;
   centerY: number;
+  lastScale: number;
 }
 
 function getDistance(t1: Touch, t2: Touch): number {
@@ -39,7 +40,6 @@ function getCenter(t1: Touch, t2: Touch): { x: number; y: number } {
 function findContentElement(container: HTMLElement): HTMLElement | null {
   const viewport = container.querySelector('[data-pdf-viewport]');
   if (viewport) {
-    // Find the first child that contains pages
     const firstPage = viewport.querySelector('[data-page-index]');
     if (firstPage && firstPage.parentElement) {
       return firstPage.parentElement as HTMLElement;
@@ -60,8 +60,8 @@ export function usePdfGestures({
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const zoomTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const currentZoomRef = useRef(currentZoom);
-  const visualScaleRef = useRef(1);
   const contentElRef = useRef<HTMLElement | null>(null);
+  const isPinchingRef = useRef(false);
   const [isZooming, setIsZooming] = useState(false);
 
   useEffect(() => {
@@ -80,26 +80,46 @@ export function usePdfGestures({
 
   const endZoom = useCallback(() => {
     if (zoomTimeoutRef.current) clearTimeout(zoomTimeoutRef.current);
-    zoomTimeoutRef.current = setTimeout(() => setIsZooming(false), 150);
+    zoomTimeoutRef.current = setTimeout(() => setIsZooming(false), 200);
   }, []);
 
-  // Apply visual transform during pinch (no re-render)
-  const applyVisualZoom = useCallback((scale: number, centerX: number, centerY: number) => {
+  // Apply visual transform during pinch
+  const applyVisualZoom = useCallback((scale: number, centerX: number, centerY: number, smooth: boolean = false) => {
     const content = contentElRef.current;
     if (content) {
-      visualScaleRef.current = scale;
+      if (smooth) {
+        content.style.transition = 'transform 0.15s ease-out';
+      } else {
+        content.style.transition = 'none';
+      }
       content.style.transformOrigin = `${centerX}px ${centerY}px`;
       content.style.transform = `scale(${scale})`;
+      content.style.willChange = 'transform';
     }
   }, []);
 
-  // Reset visual transform
-  const resetVisualZoom = useCallback(() => {
+  // Reset visual transform with optional animation
+  const resetVisualZoom = useCallback((animate: boolean = false) => {
     const content = contentElRef.current;
     if (content) {
-      content.style.transform = '';
-      content.style.transformOrigin = '';
-      visualScaleRef.current = 1;
+      if (animate) {
+        content.style.transition = 'transform 0.15s ease-out';
+        content.style.transform = 'scale(1)';
+        // Clean up after animation
+        setTimeout(() => {
+          if (content) {
+            content.style.transform = '';
+            content.style.transformOrigin = '';
+            content.style.transition = '';
+            content.style.willChange = '';
+          }
+        }, 160);
+      } else {
+        content.style.transform = '';
+        content.style.transformOrigin = '';
+        content.style.transition = '';
+        content.style.willChange = '';
+      }
     }
   }, []);
 
@@ -110,6 +130,7 @@ export function usePdfGestures({
     const onTouchStart = (e: TouchEvent) => {
       if (e.touches.length === 2) {
         e.preventDefault();
+        isPinchingRef.current = true;
         startZoom();
 
         // Find content element for visual transform
@@ -127,6 +148,7 @@ export function usePdfGestures({
           initialZoom: currentZoomRef.current,
           centerX: center.x - rect.left,
           centerY: center.y - rect.top,
+          lastScale: 1,
         };
       } else if (e.touches.length === 1) {
         // Double tap detection
@@ -142,9 +164,29 @@ export function usePdfGestures({
         ) {
           e.preventDefault();
           startZoom();
+
+          // Find content element
+          if (!contentElRef.current) {
+            contentElRef.current = findContentElement(container);
+          }
+
+          const rect = container.getBoundingClientRect();
+          const centerX = t.clientX - rect.left;
+          const centerY = t.clientY - rect.top;
+
           const newZoom = clamp(currentZoomRef.current < 1.5 ? 2 : 1);
-          onZoomChange(newZoom);
-          endZoom();
+          const scale = newZoom / currentZoomRef.current;
+
+          // Animate the zoom
+          applyVisualZoom(scale, centerX, centerY, true);
+
+          // Apply real zoom after animation
+          setTimeout(() => {
+            resetVisualZoom(false);
+            onZoomChange(newZoom);
+            endZoom();
+          }, 150);
+
           lastTapRef.current = null;
         } else {
           lastTapRef.current = { time: now, x: t.clientX, y: t.clientY };
@@ -153,7 +195,7 @@ export function usePdfGestures({
     };
 
     const onTouchMove = (e: TouchEvent) => {
-      if (e.touches.length === 2 && pinchRef.current) {
+      if (e.touches.length === 2 && pinchRef.current && isPinchingRef.current) {
         e.preventDefault();
 
         const t1 = e.touches[0];
@@ -161,28 +203,43 @@ export function usePdfGestures({
         const dist = getDistance(t1, t2);
         const scale = dist / pinchRef.current.initialDistance;
 
-        // Calculate the target zoom
+        // Update center point to follow fingers
+        const center = getCenter(t1, t2);
+        const rect = container.getBoundingClientRect();
+        pinchRef.current.centerX = center.x - rect.left;
+        pinchRef.current.centerY = center.y - rect.top;
+
+        // Calculate the target zoom and clamp it
         const targetZoom = clamp(pinchRef.current.initialZoom * scale);
-        // Calculate visual scale relative to current zoom
+        // Calculate visual scale relative to current actual zoom
         const visualScale = targetZoom / currentZoomRef.current;
 
+        pinchRef.current.lastScale = visualScale;
+
         // Apply visual transform (smooth, no re-render)
-        applyVisualZoom(visualScale, pinchRef.current.centerX, pinchRef.current.centerY);
+        applyVisualZoom(visualScale, pinchRef.current.centerX, pinchRef.current.centerY, false);
       }
     };
 
     const onTouchEnd = (e: TouchEvent) => {
-      if (e.touches.length < 2 && pinchRef.current) {
-        // Calculate final zoom
-        const finalScale = visualScaleRef.current;
+      if (e.touches.length < 2 && pinchRef.current && isPinchingRef.current) {
+        isPinchingRef.current = false;
+
+        const finalScale = pinchRef.current.lastScale;
         const finalZoom = clamp(currentZoomRef.current * finalScale);
+        const zoomChanged = Math.abs(finalZoom - currentZoomRef.current) > 0.01;
 
-        // Reset visual transform first
-        resetVisualZoom();
+        if (zoomChanged) {
+          // Animate back to scale(1) while applying real zoom
+          resetVisualZoom(true);
 
-        // Apply actual zoom
-        if (Math.abs(finalZoom - currentZoomRef.current) > 0.01) {
-          onZoomChange(finalZoom);
+          // Apply actual zoom slightly before animation ends for smooth handoff
+          setTimeout(() => {
+            onZoomChange(finalZoom);
+          }, 50);
+        } else {
+          // No significant zoom change, just reset
+          resetVisualZoom(true);
         }
 
         pinchRef.current = null;
@@ -191,8 +248,9 @@ export function usePdfGestures({
     };
 
     const onTouchCancel = () => {
-      if (pinchRef.current) {
-        resetVisualZoom();
+      if (isPinchingRef.current) {
+        isPinchingRef.current = false;
+        resetVisualZoom(true);
         pinchRef.current = null;
         endZoom();
       }
