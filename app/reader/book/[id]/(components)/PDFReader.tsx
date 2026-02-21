@@ -347,7 +347,7 @@ function PDFReaderContent({
   );
 
   // Mobile pinch-to-zoom and double-tap gestures
-  usePdfGestures({
+  const { isZooming } = usePdfGestures({
     containerRef,
     currentZoom,
     minZoom: MIN_ZOOM,
@@ -582,6 +582,7 @@ function PDFReaderContent({
                   pageIndex={pageIndex}
                   baseDpr={devicePixelRatio}
                   isScrolling={isScrolling}
+                  isZooming={isZooming}
                 />
               </div>
             )}
@@ -617,17 +618,31 @@ function CrispRenderLayer({
   pageIndex,
   baseDpr,
   isScrolling,
+  isZooming,
 }: {
   pageIndex: number;
   baseDpr: number;
   isScrolling: boolean;
+  isZooming: boolean;
 }) {
   const { state } = useZoom();
   const zoom = state?.currentZoomLevel ?? 1;
 
-  const dpr = isScrolling
-    ? Math.min(2, Math.max(1, baseDpr))
-    : Math.min(3, Math.max(1, baseDpr * Math.min(2, zoom)));
+  // Calculate DPR based on zoom level for crisp rendering
+  // Higher zoom = higher DPR needed to maintain sharpness
+  let dpr: number;
+
+  if (isScrolling || isZooming) {
+    // Lower quality while scrolling/zooming for performance
+    // Use slightly higher DPR during zoom to prevent too much blur
+    dpr = Math.min(2.5, Math.max(1, baseDpr * Math.min(zoom, 1.5)));
+  } else {
+    // Full quality when static
+    // Scale DPR with zoom: at 2x zoom, we need 2x DPR to maintain sharpness
+    const zoomDpr = baseDpr * zoom;
+    // Cap at 5 to prevent memory issues, minimum 1
+    dpr = Math.min(5, Math.max(1, zoomDpr));
+  }
 
   return <RenderLayer key={pageIndex} pageIndex={pageIndex} dpr={dpr} />;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef, useCallback, useState } from "react";
 
 interface PdfGestureOptions {
   containerRef: React.RefObject<HTMLElement | null>;
@@ -9,6 +9,10 @@ interface PdfGestureOptions {
   maxZoom: number;
   onZoomChange: (zoom: number) => void;
   enabled?: boolean;
+}
+
+interface PdfGestureResult {
+  isZooming: boolean;
 }
 
 interface TouchState {
@@ -40,16 +44,38 @@ export function usePdfGestures({
   maxZoom,
   onZoomChange,
   enabled = true,
-}: PdfGestureOptions) {
+}: PdfGestureOptions): PdfGestureResult {
   const touchStateRef = useRef<TouchState | null>(null);
   const lastTapRef = useRef<{ time: number; x: number; y: number } | null>(null);
   const isPinchingRef = useRef(false);
   const currentZoomRef = useRef(currentZoom);
+  const zoomEndTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [isZooming, setIsZooming] = useState(false);
 
   // Keep zoom ref updated
   useEffect(() => {
     currentZoomRef.current = currentZoom;
   }, [currentZoom]);
+
+  // Helper to mark zooming started
+  const startZooming = useCallback(() => {
+    if (zoomEndTimeoutRef.current) {
+      clearTimeout(zoomEndTimeoutRef.current);
+      zoomEndTimeoutRef.current = null;
+    }
+    setIsZooming(true);
+  }, []);
+
+  // Helper to mark zooming ended (with delay for stabilization)
+  const endZooming = useCallback(() => {
+    if (zoomEndTimeoutRef.current) {
+      clearTimeout(zoomEndTimeoutRef.current);
+    }
+    zoomEndTimeoutRef.current = setTimeout(() => {
+      setIsZooming(false);
+      zoomEndTimeoutRef.current = null;
+    }, 50);
+  }, []);
 
   const clampZoom = useCallback(
     (zoom: number) => Math.max(minZoom, Math.min(maxZoom, zoom)),
@@ -66,6 +92,7 @@ export function usePdfGestures({
         // Pinch start
         e.preventDefault();
         isPinchingRef.current = true;
+        startZooming();
         const touch1 = e.touches[0];
         const touch2 = e.touches[1];
         const distance = getDistance(touch1, touch2);
@@ -90,10 +117,12 @@ export function usePdfGestures({
         ) {
           // Double tap detected
           e.preventDefault();
+          startZooming();
           const zoom = currentZoomRef.current;
           // Toggle between 1x and 2x zoom
           const newZoom = zoom < 1.5 ? 2 : 1;
           onZoomChange(clampZoom(newZoom));
+          endZooming();
           lastTapRef.current = null;
         } else {
           lastTapRef.current = { time: now, x: touch.clientX, y: touch.clientY };
@@ -131,6 +160,7 @@ export function usePdfGestures({
         if (isPinchingRef.current) {
           isPinchingRef.current = false;
           touchStateRef.current = null;
+          endZooming();
         }
       }
     };
@@ -139,6 +169,7 @@ export function usePdfGestures({
     const handleTouchCancel = () => {
       isPinchingRef.current = false;
       touchStateRef.current = null;
+      endZooming();
     };
 
     // Prevent default browser pinch-zoom on the container
@@ -167,10 +198,11 @@ export function usePdfGestures({
       container.removeEventListener("touchcancel", handleTouchCancel);
       container.removeEventListener("gesturestart", handleGestureStart);
       container.removeEventListener("gesturechange", handleGestureChange);
+      if (zoomEndTimeoutRef.current) {
+        clearTimeout(zoomEndTimeoutRef.current);
+      }
     };
-  }, [containerRef, enabled, onZoomChange, clampZoom]);
+  }, [containerRef, enabled, onZoomChange, clampZoom, startZooming, endZooming]);
 
-  return {
-    isPinching: isPinchingRef.current,
-  };
+  return { isZooming };
 }
