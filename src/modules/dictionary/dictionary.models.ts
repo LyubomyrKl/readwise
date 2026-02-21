@@ -369,3 +369,88 @@ export class WordWithRelatedResponse {
   @ApiProperty({ description: 'Related words from shared groups, ordered by overlap', type: [RelatedWordResponse] })
   relatedWords!: RelatedWordResponse[];
 }
+
+// ===== Synonym Groups =====
+
+export class CreateSynonymGroupDto {
+  @ApiPropertyOptional({ description: 'Optional name for the synonym group (e.g., "happy words")' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiProperty({ description: 'Entry IDs to include in the synonym group', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  @ArrayMaxSize(50)
+  entryIds!: string[];
+}
+
+export class UpdateSynonymGroupDto {
+  @ApiPropertyOptional({ description: 'Name for the synonym group' })
+  @IsOptional()
+  @IsString()
+  name?: string;
+}
+
+export class AddEntriesToSynonymGroupDto {
+  @ApiProperty({ description: 'Entry IDs to add to the synonym group', type: [String] })
+  @IsArray()
+  @IsString({ each: true })
+  @IsNotEmpty({ each: true })
+  entryIds!: string[];
+}
+
+export class SynonymEntryResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty()
+  word!: string;
+
+  @ApiProperty()
+  definition!: string;
+
+  @ApiPropertyOptional()
+  partOfSpeech?: string | null;
+
+  @ApiProperty()
+  masteryLevel!: number;
+}
+
+export class SynonymGroupResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional()
+  name?: string | null;
+
+  @ApiProperty({ description: 'Number of entries in this synonym group' })
+  entryCount!: number;
+
+  @ApiProperty({ type: [SynonymEntryResponse] })
+  entries!: SynonymEntryResponse[];
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  updatedAt!: Date;
+}
+
+export class SynonymGroupSummaryResponse {
+  @ApiProperty()
+  id!: string;
+
+  @ApiPropertyOptional()
+  name?: string | null;
+
+  @ApiProperty({ description: 'Number of entries in this synonym group' })
+  entryCount!: number;
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  createdAt!: Date;
+
+  @ApiProperty({ type: 'string', format: 'date-time' })
+  updatedAt!: Date;
+}

@@ -22,6 +22,11 @@ import {
   SemanticGroupResponse,
   RelatedWordResponse,
   WordWithRelatedResponse,
+  CreateSynonymGroupDto,
+  UpdateSynonymGroupDto,
+  SynonymGroupResponse,
+  SynonymGroupSummaryResponse,
+  SynonymEntryResponse,
 } from './dictionary.models';
 
 // Type for dictionary entry with includes
@@ -903,5 +908,366 @@ export class DictionaryService {
     });
 
     return result;
+  }
+
+  // ===== Synonym Groups =====
+
+  async getSynonymGroups(userId: string): Promise<SynonymGroupSummaryResponse[]> {
+    const groups = await this.prisma.synonymGroup.findMany({
+      where: { userId },
+      include: {
+        _count: { select: { entries: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return groups.map((g) => ({
+      id: g.id,
+      name: g.name,
+      entryCount: g._count.entries,
+      createdAt: g.createdAt,
+      updatedAt: g.updatedAt,
+    }));
+  }
+
+  async getSynonymGroup(userId: string, groupId: string): Promise<SynonymGroupResponse> {
+    const group = await this.prisma.synonymGroup.findFirst({
+      where: { id: groupId },
+      include: {
+        entries: {
+          include: {
+            entry: {
+              select: {
+                id: true,
+                word: true,
+                definition: true,
+                partOfSpeech: true,
+                masteryLevel: true,
+                deletedAt: true,
+              },
+            },
+          },
+          orderBy: { entry: { word: 'asc' } },
+        },
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Synonym group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to access this synonym group');
+    }
+
+    const entries: SynonymEntryResponse[] = group.entries
+      .filter((e) => e.entry.deletedAt === null)
+      .map((e) => ({
+        id: e.entry.id,
+        word: e.entry.word,
+        definition: e.entry.definition,
+        partOfSpeech: e.entry.partOfSpeech,
+        masteryLevel: e.entry.masteryLevel,
+      }));
+
+    return {
+      id: group.id,
+      name: group.name,
+      entryCount: entries.length,
+      entries,
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    };
+  }
+
+  async createSynonymGroup(
+    userId: string,
+    dto: CreateSynonymGroupDto,
+  ): Promise<SynonymGroupResponse> {
+    // Verify all entries belong to user
+    const entries = await this.prisma.dictionaryEntry.findMany({
+      where: {
+        id: { in: dto.entryIds },
+        userId,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+        word: true,
+        definition: true,
+        partOfSpeech: true,
+        masteryLevel: true,
+      },
+    });
+
+    if (entries.length !== dto.entryIds.length) {
+      throw new NotFoundException('One or more entries not found');
+    }
+
+    if (entries.length < 2) {
+      throw new ConflictException('A synonym group requires at least 2 entries');
+    }
+
+    const group = await this.prisma.synonymGroup.create({
+      data: {
+        userId,
+        name: dto.name || null,
+        entries: {
+          create: dto.entryIds.map((entryId) => ({
+            entryId,
+          })),
+        },
+      },
+    });
+
+    // Invalidate cache for affected words
+    this.invalidateUserCache(userId);
+
+    return {
+      id: group.id,
+      name: group.name,
+      entryCount: entries.length,
+      entries: entries.map((e) => ({
+        id: e.id,
+        word: e.word,
+        definition: e.definition,
+        partOfSpeech: e.partOfSpeech,
+        masteryLevel: e.masteryLevel,
+      })),
+      createdAt: group.createdAt,
+      updatedAt: group.updatedAt,
+    };
+  }
+
+  async updateSynonymGroup(
+    userId: string,
+    groupId: string,
+    dto: UpdateSynonymGroupDto,
+  ): Promise<SynonymGroupResponse> {
+    const group = await this.prisma.synonymGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Synonym group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to update this synonym group');
+    }
+
+    await this.prisma.synonymGroup.update({
+      where: { id: groupId },
+      data: { name: dto.name },
+    });
+
+    return this.getSynonymGroup(userId, groupId);
+  }
+
+  async deleteSynonymGroup(userId: string, groupId: string): Promise<void> {
+    const group = await this.prisma.synonymGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Synonym group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to delete this synonym group');
+    }
+
+    await this.prisma.synonymGroup.delete({
+      where: { id: groupId },
+    });
+
+    this.invalidateUserCache(userId);
+  }
+
+  async addEntriesToSynonymGroup(
+    userId: string,
+    groupId: string,
+    entryIds: string[],
+  ): Promise<SynonymGroupResponse> {
+    const group = await this.prisma.synonymGroup.findFirst({
+      where: { id: groupId },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Synonym group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to modify this synonym group');
+    }
+
+    // Verify all entries belong to user
+    const entries = await this.prisma.dictionaryEntry.findMany({
+      where: {
+        id: { in: entryIds },
+        userId,
+        deletedAt: null,
+      },
+    });
+
+    if (entries.length !== entryIds.length) {
+      throw new NotFoundException('One or more entries not found');
+    }
+
+    // Add entries (skip duplicates)
+    await this.prisma.entrySynonymGroup.createMany({
+      data: entryIds.map((entryId) => ({
+        entryId,
+        groupId,
+      })),
+      skipDuplicates: true,
+    });
+
+    this.invalidateUserCache(userId);
+
+    return this.getSynonymGroup(userId, groupId);
+  }
+
+  async removeEntryFromSynonymGroup(
+    userId: string,
+    groupId: string,
+    entryId: string,
+  ): Promise<SynonymGroupResponse | null> {
+    const group = await this.prisma.synonymGroup.findFirst({
+      where: { id: groupId },
+      include: {
+        _count: { select: { entries: true } },
+      },
+    });
+
+    if (!group) {
+      throw new NotFoundException('Synonym group not found');
+    }
+
+    if (group.userId !== userId) {
+      throw new ForbiddenException('Not authorized to modify this synonym group');
+    }
+
+    // Remove the entry
+    await this.prisma.entrySynonymGroup.deleteMany({
+      where: { groupId, entryId },
+    });
+
+    // If group would have less than 2 entries, delete it entirely
+    const remainingCount = group._count.entries - 1;
+    if (remainingCount < 2) {
+      await this.prisma.synonymGroup.delete({
+        where: { id: groupId },
+      });
+      this.invalidateUserCache(userId);
+      return null;
+    }
+
+    this.invalidateUserCache(userId);
+    return this.getSynonymGroup(userId, groupId);
+  }
+
+  async getEntrySynonymGroups(userId: string, entryId: string): Promise<SynonymGroupSummaryResponse[]> {
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: { id: entryId, deletedAt: null },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Dictionary entry not found');
+    }
+
+    if (entry.userId !== userId) {
+      throw new ForbiddenException('Not authorized to access this entry');
+    }
+
+    const associations = await this.prisma.entrySynonymGroup.findMany({
+      where: { entryId },
+      include: {
+        group: {
+          include: {
+            _count: { select: { entries: true } },
+          },
+        },
+      },
+    });
+
+    return associations.map((a) => ({
+      id: a.group.id,
+      name: a.group.name,
+      entryCount: a.group._count.entries,
+      createdAt: a.group.createdAt,
+      updatedAt: a.group.updatedAt,
+    }));
+  }
+
+  async getEntrySynonyms(userId: string, entryId: string): Promise<SynonymEntryResponse[]> {
+    const entry = await this.prisma.dictionaryEntry.findFirst({
+      where: { id: entryId, deletedAt: null },
+    });
+
+    if (!entry) {
+      throw new NotFoundException('Dictionary entry not found');
+    }
+
+    if (entry.userId !== userId) {
+      throw new ForbiddenException('Not authorized to access this entry');
+    }
+
+    // Get all synonym groups this entry belongs to
+    const entryGroups = await this.prisma.entrySynonymGroup.findMany({
+      where: { entryId },
+      select: { groupId: true },
+    });
+
+    const groupIds = entryGroups.map((eg) => eg.groupId);
+
+    if (groupIds.length === 0) {
+      return [];
+    }
+
+    // Get all entries in those groups (excluding the current entry)
+    const synonymEntries = await this.prisma.entrySynonymGroup.findMany({
+      where: {
+        groupId: { in: groupIds },
+        entryId: { not: entryId },
+      },
+      include: {
+        entry: {
+          select: {
+            id: true,
+            word: true,
+            definition: true,
+            partOfSpeech: true,
+            masteryLevel: true,
+            deletedAt: true,
+          },
+        },
+      },
+    });
+
+    // Deduplicate and filter deleted entries
+    const uniqueEntries = new Map<string, SynonymEntryResponse>();
+    for (const se of synonymEntries) {
+      if (se.entry.deletedAt === null && !uniqueEntries.has(se.entry.id)) {
+        uniqueEntries.set(se.entry.id, {
+          id: se.entry.id,
+          word: se.entry.word,
+          definition: se.entry.definition,
+          partOfSpeech: se.entry.partOfSpeech,
+          masteryLevel: se.entry.masteryLevel,
+        });
+      }
+    }
+
+    return Array.from(uniqueEntries.values()).sort((a, b) => a.word.localeCompare(b.word));
+  }
+
+  async linkEntriesAsSynonyms(
+    userId: string,
+    entryIds: string[],
+    name?: string,
+  ): Promise<SynonymGroupResponse> {
+    // This is a convenience method that creates a new synonym group
+    return this.createSynonymGroup(userId, { entryIds, name });
   }
 }

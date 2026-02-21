@@ -25,6 +25,12 @@ import {
   AddEntryToGroupsDto,
   SemanticGroupResponse,
   WordWithRelatedResponse,
+  CreateSynonymGroupDto,
+  UpdateSynonymGroupDto,
+  AddEntriesToSynonymGroupDto,
+  SynonymGroupResponse,
+  SynonymGroupSummaryResponse,
+  SynonymEntryResponse,
 } from './dictionary.models';
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@/app.models';
@@ -241,5 +247,103 @@ export class DictionaryController {
     @Param('term') term: string,
   ): Promise<WordWithRelatedResponse> {
     return this.dictionaryService.getWordWithRelated(req.user.userId, term);
+  }
+
+  // ===== Synonym Groups =====
+
+  @Get('synonyms')
+  @ApiEndpoint({ summary: 'Get all synonym groups', response: [SynonymGroupSummaryResponse] })
+  getSynonymGroups(@Req() req: UserModel): Promise<SynonymGroupSummaryResponse[]> {
+    return this.dictionaryService.getSynonymGroups(req.user.userId);
+  }
+
+  @Get('synonyms/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get a synonym group with its entries', response: SynonymGroupResponse })
+  getSynonymGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SynonymGroupResponse> {
+    return this.dictionaryService.getSynonymGroup(req.user.userId, id);
+  }
+
+  @Post('synonyms')
+  @ApiEndpoint({ summary: 'Create a synonym group by linking words', response: SynonymGroupResponse })
+  createSynonymGroup(
+    @Req() req: UserModel,
+    @Body() dto: CreateSynonymGroupDto,
+  ): Promise<SynonymGroupResponse> {
+    return this.dictionaryService.createSynonymGroup(req.user.userId, dto);
+  }
+
+  @Patch('synonyms/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Update a synonym group', response: SynonymGroupResponse })
+  updateSynonymGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Body() dto: UpdateSynonymGroupDto,
+  ): Promise<SynonymGroupResponse> {
+    return this.dictionaryService.updateSynonymGroup(req.user.userId, id, dto);
+  }
+
+  @Delete('synonyms/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Delete a synonym group', response: SuccessEmptyResponse })
+  async deleteSynonymGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SuccessEmptyResponse> {
+    await this.dictionaryService.deleteSynonymGroup(req.user.userId, id);
+    return { status: 'success' };
+  }
+
+  @Post('synonyms/:id/entries')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Add entries to a synonym group', response: SynonymGroupResponse })
+  addEntriesToSynonymGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Body() dto: AddEntriesToSynonymGroupDto,
+  ): Promise<SynonymGroupResponse> {
+    return this.dictionaryService.addEntriesToSynonymGroup(req.user.userId, id, dto.entryIds);
+  }
+
+  @Delete('synonyms/:id/entries/:entryId')
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'entryId' })
+  @ApiEndpoint({ summary: 'Remove an entry from a synonym group', response: SynonymGroupResponse })
+  async removeEntryFromSynonymGroup(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+    @Param('entryId') entryId: string,
+  ): Promise<SynonymGroupResponse | SuccessEmptyResponse> {
+    const result = await this.dictionaryService.removeEntryFromSynonymGroup(req.user.userId, id, entryId);
+    if (result === null) {
+      return { status: 'success' };
+    }
+    return result;
+  }
+
+  // ===== Entry Synonym Management =====
+
+  @Get('entries/:id/synonyms')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get all synonyms for an entry', response: [SynonymEntryResponse] })
+  getEntrySynonyms(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SynonymEntryResponse[]> {
+    return this.dictionaryService.getEntrySynonyms(req.user.userId, id);
+  }
+
+  @Get('entries/:id/synonym-groups')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Get synonym groups for an entry', response: [SynonymGroupSummaryResponse] })
+  getEntrySynonymGroups(
+    @Req() req: UserModel,
+    @Param('id') id: string,
+  ): Promise<SynonymGroupSummaryResponse[]> {
+    return this.dictionaryService.getEntrySynonymGroups(req.user.userId, id);
   }
 }
