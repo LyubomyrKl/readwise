@@ -4,16 +4,15 @@ import { useMemo, useRef, useEffect, useState, useCallback } from "react";
 import { createPluginRegistration } from "@embedpdf/core";
 import { EmbedPDF } from "@embedpdf/core/react";
 import { usePdfiumEngine } from "@embedpdf/engines/react";
-import { useGesture } from "@use-gesture/react";
 import { Button } from "@/components/ui/button";
 import {
   ArrowLeft,
-  ChevronLeft,
-  ChevronRight,
   Settings,
   Minus,
   Plus,
   StickyNote,
+  MoreHorizontal,
+  Maximize2,
 } from "lucide-react";
 
 import { ViewportPluginPackage } from "@embedpdf/plugin-viewport";
@@ -29,6 +28,7 @@ import { useZoom } from "@embedpdf/plugin-zoom/react";
 import { IBook } from "@/app/reader/types";
 import PDFReaderMenu from "./PDFReaderMenu";
 import NotesPanel from "./NotesPanel";
+import { usePdfGestures } from "./usePdfGestures";
 import type {
   ReadingPosition,
   NoteResponse,
@@ -47,8 +47,8 @@ type Props = {
   onDeleteNote?: (id: string) => Promise<boolean>;
 };
 
-const MIN_ZOOM = 0.25;
-const MAX_ZOOM = 3;
+const MIN_ZOOM = 0.5;
+const MAX_ZOOM = 4;
 const DEFAULT_ZOOM = 1;
 
 export default function PDFReader({
@@ -67,18 +67,40 @@ export default function PDFReader({
   const [menuVisible, setMenuVisible] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [notesPanelOpen, setNotesPanelOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [containerWidth, setContainerWidth] = useState(0);
   // Get initial page from saved position - only capture once
   const initialPageRef = useRef<number | null>(null);
   if (initialPageRef.current === null && initialPosition?.type === "pdf" && initialPosition.page) {
     initialPageRef.current = initialPosition.page;
   }
   const initialPage = initialPageRef.current ?? 1;
-    const [isScrolling, setIsScrolling] = useState(false);
+  const [isScrolling, setIsScrolling] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
 
   const { engine, isLoading, error } = usePdfiumEngine();
+
+  // Detect mobile and container width for fit-to-width
+  useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768 || "ontouchstart" in window);
+    };
+    const updateContainerWidth = () => {
+      if (containerRef.current) {
+        setContainerWidth(containerRef.current.clientWidth);
+      }
+    };
+    checkMobile();
+    updateContainerWidth();
+    window.addEventListener("resize", checkMobile);
+    window.addEventListener("resize", updateContainerWidth);
+    return () => {
+      window.removeEventListener("resize", checkMobile);
+      window.removeEventListener("resize", updateContainerWidth);
+    };
+  }, []);
 
   // Pre-fetch PDF with credentials
   const blobUrlRef = useRef<string | null>(null);
@@ -221,11 +243,9 @@ export default function PDFReader({
 
   return (
     <div
-      className="relative h-[calc(100dvh-0px)] w-full select-none"
+      className="relative h-[calc(100dvh-0px)] w-full select-none overscroll-contain"
       ref={containerRef}
-      onDoubleClick={() => {
-        if (!menuVisible && !settingsOpen && !notesPanelOpen) setMenuVisible(true);
-      }}
+      style={{ touchAction: isMobile ? "pan-y" : "auto" }}
     >
       <EmbedPDF engine={engine} plugins={plugins}>
         <PDFReaderContent
@@ -245,6 +265,8 @@ export default function PDFReader({
           onCreateNote={onCreateNote}
           onUpdateNote={onUpdateNote}
           onDeleteNote={onDeleteNote}
+          isMobile={isMobile}
+          containerWidth={containerWidth}
         />
       </EmbedPDF>
     </div>
@@ -267,6 +289,8 @@ function PDFReaderContent({
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
+  isMobile,
+  containerWidth,
 }: {
   containerRef: React.RefObject<HTMLDivElement | null>;
   devicePixelRatio: number;
@@ -284,11 +308,14 @@ function PDFReaderContent({
   onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
   onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
   onDeleteNote?: (id: string) => Promise<boolean>;
+  isMobile: boolean;
+  containerWidth: number;
 }) {
   // Use scroll hook to get current page and total pages
-  const { state: scrollState, scrollToNextPage, scrollToPreviousPage } = useScroll();
+  const { state: scrollState } = useScroll();
   const currentPage = scrollState?.currentPage ?? 1;
   const totalPages = scrollState?.totalPages ?? 1;
+  const progress = totalPages > 0 ? Math.round((currentPage / totalPages) * 100) : 0;
 
   // Report page changes to parent for position tracking
   const lastReportedPageRef = useRef<number>(0);
@@ -307,6 +334,7 @@ function PDFReaderContent({
   const { provides, state } = useZoom();
   const currentZoom = state?.currentZoomLevel ?? DEFAULT_ZOOM;
   const zoomPercent = Math.round(currentZoom * 100);
+  const fitToWidthAppliedRef = useRef(false);
 
   const requestZoom = useCallback(
     (newZoom: number) => {
@@ -318,13 +346,54 @@ function PDFReaderContent({
     [provides]
   );
 
+  // Mobile pinch-to-zoom and double-tap gestures
+  usePdfGestures({
+    containerRef,
+    currentZoom,
+    minZoom: MIN_ZOOM,
+    maxZoom: MAX_ZOOM,
+    onZoomChange: requestZoom,
+    enabled: isMobile,
+  });
+
+  // Auto fit-to-width on mobile on first load
+  useEffect(() => {
+    if (!isMobile || !provides || containerWidth <= 0 || fitToWidthAppliedRef.current) return;
+
+    // Delay to allow PDF pages to render
+    const timer = setTimeout(() => {
+      if (fitToWidthAppliedRef.current) return;
+
+      const pageEl = containerRef.current?.querySelector('[data-page-index]') as HTMLElement;
+      if (pageEl) {
+        const currentRenderedWidth = pageEl.offsetWidth;
+        const targetWidth = containerWidth - 32;
+        // At default zoom (1.0), calculate what zoom we need
+        const newZoom = targetWidth / currentRenderedWidth;
+        const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+        provides.requestZoom(clamped);
+      } else {
+        // Fallback for standard PDF
+        const targetWidth = containerWidth - 32;
+        const pdfWidth = 612;
+        const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetWidth / pdfWidth));
+        provides.requestZoom(fitZoom);
+      }
+      fitToWidthAppliedRef.current = true;
+    }, 300);
+
+    return () => clearTimeout(timer);
+  }, [isMobile, provides, containerWidth, containerRef]);
+
   const zoomIn = useCallback(() => {
-    requestZoom(currentZoom + 0.25);
-  }, [currentZoom, requestZoom]);
+    const step = isMobile ? 0.15 : 0.25;
+    requestZoom(currentZoom + step);
+  }, [currentZoom, requestZoom, isMobile]);
 
   const zoomOut = useCallback(() => {
-    requestZoom(currentZoom - 0.25);
-  }, [currentZoom, requestZoom]);
+    const step = isMobile ? 0.15 : 0.25;
+    requestZoom(currentZoom - step);
+  }, [currentZoom, requestZoom, isMobile]);
 
   const handleZoomChange = useCallback(
     (percent: number) => {
@@ -333,21 +402,29 @@ function PDFReaderContent({
     [requestZoom]
   );
 
-  // Pinch gesture for touch zoom
-  useGesture(
-    {
-      onPinch: ({ da: [d] }) => {
-        const factor = d > 1 ? 1.02 : 0.98;
-        requestZoom(currentZoom * factor);
-      },
-    },
-    {
-      target: containerRef,
-      eventOptions: { passive: true },
-    }
-  );
+  const fitToWidth = useCallback(() => {
+    if (!provides || containerWidth <= 0) return;
 
-  // Ctrl+wheel zoom
+    // Get the current rendered page width by finding the page element
+    const pageEl = containerRef.current?.querySelector('[data-page-index]') as HTMLElement;
+    if (pageEl) {
+      const currentRenderedWidth = pageEl.offsetWidth;
+      // Calculate: at current zoom, page renders at currentRenderedWidth
+      // We want it to fit containerWidth - padding (16px each side)
+      const targetWidth = containerWidth - 32;
+      const newZoom = (targetWidth / currentRenderedWidth) * currentZoom;
+      const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
+      provides.requestZoom(clamped);
+    } else {
+      // Fallback: assume standard PDF width ~612pt at zoom 1.0
+      const targetWidth = containerWidth - 32;
+      const pdfWidth = 612;
+      const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetWidth / pdfWidth));
+      provides.requestZoom(fitZoom);
+    }
+  }, [provides, containerWidth, currentZoom, containerRef]);
+
+  // Ctrl+wheel zoom (desktop)
   useEffect(() => {
     const el = containerRef.current;
     if (!el || !provides) return;
@@ -355,7 +432,7 @@ function PDFReaderContent({
     const onWheel = (e: WheelEvent) => {
       if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
-      const factor = e.deltaY > 0 ? 0.95 : 1.05;
+      const factor = e.deltaY > 0 ? 0.92 : 1.08;
       requestZoom(currentZoom * factor);
     };
 
@@ -365,6 +442,25 @@ function PDFReaderContent({
 
   return (
     <>
+      {/* Always visible progress bar */}
+      <div className="fixed top-0 left-0 right-0 h-[3px] z-30 bg-muted/30">
+        <div
+          className="h-full bg-primary/80 transition-all duration-300 ease-out"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+
+      {/* Subtle menu trigger button - top right */}
+      {!menuVisible && !settingsOpen && !notesPanelOpen && (
+        <button
+          onClick={() => setMenuVisible(true)}
+          className="fixed top-3 right-3 z-30 w-10 h-10 flex items-center justify-center rounded-full bg-background/30 hover:bg-background/60 backdrop-blur-sm transition-all opacity-40 hover:opacity-100"
+          aria-label="Open menu"
+        >
+          <MoreHorizontal className="h-5 w-5 text-foreground/60" />
+        </button>
+      )}
+
       {/* Quick menu */}
       {menuVisible && !settingsOpen && !notesPanelOpen && (
         <>
@@ -373,81 +469,80 @@ function PDFReaderContent({
             onClick={() => setMenuVisible(false)}
           />
           <div className="absolute inset-0 z-20 pointer-events-none">
-            <div className="pointer-events-auto absolute top-2 left-1/2 transform -translate-x-1/2">
+            <div className="pointer-events-auto absolute top-4 left-1/2 transform -translate-x-1/2">
               <div
-                className="flex items-center gap-2 bg-background/95 rounded-full p-2 shadow-xl border"
+                className="flex items-center gap-1 bg-background/95 backdrop-blur-xl rounded-2xl p-1.5 shadow-xl border"
                 onClick={(e) => e.stopPropagation()}
               >
                 {onBackAction && (
                   <Button
                     variant="ghost"
-                    size="sm"
+                    size="icon"
                     onClick={() => {
                       onBackAction();
                       setMenuVisible(false);
                     }}
                     aria-label="Back"
-                    className="rounded-full"
+                    className="rounded-xl w-10 h-10"
                   >
-                    <ArrowLeft className="h-4 w-4" />
+                    <ArrowLeft className="h-5 w-5" />
                   </Button>
                 )}
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => scrollToPreviousPage?.()}
-                  aria-label="Previous page"
-                  className="rounded-full"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
+                <div className="w-px h-6 bg-border/50 mx-1" />
 
                 <Button
                   variant="ghost"
-                  size="sm"
-                  onClick={() => scrollToNextPage?.()}
-                  aria-label="Next page"
-                  className="rounded-full"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
-
-                <Button
-                  variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={zoomOut}
                   aria-label="Zoom out"
-                  className="rounded-full"
+                  className="rounded-xl w-10 h-10"
                 >
-                  <Minus className="h-4 w-4" />
+                  <Minus className="h-5 w-5" />
                 </Button>
+
+                <span className="min-w-[3rem] text-center text-sm font-medium">
+                  {zoomPercent}%
+                </span>
 
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={zoomIn}
                   aria-label="Zoom in"
-                  className="rounded-full"
+                  className="rounded-xl w-10 h-10"
                 >
-                  <Plus className="h-4 w-4" />
+                  <Plus className="h-5 w-5" />
                 </Button>
-
-                <div className="w-px h-6 bg-border" />
 
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
+                  onClick={() => {
+                    fitToWidth();
+                    setMenuVisible(false);
+                  }}
+                  aria-label="Fit to width"
+                  className="rounded-xl w-10 h-10"
+                >
+                  <Maximize2 className="h-5 w-5" />
+                </Button>
+
+                <div className="w-px h-6 bg-border/50 mx-1" />
+
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => {
                     setNotesPanelOpen(true);
                     setMenuVisible(false);
                   }}
                   aria-label="Notes"
-                  className="rounded-full relative"
+                  className="rounded-xl w-10 h-10 relative"
                 >
-                  <StickyNote className="h-4 w-4" />
+                  <StickyNote className="h-5 w-5" />
                   {notes.length > 0 && (
-                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center">
+                    <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-primary text-primary-foreground text-[10px] rounded-full flex items-center justify-center px-1">
                       {notes.length}
                     </span>
                   )}
@@ -455,22 +550,22 @@ function PDFReaderContent({
 
                 <Button
                   variant="ghost"
-                  size="sm"
+                  size="icon"
                   onClick={() => {
                     setSettingsOpen(true);
                     setMenuVisible(false);
                   }}
                   aria-label="Settings"
-                  className="rounded-full"
+                  className="rounded-xl w-10 h-10"
                 >
-                  <Settings className="h-4 w-4" />
+                  <Settings className="h-5 w-5" />
                 </Button>
               </div>
             </div>
 
-            <div className="pointer-events-none absolute bottom-4 left-1/2 transform -translate-x-1/2">
-              <div className="bg-background/95 rounded-full px-3 py-1 text-xs shadow-xl border">
-                Page {currentPage} of {totalPages}
+            <div className="pointer-events-none absolute bottom-6 left-1/2 transform -translate-x-1/2">
+              <div className="bg-background/95 backdrop-blur-xl rounded-full px-4 py-2 text-sm font-medium shadow-xl border">
+                {currentPage} / {totalPages}
               </div>
             </div>
           </div>
