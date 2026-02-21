@@ -403,26 +403,27 @@ function PDFReaderContent({
   );
 
   const fitToWidth = useCallback(() => {
-    if (!provides || containerWidth <= 0) return;
+    if (!provides) return;
+
+    const width = containerRef.current?.clientWidth || window.innerWidth;
+    const targetWidth = width - 32;
 
     // Get the current rendered page width by finding the page element
     const pageEl = containerRef.current?.querySelector('[data-page-index]') as HTMLElement;
     if (pageEl) {
       const currentRenderedWidth = pageEl.offsetWidth;
       // Calculate: at current zoom, page renders at currentRenderedWidth
-      // We want it to fit containerWidth - padding (16px each side)
-      const targetWidth = containerWidth - 32;
+      // We want it to fit targetWidth
       const newZoom = (targetWidth / currentRenderedWidth) * currentZoom;
       const clamped = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, newZoom));
       provides.requestZoom(clamped);
     } else {
       // Fallback: assume standard PDF width ~612pt at zoom 1.0
-      const targetWidth = containerWidth - 32;
       const pdfWidth = 612;
       const fitZoom = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, targetWidth / pdfWidth));
       provides.requestZoom(fitZoom);
     }
-  }, [provides, containerWidth, currentZoom, containerRef]);
+  }, [provides, currentZoom, containerRef]);
 
   // Ctrl+wheel zoom (desktop)
   useEffect(() => {
