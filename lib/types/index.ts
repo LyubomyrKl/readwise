@@ -83,4 +83,11 @@ export type {
   SemanticGroupResponse,
   RelatedWordResponse,
   WordWithRelatedResponse,
+  // Synonym groups
+  CreateSynonymGroupDto,
+  UpdateSynonymGroupDto,
+  AddEntriesToSynonymGroupDto,
+  SynonymEntryResponse,
+  SynonymGroupResponse,
+  SynonymGroupSummaryResponse,
 } from "./dictionary";

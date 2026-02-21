@@ -13,6 +13,11 @@ import type {
   UpdateSemanticGroupDto,
   SemanticGroupResponse,
   WordWithRelatedResponse,
+  CreateSynonymGroupDto,
+  UpdateSynonymGroupDto,
+  SynonymGroupResponse,
+  SynonymGroupSummaryResponse,
+  SynonymEntryResponse,
 } from "@/lib/types";
 
 export const dictionaryApi = {
@@ -175,6 +180,71 @@ export const dictionaryApi = {
     return withRefresh(() => {
       const client = getClient();
       return client.get<WordWithRelatedResponse>(`/dictionary/word/${encodeURIComponent(term)}`);
+    });
+  },
+
+  // Synonym Groups
+  async getSynonymGroups() {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SynonymGroupSummaryResponse[]>("/dictionary/synonyms");
+    });
+  },
+
+  async getSynonymGroup(id: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SynonymGroupResponse>(`/dictionary/synonyms/${id}`);
+    });
+  },
+
+  async createSynonymGroup(dto: CreateSynonymGroupDto) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.post<SynonymGroupResponse>("/dictionary/synonyms", dto);
+    });
+  },
+
+  async updateSynonymGroup(id: string, dto: UpdateSynonymGroupDto) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.patch<SynonymGroupResponse>(`/dictionary/synonyms/${id}`, dto);
+    });
+  },
+
+  async deleteSynonymGroup(id: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.delete(`/dictionary/synonyms/${id}`);
+    });
+  },
+
+  async addEntriesToSynonymGroup(groupId: string, entryIds: string[]) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.post<SynonymGroupResponse>(`/dictionary/synonyms/${groupId}/entries`, { entryIds });
+    });
+  },
+
+  async removeEntryFromSynonymGroup(groupId: string, entryId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.delete(`/dictionary/synonyms/${groupId}/entries/${entryId}`);
+    });
+  },
+
+  // Entry Synonym Management
+  async getEntrySynonyms(entryId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SynonymEntryResponse[]>(`/dictionary/entries/${entryId}/synonyms`);
+    });
+  },
+
+  async getEntrySynonymGroups(entryId: string) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<SynonymGroupSummaryResponse[]>(`/dictionary/entries/${entryId}/synonym-groups`);
     });
   },
 };

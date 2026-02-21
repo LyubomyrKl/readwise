@@ -20,8 +20,9 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { CollocationListInput } from "./CollocationInput";
 import { GroupSelectorEdit } from "./GroupSelectorEdit";
-import { useDictionaryEntries, useCreateCards } from "@/hooks/useDictionary";
-import type { CreateDictionaryEntryDto, CreateCollocationDto } from "@/lib/types";
+import { SynonymSelectorEdit } from "./SynonymSelectorEdit";
+import { useDictionaryEntries, useCreateCards, useSynonymGroups } from "@/hooks/useDictionary";
+import type { CreateDictionaryEntryDto, CreateCollocationDto, DictionarySearchResult } from "@/lib/types";
 
 const partsOfSpeech = [
   { value: "noun", label: "Noun" },
@@ -40,6 +41,7 @@ export function EntryForm() {
   const router = useRouter();
   const { createEntry } = useDictionaryEntries();
   const { createCards, isCreating: isCreatingCards } = useCreateCards();
+  const { createGroup: createSynonymGroup } = useSynonymGroups();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ export function EntryForm() {
   });
   const [collocations, setCollocations] = useState<CreateCollocationDto[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [selectedSynonyms, setSelectedSynonyms] = useState<DictionarySearchResult[]>([]);
   const [createCardsAfter, setCreateCardsAfter] = useState(false);
 
   const handleChange = (
@@ -115,6 +118,19 @@ export function EntryForm() {
         } catch {
           // Non-critical error, don't block navigation
           console.error("Failed to add entry to groups");
+        }
+      }
+
+      // Link as synonyms if any selected
+      if (selectedSynonyms.length > 0) {
+        try {
+          await createSynonymGroup({
+            entryIds: [entry.id, ...selectedSynonyms.map((s) => s.id)],
+          });
+          toast.success("Linked as synonyms");
+        } catch {
+          // Non-critical error, don't block navigation
+          console.error("Failed to link synonyms");
         }
       }
 
@@ -294,6 +310,12 @@ export function EntryForm() {
             <GroupSelectorEdit
               selectedGroupIds={selectedGroupIds}
               onChange={setSelectedGroupIds}
+            />
+
+            {/* Synonyms */}
+            <SynonymSelectorEdit
+              selectedSynonyms={selectedSynonyms}
+              onChange={setSelectedSynonyms}
             />
 
             {/* Error */}

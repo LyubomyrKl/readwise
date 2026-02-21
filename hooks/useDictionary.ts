@@ -7,14 +7,19 @@ import type {
   CreateCollocationDto,
   CreateDictionaryEntryDto,
   CreateSemanticGroupDto,
+  CreateSynonymGroupDto,
   DictionaryEntryResponse,
   DictionarySearchQuery,
   DictionarySearchResult,
   DictionaryStatsResponse,
   LearningNoteResponse,
   SemanticGroupResponse,
+  SynonymEntryResponse,
+  SynonymGroupResponse,
+  SynonymGroupSummaryResponse,
   UpdateDictionaryEntryDto,
   UpdateSemanticGroupDto,
+  UpdateSynonymGroupDto,
   WordWithRelatedResponse,
 } from "@/lib/types";
 
@@ -508,4 +513,214 @@ export function useGroupEntries(groupId: string | null) {
   }, [groupId, fetchEntries]);
 
   return { entries, isLoading, fetchEntries };
+}
+
+// ===== Synonym Group Hooks =====
+
+// Hook for managing synonym groups
+export function useSynonymGroups() {
+  const [groups, setGroups] = useState<SynonymGroupSummaryResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fetchedRef = useRef(false);
+
+  const fetchGroups = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/dictionary/synonyms", { credentials: "include" });
+      if (!response.ok) throw new Error("Failed to fetch synonym groups");
+      const data = (await response.json()) as SynonymGroupSummaryResponse[];
+      setGroups(data);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch synonym groups";
+      setError(message);
+      return [];
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const createGroup = useCallback(async (dto: CreateSynonymGroupDto) => {
+    const response = await fetch("/api/dictionary/synonyms", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(dto),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to create synonym group");
+    }
+    const newGroup = (await response.json()) as SynonymGroupResponse;
+    setGroups((prev) => [{
+      id: newGroup.id,
+      name: newGroup.name,
+      entryCount: newGroup.entryCount,
+      createdAt: newGroup.createdAt,
+      updatedAt: newGroup.updatedAt,
+    }, ...prev]);
+    return newGroup;
+  }, []);
+
+  const updateGroup = useCallback(async (id: string, dto: UpdateSynonymGroupDto) => {
+    const response = await fetch(`/api/dictionary/synonyms/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(dto),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to update synonym group");
+    }
+    const updated = (await response.json()) as SynonymGroupResponse;
+    setGroups((prev) => prev.map((g) => (g.id === id ? {
+      id: updated.id,
+      name: updated.name,
+      entryCount: updated.entryCount,
+      createdAt: updated.createdAt,
+      updatedAt: updated.updatedAt,
+    } : g)));
+    return updated;
+  }, []);
+
+  const deleteGroup = useCallback(async (id: string) => {
+    const response = await fetch(`/api/dictionary/synonyms/${id}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to delete synonym group");
+    }
+    setGroups((prev) => prev.filter((g) => g.id !== id));
+  }, []);
+
+  useEffect(() => {
+    if (fetchedRef.current) return;
+    fetchedRef.current = true;
+    fetchGroups();
+  }, [fetchGroups]);
+
+  return {
+    groups,
+    isLoading,
+    error,
+    fetchGroups,
+    createGroup,
+    updateGroup,
+    deleteGroup,
+  };
+}
+
+// Hook for a single synonym group with entries
+export function useSynonymGroup(groupId: string | null) {
+  const [group, setGroup] = useState<SynonymGroupResponse | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchGroup = useCallback(async () => {
+    if (!groupId) return null;
+    setIsLoading(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/dictionary/synonyms/${groupId}`, {
+        credentials: "include",
+      });
+      if (!response.ok) throw new Error("Failed to fetch synonym group");
+      const data = (await response.json()) as SynonymGroupResponse;
+      setGroup(data);
+      return data;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to fetch synonym group";
+      setError(message);
+      return null;
+    } finally {
+      setIsLoading(false);
+    }
+  }, [groupId]);
+
+  const addEntries = useCallback(async (entryIds: string[]) => {
+    if (!groupId) return null;
+    const response = await fetch(`/api/dictionary/synonyms/${groupId}/entries`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ entryIds }),
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to add entries");
+    }
+    const updated = (await response.json()) as SynonymGroupResponse;
+    setGroup(updated);
+    return updated;
+  }, [groupId]);
+
+  const removeEntry = useCallback(async (entryId: string) => {
+    if (!groupId) return;
+    const response = await fetch(`/api/dictionary/synonyms/${groupId}/entries/${entryId}`, {
+      method: "DELETE",
+      credentials: "include",
+    });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || "Failed to remove entry");
+    }
+    // Check if group was deleted (returns success empty response)
+    const data = await response.json();
+    if (data.status === "success") {
+      setGroup(null);
+      return null;
+    }
+    setGroup(data as SynonymGroupResponse);
+    return data as SynonymGroupResponse;
+  }, [groupId]);
+
+  useEffect(() => {
+    if (groupId) {
+      fetchGroup();
+    }
+  }, [groupId, fetchGroup]);
+
+  return { group, isLoading, error, fetchGroup, addEntries, removeEntry, setGroup };
+}
+
+// Hook for entry synonyms
+export function useEntrySynonyms(entryId: string | null) {
+  const [synonyms, setSynonyms] = useState<SynonymEntryResponse[]>([]);
+  const [synonymGroups, setSynonymGroups] = useState<SynonymGroupSummaryResponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const fetchSynonyms = useCallback(async () => {
+    if (!entryId) return;
+    setIsLoading(true);
+    try {
+      const [synonymsRes, groupsRes] = await Promise.all([
+        fetch(`/api/dictionary/entries/${entryId}/synonyms`, { credentials: "include" }),
+        fetch(`/api/dictionary/entries/${entryId}/synonym-groups`, { credentials: "include" }),
+      ]);
+
+      if (synonymsRes.ok) {
+        const data = (await synonymsRes.json()) as SynonymEntryResponse[];
+        setSynonyms(data);
+      }
+      if (groupsRes.ok) {
+        const data = (await groupsRes.json()) as SynonymGroupSummaryResponse[];
+        setSynonymGroups(data);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [entryId]);
+
+  useEffect(() => {
+    if (entryId) {
+      fetchSynonyms();
+    }
+  }, [entryId, fetchSynonyms]);
+
+  return { synonyms, synonymGroups, isLoading, fetchSynonyms };
 }

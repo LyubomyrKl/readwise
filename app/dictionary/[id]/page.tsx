@@ -36,6 +36,7 @@ import { MasteryBadge, AgingWarning } from "../components/MasteryBadge";
 import { CreateCardsButton } from "../components/CreateCardsButton";
 import { CollocationInput } from "../components/CollocationInput";
 import { GroupSelector } from "../components/GroupSelector";
+import { SynonymSelector } from "../components/SynonymSelector";
 import { RelatedWords } from "../components/RelatedWords";
 import { toast } from "sonner";
 import type { UpdateDictionaryEntryDto } from "@/lib/types";
@@ -443,6 +444,9 @@ export default function EntryDetailPage() {
 
           {/* Groups */}
           <GroupSelector entryId={entry.id} />
+
+          {/* Synonyms */}
+          <SynonymSelector entryId={entry.id} currentWord={entry.word} />
 
           {/* Tags */}
           <div className="space-y-2">

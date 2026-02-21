@@ -126,3 +126,43 @@ export interface WordWithRelatedResponse {
   groups: SemanticGroupResponse[];
   relatedWords: RelatedWordResponse[];
 }
+
+// ===== Synonym Groups =====
+
+export interface CreateSynonymGroupDto {
+  name?: string;
+  entryIds: string[];
+}
+
+export interface UpdateSynonymGroupDto {
+  name?: string;
+}
+
+export interface AddEntriesToSynonymGroupDto {
+  entryIds: string[];
+}
+
+export interface SynonymEntryResponse {
+  id: string;
+  word: string;
+  definition: string;
+  partOfSpeech?: string | null;
+  masteryLevel: number;
+}
+
+export interface SynonymGroupResponse {
+  id: string;
+  name?: string | null;
+  entryCount: number;
+  entries: SynonymEntryResponse[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SynonymGroupSummaryResponse {
+  id: string;
+  name?: string | null;
+  entryCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
