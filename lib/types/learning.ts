@@ -1,6 +1,6 @@
 // ===== Enums =====
 
-export type CardType = 'recognition' | 'production' | 'cloze' | 'grammar';
+export type CardType = 'recognition' | 'production' | 'cloze';
 export type CardState = 'new' | 'learning' | 'review' | 'relearning';
 export type ReviewRating = 'again' | 'hard' | 'good' | 'easy';
 export type NoteSourceType = 'manual' | 'highlight' | 'ai_generated';
@@ -49,7 +49,6 @@ export interface UpdateSettingsDto {
   generateRecognition?: boolean;
   generateProduction?: boolean;
   generateCloze?: boolean;
-  generateGrammar?: boolean;
   newCardsPerDay?: number;
   maxReviewsPerDay?: number;
   showResponseTime?: boolean;
@@ -144,7 +143,6 @@ export interface SettingsResponse {
   generateRecognition: boolean;
   generateProduction: boolean;
   generateCloze: boolean;
-  generateGrammar: boolean;
   newCardsPerDay: number;
   maxReviewsPerDay: number;
   showResponseTime: boolean;

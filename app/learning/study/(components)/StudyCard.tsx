@@ -18,11 +18,17 @@ interface StudyCardProps {
   isSubmitting: boolean;
 }
 
-const CARD_TYPE_CONFIG = {
-  recognition: { label: "Recognition", color: "bg-blue-500" },
-  production: { label: "Production", color: "bg-green-500" },
-  cloze: { label: "Cloze", color: "bg-purple-500" },
-  grammar: { label: "Grammar", color: "bg-orange-500" },
+const CARD_TYPE_CONFIG: Record<string, { label: string; color: string; description: string }> = {
+  recognition: {
+    label: "Recognition",
+    color: "bg-blue-500",
+    description: "What does this mean?"
+  },
+  production: {
+    label: "Production",
+    color: "bg-green-500",
+    description: "Recall the word from meaning"
+  },
 };
 
 const HESITATION_THRESHOLD = 8000; // 8 seconds
@@ -57,16 +63,21 @@ export function StudyCard({ card, onAnswer, isSubmitting }: StudyCardProps) {
     onAnswer(rating, finalTime, wasHesitant);
   };
 
-  const typeConfig = CARD_TYPE_CONFIG[card.cardType];
+  const typeConfig = CARD_TYPE_CONFIG[card.cardType] || CARD_TYPE_CONFIG.recognition;
   const isHesitant = responseTimeMs > HESITATION_THRESHOLD;
 
   return (
     <div className="w-full">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
-        <Badge className={cn("text-white", typeConfig.color)}>
-          {typeConfig.label}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge className={cn("text-white", typeConfig.color)}>
+            {typeConfig.label}
+          </Badge>
+          <span className="text-xs text-muted-foreground">
+            {typeConfig.description}
+          </span>
+        </div>
         <div
           className={cn(
             "flex items-center gap-1 text-sm",
@@ -81,7 +92,7 @@ export function StudyCard({ card, onAnswer, isSubmitting }: StudyCardProps) {
       {/* Card */}
       <Card className="min-h-[300px] flex flex-col">
         <CardContent className="flex-1 flex flex-col justify-center p-6">
-          {/* Front */}
+          {/* Front - Question */}
           <div className="text-center mb-6">
             <div className="text-lg whitespace-pre-wrap leading-relaxed">
               {formatCardText(card.front)}
@@ -89,15 +100,16 @@ export function StudyCard({ card, onAnswer, isSubmitting }: StudyCardProps) {
           </div>
 
           {/* Divider when revealed */}
-          {isRevealed && <div className="border-t my-4" />}
-
-          {/* Back */}
           {isRevealed && (
-            <div className="text-center text-muted-foreground">
-              <div className="whitespace-pre-wrap leading-relaxed">
-                {formatCardText(card.back)}
+            <>
+              <div className="border-t my-4" />
+              {/* Back - Answer */}
+              <div className="text-center">
+                <div className="text-lg font-medium text-primary whitespace-pre-wrap leading-relaxed">
+                  {formatCardText(card.back)}
+                </div>
               </div>
-            </div>
+            </>
           )}
         </CardContent>
       </Card>
@@ -110,48 +122,57 @@ export function StudyCard({ card, onAnswer, isSubmitting }: StudyCardProps) {
             Show Answer
           </Button>
         ) : (
-          <div className="grid grid-cols-4 gap-2">
-            <Button
-              variant="destructive"
-              onClick={() => handleAnswer("again")}
-              disabled={isSubmitting}
-              className="flex flex-col h-auto py-3"
-            >
-              {isSubmitting ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <>
-                  <span className="font-medium">Again</span>
-                  <span className="text-xs opacity-80">&lt;10m</span>
-                </>
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              onClick={() => handleAnswer("hard")}
-              disabled={isSubmitting}
-              className="flex flex-col h-auto py-3"
-            >
-              <span className="font-medium">Hard</span>
-              <span className="text-xs opacity-80">~1h</span>
-            </Button>
-            <Button
-              variant="secondary"
-              onClick={() => handleAnswer("good")}
-              disabled={isSubmitting}
-              className="flex flex-col h-auto py-3"
-            >
-              <span className="font-medium">Good</span>
-              <span className="text-xs opacity-80">~12h</span>
-            </Button>
-            <Button
-              onClick={() => handleAnswer("easy")}
-              disabled={isSubmitting}
-              className="flex flex-col h-auto py-3 bg-green-600 hover:bg-green-700 text-white"
-            >
-              <span className="font-medium">Easy</span>
-              <span className="text-xs opacity-80">3d+</span>
-            </Button>
+          <div className="space-y-3">
+            {/* Self-assessment prompt */}
+            <p className="text-center text-sm text-muted-foreground">
+              {card.cardType === "production"
+                ? "Did you recall the correct word?"
+                : "Did you know the meaning?"}
+            </p>
+
+            <div className="grid grid-cols-4 gap-2">
+              <Button
+                variant="destructive"
+                onClick={() => handleAnswer("again")}
+                disabled={isSubmitting}
+                className="flex flex-col h-auto py-3"
+              >
+                {isSubmitting ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>
+                    <span className="font-medium">Again</span>
+                    <span className="text-xs opacity-80">Forgot</span>
+                  </>
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => handleAnswer("hard")}
+                disabled={isSubmitting}
+                className="flex flex-col h-auto py-3 border-orange-300 text-orange-600 hover:bg-orange-50"
+              >
+                <span className="font-medium">Hard</span>
+                <span className="text-xs opacity-80">Struggled</span>
+              </Button>
+              <Button
+                variant="secondary"
+                onClick={() => handleAnswer("good")}
+                disabled={isSubmitting}
+                className="flex flex-col h-auto py-3"
+              >
+                <span className="font-medium">Good</span>
+                <span className="text-xs opacity-80">Got it</span>
+              </Button>
+              <Button
+                onClick={() => handleAnswer("easy")}
+                disabled={isSubmitting}
+                className="flex flex-col h-auto py-3 bg-green-600 hover:bg-green-700 text-white"
+              >
+                <span className="font-medium">Easy</span>
+                <span className="text-xs opacity-80">Instant</span>
+              </Button>
+            </div>
           </div>
         )}
       </div>
@@ -159,33 +180,76 @@ export function StudyCard({ card, onAnswer, isSubmitting }: StudyCardProps) {
       {/* Hesitation warning */}
       {isHesitant && !isRevealed && (
         <p className="text-center text-amber-500 text-sm mt-2">
-          Taking a while? Hesitation indicates weaker memory.
+          Taking a while? That&apos;s okay - honest self-assessment helps learning.
         </p>
       )}
     </div>
   );
 }
 
-// Format card text with markdown-like bold
+/**
+ * Format card text with markdown-like formatting:
+ * - **bold** for highlighted words/answers
+ * - _italic_ for context/examples
+ * - [____] for blanks
+ */
 function formatCardText(text: string): React.ReactNode {
-  // Split by **text** pattern
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((part, i) => {
-    if (part.startsWith("**") && part.endsWith("**")) {
-      return (
-        <strong key={i} className="text-primary">
-          {part.slice(2, -2)}
+  // Split by patterns and process
+  const parts: React.ReactNode[] = [];
+  let remaining = text;
+  let key = 0;
+
+  while (remaining.length > 0) {
+    // Check for bold **text**
+    const boldMatch = remaining.match(/^\*\*([^*]+)\*\*/);
+    if (boldMatch) {
+      parts.push(
+        <strong key={key++} className="text-primary font-semibold">
+          {boldMatch[1]}
         </strong>
       );
+      remaining = remaining.slice(boldMatch[0].length);
+      continue;
     }
-    // Handle _italic_ pattern
-    if (part.startsWith("_") && part.endsWith("_") && part.length > 2) {
-      return (
-        <em key={i} className="text-muted-foreground">
-          {part.slice(1, -1)}
+
+    // Check for italic _text_
+    const italicMatch = remaining.match(/^_([^_]+)_/);
+    if (italicMatch) {
+      parts.push(
+        <em key={key++} className="text-muted-foreground italic">
+          {italicMatch[1]}
         </em>
       );
+      remaining = remaining.slice(italicMatch[0].length);
+      continue;
     }
-    return part;
-  });
+
+    // Check for blanks [____]
+    const blankMatch = remaining.match(/^\[____\]/);
+    if (blankMatch) {
+      parts.push(
+        <span key={key++} className="inline-block min-w-[80px] border-b-2 border-primary mx-1">
+          &nbsp;
+        </span>
+      );
+      remaining = remaining.slice(blankMatch[0].length);
+      continue;
+    }
+
+    // Take next character as plain text
+    const nextSpecial = remaining.search(/\*\*|_|\[____\]/);
+    if (nextSpecial === -1) {
+      parts.push(remaining);
+      break;
+    } else if (nextSpecial === 0) {
+      // Didn't match a pattern, take one character
+      parts.push(remaining[0]);
+      remaining = remaining.slice(1);
+    } else {
+      parts.push(remaining.slice(0, nextSpecial));
+      remaining = remaining.slice(nextSpecial);
+    }
+  }
+
+  return parts;
 }

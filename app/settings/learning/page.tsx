@@ -92,31 +92,15 @@ export default function LearningSettingsPage() {
           <CardHeader>
             <CardTitle>Card Generation</CardTitle>
             <CardDescription>
-              Choose which card types to generate from your notes
+              One card per note for focused learning
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex items-center justify-between">
               <div>
-                <Label htmlFor="recognition">Recognition Cards</Label>
+                <Label htmlFor="production">Production Cards (Recommended)</Label>
                 <p className="text-sm text-muted-foreground">
-                  L2 sentence → understand meaning
-                </p>
-              </div>
-              <Switch
-                id="recognition"
-                checked={settings.generateRecognition}
-                onCheckedChange={(v) => handleToggle("generateRecognition", v)}
-              />
-            </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="production">Production Cards</Label>
-                <p className="text-sm text-muted-foreground">
-                  L1 meaning → produce L2 sentence (most important)
+                  See meaning → recall the word (active learning)
                 </p>
               </div>
               <Switch
@@ -130,33 +114,23 @@ export default function LearningSettingsPage() {
 
             <div className="flex items-center justify-between">
               <div>
-                <Label htmlFor="cloze">Cloze Cards</Label>
+                <Label htmlFor="recognition">Recognition Cards</Label>
                 <p className="text-sm text-muted-foreground">
-                  Fill in the missing word
+                  See word → understand meaning (passive, only if production disabled)
                 </p>
               </div>
               <Switch
-                id="cloze"
-                checked={settings.generateCloze}
-                onCheckedChange={(v) => handleToggle("generateCloze", v)}
+                id="recognition"
+                checked={settings.generateRecognition}
+                onCheckedChange={(v) => handleToggle("generateRecognition", v)}
+                disabled={settings.generateProduction}
               />
             </div>
-
-            <Separator />
-
-            <div className="flex items-center justify-between">
-              <div>
-                <Label htmlFor="grammar">Grammar Cards</Label>
-                <p className="text-sm text-muted-foreground">
-                  Conjugation and declension practice
-                </p>
-              </div>
-              <Switch
-                id="grammar"
-                checked={settings.generateGrammar}
-                onCheckedChange={(v) => handleToggle("generateGrammar", v)}
-              />
-            </div>
+            {settings.generateProduction && (
+              <p className="text-xs text-muted-foreground italic">
+                Recognition cards are disabled when production is enabled to avoid redundancy.
+              </p>
+            )}
           </CardContent>
         </Card>
 
