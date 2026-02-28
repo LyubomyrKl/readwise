@@ -369,7 +369,7 @@ class SummarizationWorker:
             import traceback
             logger.error(traceback.format_exc())
             try:
-                await self.db.update_book_status(message_data.get('bookId'), 'error')
+                await self.db.update_book_status(message_data.get('bookId'), 'error', str(e))
             except:
                 pass
         finally:

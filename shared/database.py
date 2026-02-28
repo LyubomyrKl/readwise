@@ -37,8 +37,13 @@ class DatabaseManager:
     async def get_book(self, book_id: str):
         return await self.db.book.find_unique(where={'id': book_id})
     
-    async def update_book_status(self, book_id: str, status: str):
+    async def update_book_status(self, book_id: str, status: str, error_message: str = None):
         data = {'status': status}
+        if error_message is not None:
+            data['errorMessage'] = error_message[:500]  # Truncate long error messages
+        elif status != 'error':
+            # Clear error message when status is not error
+            data['errorMessage'] = None
 
         return await self.db.book.update(
             where={'id': book_id},

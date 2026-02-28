@@ -146,7 +146,7 @@ class ExtractionWorker:
         except Exception as e:
             logger.error(f"❌ Error processing book {book_id}: {e}")
             try:
-                await self.db_manager.update_book_status(book_id, 'ready')
+                await self.db_manager.update_book_status(book_id, 'error', str(e))
             except:
                 pass
             return False
