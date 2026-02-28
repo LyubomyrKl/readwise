@@ -31,6 +31,7 @@ export class SchedulerService {
   private readonly DECAY = -0.5;
   private readonly FACTOR = 0.9;
   private readonly TARGET_RETENTION = 0.9;
+  private readonly MAX_INTERVAL_DAYS = 365; // Cap intervals at 1 year
 
   // Response time thresholds (ms)
   private readonly FAST_THRESHOLD = 3000; // < 3s = fast
@@ -78,10 +79,14 @@ export class SchedulerService {
     // Determine new state
     const newState = this.determineState(card.state, review.rating, card.lapseCount);
 
-    // Calculate interval
-    const intervalDays = Math.max(
-      this.getMinInterval(newState),
-      Math.round(this.calculateInterval(newStability, newState, review.rating)),
+    // Calculate interval with cap
+    const rawInterval = this.calculateInterval(newStability, newState, review.rating);
+    const intervalDays = Math.min(
+      this.MAX_INTERVAL_DAYS,
+      Math.max(
+        this.getMinInterval(newState),
+        Math.round(rawInterval),
+      ),
     );
 
     // Calculate next due date

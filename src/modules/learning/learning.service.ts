@@ -167,7 +167,6 @@ export class LearningService {
         generateRecognition: settings.generateRecognition,
         generateProduction: settings.generateProduction,
         generateCloze: settings.generateCloze,
-        generateGrammar: settings.generateGrammar,
         sourceType: cardSourceType,
       },
     );
@@ -309,6 +308,10 @@ export class LearningService {
 
   /**
    * Get cards due for study
+   *
+   * Key principle: ONE CARD PER NOTE per session
+   * This prevents showing the same word multiple times in a row.
+   * For legacy data with multiple cards per note, we prefer production cards.
    */
   async getStudyQueue(userId: string): Promise<StudyQueueResponse> {
     const settings = await this.getOrCreateSettings(userId);
@@ -357,10 +360,10 @@ export class LearningService {
     const shouldThrottle = this.scheduler.shouldThrottleNewCards(
       todayLapses,
       correctRate,
-      0, // Will calculate properly
+      0,
     );
 
-    // Fetch cards
+    // Fetch cards (fetch more than needed to allow deduplication)
     const [newCards, learningCards, reviewCards] = await Promise.all([
       // New cards (never reviewed)
       this.prisma.learningCard.findMany({
@@ -370,8 +373,12 @@ export class LearningService {
           state: 'new',
           note: { deletedAt: null, isArchived: false },
         },
-        take: shouldThrottle ? Math.floor(remainingNew / 2) : remainingNew,
-        orderBy: { createdAt: 'asc' },
+        take: (shouldThrottle ? Math.floor(remainingNew / 2) : remainingNew) * 3,
+        orderBy: [
+          // Prefer production cards for consistent learning
+          { cardType: 'asc' }, // 'production' comes before 'recognition' alphabetically
+          { createdAt: 'asc' },
+        ],
       }),
 
       // Learning/relearning cards (short intervals)
@@ -383,7 +390,7 @@ export class LearningService {
           dueAt: { lte: now },
           note: { deletedAt: null, isArchived: false },
         },
-        orderBy: { dueAt: 'asc' },
+        orderBy: [{ cardType: 'asc' }, { dueAt: 'asc' }],
       }),
 
       // Review cards
@@ -395,48 +402,41 @@ export class LearningService {
           dueAt: { lte: now },
           note: { deletedAt: null, isArchived: false },
         },
-        take: remainingReviews,
-        orderBy: { dueAt: 'asc' },
+        take: remainingReviews * 3,
+        orderBy: [{ cardType: 'asc' }, { dueAt: 'asc' }],
       }),
     ]);
 
-    // Check for imbalance and prioritize production if needed
-    const stats = await this.prisma.userLearningStats.findUnique({
-      where: { userId },
-    });
+    // Deduplicate: ONE card per note (prefer production cards)
+    const dedupeByNoteId = <T extends { noteId: string; cardType: string }>(
+      cards: T[],
+    ): T[] => {
+      const seen = new Set<string>();
+      return cards.filter((card) => {
+        if (seen.has(card.noteId)) return false;
+        seen.add(card.noteId);
+        return true;
+      });
+    };
 
-    if (stats) {
-      const recognitionAccuracy = await this.getCardTypeAccuracy(
-        userId,
-        CardType.RECOGNITION,
-      );
-      const imbalance = this.scheduler.detectImbalance(
-        recognitionAccuracy,
-        stats.productionAccuracy,
-      );
-
-      if (imbalance.hasImbalance) {
-        // Sort to prioritize production cards
-        reviewCards.sort((a, b) => {
-          if (a.cardType === 'production' && b.cardType !== 'production')
-            return -1;
-          if (a.cardType !== 'production' && b.cardType === 'production')
-            return 1;
-          return 0;
-        });
-      }
-    }
+    // Cards are already sorted by cardType (production first), so deduplication keeps production
+    const dedupedNew = dedupeByNoteId(newCards).slice(
+      0,
+      shouldThrottle ? Math.floor(remainingNew / 2) : remainingNew,
+    );
+    const dedupedLearning = dedupeByNoteId(learningCards);
+    const dedupedReview = dedupeByNoteId(reviewCards).slice(0, remainingReviews);
 
     const totalDue =
-      newCards.length + learningCards.length + reviewCards.length;
+      dedupedNew.length + dedupedLearning.length + dedupedReview.length;
 
     return {
-      newCards: newCards.map((c) => this.mapCardToResponse(c)),
-      learningCards: learningCards.map((c) => this.mapCardToResponse(c)),
-      reviewCards: reviewCards.map((c) => this.mapCardToResponse(c)),
+      newCards: dedupedNew.map((c) => this.mapCardToResponse(c)),
+      learningCards: dedupedLearning.map((c) => this.mapCardToResponse(c)),
+      reviewCards: dedupedReview.map((c) => this.mapCardToResponse(c)),
       totalDue,
-      newAvailable: newCards.length,
-      reviewsAvailable: reviewCards.length,
+      newAvailable: dedupedNew.length,
+      reviewsAvailable: dedupedReview.length,
     };
   }
 
@@ -601,7 +601,6 @@ export class LearningService {
       generateRecognition: settings.generateRecognition,
       generateProduction: settings.generateProduction,
       generateCloze: settings.generateCloze,
-      generateGrammar: settings.generateGrammar,
       newCardsPerDay: settings.newCardsPerDay,
       maxReviewsPerDay: settings.maxReviewsPerDay,
       showResponseTime: settings.showResponseTime,
@@ -677,7 +676,6 @@ export class LearningService {
         generateRecognition: settings.generateRecognition,
         generateProduction: settings.generateProduction,
         generateCloze: settings.generateCloze,
-        generateGrammar: settings.generateGrammar,
         sourceType: cardSourceType,
       },
     );

@@ -34,6 +34,7 @@
     "@nestjs/passport": "^11.0.5",
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/swagger": "^11.2.0",
+    "@nestjs/throttler": "^6.0.0",
     "@prisma/client": "^6.13.0",
     "@types/amqplib": "^0.10.7",
     "amqp-connection-manager": "^4.1.14",

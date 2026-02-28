@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { CreateHighlightDto, UpdateHighlightDto, HighlightResponse } from './highlight.models';
+import { sanitizeHtml } from '@/common/sanitize';
 
 const DEFAULT_HIGHLIGHT_COLOR = '#ffe066';
 
@@ -59,7 +60,7 @@ export class HighlightsService {
       data: {
         userId,
         bookId,
-        text: dto.text,
+        text: sanitizeHtml(dto.text),
         anchor: dto.anchor as unknown as Prisma.InputJsonValue,
         color: dto.color || DEFAULT_HIGHLIGHT_COLOR,
         noteId: dto.noteId,

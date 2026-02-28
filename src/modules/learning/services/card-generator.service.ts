@@ -14,541 +14,220 @@ export interface GeneratedCard {
   cardType: CardType;
   front: string;
   back: string;
-  clozeIndex?: number;
 }
 
 export interface GenerationSettings {
   generateRecognition: boolean;
   generateProduction: boolean;
-  generateCloze: boolean;
-  generateGrammar: boolean;
+  generateCloze: boolean; // Deprecated - ignored
   sourceType?: CardSourceType;
 }
 
+/**
+ * Simplified Card Generation:
+ *
+ * ONE NOTE = ONE CARD (by default)
+ *
+ * We generate PRODUCTION cards because active recall is what builds memory.
+ * Recognition cards are optional and should be used sparingly.
+ * Cloze cards are redundant with production and removed.
+ *
+ * The card tests: "Given the meaning, can you recall the word?"
+ */
 @Injectable()
 export class CardGeneratorService {
-  /**
-   * Generate all card types from a learning note based on settings
-   * One note can produce multiple cards for varied training
-   */
   generateCards(note: NoteData, settings: GenerationSettings): GeneratedCard[] {
+    const cards: GeneratedCard[] = [];
     const sourceType = settings.sourceType ?? CardSourceType.SENTENCE;
 
-    if (sourceType === CardSourceType.DICTIONARY) {
-      return this.generateDictionaryCards(note, settings);
-    }
-
-    return this.generateSentenceCards(note, settings);
-  }
-
-  /**
-   * Generate cards for sentence-based learning (highlights, manual notes)
-   */
-  private generateSentenceCards(
-    note: NoteData,
-    settings: GenerationSettings,
-  ): GeneratedCard[] {
-    const cards: GeneratedCard[] = [];
-
-    if (settings.generateRecognition) {
-      cards.push(this.generateRecognitionCard(note));
-    }
-
+    // Production card is the primary learning tool (active recall)
     if (settings.generateProduction) {
-      cards.push(this.generateProductionCard(note));
+      cards.push(this.generateProductionCard(note, sourceType));
     }
 
-    if (settings.generateCloze) {
-      const clozeCards = this.generateClozeCards(note);
-      cards.push(...clozeCards);
+    // Recognition is secondary - only if explicitly enabled AND no production
+    // Having both for same word is wasteful
+    if (settings.generateRecognition && !settings.generateProduction) {
+      cards.push(this.generateRecognitionCard(note, sourceType));
     }
 
-    // Grammar cards require more structured data
-    // For now, only generate if we have specific grammar context
-    if (settings.generateGrammar && this.hasGrammarContext(note)) {
-      cards.push(this.generateGrammarCard(note));
-    }
-
-    return cards;
-  }
-
-  /**
-   * Generate cards for dictionary-based vocabulary learning
-   * Uses word-focused templates instead of sentence-focused
-   */
-  private generateDictionaryCards(
-    note: NoteData,
-    settings: GenerationSettings,
-  ): GeneratedCard[] {
-    const cards: GeneratedCard[] = [];
-
-    if (settings.generateRecognition) {
-      cards.push(this.generateDictionaryRecognitionCard(note));
-    }
-
-    if (settings.generateProduction) {
-      cards.push(this.generateDictionaryProductionCard(note));
-    }
-
-    if (settings.generateCloze) {
-      const clozeCards = this.generateDictionaryClozeCards(note);
-      cards.push(...clozeCards);
-    }
-
-    if (settings.generateGrammar && this.hasGrammarContext(note)) {
-      cards.push(this.generateGrammarCard(note));
-    }
-
-    return cards;
-  }
-
-  /**
-   * Recognition card: See L2 sentence, recall meaning
-   * Tests comprehension of the target language
-   */
-  private generateRecognitionCard(note: NoteData): GeneratedCard {
-    let front = note.targetSentence;
-
-    // Highlight the target word if present
-    const highlightedSentence = this.highlightWord(
-      note.targetSentence,
-      note.targetWord,
-    );
-    if (highlightedSentence !== note.targetSentence) {
-      front = highlightedSentence;
-    }
-
-    front += `\n\nFocus: ${note.targetWord}`;
-
-    let back = note.meaning;
-    if (note.notes) {
-      back += `\n\nNote: ${note.notes}`;
-    }
-
-    return {
-      cardType: CardType.RECOGNITION,
-      front,
-      back,
-    };
-  }
-
-  /**
-   * Production card: See L1 meaning, produce L2 sentence
-   * Tests active language production (most important for fluency)
-   */
-  private generateProductionCard(note: NoteData): GeneratedCard {
-    const front = `Translate to target language:\n\n"${note.meaning}"\n\nUse: ${note.targetWord}`;
-
-    let back = note.targetSentence;
-    if (note.alternativePhrasing) {
-      back += `\n\nAlternative: ${note.alternativePhrasing}`;
-    }
-
-    return {
-      cardType: CardType.PRODUCTION,
-      front,
-      back,
-    };
-  }
-
-  /**
-   * Cloze cards: Fill in the target word
-   * Tests word recall in context
-   */
-  private generateClozeCards(note: NoteData): GeneratedCard[] {
-    const cards: GeneratedCard[] = [];
-    const sentence = note.targetSentence;
-    const targetWord = note.targetWord;
-
-    // Find all occurrences of target word (case-insensitive)
-    const regex = new RegExp(`\\b${this.escapeRegex(targetWord)}\\b`, 'gi');
-    let match: RegExpExecArray | null;
-    let clozeIndex = 0;
-    const matches: { index: number; text: string }[] = [];
-
-    while ((match = regex.exec(sentence)) !== null) {
-      matches.push({ index: match.index, text: match[0] });
-    }
-
-    // Generate a cloze card for each occurrence
-    for (const m of matches) {
-      const clozeSentence =
-        sentence.substring(0, m.index) +
-        '[...]' +
-        sentence.substring(m.index + m.text.length);
-
-      const front = `${clozeSentence}\n\nMeaning: ${note.meaning}_`;
-
-      cards.push({
-        cardType: CardType.CLOZE,
-        front,
-        back: m.text, // Preserve original casing
-        clozeIndex,
-      });
-
-      clozeIndex++;
-    }
-
-    // If no exact match found, create a single cloze with hint
+    // If nothing enabled, default to production
     if (cards.length === 0) {
-      const front = `Complete the sentence:\n\n${sentence}\n\nHint: Use a form of "${targetWord}"\nMeaning: ${note.meaning}`;
-
-      cards.push({
-        cardType: CardType.CLOZE,
-        front,
-        back: targetWord,
-        clozeIndex: 0,
-      });
+      cards.push(this.generateProductionCard(note, sourceType));
     }
 
     return cards;
   }
 
-  // ===== Dictionary-specific card generators =====
-
   /**
-   * Dictionary Recognition: See word with example → recall definition
-   * Tests vocabulary comprehension
+   * PRODUCTION CARD (Primary)
+   *
+   * Tests active recall: See meaning → produce the word
+   * This is the most effective way to learn vocabulary.
    */
-  private generateDictionaryRecognitionCard(note: NoteData): GeneratedCard {
-    let front = `**${note.targetWord}**`;
+  private generateProductionCard(note: NoteData, sourceType: CardSourceType): GeneratedCard {
+    const masked = this.maskWord(note.targetSentence, note.targetWord);
+    const hasMaskedContext = masked !== note.targetSentence;
 
-    // Add example sentence for context
-    if (note.targetSentence) {
-      const highlighted = this.highlightWordFlexible(
-        note.targetSentence,
-        note.targetWord,
-      );
-      front += `\n\n_"${highlighted}"_`;
-    }
+    let front: string;
+    let back: string;
 
-    let back = note.meaning;
-    if (note.notes) {
-      back += `\n\n${note.notes}`;
-    }
+    if (sourceType === CardSourceType.DICTIONARY) {
+      // Dictionary: Definition → Word
+      front = note.meaning;
+      if (hasMaskedContext) {
+        front += `\n\n"${masked}"`;
+      }
 
-    return {
-      cardType: CardType.RECOGNITION,
-      front,
-      back,
-    };
-  }
-
-  /**
-   * Dictionary Production: See definition → produce the word
-   * Tests active vocabulary recall
-   */
-  private generateDictionaryProductionCard(note: NoteData): GeneratedCard {
-    let front = `What word means:\n\n"${note.meaning}"`;
-
-    // Add first letter hint for harder words
-    if (note.targetWord.length > 6) {
-      front += `\n\nFirst letter: ${note.targetWord[0].toUpperCase()}`;
-    }
-
-    let back = `**${note.targetWord}**`;
-
-    // Show example sentence on the back
-    if (note.targetSentence) {
-      const highlighted = this.highlightWordFlexible(
-        note.targetSentence,
-        note.targetWord,
-      );
-      back += `\n\n_"${highlighted}"_`;
-    }
-
-    if (note.notes) {
-      back += `\n\n${note.notes}`;
-    }
-
-    return {
-      cardType: CardType.PRODUCTION,
-      front,
-      back,
-    };
-  }
-
-  /**
-   * Dictionary Cloze: Example sentence with blank → fill in the word
-   * Tests word usage in context with flexible matching
-   */
-  private generateDictionaryClozeCards(note: NoteData): GeneratedCard[] {
-    const cards: GeneratedCard[] = [];
-    const sentence = note.targetSentence;
-    const targetWord = note.targetWord;
-
-    if (!sentence) {
-      // No example sentence, skip cloze for dictionary entries
-      return cards;
-    }
-
-    // Try to find the word or its forms in the sentence
-    const wordMatch = this.findWordInSentence(sentence, targetWord);
-
-    if (wordMatch) {
-      const clozeSentence =
-        sentence.substring(0, wordMatch.index) +
-        '_____' +
-        sentence.substring(wordMatch.index + wordMatch.text.length);
-
-      const front = clozeSentence;
-
-      let back = `**${wordMatch.text}**`;
-      back += `\n\nDefinition: ${note.meaning}`;
-
-      cards.push({
-        cardType: CardType.CLOZE,
-        front,
-        back,
-        clozeIndex: 0,
-      });
+      back = note.targetWord;
+      if (note.targetSentence) {
+        back += `\n\n"${note.targetSentence}"`;
+      }
     } else {
-      // Word form not found - create a contextual fill-in card
-      const front = `Fill in the blank with the correct form of **${targetWord}**:\n\n${this.createBlankInSentence(sentence, targetWord)}`;
+      // Sentence: Meaning + Context → Word
+      front = note.meaning;
+      if (hasMaskedContext) {
+        front += `\n\n"${masked}"`;
+      }
 
-      let back = `**${targetWord}**`;
-      back += `\n\nFull sentence: _"${sentence}"_`;
-      back += `\n\nDefinition: ${note.meaning}`;
-
-      cards.push({
-        cardType: CardType.CLOZE,
-        front,
-        back,
-        clozeIndex: 0,
-      });
-    }
-
-    return cards;
-  }
-
-  /**
-   * Find a word or its forms in a sentence
-   * Handles common word form variations (plurals, verb forms, etc.)
-   */
-  private findWordInSentence(
-    sentence: string,
-    word: string,
-  ): { index: number; text: string } | null {
-    const lowerWord = word.toLowerCase();
-
-    // Try exact match first
-    const exactRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'gi');
-    const exactMatch = exactRegex.exec(sentence);
-    if (exactMatch) {
-      return { index: exactMatch.index, text: exactMatch[0] };
-    }
-
-    // Generate common word forms to try
-    const wordForms = this.generateWordForms(lowerWord);
-
-    for (const form of wordForms) {
-      const formRegex = new RegExp(`\\b${this.escapeRegex(form)}\\b`, 'gi');
-      const match = formRegex.exec(sentence);
-      if (match) {
-        return { index: match.index, text: match[0] };
+      back = note.targetWord;
+      back += `\n\n"${note.targetSentence}"`;
+      if (note.alternativePhrasing) {
+        back += `\n\nAlt: ${note.alternativePhrasing}`;
       }
     }
 
-    // Try stem-based matching (find words starting with the stem)
-    const stem = this.getWordStem(lowerWord);
+    if (note.notes) {
+      back += `\n\n${note.notes}`;
+    }
+
+    return {
+      cardType: CardType.PRODUCTION,
+      front,
+      back,
+    };
+  }
+
+  /**
+   * RECOGNITION CARD (Secondary)
+   *
+   * Tests passive recognition: See word in context → understand meaning
+   * Use sparingly - this is easier and less effective than production.
+   */
+  private generateRecognitionCard(note: NoteData, sourceType: CardSourceType): GeneratedCard {
+    let front: string;
+    let back: string;
+
+    if (sourceType === CardSourceType.DICTIONARY) {
+      // Dictionary: Word → Definition
+      front = note.targetWord;
+      back = note.meaning;
+      if (note.targetSentence) {
+        back += `\n\n"${note.targetSentence}"`;
+      }
+    } else {
+      // Sentence: Highlighted sentence → Meaning
+      front = this.highlightWord(note.targetSentence, note.targetWord);
+      back = `${note.targetWord} = ${note.meaning}`;
+      if (note.alternativePhrasing) {
+        back += `\n\nAlt: ${note.alternativePhrasing}`;
+      }
+    }
+
+    if (note.notes) {
+      back += `\n\n${note.notes}`;
+    }
+
+    return {
+      cardType: CardType.RECOGNITION,
+      front,
+      back,
+    };
+  }
+
+  // ===== Helpers =====
+
+  private maskWord(sentence: string, word: string): string {
+    // Try exact match
+    const exactRegex = new RegExp(`\\b${this.escapeRegex(word)}\\b`, 'gi');
+    if (exactRegex.test(sentence)) {
+      return sentence.replace(exactRegex, '____');
+    }
+
+    // Try word forms
+    for (const form of this.getWordForms(word.toLowerCase())) {
+      const formRegex = new RegExp(`\\b${this.escapeRegex(form)}\\b`, 'gi');
+      if (formRegex.test(sentence)) {
+        return sentence.replace(formRegex, '____');
+      }
+    }
+
+    // Try stem
+    const stem = this.getStem(word.toLowerCase());
     if (stem.length >= 3) {
       const stemRegex = new RegExp(`\\b${this.escapeRegex(stem)}\\w*\\b`, 'gi');
-      const match = stemRegex.exec(sentence);
-      if (match) {
-        return { index: match.index, text: match[0] };
+      if (stemRegex.test(sentence)) {
+        return sentence.replace(stemRegex, '____');
       }
     }
 
-    return null;
+    return sentence;
   }
 
-  /**
-   * Generate common word forms for matching
-   */
-  private generateWordForms(word: string): string[] {
+  private highlightWord(sentence: string, word: string): string {
+    const exactRegex = new RegExp(`\\b(${this.escapeRegex(word)})\\b`, 'gi');
+    if (exactRegex.test(sentence)) {
+      return sentence.replace(exactRegex, '**$1**');
+    }
+
+    for (const form of this.getWordForms(word.toLowerCase())) {
+      const formRegex = new RegExp(`\\b(${this.escapeRegex(form)})\\b`, 'gi');
+      if (formRegex.test(sentence)) {
+        return sentence.replace(formRegex, '**$1**');
+      }
+    }
+
+    const stem = this.getStem(word.toLowerCase());
+    if (stem.length >= 3) {
+      const stemRegex = new RegExp(`\\b(${this.escapeRegex(stem)}\\w*)\\b`, 'gi');
+      if (stemRegex.test(sentence)) {
+        return sentence.replace(stemRegex, '**$1**');
+      }
+    }
+
+    return sentence;
+  }
+
+  private getWordForms(word: string): string[] {
     const forms: string[] = [];
+    forms.push(word + 's', word + 'es', word + 'ed', word + 'ing');
+    forms.push(word + 'er', word + 'est', word + 'ly');
 
-    // Common English suffixes
-    forms.push(word + 's'); // plural
-    forms.push(word + 'es'); // plural
-    forms.push(word + 'ed'); // past tense
-    forms.push(word + 'ing'); // gerund
-    forms.push(word + 'ly'); // adverb
-    forms.push(word + 'er'); // comparative
-    forms.push(word + 'est'); // superlative
-
-    // Handle words ending in 'e'
     if (word.endsWith('e')) {
-      forms.push(word.slice(0, -1) + 'ing'); // make -> making
-      forms.push(word.slice(0, -1) + 'ed'); // make -> maked (irregular handled by stem)
+      forms.push(word.slice(0, -1) + 'ing', word.slice(0, -1) + 'ed');
     }
-
-    // Handle words ending in 'y'
     if (word.endsWith('y')) {
-      forms.push(word.slice(0, -1) + 'ies'); // carry -> carries
-      forms.push(word.slice(0, -1) + 'ied'); // carry -> carried
+      forms.push(word.slice(0, -1) + 'ies', word.slice(0, -1) + 'ied');
     }
-
-    // Double consonant forms
     if (/[aeiou][bcdfghjklmnpqrstvwxyz]$/.test(word)) {
-      const doubled = word + word[word.length - 1];
-      forms.push(doubled + 'ing'); // run -> running
-      forms.push(doubled + 'ed'); // stop -> stopped
+      const d = word + word[word.length - 1];
+      forms.push(d + 'ing', d + 'ed');
     }
 
     return forms;
   }
 
-  /**
-   * Get a simple stem of a word (removes common suffixes)
-   */
-  private getWordStem(word: string): string {
-    const suffixes = [
-      'ingly',
-      'edly',
-      'ing',
-      'ed',
-      'ly',
-      'es',
-      's',
-      'er',
-      'est',
-      'tion',
-      'ness',
-      'ment',
-      'able',
-      'ible',
-    ];
-
-    for (const suffix of suffixes) {
-      if (word.endsWith(suffix) && word.length > suffix.length + 2) {
-        return word.slice(0, -suffix.length);
+  private getStem(word: string): string {
+    const suffixes = ['ingly', 'edly', 'ing', 'ed', 'ly', 'es', 's', 'er', 'est'];
+    for (const s of suffixes) {
+      if (word.endsWith(s) && word.length > s.length + 2) {
+        return word.slice(0, -s.length);
       }
     }
-
     return word;
   }
 
-  /**
-   * Create a blank in the sentence, attempting to identify where the target word should go
-   */
-  private createBlankInSentence(sentence: string, targetWord: string): string {
-    // Try to find any related word and replace it
-    const wordMatch = this.findWordInSentence(sentence, targetWord);
-    if (wordMatch) {
-      return (
-        sentence.substring(0, wordMatch.index) +
-        '_____' +
-        sentence.substring(wordMatch.index + wordMatch.text.length)
-      );
-    }
-
-    // If no match found, add blank at a natural position (after first phrase)
-    const firstPhraseEnd = sentence.search(/[,;:]|\s-\s/);
-    if (firstPhraseEnd > 10) {
-      return sentence.substring(0, firstPhraseEnd) + ' _____' + sentence.substring(firstPhraseEnd);
-    }
-
-    // Last resort: append blank
-    return sentence + ' _____';
-  }
-
-  /**
-   * Highlight a word in a sentence, with flexible matching for word forms
-   */
-  private highlightWordFlexible(sentence: string, word: string): string {
-    const match = this.findWordInSentence(sentence, word);
-    if (match) {
-      return (
-        sentence.substring(0, match.index) +
-        `**${match.text}**` +
-        sentence.substring(match.index + match.text.length)
-      );
-    }
-    return sentence;
-  }
-
-  /**
-   * Grammar card: Produce correct form/conjugation
-   * Tests grammatical knowledge
-   */
-  private generateGrammarCard(note: NoteData): GeneratedCard {
-    // Extract base form hint from notes if available
-    const baseFormHint = this.extractBaseForm(note.notes || '');
-
-    const front = `Conjugate/decline correctly:\n\nBase: ${baseFormHint || note.targetWord}\nContext: "${note.meaning}"\n\nProduce the correct form`;
-
-    const back = `${note.targetWord}\n\nFull sentence: ${note.targetSentence}`;
-
-    return {
-      cardType: CardType.GRAMMAR,
-      front,
-      back,
-    };
-  }
-
-  /**
-   * Highlight a word in a sentence using markdown bold
-   */
-  private highlightWord(sentence: string, word: string): string {
-    const regex = new RegExp(`\\b(${this.escapeRegex(word)})\\b`, 'gi');
-    return sentence.replace(regex, '**$1**');
-  }
-
-  /**
-   * Escape special regex characters
-   */
   private escapeRegex(text: string): string {
     return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  }
-
-  /**
-   * Check if note has grammar-specific context
-   */
-  private hasGrammarContext(note: NoteData): boolean {
-    if (!note.notes) return false;
-
-    const grammarKeywords = [
-      'conjugat',
-      'declen',
-      'tense',
-      'case',
-      'plural',
-      'singular',
-      'infinitive',
-      'past',
-      'present',
-      'future',
-      'subjunctive',
-      'imperative',
-      'nominative',
-      'accusative',
-      'dative',
-      'genitive',
-    ];
-
-    const notesLower = note.notes.toLowerCase();
-    return grammarKeywords.some((kw) => notesLower.includes(kw));
-  }
-
-  /**
-   * Extract base form from notes
-   */
-  private extractBaseForm(notes: string): string | null {
-    // Look for patterns like "base: word" or "infinitive: word"
-    const patterns = [
-      /base:\s*(\w+)/i,
-      /infinitive:\s*(\w+)/i,
-      /root:\s*(\w+)/i,
-    ];
-
-    for (const pattern of patterns) {
-      const match = notes.match(pattern);
-      if (match) {
-        return match[1];
-      }
-    }
-
-    return null;
   }
 }

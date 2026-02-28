@@ -29,6 +29,7 @@ model Book {
   sha256                String?
   fileStorageKey        String
   status                BookStatus   @default(pending)
+  errorMessage          String?
   summaryStorageKey       String?
   extractionStorageKey    String?
   summaryType             SummaryType?
@@ -41,7 +42,6 @@ model Book {
   user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes         Note[]
   highlights    Highlight[]
-  searchItems   SearchItem[]
   tags          BookTag[]
   learningNotes LearningNote[]
 }
@@ -117,32 +117,6 @@ model RefreshToken {
   @@index([userId])
 }
 
-model SearchItem {
-  id        String          @id @default(cuid())
-  userId    String
-  bookId    String
-  ownerType SearchOwnerType
-  ownerId   String
-  text      String
-  meta      Json?
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
-
-  @@unique([ownerType, ownerId])
-  @@index([userId, bookId, ownerType])
-  @@map("search_item")
-}
-
-enum SearchOwnerType {
-  chunk
-  note
-  highlight
-  tag
-}
-
 model Tag {
   id          String   @id @default(cuid())
   userId      String
@@ -209,7 +183,6 @@ model User {
   notes       Note[]
   highlights  Highlight[]
   tags        Tag[]
-  searchItems SearchItem[]
 
   // Learning system
   learningNotes      LearningNote[]
@@ -298,7 +271,6 @@ enum CardType {
   recognition
   production
   cloze
-  grammar
 }
 
 enum CardState {
@@ -379,7 +351,6 @@ model UserLearningSettings {
   generateRecognition Boolean @default(true)
   generateProduction  Boolean @default(true)
   generateCloze       Boolean @default(true)
-  generateGrammar     Boolean @default(false)
   newCardsPerDay      Int     @default(20)
   maxReviewsPerDay    Int     @default(200)
   showResponseTime    Boolean @default(true)

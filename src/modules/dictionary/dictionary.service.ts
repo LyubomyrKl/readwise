@@ -426,12 +426,14 @@ export class DictionaryService {
   async searchEntries(
     userId: string,
     query: string,
+    fuzzy: boolean = true,
   ): Promise<DictionarySearchResult[]> {
     if (!query || query.length < 1) {
       return [];
     }
 
-    const entries = await this.prisma.dictionaryEntry.findMany({
+    // First try exact prefix match
+    const exactMatches = await this.prisma.dictionaryEntry.findMany({
       where: {
         userId,
         deletedAt: null,
@@ -448,7 +450,73 @@ export class DictionaryService {
       orderBy: { word: 'asc' },
     });
 
-    return entries;
+    // If we have exact matches or fuzzy is disabled, return them
+    if (exactMatches.length >= 5 || !fuzzy) {
+      return exactMatches;
+    }
+
+    // If few exact matches, try fuzzy search using contains
+    // This provides basic fuzzy matching without requiring pg_trgm extension
+    const fuzzyMatches = await this.prisma.dictionaryEntry.findMany({
+      where: {
+        userId,
+        deletedAt: null,
+        OR: [
+          { word: { contains: query, mode: 'insensitive' } },
+          { definition: { contains: query, mode: 'insensitive' } },
+        ],
+        NOT: {
+          id: { in: exactMatches.map((e) => e.id) },
+        },
+      },
+      select: {
+        id: true,
+        word: true,
+        partOfSpeech: true,
+        definition: true,
+        masteryLevel: true,
+      },
+      take: 10 - exactMatches.length,
+      orderBy: { word: 'asc' },
+    });
+
+    // Combine and return, exact matches first
+    return [...exactMatches, ...fuzzyMatches];
+  }
+
+  /**
+   * Advanced fuzzy search using PostgreSQL trigram similarity.
+   * Requires pg_trgm extension to be enabled in the database.
+   * Falls back to basic contains search if extension is not available.
+   */
+  async searchEntriesFuzzy(
+    userId: string,
+    query: string,
+    limit: number = 10,
+  ): Promise<DictionarySearchResult[]> {
+    if (!query || query.length < 2) {
+      return this.searchEntries(userId, query, false);
+    }
+
+    try {
+      // Try trigram similarity search (requires pg_trgm extension)
+      const results = await this.prisma.$queryRaw<DictionarySearchResult[]>`
+        SELECT id, word, "partOfSpeech" as "partOfSpeech", definition, "masteryLevel" as "masteryLevel"
+        FROM "DictionaryEntry"
+        WHERE "userId" = ${userId}
+          AND "deletedAt" IS NULL
+          AND (
+            word % ${query}
+            OR similarity(word, ${query}) > 0.2
+          )
+        ORDER BY similarity(word, ${query}) DESC
+        LIMIT ${limit}
+      `;
+      return results;
+    } catch {
+      // pg_trgm extension not available, fall back to basic search
+      return this.searchEntries(userId, query, true);
+    }
   }
 
   // ===== Helpers =====

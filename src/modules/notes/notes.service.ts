@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/commo
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@/infrastructure/prisma/prisma.service';
 import { CreateNoteDto, UpdateNoteDto, NoteResponse } from './note.models';
+import { sanitizeHtml } from '@/common/sanitize';
 
 @Injectable()
 export class NotesService {
@@ -50,7 +51,7 @@ export class NotesService {
       data: {
         userId,
         bookId,
-        body: dto.body,
+        body: sanitizeHtml(dto.body),
         anchor: dto.anchor ? (dto.anchor as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
         isPinned: dto.isPinned || false,
         isArchived: false,
@@ -96,7 +97,7 @@ export class NotesService {
     const updated = await this.prisma.note.update({
       where: { id: noteId },
       data: {
-        body: dto.body !== undefined ? dto.body : undefined,
+        body: dto.body !== undefined ? sanitizeHtml(dto.body) : undefined,
         isPinned: dto.isPinned !== undefined ? dto.isPinned : undefined,
         isArchived: dto.isArchived !== undefined ? dto.isArchived : undefined,
       },

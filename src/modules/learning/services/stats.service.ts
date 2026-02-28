@@ -7,11 +7,21 @@ import {
   CardType,
 } from '../learning.models';
 
+// Simple in-memory cache entry
+interface CacheEntry<T> {
+  data: T;
+  expiresAt: number;
+}
+
 @Injectable()
 export class StatsService {
   // Thresholds
   private readonly MATURE_STABILITY_DAYS = 21;
   private readonly RETENTION_WINDOW_DAYS = 30;
+  private readonly CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
+
+  // Simple in-memory cache for stats
+  private statsCache = new Map<string, CacheEntry<StatsResponse>>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -19,33 +29,37 @@ export class StatsService {
   ) {}
 
   /**
-   * Get comprehensive learning statistics for a user
+   * Get comprehensive learning statistics for a user.
+   * Results are cached for 5 minutes to reduce database load.
    */
-  async getStats(userId: string): Promise<StatsResponse> {
+  async getStats(userId: string, bypassCache = false): Promise<StatsResponse> {
+    // Check cache first
+    if (!bypassCache) {
+      const cached = this.statsCache.get(userId);
+      if (cached && cached.expiresAt > Date.now()) {
+        return cached.data;
+      }
+    }
+
+    // Run all independent queries in parallel
     const [
       cardCounts,
-      retentionData,
-      productionData,
+      reviewStats,
       streak,
       forecast,
       cognitiveLoad,
     ] = await Promise.all([
       this.getCardCounts(userId),
-      this.calculateRetentionRate(userId),
-      this.calculateProductionAccuracy(userId),
+      this.getReviewStatsOptimized(userId),
       this.calculateStreak(userId),
-      this.getReviewForecast(userId),
+      this.getReviewForecastOptimized(userId),
       this.calculateCognitiveLoad(userId),
     ]);
 
     // Detect recognition/production imbalance
-    const recognitionAccuracy = await this.calculateCardTypeAccuracy(
-      userId,
-      CardType.RECOGNITION,
-    );
     const imbalance = this.scheduler.detectImbalance(
-      recognitionAccuracy,
-      productionData.accuracy,
+      reviewStats.recognitionAccuracy,
+      reviewStats.productionAccuracy,
     );
 
     // Estimate usable vocabulary (mature + 50% of young)
@@ -53,12 +67,12 @@ export class StatsService {
       cardCounts.mature + cardCounts.young * 0.5,
     );
 
-    return {
-      retentionRate: retentionData.rate,
+    const stats: StatsResponse = {
+      retentionRate: reviewStats.retentionRate,
       matureVocabulary: cardCounts.mature,
       youngVocabulary: cardCounts.young,
       newCards: cardCounts.new,
-      productionAccuracy: productionData.accuracy,
+      productionAccuracy: reviewStats.productionAccuracy,
       estimatedUsableVocabulary,
       dailyCognitiveLoad: cognitiveLoad,
       currentStreak: streak,
@@ -67,6 +81,128 @@ export class StatsService {
         ? imbalance.recommendation
         : undefined,
     };
+
+    // Cache the result
+    this.statsCache.set(userId, {
+      data: stats,
+      expiresAt: Date.now() + this.CACHE_TTL_MS,
+    });
+
+    return stats;
+  }
+
+  /**
+   * Invalidate the stats cache for a user.
+   * Call this after reviews are submitted.
+   */
+  invalidateCache(userId: string): void {
+    this.statsCache.delete(userId);
+  }
+
+  /**
+   * Combined review stats query - reduces 3 queries to 1 raw query
+   */
+  private async getReviewStatsOptimized(userId: string): Promise<{
+    retentionRate: number;
+    recognitionAccuracy: number;
+    productionAccuracy: number;
+  }> {
+    const windowStart = new Date();
+    windowStart.setDate(windowStart.getDate() - this.RETENTION_WINDOW_DAYS);
+
+    type ReviewStatsRow = {
+      card_type: string | null;
+      total: bigint;
+      successful: bigint;
+    };
+
+    // Single query to get all review stats grouped by card type
+    const results = await this.prisma.$queryRaw<ReviewStatsRow[]>`
+      SELECT
+        c."cardType" as card_type,
+        COUNT(*) as total,
+        COUNT(*) FILTER (WHERE r.rating != 'again') as successful
+      FROM "CardReview" r
+      LEFT JOIN "LearningCard" c ON r."cardId" = c.id
+      WHERE r."userId" = ${userId}
+        AND r."reviewedAt" >= ${windowStart}
+      GROUP BY c."cardType"
+    `;
+
+    let totalReviews = 0;
+    let totalSuccessful = 0;
+    let productionTotal = 0;
+    let productionSuccessful = 0;
+    let recognitionTotal = 0;
+    let recognitionSuccessful = 0;
+
+    for (const row of results) {
+      const total = Number(row.total);
+      const successful = Number(row.successful);
+
+      totalReviews += total;
+      totalSuccessful += successful;
+
+      if (row.card_type === 'production') {
+        productionTotal = total;
+        productionSuccessful = successful;
+      } else if (row.card_type === 'recognition') {
+        recognitionTotal = total;
+        recognitionSuccessful = successful;
+      }
+    }
+
+    return {
+      retentionRate: totalReviews > 0
+        ? Math.round((totalSuccessful / totalReviews) * 100) / 100
+        : 0,
+      recognitionAccuracy: recognitionTotal > 0
+        ? Math.round((recognitionSuccessful / recognitionTotal) * 100) / 100
+        : 0,
+      productionAccuracy: productionTotal > 0
+        ? Math.round((productionSuccessful / productionTotal) * 100) / 100
+        : 0,
+    };
+  }
+
+  /**
+   * Optimized forecast query - single query instead of 7
+   */
+  private async getReviewForecastOptimized(userId: string): Promise<number[]> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const endDate = new Date(today);
+    endDate.setDate(endDate.getDate() + 7);
+
+    type ForecastRow = {
+      day_offset: number;
+      count: bigint;
+    };
+
+    // Single query to get all 7 days of forecast
+    const results = await this.prisma.$queryRaw<ForecastRow[]>`
+      SELECT
+        DATE_PART('day', "dueAt"::date - ${today}::date)::int as day_offset,
+        COUNT(*) as count
+      FROM "LearningCard"
+      WHERE "userId" = ${userId}
+        AND "isActive" = true
+        AND "dueAt" >= ${today}
+        AND "dueAt" < ${endDate}
+      GROUP BY day_offset
+      ORDER BY day_offset
+    `;
+
+    // Build forecast array
+    const forecast = [0, 0, 0, 0, 0, 0, 0];
+    for (const row of results) {
+      if (row.day_offset >= 0 && row.day_offset < 7) {
+        forecast[row.day_offset] = Number(row.count);
+      }
+    }
+
+    return forecast;
   }
 
   /**

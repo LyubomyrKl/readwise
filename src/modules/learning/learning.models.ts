@@ -16,7 +16,6 @@ export enum CardType {
   RECOGNITION = 'recognition',
   PRODUCTION = 'production',
   CLOZE = 'cloze',
-  GRAMMAR = 'grammar',
 }
 
 export enum CardState {
@@ -198,11 +197,6 @@ export class UpdateSettingsDto {
   @IsOptional()
   @IsBoolean()
   generateCloze?: boolean;
-
-  @ApiPropertyOptional()
-  @IsOptional()
-  @IsBoolean()
-  generateGrammar?: boolean;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -430,9 +424,6 @@ export class SettingsResponse {
 
   @ApiProperty()
   generateCloze!: boolean;
-
-  @ApiProperty()
-  generateGrammar!: boolean;
 
   @ApiProperty()
   newCardsPerDay!: number;
