@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { AppController } from './app.controller';
@@ -17,6 +17,8 @@ import { HealthModule } from './modules/health/health.module';
 import { PrismaModule } from './infrastructure/prisma/prisma.module';
 import { S3Module } from './infrastructure/s3/s3.module';
 import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
+import { LoggerModule } from './common/logger/logger.module';
+import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
 @Module({
   imports: [
@@ -42,6 +44,7 @@ import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
         limit: 1000,  // 1000 requests per hour
       },
     ]),
+    LoggerModule,
     PrismaModule,
     S3Module,
     RabbitMQModule,
@@ -64,4 +67,8 @@ import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
     },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestLoggerMiddleware).forRoutes('*');
+  }
+}

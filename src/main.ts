@@ -2,11 +2,24 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as Sentry from '@sentry/node';
+import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 import 'reflect-metadata';
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
-  
+
+  // Initialize Sentry
+  if (process.env.SENTRY_DSN) {
+    Sentry.init({
+      dsn: process.env.SENTRY_DSN,
+      environment: process.env.NODE_ENV || 'development',
+      tracesSampleRate: 0.1,
+      enabled: process.env.NODE_ENV === 'production',
+    });
+    logger.log('Sentry initialized');
+  }
+
   try {
     const app = await NestFactory.create(AppModule);
 
@@ -29,6 +42,11 @@ async function bootstrap() {
         disableErrorMessages: process.env.NODE_ENV === 'production',
       }),
     );
+
+    // Register Sentry exception filter
+    if (process.env.SENTRY_DSN) {
+      app.useGlobalFilters(new SentryExceptionFilter());
+    }
 
     const config = new DocumentBuilder()
       .setTitle('Summarizer API')

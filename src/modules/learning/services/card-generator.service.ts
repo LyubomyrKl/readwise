@@ -14,6 +14,7 @@ export interface GeneratedCard {
   cardType: CardType;
   front: string;
   back: string;
+  clozeIndex?: number;
 }
 
 export interface GenerationSettings {
