@@ -14,6 +14,9 @@ import type {
   StatsResponse,
   DailyStatsResponse,
   SettingsResponse,
+  LearningExportResponse,
+  ImportLearningDataDto,
+  ImportResultResponse,
 } from "@/lib/types";
 
 export const learningApi = {
@@ -126,6 +129,30 @@ export const learningApi = {
     return withRefresh(() => {
       const client = getClient();
       return client.patch<SettingsResponse>("/learning/settings", dto);
+    });
+  },
+
+  // Export/Import
+  async exportData() {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<LearningExportResponse>("/learning/export");
+    });
+  },
+
+  async exportCsv() {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.get<string>("/learning/export/csv", {
+        responseType: "text",
+      });
+    });
+  },
+
+  async importData(dto: ImportLearningDataDto) {
+    return withRefresh(() => {
+      const client = getClient();
+      return client.post<ImportResultResponse>("/learning/import", dto);
     });
   },
 };

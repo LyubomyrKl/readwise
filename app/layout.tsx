@@ -5,6 +5,7 @@ import "./globals.css";
 import { UploadWidget } from "./(components)/UploadWidget";
 import { Providers } from "./(providers)/Providers";
 import { ServiceWorkerRegistration } from "./(components)/ServiceWorkerRegistration";
+import { OfflineIndicator } from "./(components)/OfflineIndicator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -73,6 +74,7 @@ export default function RootLayout({
 
           <UploadWidget />
           <ServiceWorkerRegistration />
+          <OfflineIndicator />
         </Providers>
       </body>
     </html>

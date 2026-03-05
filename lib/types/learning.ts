@@ -149,3 +149,84 @@ export interface SettingsResponse {
   enforceProduction: boolean;
   requireTyping: boolean;
 }
+
+// ===== Export/Import Types =====
+
+export interface ExportCardData {
+  cardType: CardType;
+  front: string;
+  back: string;
+  state: CardState;
+  difficulty: number;
+  stability: number;
+  reviewCount: number;
+  clozeIndex?: number | null;
+}
+
+export interface ExportNoteData {
+  targetSentence: string;
+  meaning: string;
+  targetWord: string;
+  notes?: string | null;
+  alternativePhrasing?: string | null;
+  sourceType: NoteSourceType;
+  createdAt: string;
+  cards: ExportCardData[];
+}
+
+export interface ExportStatistics {
+  totalNotes: number;
+  matureVocabulary: number;
+  retentionRate: number;
+}
+
+export interface ExportSettings {
+  generateRecognition: boolean;
+  generateProduction: boolean;
+  generateCloze: boolean;
+  newCardsPerDay: number;
+  maxReviewsPerDay: number;
+}
+
+export interface LearningExportResponse {
+  version: string;
+  exportedAt: string;
+  statistics: ExportStatistics;
+  notes: ExportNoteData[];
+  settings: ExportSettings;
+}
+
+export interface ImportCardData {
+  cardType: CardType;
+  front: string;
+  back: string;
+  state: CardState;
+  difficulty: number;
+  stability: number;
+  reviewCount: number;
+  clozeIndex?: number | null;
+}
+
+export interface ImportNoteData {
+  targetSentence: string;
+  meaning: string;
+  targetWord: string;
+  notes?: string | null;
+  alternativePhrasing?: string | null;
+  sourceType: NoteSourceType;
+  createdAt: string;
+  cards: ImportCardData[];
+}
+
+export interface ImportLearningDataDto {
+  version: string;
+  notes: ImportNoteData[];
+  skipExisting?: boolean;
+}
+
+export interface ImportResultResponse {
+  imported: number;
+  skipped: number;
+  errors: number;
+  errorMessages: string[];
+}

@@ -1,9 +1,11 @@
 // Service Worker for PWA
-const CACHE_NAME = 'summarizer-v2';
+const CACHE_NAME = 'summarizer-v3';
+const OFFLINE_URL = '/offline';
 
 // Assets to pre-cache on install
 const PRECACHE_ASSETS = [
   '/',
+  '/offline',
   '/manifest.json',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
@@ -41,6 +43,32 @@ self.addEventListener('fetch', (event) => {
   // Skip cross-origin requests
   if (!event.request.url.startsWith(self.location.origin)) return;
 
+  // Handle navigation requests (page loads) with offline fallback
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((response) => {
+          // Cache successful navigation responses
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+          return response;
+        })
+        .catch(async () => {
+          // Try to return cached version first
+          const cachedResponse = await caches.match(event.request);
+          if (cachedResponse) {
+            return cachedResponse;
+          }
+          // Fall back to offline page
+          return caches.match(OFFLINE_URL);
+        })
+    );
+    return;
+  }
+
+  // Handle other requests (assets, API calls, etc.)
   event.respondWith(
     fetch(event.request)
       .then((response) => {
@@ -55,4 +83,11 @@ self.addEventListener('fetch', (event) => {
         return caches.match(event.request);
       })
   );
+});
+
+// Listen for messages from the client
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
 });

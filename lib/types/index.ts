@@ -65,6 +65,16 @@ export type {
   StatsResponse,
   DailyStatsResponse,
   SettingsResponse,
+  // Export/Import types
+  ExportCardData,
+  ExportNoteData,
+  ExportStatistics,
+  ExportSettings,
+  LearningExportResponse,
+  ImportCardData,
+  ImportNoteData,
+  ImportLearningDataDto,
+  ImportResultResponse,
 } from "./learning";
 
 // Dictionary types
