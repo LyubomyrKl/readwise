@@ -1,0 +1,36 @@
+{
+  "name": "readwise-monorepo",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Readwise monorepo — Next.js client, NestJS gateway, shared TS/Python contracts, and Python workers.",
+  "packageManager": "npm@11.4.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "workspaces": [
+    "readwise-client",
+    "readwise-gateway",
+    "readwise-contracts/packages/ts"
+  ],
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "test": "turbo run test",
+    "typecheck": "turbo run typecheck",
+    "dev:client": "turbo run dev --filter=./readwise-client",
+    "dev:gateway": "turbo run dev --filter=./readwise-gateway",
+    "build:client": "turbo run build --filter=./readwise-client",
+    "build:gateway": "turbo run build --filter=./readwise-gateway",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\"",
+    "prisma:sync": "bash sync-prisma.sh"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "^0.9.0"
+  },
+  "devDependencies": {
+    "prettier": "^3.6.2",
+    "turbo": "^2.10.5"
+  }
+}

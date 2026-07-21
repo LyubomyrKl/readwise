@@ -1,0 +1,26 @@
+# Dependencies
+**/node_modules/
+
+# Build outputs
+**/dist/
+**/.next/
+**/out/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+
+# Generated code
+**/generated/
+**/prisma/generated/
+readwise-gateway/sdk/
+readwise-gateway/openapi/
+
+# Python
+**/__pycache__/
+**/*.py[cod]
+
+# Lockfiles (leave formatting to npm)
+**/package-lock.json
+
+# Turbo
+**/.turbo/
