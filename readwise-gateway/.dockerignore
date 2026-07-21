@@ -1,0 +1,46 @@
+# Dependencies
+node_modules
+npm-debug.log
+
+# Build output
+dist
+
+# Git
+.git
+.gitignore
+
+# IDE
+.idea
+.vscode
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (will be mounted or passed via env)
+.env
+.env.local
+.env.*.local
+
+# Test files
+coverage
+test
+*.spec.ts
+jest.config.js
+
+# Documentation
+*.md
+docs
+
+# SDK output
+sdk
+openapi
+
+# Scripts (not needed in container)
+scripts
+
+# Misc
+.eslintrc.js
+.prettierrc
