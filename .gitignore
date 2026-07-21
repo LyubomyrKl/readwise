@@ -1,0 +1,44 @@
+# ---- Dependencies ----
+**/node_modules/
+**/.pnp
+**/.pnp.js
+
+# ---- Env & secrets ----
+**/.env
+**/.env.*
+!**/.env.example
+!**/.env.*.example
+
+# ---- Node / Next.js ----
+**/.next/
+**/out/
+**/build/
+**/dist/
+**/.turbo/
+**/*.tsbuildinfo
+
+# ---- Python ----
+**/__pycache__/
+**/*.py[cod]
+**/.venv/
+**/venv/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/*.egg-info/
+
+# ---- Prisma generated ----
+**/generated/
+**/prisma/generated/
+
+# ---- Logs & caches ----
+**/*.log
+**/.cache/
+**/coverage/
+
+# ---- Editor / OS ----
+.idea/
+**/.idea/
+.vscode/
+.DS_Store
+**/.DS_Store
