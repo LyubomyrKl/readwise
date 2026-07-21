@@ -1,0 +1,34 @@
+export const ROUTES = Object.freeze({
+  reader: {
+    bookReader: (id: string) => `/reader/book/${id}/reader`,
+    bookProfile: (id: string) => `/reader/book/${id}/profile`,
+    library: "/reader/library",
+    ingest: {
+      uploadFiles: "/reader/ingest/upload"
+    },
+  },
+  learning: {
+    dashboard: "/learning",
+    study: "/learning/study",
+    notes: "/learning/notes",
+    notesNew: "/learning/notes/new",
+    stats: "/learning/stats",
+  },
+  dictionary: {
+    list: "/dictionary",
+    new: "/dictionary/new",
+    entry: (id: string) => `/dictionary/${id}`,
+  },
+  auth: {
+    login: "/auth/login",
+    register: "/auth/register",
+  },
+  settings: {
+    root: "/settings",
+    appearance: "/settings/appearance",
+    reader: "/settings/reader",
+    learning: "/settings/learning",
+    account: "/settings/account",
+  },
+  home: "/",
+} as const);
