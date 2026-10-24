@@ -11,7 +11,7 @@ The architecture and the migration plan live in
 
 | Path | Stack | What |
 |---|---|---|
-| `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: shell, reader, summary viewer, server-side routes that call the API |
+| `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`, server-side routes that call the API |
 | `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: auth, books, highlights, notes, summarizer; owns the database schema and migrations |
 | `apps/workers` | Python 3.11 | extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama) |
 | `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
@@ -82,6 +82,15 @@ python main.py
 
 A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
 (Caddy on `http://localhost:8080`; override `DEV_*_PORT` if something is already listening).
+
+## Adding a tool to the web app
+
+1. Create `apps/web/src/tools/<id>/` with a `manifest.ts` (id, name, icon, nav, optional settings) and your pages.
+2. Add the manifest to `apps/web/src/platform/shell/registry.ts`.
+3. Add route files under `apps/web/app/(shell)/apps/<id>/` that re-export your pages.
+
+Lint enforces the boundaries: a tool imports the platform and shared UI, never another tool.
+See the plan, section 2.10, for the API and worker side.
 
 ## Database and migrations
 

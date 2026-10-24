@@ -851,6 +851,16 @@ Work against the existing BFF and API; no backend changes.
 
 Exit criteria: the app opens on a dashboard with the reader tool; every previous page is reachable at its new URL; old URLs redirect; summary generation and reading work through the unchanged BFF. Tag `phase-3`.
 
+**Outcome (2026-10-24, tag `phase-3`).** Landed on `main` as three commits.
+
+- Structure: `apps/web/src/platform/{shell,providers,pwa,ui,auth,routes.ts}` and `apps/web/src/tools/reader/{documents,reading,summaries,pages,manifest.ts,routes.ts,types.ts,ReaderToolLayout.tsx}`. Route files under `app/(shell)/...` are one-line re-exports of page components; the viewer and the summary reader sit in an `app/(fullscreen)` route group, so they render without the sidebar instead of relying on a pathname regex. Aliases `@platform/*` and `@tools/*` in tsconfig and jest. 64 files moved with history.
+- Registry: `ToolManifest` (id, name, description, icon, nav, actionButton, settings, enabled) and `shell/registry.ts`, the one file that lists tools. The shell layout, app switcher, dashboard, settings hub and mobile sidebar all read from it. Middleware protects `/`, `/apps/*` and `/settings*` through `auth/route-guard.ts`; signed-in users land on the dashboard.
+- Reader: `/apps/reader`, `/apps/reader/upload`, `/apps/reader/book/[id]`, `/apps/reader/book/[id]/read`, `/apps/reader/book/[id]/summary`; six `redirects()` in `next.config.ts` keep old URLs working. `READER_ROUTES` and `PLATFORM_ROUTES` replace the single route table. The upload provider and widget are mounted only inside the reader; the cover-style preference is a provider-less `useBookCoverStyle` hook so the platform settings route can render the tool's settings page. The summary JSON types moved to `summaries/types.ts`.
+- Boundaries: ESLint `no-restricted-imports` rules: a tool never imports another tool or route files, the platform never imports a tool (registry excepted), `summaries` never imports `reading`. The rules caught one real violation on first run (the reader's types file importing a BFF schema file), fixed.
+- Housekeeping: the unused shadcn ModeToggle, the unused ThemeProvider wrapper and providers index, `app/types/books.ts` and `hooks/index.ts` are gone. `<Toaster />` is now mounted in the root layout; it never was, so every `toast()` call in the app was invisible.
+- Verified: typecheck clean, lint 0 errors, jest 24 (two new suites: registry, route guard), `next build` route table as designed, api unaffected (16 unit, 14 e2e). Standalone-server smoke: anonymous requests to `/`, `/apps/*` and `/settings*` redirect to login with `next`; the six old URLs return 308 to their replacements; with a session cookie every page returns 200 and `/auth/login` bounces to `/`; the dashboard links to `/apps/reader` and the settings hub lists the reader section.
+- Not done, by design: the dashboard shows tool cards only; "continue reading" and recent jobs arrive with the job system (Phase 4). The upload queue no longer survives navigating out of the reader. End-to-end reading and summarizing through the BFF were not re-run in a browser; the BFF and API are untouched by this phase.
+
 ### Phase 4: Backend platform/tools split and jobs
 
 Step 4a (pure move, no behavior change):
@@ -1020,14 +1030,14 @@ Legend: **E** essential, **O** optional.
 - [x] E Rename user-facing strings and the SW cache; backup container; tag `phase-2`
 
 ### Phase 3: shell and registry (front end)
-- [ ] E `ToolManifest`, `registry.ts`, `src/tools/reader/manifest.ts`
-- [ ] E `app/(shell)/layout.tsx` from registry; delete per-area layouts; full-screen nested layouts for `read` and `summary`
-- [ ] E Dashboard page; settings hub from manifests
-- [ ] E Move `app/reader/**` into `src/tools/reader/{documents,reading,summaries,pages}`; routes under `/apps/reader/**`
-- [ ] E Move upload/cover providers, `FileUpload`, `bookParser.ts`, reader hooks into the tool; replace `(consts)/routes.ts`
-- [ ] E Middleware prefixes `/apps`, `/settings`; redirects for the five old URL families
-- [ ] E Global providers reduced; ESLint boundaries incl. `summaries` ↛ `reading`; registry and middleware tests
-- [ ] E Tag `phase-3`
+- [x] E `ToolManifest`, `registry.ts`, `src/tools/reader/manifest.ts`
+- [x] E `app/(shell)/layout.tsx` from registry; delete per-area layouts; full-screen nested layouts for `read` and `summary` (full-screen pages live in an `app/(fullscreen)` route group)
+- [x] E Dashboard page; settings hub from manifests
+- [x] E Move `app/reader/**` into `src/tools/reader/{documents,reading,summaries,pages}`; routes under `/apps/reader/**`
+- [x] E Move upload/cover providers, `FileUpload`, `bookParser.ts`, reader hooks into the tool; replace `(consts)/routes.ts` (cover style became the provider-less `useBookCoverStyle`)
+- [x] E Middleware prefixes `/apps`, `/settings`; redirects for the five old URL families (plus `/`; six redirects incl. `/reader`)
+- [x] E Global providers reduced; ESLint boundaries incl. `summaries` ↛ `reading`; registry and middleware tests
+- [x] E Tag `phase-3`
 
 ### Phase 4: backend split and jobs
 - [ ] E Move infrastructure and modules into `src/platform/*` and `src/tools/reader/{documents,reading,summaries}`; `tool-registry.ts`; aliases; boundaries lint; route aliases
