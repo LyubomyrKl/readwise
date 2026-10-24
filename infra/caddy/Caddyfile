@@ -1,0 +1,7 @@
+# Single public entry point. Everything goes to the web app; its server-side
+# routes talk to the api container internally (API_URL), so the API itself is
+# never exposed. SITE_ADDRESS: a hostname enables automatic HTTPS, ":80" is plain HTTP.
+{$SITE_ADDRESS::80} {
+	encode zstd gzip
+	reverse_proxy web:3000
+}
