@@ -825,6 +825,16 @@ Exit criteria: no file references `learning` or `dictionary` outside git history
 
 Exit criteria: `docker compose up -d --build` from a clean checkout on the host brings up the whole stack behind Caddy and the smoke script passes against it; CI green on `main`. Tag `phase-2`.
 
+**Outcome (2026-10-24, tag `phase-2`).** Landed on `main` as seven commits.
+
+- Layout: `apps/web`, `apps/api`, `apps/workers`, `infra/`, `packages/contracts` (placeholder), one root `package-lock.json`; packages are `@workbench/web` and `@workbench/api`; `readwise-contracts`, the SDK publishing scripts, `vercel.json`, the three per-package Compose files and the per-worker Dockerfiles are gone. The base Prisma schema lives at `apps/api/prisma/schema.base.prisma`.
+- Images are built from the repository root (`apps/*/Dockerfile`, root `.dockerignore`). The api image keeps the Prisma CLI and applies migrations; its build output root was fixed (`tsconfig.build.json` builds only `src`, so `dist/main.js` exists regardless of the `scripts/` folder). The web image uses Next's standalone output traced from the repository root.
+- Root `docker-compose.yml`: db, minio, minio-init (creates the five buckets), rabbitmq (with `infra/rabbitmq/rabbitmq.conf`), migrate (one-shot), api (loopback-only port for host tools), workers, web, caddy, and an opt-in backup profile; one network `workbench_net`; `docker-compose.dev.yml` publishes ports with `DEV_*_PORT` overrides. One root `.env` feeds every container; per-app `.env.example` files cover running on the host.
+- Code: the three pre-existing type errors in `auth.service.ts` and the lint errors in `health.controller.ts` are fixed, so `npm run lint && npm run typecheck && npm test` pass across both workspaces; `PrismaService` reads `DATABASE_URL`; readiness checks RabbitMQ for real; the legacy Python pipeline is deleted and `save_summary_to_s3` became `S3Storage.upload_summary`; the workers use one `pyproject.toml` (`openai` dropped, `httpx` made explicit). Pruned: `jose`, `crypto-js`, `jszip`, `@aws-sdk/s3-request-presigner`, `passport-local`, `cookie-parser`, both OpenAPI generators.
+- Naming: page titles, PWA manifest, service-worker cache (`workbench-v1`), Swagger title and container names say Workbench.
+- Verified locally: full stack via Compose on shifted ports: all services healthy, migration applied, buckets created, Caddy serves the web app, and the smoke script drove a real extraction through RabbitMQ into the summarization worker, which failed at the Ollama call because the borrowed env pointed at `localhost`; the error surfaced in `GET /summarizer/status` and the book stayed visible. Worker pytest 34, api e2e 14, unit 16 + 7.
+- Caveats: **MinIO withdrew its images from Docker Hub and quay.io**, so the Compose file references `minio/minio:latest` with `pull_policy: missing`, which works wherever the image is already cached (your host, this Mac). A fresh host needs `docker save minio/minio:latest | ssh <host> docker load`, or a move to another S3-compatible server (see risks). CI has not run yet because nothing is pushed. Rotate the GitHub token that `vercel.json` used. For Docker, `OLLAMA_BASE_URL` must be reachable from containers (a Tailscale or LAN address, not `localhost`).
+
 ### Phase 3: Front-end shell and tool registry
 
 Work against the existing BFF and API; no backend changes.
@@ -959,6 +969,10 @@ Decisions that would be expensive to reverse after a few tools exist: D5/D6 (tab
 - Polling every 3 s per open summary page: acceptable; SSE in Phase 6 if it bothers you.
 - Pipeline speed (up to 12 hours per book) is a pipeline and model problem, not an architecture problem, and is deliberately kept out of this plan; see `docs/pipeline-speed-backlog.md`.
 
+### Infrastructure availability
+
+- MinIO no longer publishes container images on Docker Hub or quay.io (checked 2026-10-24: both registries answer 404/401 for `minio/minio`). The stack runs from the image cached on the host. When that stops being acceptable: mirror the cached image into a private registry, or replace MinIO with a maintained S3-compatible server (Garage, SeaweedFS, RustFS) behind the same `S3_*` settings; the API and workers only use the S3 API.
+
 ### Security concerns
 
 - No upload size limit; Swagger public; no `helmet`; secrets read outside `ConfigService`; a GitHub token written to git credentials in `vercel.json`; MinIO reachable over plain HTTP from the API. Addressed in §4.7; the first four are Phase 0/2 items.
@@ -993,17 +1007,17 @@ Legend: **E** essential, **O** optional.
 - [x] E Smoke script passes; tag `phase-1` (exercised through polling on a migrated throwaway database; full pass on Hetzner)
 
 ### Phase 2: hygiene
-- [ ] E Rename to `apps/web`, `apps/api`, `apps/workers`, `infra/`; update workspaces, turbo, Docker contexts, package names
-- [ ] E Single root lockfile
-- [ ] E Root `docker-compose.yml` + dev override; one network; delete old compose files; remove `network_mode: host`
-- [ ] E `apps/web/Dockerfile`; Dockerfiles from repo root; `migrate` one-shot service; Caddy; pinned image tags
-- [ ] O `infra/rabbitmq/rabbitmq.conf` with a 24 h `consumer_timeout` (interim)
-- [ ] E `.env.example` per service; `DATABASE_URL`/`AMQP_URL`/`S3_*`/`OLLAMA_*` de-duplicated; `PrismaService` uses `DATABASE_URL`
-- [ ] E Root CI: lint, typecheck, test, pytest, `prisma validate`, migrate drift check, docker build
-- [ ] E Delete `readwise-contracts`, `release-sdk.sh`, `merge-and-migrate.js`, `vercel.json`; rotate the token
-- [ ] E Delete the legacy pipeline and `openai` after moving `save_summary_to_s3`; one `pyproject.toml`; delete per-worker Dockerfiles and requirements
-- [ ] E Prune `jose`, `crypto-js`, `jszip`, presigner (unless planned), OpenAPI generator CLIs, `passport-local`, `cookie-parser` after grep
-- [ ] E Rename user-facing strings and the SW cache; backup container; tag `phase-2`
+- [x] E Rename to `apps/web`, `apps/api`, `apps/workers`, `infra/`; update workspaces, turbo, Docker contexts, package names
+- [x] E Single root lockfile
+- [x] E Root `docker-compose.yml` + dev override; one network; delete old compose files; remove `network_mode: host`
+- [x] E `apps/web/Dockerfile`; Dockerfiles from repo root; `migrate` one-shot service; Caddy; pinned image tags (MinIO cannot be pinned, see outcome)
+- [x] O `infra/rabbitmq/rabbitmq.conf` with a 24 h `consumer_timeout` (interim)
+- [x] E `.env.example` per service; `DATABASE_URL`/`AMQP_URL`/`S3_*`/`OLLAMA_*` de-duplicated; `PrismaService` uses `DATABASE_URL` (one root `.env` feeds Compose; `AMQP_URL` not introduced, RabbitMQ keeps its three variables)
+- [x] E Root CI: lint, typecheck, test, pytest, `prisma validate`, migrate drift check, docker build (written; first run happens on push)
+- [x] E Delete `readwise-contracts`, `release-sdk.sh`, `merge-and-migrate.js`, `vercel.json`; rotate the token (token rotation is yours)
+- [x] E Delete the legacy pipeline and `openai` after moving `save_summary_to_s3`; one `pyproject.toml`; delete per-worker Dockerfiles and requirements
+- [x] E Prune `jose`, `crypto-js`, `jszip`, presigner (unless planned), OpenAPI generator CLIs, `passport-local`, `cookie-parser` after grep
+- [x] E Rename user-facing strings and the SW cache; backup container; tag `phase-2`
 
 ### Phase 3: shell and registry (front end)
 - [ ] E `ToolManifest`, `registry.ts`, `src/tools/reader/manifest.ts`
