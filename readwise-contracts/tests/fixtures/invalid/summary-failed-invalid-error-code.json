@@ -1,8 +1,0 @@
-{
-  "v": 1,
-  "jobId": "job-invalid-004",
-  "error": {
-    "code": "invalid-error-code",
-    "message": "This error code should be UPPER_SNAKE_CASE"
-  }
-}

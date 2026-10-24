@@ -1,8 +1,0 @@
-{
-  "v": 1,
-  "jobId": "job-failed-001",
-  "error": {
-    "code": "UNSUPPORTED_FORMAT",
-    "message": "Document format not supported for summarization"
-  }
-}
