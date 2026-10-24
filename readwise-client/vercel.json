@@ -1,3 +1,0 @@
-{
-  "installCommand": "echo https://${GITHUB_TOKEN}@github.com > ~/.git-credentials && git config --global credential.helper store && npm i"
-}
