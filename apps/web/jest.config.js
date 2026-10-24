@@ -10,10 +10,13 @@ const config = {
   setupFilesAfterEnv: ['<rootDir>/jest.setup.ts'],
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/$1',
+    '^@platform/(.*)$': '<rootDir>/src/platform/$1',
+    '^@tools/(.*)$': '<rootDir>/src/tools/$1',
   },
   testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
+    'src/**/*.{ts,tsx}',
     'lib/**/*.{ts,tsx}',
     'components/**/*.{ts,tsx}',
     '!**/*.d.ts',

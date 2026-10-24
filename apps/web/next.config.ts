@@ -3,6 +3,17 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
+  // The reader moved under /apps/reader (plan, Phase 3); old bookmarks keep working.
+  async redirects() {
+    return [
+      { source: "/reader", destination: "/apps/reader", permanent: true },
+      { source: "/reader/library", destination: "/apps/reader", permanent: true },
+      { source: "/reader/ingest/upload", destination: "/apps/reader/upload", permanent: true },
+      { source: "/reader/book/:id/profile", destination: "/apps/reader/book/:id", permanent: true },
+      { source: "/reader/book/:id/reader", destination: "/apps/reader/book/:id/read", permanent: true },
+      { source: "/reader/book/:id/summary", destination: "/apps/reader/book/:id/summary", permanent: true },
+    ];
+  },
   // Self-contained server for the Docker image (apps/web/Dockerfile).
   output: "standalone",
   // Monorepo: trace dependencies from the repository root so hoisted node_modules are included.

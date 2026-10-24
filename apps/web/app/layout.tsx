@@ -2,10 +2,10 @@ import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
-import { UploadWidget } from "./(components)/UploadWidget";
-import { Providers } from "./(providers)/Providers";
-import { ServiceWorkerRegistration } from "./(components)/ServiceWorkerRegistration";
-import { OfflineIndicator } from "./(components)/OfflineIndicator";
+import { Providers } from "@platform/providers/Providers";
+import { Toaster } from "@/components/ui/sonner";
+import { ServiceWorkerRegistration } from "@platform/pwa/ServiceWorkerRegistration";
+import { OfflineIndicator } from "@platform/pwa/OfflineIndicator";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -72,7 +72,7 @@ export default function RootLayout({
         <Providers>
           {children}
 
-          <UploadWidget />
+          <Toaster />
           <ServiceWorkerRegistration />
           <OfflineIndicator />
         </Providers>

@@ -25,6 +25,12 @@
     "paths": {
       "@/*": [
         "./*"
+      ],
+      "@platform/*": [
+        "./src/platform/*"
+      ],
+      "@tools/*": [
+        "./src/tools/*"
       ]
     }
   },

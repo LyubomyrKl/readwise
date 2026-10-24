@@ -1,8 +1,8 @@
 // app/auth/page.tsx
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { ROUTES } from "../(consts)/routes";
 
+import { PLATFORM_ROUTES } from "@platform/routes";
 export default function Index() {
-  redirect(ROUTES.auth.login);
+  redirect(PLATFORM_ROUTES.auth.login);
 }

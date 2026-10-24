@@ -1,5 +1,5 @@
 import { render, screen } from '@testing-library/react';
-import { OfflineProvider, useOffline } from '@/app/(providers)/OfflineProvider';
+import { OfflineProvider, useOffline } from '@platform/providers/OfflineProvider';
 
 function TestComponent() {
   const { isOffline, wasOffline } = useOffline();

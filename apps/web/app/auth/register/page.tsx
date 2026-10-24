@@ -36,11 +36,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { ROUTES } from "@/app/(consts)/routes";
 import { useSearchParams } from "next/navigation";
-import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { useMotion } from "@platform/providers/MotionProvider";
 import { apiFetch } from "@/lib/fetcher";
 
+import { PLATFORM_ROUTES } from "@platform/routes";
 const RegisterSchema = z
   .object({
     name: z.string().min(2, "Min 2 characters").max(64, "Max 64 characters"),
@@ -99,8 +99,8 @@ function RegisterContent() {
   const searchParams = useSearchParams();
   const { enabled } = useMotion();
 
-  // Get the redirect URL from query params, default to library
-  const redirectTo = searchParams.get("next") || ROUTES.reader.library;
+  // Get the redirect URL from query params, default to the dashboard
+  const redirectTo = searchParams.get("next") || PLATFORM_ROUTES.home;
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(RegisterSchema),
@@ -304,7 +304,7 @@ function RegisterContent() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0 text-sm text-muted-foreground">
               <Link
                 className="hover:text-foreground inline-flex items-center gap-1"
-                href={ROUTES.auth.login}
+                href={PLATFORM_ROUTES.auth.login}
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Back to sign in

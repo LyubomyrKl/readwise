@@ -34,11 +34,11 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Separator } from "@/components/ui/separator";
-import { ROUTES } from "@/app/(consts)/routes";
 import { useSearchParams } from "next/navigation";
-import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
+import { useMotion } from "@platform/providers/MotionProvider";
 import { apiFetch } from "@/lib/fetcher";
 
+import { PLATFORM_ROUTES } from "@platform/routes";
 const LoginSchema = z.object({
   email: z.email("Invalid email"),
   password: z.string().min(8, "Min 8 characters"),
@@ -86,8 +86,8 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { enabled } = useMotion();
 
-  // Get the redirect URL from query params, default to library
-  const redirectTo = searchParams.get("next") || ROUTES.reader.library;
+  // Get the redirect URL from query params, default to the dashboard
+  const redirectTo = searchParams.get("next") || PLATFORM_ROUTES.home;
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(LoginSchema),
@@ -221,7 +221,7 @@ function LoginContent() {
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 sm:gap-0 text-sm text-muted-foreground">
               <Link
                 className="hover:text-foreground"
-                href={ROUTES.auth.register}
+                href={PLATFORM_ROUTES.auth.register}
               >
                 Create account
               </Link>
@@ -260,7 +260,7 @@ function LoginContent() {
         >
           <span>No account yet?</span>
           <Link
-            href={ROUTES.auth.register}
+            href={PLATFORM_ROUTES.auth.register}
             className="inline-flex items-center gap-1 text-foreground hover:underline"
           >
             Register <ArrowRight className="h-3.5 w-3.5" />

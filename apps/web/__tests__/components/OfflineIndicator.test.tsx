@@ -1,9 +1,9 @@
 import { render, screen } from '@testing-library/react';
-import { OfflineIndicator } from '@/app/(components)/OfflineIndicator';
-import * as OfflineProvider from '@/app/(providers)/OfflineProvider';
+import { OfflineIndicator } from '@platform/pwa/OfflineIndicator';
+import * as OfflineProvider from '@platform/providers/OfflineProvider';
 
 // Mock the useOffline hook
-jest.mock('@/app/(providers)/OfflineProvider', () => ({
+jest.mock('@platform/providers/OfflineProvider', () => ({
   useOffline: jest.fn(),
 }));
 
