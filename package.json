@@ -1,16 +1,15 @@
 {
-  "name": "readwise-monorepo",
+  "name": "workbench",
   "version": "0.0.0",
   "private": true,
-  "description": "Readwise monorepo — Next.js client, NestJS gateway, shared TS/Python contracts, and Python workers.",
+  "description": "Workbench, a personal toolbox: Next.js web app, NestJS API and Python workers.",
   "packageManager": "npm@11.4.2",
   "engines": {
     "node": ">=20"
   },
   "workspaces": [
-    "readwise-client",
-    "readwise-gateway",
-    "readwise-contracts/packages/ts"
+    "apps/web",
+    "apps/api"
   ],
   "scripts": {
     "dev": "turbo run dev",
@@ -18,10 +17,13 @@
     "lint": "turbo run lint",
     "test": "turbo run test",
     "typecheck": "turbo run typecheck",
-    "dev:client": "turbo run dev --filter=./readwise-client",
-    "dev:gateway": "turbo run dev --filter=./readwise-gateway",
-    "build:client": "turbo run build --filter=./readwise-client",
-    "build:gateway": "turbo run build --filter=./readwise-gateway",
+    "dev:web": "turbo run dev --filter=@workbench/web",
+    "dev:api": "turbo run dev --filter=@workbench/api",
+    "build:web": "turbo run build --filter=@workbench/web",
+    "build:api": "turbo run build --filter=@workbench/api",
+    "test:e2e": "npm run test:e2e --workspace apps/api",
+    "test:workers": "scripts/test-workers.sh",
+    "smoke": "scripts/smoke-summary.sh",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\"",
     "prisma:sync": "bash sync-prisma.sh"

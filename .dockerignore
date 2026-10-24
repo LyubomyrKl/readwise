@@ -1,0 +1,23 @@
+# Build context is the repository root; keep images free of local state.
+**/node_modules
+**/.git
+.github
+**/.next
+**/out
+**/dist
+**/coverage
+**/.turbo
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/.idea
+**/.vscode
+**/.DS_Store
+**/.env
+**/.env.*
+!**/.env.example
+docs
+infra
+scripts
+**/*.md
+**/*.log

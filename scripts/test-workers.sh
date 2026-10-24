@@ -10,7 +10,7 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 exec docker run --rm \
   -v readvise-pipcache:/root/.cache/pip \
-  -v "$ROOT/readwise-workers":/app \
+  -v "$ROOT/apps/workers":/app \
   -w /app \
   python:3.11-slim \
-  sh -c 'pip install -q -r requirements.txt -r requirements-dev.txt && pytest "$@"' sh "$@"
+  sh -c 'pip install -q -e ".[dev]" && pytest "$@"' sh "$@"

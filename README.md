@@ -1,105 +1,114 @@
-# Readwise Monorepo
+# Workbench
 
-A polyglot monorepo containing the full Readwise stack. JavaScript/TypeScript
-packages are managed with **npm workspaces** and orchestrated with
-**[Turborepo](https://turbo.build/)**. Python services live in the same repo and
-are managed with `pip`.
+A personal toolbox. The first tool is a reader with an AI summarizer: upload
+PDF/EPUB books, read them, keep highlights and notes, and generate structured
+summaries with a local LLM (Ollama).
+
+The architecture and the migration plan live in
+[`docs/toolbox-architecture-plan.md`](docs/toolbox-architecture-plan.md).
 
 ## Layout
 
-| Path | Stack | Description |
-| --- | --- | --- |
-| `readwise-client` | Next.js (TypeScript) | Web client (package name `day-to-day`). Deployed to Vercel. |
-| `readwise-gateway` | NestJS (TypeScript) | API gateway. Prisma + RabbitMQ + S3. Dockerized. |
-| `readwise-contracts/packages/ts` | TypeScript | `@summarizer/contracts` — shared validators & types. |
-| `readwise-contracts/packages/py` | Python | `summarizer-contracts` — shared validators & schemas. |
-| `readwise-workers` | Python | Extraction & summarization workers. Dockerized. |
-| `readwise-shared/prisma` | Prisma | Base Prisma schema, source of truth for the DB. |
-| `readwise-infra` | Docker Compose | Local infrastructure (broker, storage, etc.). |
+| Path | Stack | What |
+|---|---|---|
+| `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: shell, reader, summary viewer, server-side routes that call the API |
+| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: auth, books, highlights, notes, summarizer; owns the database schema and migrations |
+| `apps/workers` | Python 3.11 | extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama) |
+| `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
+| `packages/contracts` | reserved | job/event contracts shared by API and workers (Phase 4) |
+| `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
+| `docs/` | markdown | plan, pipeline speed backlog |
 
-Only the three TypeScript packages are npm workspaces. The Python projects are
-part of the repo but are not part of the npm workspace graph.
+`apps/web` and `apps/api` are npm workspaces orchestrated by Turborepo; one
+`package-lock.json` at the root. `apps/workers` is a Python project (`pyproject.toml`).
 
-## Prerequisites
-
-- Node.js `>=20` (see `.nvmrc`) and npm `>=11`
-- Python `>=3.11` (for `readwise-workers` and the Python contracts)
-- Docker (for `readwise-gateway`, `readwise-workers`, and `readwise-infra`)
-
-## Getting started (JS/TS)
-
-Install every workspace's dependencies from the repo root — this creates a
-single hoisted `node_modules` and links `@summarizer/contracts` locally:
+## Run the whole stack (Docker)
 
 ```bash
-npm install
+cp .env.example .env          # set the secrets, SITE_ADDRESS and the Ollama host
+docker compose up -d --build  # db, minio (+buckets), rabbitmq, migrate, api, workers, web, caddy
+docker compose --profile backup up -d   # optional nightly pg_dump
 ```
 
-Common tasks run through Turborepo across all workspaces:
+Caddy is the only public entry point. `SITE_ADDRESS=workbench.example.com`
+gives automatic HTTPS; `:80` serves plain HTTP. The API listens on
+`127.0.0.1:${API_PORT:-5173}` for host tools only. Images are built from the
+repository root (`apps/*/Dockerfile`); the `migrate` service applies Prisma
+migrations before `api` and `workers` start.
+
+MinIO stopped publishing container images in 2025, so `minio/minio:latest` is
+used with `pull_policy: missing`: it runs from the image already cached on the
+host. For a fresh host, copy it over with
+`docker save minio/minio:latest | ssh <host> docker load`.
+
+Smoke-test a running stack (needs the workers and the Ollama host):
 
 ```bash
-npm run dev          # start dev servers (client + gateway)
-npm run build        # build every workspace (respecting dependency order)
-npm run lint         # lint every workspace
-npm run test         # test every workspace
-npm run typecheck    # type-check every workspace
-npm run format       # Prettier write across the repo
+API_URL=http://127.0.0.1:5173/api scripts/smoke-summary.sh
 ```
 
-Target a single app:
+### Upgrading from the pre-migration deployment
+
+Databases created by the old `prisma db push` entrypoints have no migration
+history and must be recreated once (data was declared disposable):
 
 ```bash
-npm run dev:client       # or: npx turbo run dev --filter=./readwise-client
-npm run dev:gateway
-npm run build:gateway
+docker compose stop api workers
+docker compose exec db psql -U "$POSTGRES_USER" -d postgres \
+  -c "DROP DATABASE \"$POSTGRES_DB\";" -c "CREATE DATABASE \"$POSTGRES_DB\";"
+docker compose up -d
 ```
 
-> Each package keeps its own `.prettierrc` and `tsconfig.json`; Prettier and
-> TypeScript resolve the nearest config per file, so the client and gateway
-> retain their distinct code styles.
+## Local development
 
-## Getting started (Python)
+Node `>=20` (`.nvmrc`), npm `>=11`, Python 3.11, Docker.
 
 ```bash
-# Workers
-cd readwise-workers
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-# Shared Python contracts
-cd readwise-contracts/packages/py
-pip install -e ".[dev]"
+docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db minio minio-init rabbitmq
+npm install                              # also generates the Prisma client
+cp apps/api/.env.example apps/api/.env   # then edit
+cp apps/web/.env.example apps/web/.env.local
+npm run dev:api                          # http://localhost:5173/api, Swagger at /api/docs
+npm run dev:web                          # http://localhost:3000
 ```
 
-## Database / Prisma
-
-`readwise-shared/prisma/schema.base.prisma` is the single source of truth. The
-gateway (Prisma JS) and workers (Prisma Python) schemas are generated from it:
+Workers on the host:
 
 ```bash
-npm run prisma:sync           # regenerate gateway + workers schemas
-# then, per the script output:
-cd readwise-gateway && npx prisma generate
-cd readwise-workers && prisma generate
+cd apps/workers
+cp .env.example .env && pip install -e ".[dev]" && prisma generate
+python main.py
 ```
 
-Schema changes reach the database through Prisma migrations, never `db push`:
+A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
+(Caddy on `http://localhost:8080`; override `DEV_*_PORT` if something is already listening).
+
+## Database and migrations
+
+`apps/api/prisma/schema.base.prisma` is the single source of truth. The Prisma JS
+schema (`apps/api/prisma/schema.prisma`) and the Prisma Python copy
+(`apps/workers/schema.prisma`) are generated from it:
 
 ```bash
-cd readwise-gateway
+npm run prisma:sync
+```
+
+Schema changes reach the database through migrations, never `db push`:
+
+```bash
+cd apps/api
 npx prisma migrate dev --name <change>   # writes prisma/migrations/<timestamp>_<change>
-npx prisma migrate deploy                # what the gateway container runs at start
+npx prisma migrate deploy                # what the migrate service runs
 ```
 
-## Infrastructure
+## Tests and checks
 
 ```bash
-cd readwise-infra && docker compose up -d
+npm run lint && npm run typecheck && npm test   # Turborepo across web + api
+npm run test:e2e                                # api e2e with mocked infrastructure
+npm run test:workers                            # pytest in python:3.11-slim
+npm run smoke                                   # end to end against a running stack
 ```
 
-## Notes
-
-- Docker/Vercel builds still install per-directory (each package keeps its own
-  `package-lock.json`). Migrating those builds to install from the workspace
-  root is a follow-up.
-- Turborepo caches build/test/lint/typecheck outputs in `.turbo/` (gitignored).
+CI (`.github/workflows/ci.yml`) runs the same plus a migration drift check and
+the three Docker builds on every push to `main`.
