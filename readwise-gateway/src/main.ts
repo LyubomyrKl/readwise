@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import * as Sentry from '@sentry/node';
+import helmet from 'helmet';
 import { SentryExceptionFilter } from './common/filters/sentry-exception.filter';
 import 'reflect-metadata';
 
@@ -22,6 +23,10 @@ async function bootstrap() {
 
   try {
     const app = await NestFactory.create(AppModule);
+
+    // Standard security headers. CSP stays off because the only HTML this service
+    // serves is Swagger UI, which needs inline scripts; every other response is JSON.
+    app.use(helmet({ contentSecurityPolicy: false }));
 
     app.setGlobalPrefix('api');
 

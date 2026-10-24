@@ -37,3 +37,14 @@ export const BOOK_STATUS = {
   READY: 'ready',
   ERROR: 'error',
 } as const;
+
+/**
+ * Upper bound for a single multipart upload (book or cover), enforced by multer.
+ * Override with UPLOAD_MAX_FILE_BYTES; defaults to BOOK_CONSTRAINTS.MAX_BOOK_SIZE.
+ */
+export const UPLOAD_MAX_FILE_BYTES = (() => {
+  const fromEnv = Number(process.env.UPLOAD_MAX_FILE_BYTES);
+  return Number.isFinite(fromEnv) && fromEnv > 0
+    ? fromEnv
+    : BOOK_CONSTRAINTS.MAX_BOOK_SIZE;
+})();

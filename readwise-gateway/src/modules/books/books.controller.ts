@@ -25,6 +25,7 @@ import {
   UploadResponse,
   UpdateReadingPositionDto,
 } from './book.models';
+import { UPLOAD_MAX_FILE_BYTES } from './book.constants';
 
 import { ApiEndpoint } from '@/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@/app.models';
@@ -36,10 +37,16 @@ export class BooksController {
 
   @Post('upload')
   @UseInterceptors(
-    FileFieldsInterceptor([
-      { name: 'book', maxCount: 1 },
-      { name: 'cover', maxCount: 1 },
-    ]),
+    FileFieldsInterceptor(
+      [
+        { name: 'book', maxCount: 1 },
+        { name: 'cover', maxCount: 1 },
+      ],
+      {
+        // multer buffers uploads in memory; without a limit one request can exhaust it.
+        limits: { fileSize: UPLOAD_MAX_FILE_BYTES, files: 2 },
+      },
+    ),
   )
   @ApiConsumes('multipart/form-data')
   @ApiBody({
