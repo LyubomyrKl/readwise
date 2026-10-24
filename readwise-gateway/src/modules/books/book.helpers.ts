@@ -53,6 +53,7 @@ export function convertBookToResponse(book: BookWithRelations): BookResponse {
     mime: book.mime,
     sizeBytes: book.sizeBytes.toString(),
     status: book.status,
+    errorMessage: book.errorMessage ?? null,
     notes: book.notes || [],
     highlights: book.highlights || [],
     tags: book.tags || [],

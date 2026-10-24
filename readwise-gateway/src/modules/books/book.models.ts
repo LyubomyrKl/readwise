@@ -143,6 +143,12 @@ export class BookResponse {
   @ApiProperty()
   status!: string;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Last processing error, present when status is "error"',
+  })
+  errorMessage?: string | null;
+
   @ApiProperty({ type: [NoteResponse] })
   notes!: NoteResponse[];
 

@@ -117,4 +117,22 @@ export class SummaryStatusResponse {
     example: 'summaries/user-123/book-456/summary.json',
   })
   summaryKey?: string;
+
+  @ApiPropertyOptional({
+    enum: SummaryType,
+    description: 'Type of the stored summary (when ready)',
+  })
+  summaryType?: SummaryType;
+
+  @ApiPropertyOptional({
+    enum: SummarizationStrategy,
+    description: 'Strategy used for the stored summary (when ready)',
+  })
+  summarizationStrategy?: SummarizationStrategy;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'Last processing error, present when status is "error"',
+  })
+  errorMessage?: string | null;
 }

@@ -118,8 +118,9 @@ export class BooksService {
     const books = await this.prisma.book.findMany({
       where: {
         userId,
+        // Books whose processing failed stay listed so the user can retry or delete them.
         status: {
-          notIn: [BOOK_STATUS.PENDING, BOOK_STATUS.ERROR],
+          not: BOOK_STATUS.PENDING,
         },
       },
       orderBy: {

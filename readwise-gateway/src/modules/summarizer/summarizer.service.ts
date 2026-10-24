@@ -88,7 +88,10 @@ export class SummarizerService {
       select: {
         id: true,
         status: true,
-        summaryStorageKey: true
+        summaryStorageKey: true,
+        summaryType: true,
+        summarizationStrategy: true,
+        errorMessage: true,
       },
     });
 
@@ -101,6 +104,9 @@ export class SummarizerService {
       bookId: book.id,
       isReady: book.status === 'ready' && !!book.summaryStorageKey,
       summaryKey: book.summaryStorageKey ?? undefined,
+      summaryType: book.summaryType ?? undefined,
+      summarizationStrategy: book.summarizationStrategy ?? undefined,
+      errorMessage: book.errorMessage ?? null,
     };
   }
 }
