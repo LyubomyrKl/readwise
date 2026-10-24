@@ -1,4 +1,0 @@
-# Development-only dependencies, installed on top of requirements.txt.
-# Run the suite under the same interpreter as the Docker image (Python 3.11):
-#   scripts/test-workers.sh        (from the repository root)
-pytest>=8,<9
