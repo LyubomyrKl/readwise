@@ -12,7 +12,6 @@ import {
   Download,
   Share2,
   MoreHorizontal,
-  Tag,
   Bookmark,
   Eye,
   ArrowLeft,
@@ -71,7 +70,6 @@ export default function BookProfile({
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showAllTags, setShowAllTags] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
@@ -630,52 +628,6 @@ export default function BookProfile({
                 )}
               </div>
             </div>
-
-            {/* Tags */}
-            {book.tags.length > 0 && (
-              <div>
-                <div className="flex items-center gap-2 mb-3">
-                  <Tag className="h-4 w-4 text-muted-foreground" />
-                  <h3 className="font-medium">Tags</h3>
-                </div>
-
-                <div className="flex flex-wrap gap-2">
-                  {/*{(showAllTags ? book.tags : book.tags.slice(0, 5)).map(*/}
-                  {/*  (tag) => (*/}
-                  {/*    <span*/}
-                  {/*      key={tag.tagId}*/}
-                  {/*      className="inline-flex items-center gap-1 px-3 py-1 bg-muted rounded-full text-sm"*/}
-                  {/*      style={{*/}
-                  {/*        backgroundColor: tag.color*/}
-                  {/*          ? `${tag.color}20`*/}
-                  {/*          : undefined,*/}
-                  {/*        color: tag.color || undefined,*/}
-                  {/*      }}*/}
-                  {/*    >*/}
-                  {/*      /!*{tag.color && (*!/*/}
-                  {/*      /!*  <div*!/*/}
-                  {/*      /!*    className="w-2 h-2 rounded-full"*!/*/}
-                  {/*      /!*    style={{ backgroundColor: tag.color }}*!/*/}
-                  {/*      /!*  />*!/*/}
-                  {/*      /!*)}*!/*/}
-                  {/*      {tag.}*/}
-                  {/*    </span>*/}
-                  {/*  )*/}
-                  {/*)}*/}
-
-                  {book.tags.length > 5 && (
-                    <button
-                      onClick={() => setShowAllTags(!showAllTags)}
-                      className="px-3 py-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {showAllTags
-                        ? "Show less"
-                        : `+${book.tags.length - 5} more`}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
 
             {/* Reading Statistics */}
             <div>

@@ -69,17 +69,6 @@ export class HighlightResponse {
   deletedAt?: Date | null;
 }
 
-export class BookTagResponse {
-  @ApiProperty()
-  bookId!: string;
-
-  @ApiProperty()
-  tagId!: string;
-
-  @ApiProperty({ type: 'string', format: 'date-time' })
-  createdAt!: Date;
-}
-
 export class ReadingPositionResponse {
   @ApiProperty({ enum: ['pdf', 'epub'] })
   type!: 'pdf' | 'epub';
@@ -154,9 +143,6 @@ export class BookResponse {
 
   @ApiProperty({ type: [HighlightResponse] })
   highlights!: HighlightResponse[];
-
-  @ApiProperty({ type: [BookTagResponse] })
-  tags!: BookTagResponse[];
 
   @ApiPropertyOptional({ type: ReadingPositionResponse, nullable: true })
   readingPosition?: ReadingPositionResponse | null;

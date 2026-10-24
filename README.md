@@ -83,6 +83,14 @@ cd readwise-gateway && npx prisma generate
 cd readwise-workers && prisma generate
 ```
 
+Schema changes reach the database through Prisma migrations, never `db push`:
+
+```bash
+cd readwise-gateway
+npx prisma migrate dev --name <change>   # writes prisma/migrations/<timestamp>_<change>
+npx prisma migrate deploy                # what the gateway container runs at start
+```
+
 ## Infrastructure
 
 ```bash

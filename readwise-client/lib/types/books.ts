@@ -118,7 +118,6 @@ export interface BookResponse {
   highlights: HighlightResponse[];
   summaryKey?: string;
   lastAccessed?: string;
-  tags: string[];
   notes: NoteResponse[];
   readingPosition?: ReadingPosition | null;
 }

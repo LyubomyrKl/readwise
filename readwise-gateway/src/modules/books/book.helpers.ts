@@ -11,7 +11,6 @@ export const BOOK_WITH_RELATIONS = Prisma.validator<Prisma.BookFindManyArgs>()({
       where: { deletedAt: null },
       orderBy: { createdAt: 'asc' },
     },
-    tags: { include: { tag: true } },
   },
 });
 
@@ -56,7 +55,6 @@ export function convertBookToResponse(book: BookWithRelations): BookResponse {
     errorMessage: book.errorMessage ?? null,
     notes: book.notes || [],
     highlights: book.highlights || [],
-    tags: book.tags || [],
     readingPosition,
     createdAt: book.createdAt,
     updatedAt: book.updatedAt,

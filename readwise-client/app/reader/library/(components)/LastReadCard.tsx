@@ -18,7 +18,6 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Stat } from "./Stat";
 import { prettyDate, progress, getMinutesLeft } from "../utils";
 import { useMotion } from "@/app/(providers)/MotionProvider/MotionProvider";
@@ -110,18 +109,6 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
 
                   <Progress value={progress(lastBook)} className="h-2" />
                 </div>
-              </div>
-
-              <div className="mt-1 flex gap-2">
-                {(lastBook.tags as { name?: string; tag?: string }[]).map((t, idx) => (
-                  <Badge
-                    key={t.name || t.tag || idx}
-                    variant="secondary"
-                    className="backdrop-blur"
-                  >
-                    {t.name || t.tag}
-                  </Badge>
-                ))}
               </div>
 
               <div className="mt-4 sm:mt-6 flex flex-wrap gap-2 sm:gap-3">
