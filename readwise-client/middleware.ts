@@ -8,8 +8,6 @@ const PROTECTED_PATTERNS: RegExp[] = [
   /^\/reader\/library$/,
   /^\/reader\/book\/[^/]+/, // Matches /reader/book/{id} and any subpaths
   /^\/reader\/ingest\/upload$/,
-  /^\/learning(\/|$)/, // Matches /learning and all subpaths
-  /^\/dictionary(\/|$)/, // Matches /dictionary and all subpaths
   /^\/settings(\/|$)/, // Matches /settings and all subpaths
 ];
 

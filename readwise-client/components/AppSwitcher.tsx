@@ -9,11 +9,11 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { BookOpen, Brain, BookMarked, ChevronDown, Settings } from "lucide-react";
+import { BookOpen, ChevronDown, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ROUTES } from "@/app/(consts)/routes";
 
-type AppId = "reader" | "learning" | "dictionary";
+type AppId = "reader";
 
 interface AppInfo {
   id: AppId;
@@ -30,20 +30,6 @@ const apps: AppInfo[] = [
     icon: BookOpen,
     href: ROUTES.reader.library,
     matchPath: "/reader",
-  },
-  {
-    id: "learning",
-    name: "Language Trainer",
-    icon: Brain,
-    href: ROUTES.learning.dashboard,
-    matchPath: "/learning",
-  },
-  {
-    id: "dictionary",
-    name: "Dictionary",
-    icon: BookMarked,
-    href: ROUTES.dictionary.list,
-    matchPath: "/dictionary",
   },
 ];
 

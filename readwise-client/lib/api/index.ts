@@ -11,5 +11,3 @@ export {
 export { authApi } from "./endpoints/auth";
 export { booksApi } from "./endpoints/books";
 export { summarizerApi } from "./endpoints/summarizer";
-export { learningApi } from "./endpoints/learning";
-export { dictionaryApi } from "./endpoints/dictionary";

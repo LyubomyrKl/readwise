@@ -7,7 +7,7 @@ import {
   MobileSidebarTrigger,
   NavItem,
 } from "@/app/(components)/AppSidebar";
-import { Settings, Palette, BookOpen, User, Brain } from "lucide-react";
+import { Settings, Palette, BookOpen, User } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ROUTES } from "@/app/(consts)/routes";
 
@@ -15,7 +15,6 @@ const nav: NavItem[] = [
   { title: "General", icon: Settings, href: ROUTES.settings.root },
   { title: "Appearance", icon: Palette, href: ROUTES.settings.appearance },
   { title: "Reader", icon: BookOpen, href: ROUTES.settings.reader },
-  { title: "Learning", icon: Brain, href: ROUTES.settings.learning },
   { title: "Account", icon: User, href: ROUTES.settings.account },
 ];
 

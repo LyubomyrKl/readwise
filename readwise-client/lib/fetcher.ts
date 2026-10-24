@@ -42,27 +42,6 @@ import type {
   Tokens,
   SummaryRequestResponse,
   SummaryStatusResponse,
-  CreateLearningNoteDto,
-  UpdateLearningNoteDto,
-  ValidateNoteDto,
-  SubmitReviewDto,
-  EndSessionDto,
-  UpdateSettingsDto,
-  ValidationResultResponse,
-  LearningNoteResponse,
-  StudyQueueResponse,
-  SessionStartResponse,
-  ReviewResultResponse,
-  StatsResponse,
-  DailyStatsResponse,
-  SettingsResponse,
-  CreateDictionaryEntryDto,
-  UpdateDictionaryEntryDto,
-  CreateCollocationDto,
-  DictionaryEntryResponse,
-  DictionaryStatsResponse,
-  DictionarySearchResult,
-  CollocationResponse,
 } from "@/lib/types";
 import type { BookResponse } from "@/app/api/books/schemas";
 import type { SummaryResponse } from "@/app/api/summarizer/schemas";
@@ -75,18 +54,6 @@ type ApiRegistry = {
     "/api/books/[id]/highlights": { req: undefined; res: HighlightResponse[] };
     "/api/books/[id]/notes": { req: undefined; res: NoteResponse[] };
     "/api/auth/me": { req: undefined; res: AuthBundle };
-    // Learning endpoints
-    "/api/learning/notes": { req: undefined; res: LearningNoteResponse[] };
-    "/api/learning/notes/[id]": { req: undefined; res: LearningNoteResponse };
-    "/api/learning/study/queue": { req: undefined; res: StudyQueueResponse };
-    "/api/learning/stats": { req: undefined; res: StatsResponse };
-    "/api/learning/stats/daily": { req: undefined; res: DailyStatsResponse[] };
-    "/api/learning/settings": { req: undefined; res: SettingsResponse };
-    // Dictionary endpoints
-    "/api/dictionary/entries": { req: undefined; res: DictionaryEntryResponse[] };
-    "/api/dictionary/entries/[id]": { req: undefined; res: DictionaryEntryResponse };
-    "/api/dictionary/stats": { req: undefined; res: DictionaryStatsResponse };
-    "/api/dictionary/search": { req: undefined; res: DictionarySearchResult[] };
     // Summarizer endpoints
     "/api/summarizer/status/[bookId]": { req: undefined; res: SummaryStatusResponse };
   };
@@ -94,9 +61,6 @@ type ApiRegistry = {
     "/api/books/[id]": { req: undefined; res: { status: string } };
     "/api/highlights/[id]": { req: undefined; res: { status: string } };
     "/api/notes/[id]": { req: undefined; res: { status: string } };
-    "/api/learning/notes/[id]": { req: undefined; res: { status: string } };
-    "/api/dictionary/entries/[id]": { req: undefined; res: { status: string } };
-    "/api/dictionary/entries/[id]/collocations/[collocationId]": { req: undefined; res: { status: string } };
   };
   POST: {
     "/api/books/updateSpentTime": { req: UpdateSpentTimeDto; res: { status: string } };
@@ -111,24 +75,10 @@ type ApiRegistry = {
     "/api/auth/logout": { req: object; res: void };
     "/api/summarizer": { req: RequestSummaryDto; res: SummaryRequestResponse };
     "/api/summarizer/get-summary": { req: GetSummaryDto; res: SummaryResponse };
-    // Learning endpoints
-    "/api/learning/notes": { req: CreateLearningNoteDto; res: LearningNoteResponse };
-    "/api/learning/notes/validate": { req: ValidateNoteDto; res: ValidationResultResponse };
-    "/api/learning/notes/from-highlight/[highlightId]": { req: CreateLearningNoteDto; res: LearningNoteResponse };
-    "/api/learning/study/session/start": { req: object; res: SessionStartResponse };
-    "/api/learning/study/session/end": { req: EndSessionDto; res: { status: string } };
-    "/api/learning/study/review": { req: SubmitReviewDto; res: ReviewResultResponse };
-    // Dictionary endpoints
-    "/api/dictionary/entries": { req: CreateDictionaryEntryDto; res: DictionaryEntryResponse };
-    "/api/dictionary/entries/[id]/collocations": { req: CreateCollocationDto; res: CollocationResponse };
-    "/api/dictionary/entries/[id]/create-cards": { req: object; res: LearningNoteResponse };
   };
   PATCH: {
     "/api/highlights/[id]": { req: UpdateHighlightDto; res: HighlightResponse };
     "/api/notes/[id]": { req: UpdateNoteDto; res: NoteResponse };
-    "/api/learning/notes/[id]": { req: UpdateLearningNoteDto; res: LearningNoteResponse };
-    "/api/learning/settings": { req: UpdateSettingsDto; res: SettingsResponse };
-    "/api/dictionary/entries/[id]": { req: UpdateDictionaryEntryDto; res: DictionaryEntryResponse };
   };
 };
 

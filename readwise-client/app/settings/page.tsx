@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion, Variants } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { Settings, Palette, BookOpen, User, ChevronRight, Brain } from "lucide-react";
+import { Settings, Palette, BookOpen, User, ChevronRight } from "lucide-react";
 import { useMotion } from "../(providers)/MotionProvider/MotionProvider";
 import { ROUTES } from "../(consts)/routes";
 
@@ -41,12 +41,6 @@ const settingsSections = [
     description: "Book covers and reading experience",
     icon: BookOpen,
     href: ROUTES.settings.reader,
-  },
-  {
-    title: "Learning",
-    description: "Card generation and study preferences",
-    icon: Brain,
-    href: ROUTES.settings.learning,
   },
   {
     title: "Account",
