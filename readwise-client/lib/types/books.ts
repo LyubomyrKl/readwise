@@ -108,6 +108,8 @@ export interface BookResponse {
   updatedAt: string;
   userId: string;
   status?: string;
+  /** Last processing error, present when status is "error". */
+  errorMessage?: string | null;
   mime: string;
   pageCount?: number;
   pagePassCount: number;

@@ -96,4 +96,10 @@ export interface SummaryStatusResponse {
   bookId: string;
   isReady: boolean;
   summaryKey?: string;
+  /** Type of the stored summary, once ready. */
+  summaryType?: SummaryType;
+  /** Strategy that produced the stored summary, once ready. */
+  summarizationStrategy?: SummarizationStrategy;
+  /** Last processing error, present when status is "error". */
+  errorMessage?: string | null;
 }

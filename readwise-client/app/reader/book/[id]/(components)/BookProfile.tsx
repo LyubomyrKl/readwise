@@ -21,6 +21,7 @@ import {
   Sparkles,
   Loader2,
   Trash2,
+  AlertTriangle,
 } from "lucide-react";
 import { IBook } from "@/app/reader/types";
 import { apiFetch } from "@/lib/fetcher";
@@ -44,6 +45,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   SummaryType,
   SummarizationStrategy,
@@ -77,6 +79,9 @@ export default function BookProfile({
   );
   const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
   const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
+
+  // The last extraction or summarization attempt failed and nothing usable was stored.
+  const summaryFailed = book.status === "error" && !book.summaryKey;
 
   // Check if current strategy supports extractive mode
   const supportsExtractiveMode = STRATEGIES_WITH_EXTRACTIVE.includes(strategy);
@@ -324,6 +329,17 @@ export default function BookProfile({
                   </button>
                 </div>
 
+                {summaryFailed && !isGeneratingSummary && (
+                  <Alert variant="destructive">
+                    <AlertTriangle />
+                    <AlertTitle>Summary generation failed</AlertTitle>
+                    <AlertDescription className="break-words">
+                      {book.errorMessage ||
+                        "The last attempt did not finish. You can try again or delete the book."}
+                    </AlertDescription>
+                  </Alert>
+                )}
+
                 <div className="grid grid-cols-1 gap-2">
                   {book.summaryKey ? (
                     <button
@@ -348,7 +364,9 @@ export default function BookProfile({
                       />
                       {isGeneratingSummary
                         ? "Generating Summary..."
-                        : "Generate Summary"}
+                        : summaryFailed
+                          ? "Retry Summary"
+                          : "Generate Summary"}
                     </button>
                   )}
                 </div>

@@ -15,7 +15,13 @@ import { IBook } from "../../types";
 import { BookCover } from "./BookCover";
 import { useBookCover } from "@/app/(providers)/BookCoverProvider/BookCoverProvider";
 import { ROUTES } from "@/app/(consts)/routes";
-import { BookCheck, BookHeart, Heart, Loader2 } from "lucide-react";
+import {
+  AlertTriangle,
+  BookCheck,
+  BookHeart,
+  Heart,
+  Loader2,
+} from "lucide-react";
 import { toast } from "sonner";
 import { useBookMutations } from "@/hooks/useBookMutations";
 
@@ -131,8 +137,18 @@ export function BookCard({ book, onFavoriteChange }: BookCardProps) {
             <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1 flex-1">
               {book.author}
             </p>
-            {(isFavorite || book.isFinished) && (
+            {(isFavorite || book.isFinished || book.status === "error") && (
               <div className="flex gap-1">
+                {book.status === "error" && (
+                  <Badge
+                    variant="destructive"
+                    className="h-5 px-1.5 text-[10px] gap-1"
+                    title={book.errorMessage || "Summary generation failed"}
+                  >
+                    <AlertTriangle className="w-3 h-3" />
+                    Summary failed
+                  </Badge>
+                )}
                 {isFavorite && (
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted">
                     <BookHeart className="w-3 h-3 fill-muted-foreground/40 text-muted-foreground" />
