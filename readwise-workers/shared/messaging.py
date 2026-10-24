@@ -57,14 +57,23 @@ class RabbitMQManager:
             logger.error(f"❌ Failed to send message to {queue}: {e}")
             raise
     
-    def send_summary_request(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3):
-        """Send a message to trigger summarization"""
+    def send_summary_request(self, book_id: str, summary_type: str = 'extractive', summary_percent: float = 0.3,
+                             strategy: Optional[str] = None, user_id: Optional[str] = None):
+        """Send a message to trigger summarization.
+
+        Every option the gateway attached to the extraction request is forwarded,
+        so the summarization worker uses the strategy the user actually picked.
+        """
         message = {
             'bookId': book_id,
             'task': 'summarize',
             'summaryType': summary_type,
-            'summaryPercent': summary_percent
+            'summaryPercent': summary_percent,
         }
+        if strategy:
+            message['summarizationStrategy'] = strategy
+        if user_id:
+            message['userId'] = user_id
         self.send_message('summary_request', message)
     
     def setup_consumer(self, queue: str, callback, prefetch_count: int = 1):

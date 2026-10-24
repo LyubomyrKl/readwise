@@ -165,7 +165,15 @@ class ExtractionWorker:
             extraction_succeeded = await self.process_extraction(book_id)
 
             if extraction_succeeded and message_data.get('autoSummarize', True):
-                self.messaging.send_summary_request(book_id, message_data['summarizationType'], message_data['summaryPercent'])
+                # Forward every option from the gateway's request; the gateway uses
+                # 'summarizationType', older messages used 'summaryType'.
+                self.messaging.send_summary_request(
+                    book_id,
+                    summary_type=message_data.get('summarizationType') or message_data.get('summaryType', 'extractive'),
+                    summary_percent=message_data.get('summaryPercent', 0.3),
+                    strategy=message_data.get('summarizationStrategy'),
+                    user_id=message_data.get('userId'),
+                )
 
         finally:
             await self.db_manager.disconnect()

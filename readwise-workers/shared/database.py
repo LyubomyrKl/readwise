@@ -59,12 +59,16 @@ class DatabaseManager:
             }
         )
     
-    async def update_book_summary(self, book_id: str, summary_type: str, summary_storage_key: str):
+    async def update_book_summary(self, book_id: str, summary_type: str, summary_storage_key: str,
+                                  strategy: str = None):
+        data = {
+            'summaryType': summary_type.lower(),
+            'summaryStorageKey': summary_storage_key,
+            'status': 'ready',
+        }
+        if strategy:
+            data['summarizationStrategy'] = strategy
         return await self.db.book.update(
             where={'id': book_id},
-            data={
-                'summaryType': summary_type.lower(),
-                'summaryStorageKey': summary_storage_key,
-                'status': 'ready',
-            }
+            data=data
         )

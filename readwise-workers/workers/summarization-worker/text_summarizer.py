@@ -186,7 +186,8 @@ class TextSummarizer:
                 'summary_type': summary_type,
                 'original_tokens': str(metadata.get('original_tokens', 0)),
                 'summary_tokens': str(metadata.get('summary_tokens', 0)),
-                'compression_ratio': str(metadata.get('compression_ratio', 0))
+                'compression_ratio': str(metadata.get('compression_ratio', 0)),
+                'summarization_strategy': str(metadata.get('summarization_strategy', '')),
             }
         )
 

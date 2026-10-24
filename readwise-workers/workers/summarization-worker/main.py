@@ -17,6 +17,7 @@ from text_summarizer import TextSummarizer
 from segmentation import DeterministicSegmenter
 from progress import SummarizationProgress
 from checkpoint import CheckpointManager, Checkpoint
+from summary_requests import parse_summary_request, summary_already_exists
 
 # New pipeline imports
 from config.settings import SummarizationSettings, SummarizationStrategy
@@ -139,7 +140,7 @@ class SummarizationWorker:
             return
 
         # Check if summary already exists (idempotency check for redelivered messages)
-        if book.summaryStorageKey and book.summaryType == summary_type and not force:
+        if summary_already_exists(book, summary_type, force):
             logger.info(f"Summary already exists for book {book_id} ({summary_type}), skipping duplicate processing")
             return
 
@@ -192,6 +193,9 @@ class SummarizationWorker:
                 show_progress=True
             )
 
+        # Record which strategy produced this summary alongside the pipeline's own metadata.
+        metadata['summarization_strategy'] = strategy
+
         # Save to S3
         summary_json_str = json.dumps(summary_json, indent=2, ensure_ascii=False)
         summary_s3_key = self._save_summary_to_s3(
@@ -203,7 +207,7 @@ class SummarizationWorker:
         )
 
         # Update database
-        await self.db.update_book_summary(book_id, summary_type, summary_s3_key)
+        await self.db.update_book_summary(book_id, summary_type, summary_s3_key, strategy)
 
         logger.info(f"Summarization complete: {metadata['original_tokens']:,} → {metadata['summary_tokens']:,} tokens")
 
@@ -347,22 +351,16 @@ class SummarizationWorker:
         """Process a message asynchronously"""
         await self.db.connect()
         try:
-            if 'bookId' not in message_data:
-                logger.warning("Message missing 'bookId' field")
+            try:
+                req = parse_summary_request(message_data)
+            except ValueError as e:
+                logger.warning(str(e))
                 return
 
-            book_id = message_data['bookId']
-            task_type = message_data.get('task', 'summarize')
-
-            if task_type == 'summarize':
-                # Support both field names for backwards compatibility
-                summary_type = message_data.get('summarizationType') or message_data.get('summaryType', 'extractive')
-                summary_percent = message_data.get('summaryPercent', 0.3)
-                # Get strategy from message, default to 'structured'
-                strategy = message_data.get('summarizationStrategy', 'structured')
-                await self.process_summarization(book_id, summary_type, summary_percent, strategy)
+            if req.task == 'summarize':
+                await self.process_summarization(req.book_id, req.summary_type, req.summary_percent, req.strategy)
             else:
-                logger.warning(f"Unknown task type: {task_type}")
+                logger.warning(f"Unknown task type: {req.task}")
 
         except Exception as e:
             logger.error(f"Error processing book {message_data.get('bookId', 'unknown')}: {e}")
