@@ -794,6 +794,23 @@ Tests: delete learning specs; add a boot e2e for `AppModule` with mocked infrast
 
 Exit criteria: no file references `learning` or `dictionary` outside git history; `prisma migrate status` is clean with one migration; smoke script passes. Tag `phase-1`.
 
+**Outcome (2026-10-24, tag `phase-1`).** Landed on `main` as six commits.
+
+- Removed: gateway `modules/learning` and `modules/dictionary` (46 routes) and the learning e2e; on the client the `/learning`, `/dictionary` and `/settings/learning` routes, 27 BFF route files, both hooks, the endpoint wrappers and type files, the registry entries in `lib/fetcher.ts`, the switcher, home, middleware, settings and routes entries, and the `slider` and `switch` UI wrappers with their Radix packages. Tag rendering and the `tags` field left `BookResponse`.
+- Schema: `schema.base.prisma` now holds `User`, `RefreshToken`, `Book`, `Note`, `Highlight` and three enums; twelve learning and dictionary models, four enums and the four tag tables are gone. The three 2025 migrations were deleted and replaced by `20261024000000_init`, generated from the datamodel. Verified on a throwaway database: `migrate deploy` applies it, `migrate status` is clean, and `migrate diff --from-migrations` against the datamodel reports no difference.
+- Entrypoints: the gateway container runs `prisma migrate deploy`; the workers container no longer touches the schema. `prisma` moved from devDependencies to dependencies so the production image carries the CLI.
+- Tests: gateway unit 16, e2e 14 (summarizer 11 plus a new `AppModule` boot spec with mocked infrastructure, fed by `test/setup-env.ts`), worker pytest 32, client typecheck, lint and jest green. Gateway lint dropped from 7 to 5 pre-existing problems; the three pre-existing typecheck errors in `auth.service.ts` remain.
+- Smoke: exercised on a throwaway database migrated with `migrate deploy`: registration, upload, request and status polling pass, the book payload no longer carries `tags`, and the removed APIs answer 404. The summary step still needs the workers and the Ollama host.
+- Not done here: the database reset on the Hetzner host and on the local Mac. Both databases still hold the old tables without a `_prisma_migrations` row for `init`, so `migrate deploy` will refuse them (error P3005). Reset once, with the api and workers containers stopped, before starting the new images:
+
+  ```bash
+  docker exec summarizer-db psql -U "$POSTGRES_USER" -d postgres \
+    -c "DROP DATABASE \"$POSTGRES_DB\";" -c "CREATE DATABASE \"$POSTGRES_DB\";"
+  # start the api container next; its entrypoint applies 20261024000000_init
+  ```
+
+  Objects left in MinIO belong to books that no longer exist; clear the buckets or leave them, nothing reads them.
+
 ### Phase 2: Repository and deployment hygiene
 
 1. Rename directories: `readwise-client → apps/web`, `readwise-gateway → apps/api`, `readwise-workers → apps/workers`, `readwise-infra → infra`, `readwise-shared/prisma → apps/api/prisma` (the schema folder arrives in Phase 4; until then keep one `schema.prisma` here and the generated worker copy). Update workspaces, `turbo.json`, Docker contexts, package names (`@workbench/web`, `@workbench/api`), README.
@@ -966,14 +983,14 @@ Legend: **E** essential, **O** optional.
 - [x] E Tag `phase-0`
 
 ### Phase 1: remove Anki and dictionary, fresh migrations
-- [ ] E Delete gateway `modules/learning`, `modules/dictionary`, their `AppModule` imports and the learning e2e
-- [ ] E Delete client learning/dictionary routes, BFF routes, hooks, endpoints, types, registry entries, switcher/home/middleware/settings/routes entries
-- [ ] E Remove twelve models, four enums, relation fields; drop tag tables and `tags` rendering (unless tagging is wanted)
-- [ ] E Delete old migrations; generate `0001_init`; `prisma migrate reset` on the host
-- [ ] E Remove `prisma db push` from both entrypoints; gateway runs `migrate deploy` for now
-- [ ] E Re-sync the workers' schema copy; boot e2e for `AppModule`
-- [ ] E Prune npm packages that became unused
-- [ ] E Smoke script passes; tag `phase-1`
+- [x] E Delete gateway `modules/learning`, `modules/dictionary`, their `AppModule` imports and the learning e2e
+- [x] E Delete client learning/dictionary routes, BFF routes, hooks, endpoints, types, registry entries, switcher/home/middleware/settings/routes entries
+- [x] E Remove twelve models, four enums, relation fields; drop tag tables and `tags` rendering (unless tagging is wanted) (tag tables dropped)
+- [x] E Delete old migrations; generate `0001_init`; `prisma migrate reset` on the host (migration is `20261024000000_init`; the host and local resets are deploy steps, commands in the outcome note)
+- [x] E Remove `prisma db push` from both entrypoints; gateway runs `migrate deploy` for now
+- [x] E Re-sync the workers' schema copy; boot e2e for `AppModule`
+- [x] E Prune npm packages that became unused (`@radix-ui/react-slider`, `@radix-ui/react-switch`)
+- [x] E Smoke script passes; tag `phase-1` (exercised through polling on a migrated throwaway database; full pass on Hetzner)
 
 ### Phase 2: hygiene
 - [ ] E Rename to `apps/web`, `apps/api`, `apps/workers`, `infra/`; update workspaces, turbo, Docker contexts, package names
