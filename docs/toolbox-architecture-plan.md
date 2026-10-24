@@ -767,6 +767,13 @@ Total for the essential path: roughly 13–21 days. Phases 3 and 4 are independe
 
 Exit criteria: CI-equivalent commands green locally; smoke script passes; the chosen strategy appears in the summary metadata stored in S3. Tag `phase-0`.
 
+**Outcome (2026-10-24, tag `phase-0`).** Everything except the optional backup landed on `main` as eight commits:
+
+- Tests: `rabbitmq.service.spec.ts` and `summarizer.service.spec.ts` (gateway unit, 16 cases), `test/e2e/summarizer.e2e-spec.ts` (11 cases with Prisma, RabbitMQ, S3 and the JWT guard mocked; run with `npx jest --config ./test/jest-e2e.json test/e2e/summarizer`), and `readwise-workers/tests` (32 cases; run with `scripts/test-workers.sh`, which uses the python:3.11 image and the pinned requirements because this Mac has neither 3.11 nor 3.12). Gateway lint and typecheck are unchanged from before; the three pre-existing errors in `auth.service.ts` remain.
+- Fixes: the extraction worker forwards `summarizationStrategy` and `userId`; the summarization worker parses requests through `summary_requests.py` and records the strategy on `Book.summarizationStrategy` and in the S3 object metadata; `GET /summarizer/status/:bookId` returns `summaryType`, `summarizationStrategy` and `errorMessage`; `GET /books` lists `error` books and `BookResponse` carries `errorMessage`; the library card shows a "Summary failed" badge and the book profile shows the error with a "Retry Summary" button; `helmet()` is on with CSP off for Swagger UI; multer enforces `UPLOAD_MAX_FILE_BYTES` (default 1 GB).
+- Smoke: `scripts/smoke-summary.sh` with `scripts/fixtures/sample-2p.pdf`. Exercised locally against a gateway started on a throwaway database: registration, upload, request and status polling all behaved, and the new status fields serialized correctly. The summary step needs the workers and the Ollama host, so the first full pass happens on the Hetzner stack.
+- Observed on the way: the local development database on the Mac has drifted from the committed schema in both directions (it lacks `Book.errorMessage` and still has `CardType.grammar` and `UserLearningSettings.generateGrammar`). It was left untouched; the Phase 1 reset replaces it.
+
 ### Phase 1: Remove Anki (learning) and dictionary; fresh migrations
 
 Removal inventory (confirmed by file listing):
@@ -948,15 +955,15 @@ Decisions that would be expensive to reverse after a few tools exist: D5/D6 (tab
 Legend: **E** essential, **O** optional.
 
 ### Phase 0: tripwires
-- [ ] E API e2e for `POST /summarizer/request`, "already exists", `GET status`
-- [ ] E pytest for extraction forwarding, summarization idempotency, checkpoint resume, builder presets
-- [ ] E `scripts/smoke-summary.sh` against the dev stack
-- [ ] E Forward `summarizationStrategy` and `userId` in `shared/messaging.py`
-- [ ] E Stop excluding `error` books from `getAllBooks`; error badge with retry/delete
-- [ ] E `helmet()` and multer `limits.fileSize`
-- [ ] O One-off `pg_dump` + `mc mirror`
-- [ ] E Confirm the name Workbench or replace it everywhere before Phase 2
-- [ ] E Tag `phase-0`
+- [x] E API e2e for `POST /summarizer/request`, "already exists", `GET status`
+- [x] E pytest for extraction forwarding, summarization idempotency, checkpoint resume, builder presets
+- [x] E `scripts/smoke-summary.sh` against the dev stack (script in place and exercised up to polling; first full pass needs the workers and Ollama)
+- [x] E Forward `summarizationStrategy` and `userId` in `shared/messaging.py`
+- [x] E Stop excluding `error` books from `getAllBooks`; error badge with retry/delete
+- [x] E `helmet()` and multer `limits.fileSize`
+- [ ] O One-off `pg_dump` + `mc mirror` (skipped: data is disposable)
+- [x] E Confirm the name Workbench or replace it everywhere before Phase 2
+- [x] E Tag `phase-0`
 
 ### Phase 1: remove Anki and dictionary, fresh migrations
 - [ ] E Delete gateway `modules/learning`, `modules/dictionary`, their `AppModule` imports and the learning e2e
