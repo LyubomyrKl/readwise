@@ -19,6 +19,8 @@ x-app-env: &app-env
   S3_BOOK_BUCKET_NAME: books
   S3_BOOK_COVER_BUCKET_NAME: covers
   S3_SUMMARIES_BUCKET_NAME: summaries
+  S3_EXTRACTIONS_BUCKET_NAME: extractions
+  S3_CHECKPOINTS_BUCKET_NAME: checkpoints
   RABBITMQ_HOST: rabbitmq
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: ${RABBITMQ_USER}
@@ -88,7 +90,6 @@ services:
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASS:?set RABBITMQ_PASS in .env}
     volumes:
       - rabbitmq:/var/lib/rabbitmq
-      - ./infra/rabbitmq/rabbitmq.conf:/etc/rabbitmq/conf.d/20-workbench.conf:ro
     healthcheck:
       test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
       interval: 10s
@@ -122,6 +123,9 @@ services:
       NODE_ENV: production
       PORT: "5173"
       LOG_LEVEL: ${LOG_LEVEL:-info}
+      # api | worker | all: HTTP, queue consumers + job sweep, or both (one host: both)
+      APP_MODE: ${APP_MODE:-all}
+      JOBS_LEASE_SECONDS: ${JOBS_LEASE_SECONDS:-900}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?set JWT_ACCESS_SECRET in .env}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:?set JWT_REFRESH_SECRET in .env}
       JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
@@ -160,7 +164,10 @@ services:
       OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:?set OLLAMA_EMBED_MODEL in .env}
       PIPELINE_MODE: ${PIPELINE_MODE:-balanced}
       WORKER_ID: workers
+      WORKER_QUEUES: reader
       WORKER_PREFETCH_COUNT: ${WORKER_PREFETCH_COUNT:-1}
+      WORKER_HEARTBEAT_SECONDS: ${WORKER_HEARTBEAT_SECONDS:-60}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
     depends_on:
       migrate:
         condition: service_completed_successfully

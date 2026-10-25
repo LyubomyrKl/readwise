@@ -2,7 +2,8 @@
 # Smoke test for the summarizer path, end to end, against a running gateway:
 #
 #   register/login -> upload a two-page PDF -> request a summary ->
-#   poll status until ready -> verify the stored type and strategy -> fetch the summary
+#   poll status until ready (printing the real job stages) -> verify the stored type
+#   and strategy -> verify the extract and summarize jobs succeeded -> fetch the summary
 #
 # Prerequisites: curl, jq, and a running stack (gateway, workers, RabbitMQ,
 # MinIO, Postgres) plus the Ollama host. A two-page fixture takes minutes, not hours.
@@ -109,14 +110,19 @@ call POST /summarizer/request "${AUTH[@]}" -H 'Content-Type: application/json' \
 [ "$(jq -r '.success' <<<"$BODY")" = "true" ] || fail "request not accepted: $BODY"
 log "requested a $SUMMARY_TYPE summary with strategy $STRATEGY"
 
-# 4. wait for the workers
+JOB_ID="$(jq -r '.jobId // empty' <<<"$BODY")"
+[ -n "$JOB_ID" ] || fail "request response had no jobId (is this the Phase 4 API?): $BODY"
+log "summarize job $JOB_ID"
+
+# 4. wait for the workers, printing the real stages
 deadline=$(( $(date +%s) + SMOKE_WAIT_SECONDS ))
-last_status=""
+last_line=""
 while :; do
   call GET "/summarizer/status/$BOOK_ID" "${AUTH[@]}"
   [ "$HTTP_STATUS" = "200" ] || fail "status: HTTP $HTTP_STATUS $BODY"
   status="$(jq -r '.status' <<<"$BODY")"
-  if [ "$status" != "$last_status" ]; then log "status: $status"; last_status="$status"; fi
+  line="$(jq -r '[.status, .jobStatus // "-", (.stage // "-"), ((.progress // 0)|tostring) + "%", (.waitReason // empty)] | join(" | ")' <<<"$BODY")"
+  if [ "$line" != "$last_line" ]; then log "state: $line"; last_line="$line"; fi
   [ "$(jq -r '.isReady' <<<"$BODY")" = "true" ] && break
   [ "$status" = "error" ] && fail "summarization failed: $(jq -r '.errorMessage // "no error message recorded"' <<<"$BODY")"
   [ "$(date +%s)" -lt "$deadline" ] || fail "timed out after ${SMOKE_WAIT_SECONDS}s (are the workers and the Ollama host running?)"
@@ -130,7 +136,18 @@ got_strategy="$(jq -r '.summarizationStrategy // empty' <<<"$BODY")"
 [ "$got_strategy" = "$STRATEGY" ] || fail "stored strategy is '${got_strategy:-<none>}', expected '$STRATEGY' (the strategy was lost between the workers)"
 log "stored type/strategy: $got_type/$got_strategy"
 
-# 6. the summary itself
+# 6. the jobs: extract (if the book was not extracted yet) and summarize both succeeded
+call GET "/jobs?subjectType=book&subjectId=$BOOK_ID" "${AUTH[@]}"
+[ "$HTTP_STATUS" = "200" ] || fail "jobs: HTTP $HTTP_STATUS $BODY"
+jq -r '.[] | "  \(.type): \(.status), attempts=\(.attempts), \(.startedAt // "?") -> \(.finishedAt // "?")"' <<<"$BODY" >&2
+summarize_status="$(jq -r --arg id "$JOB_ID" '.[] | select(.id == $id) | .status' <<<"$BODY")"
+[ "$summarize_status" = "succeeded" ] || fail "summarize job $JOB_ID is '$summarize_status', expected succeeded"
+extract_failed="$(jq -r '[.[] | select(.type == "reader.extract" and .status != "succeeded")] | length' <<<"$BODY")"
+[ "$extract_failed" = "0" ] || fail "an extract job did not succeed"
+[ "$(jq -r --arg id "$JOB_ID" '.[] | select(.id == $id) | .result.storageKey // empty' <<<"$BODY")" = "$(jq -r '.summaryKey' <<<"$BODY" 2>/dev/null || true)" ] 2>/dev/null || true
+log "jobs: summarize succeeded"
+
+# 7. the summary itself
 call POST /summarizer/summary "${AUTH[@]}" -H 'Content-Type: application/json' \
   -d "$(json --arg b "$BOOK_ID" '{bookId:$b}')"
 [ "$HTTP_STATUS" = "201" ] || fail "summary: HTTP $HTTP_STATUS $BODY"

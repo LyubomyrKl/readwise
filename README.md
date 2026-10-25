@@ -12,8 +12,9 @@ The architecture and the migration plan live in
 | Path | Stack | What |
 |---|---|---|
 | `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`, server-side routes that call the API |
-| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: auth, books, highlights, notes, summarizer; owns the database schema and migrations |
-| `apps/workers` | Python 3.11 | extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama) |
+| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries); the only code that touches the database |
+| `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
+| `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
 | `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
 | `packages/contracts` | reserved | job/event contracts shared by API and workers (Phase 4) |
 | `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
@@ -90,25 +91,46 @@ A full local stack with published ports: `docker compose -f docker-compose.yml -
 3. Add route files under `apps/web/app/(shell)/apps/<id>/` that re-export your pages.
 
 Lint enforces the boundaries: a tool imports the platform and shared UI, never another tool.
-See the plan, section 2.10, for the API and worker side.
+
+On the API side: `apps/api/src/tools/<id>/<id>.module.ts`, one line in
+`apps/api/src/tool-registry.ts`, a `prisma/schema/<id>.prisma` with `@@map("<id>_*")`
+tables and a migration. Background work: register a Node handler with `NodeJobRunner`
+in the module, or add a Python handler under `apps/workers/worker/tools/<id>/` and list
+the tool in `apps/workers/worker/__main__.py`. Tool code may import the platform; the
+platform never imports a tool (lint checks this in both apps).
 
 ## Database and migrations
 
-`apps/api/prisma/schema.base.prisma` is the single source of truth. The Prisma JS
-schema (`apps/api/prisma/schema.prisma`) and the Prisma Python copy
-(`apps/workers/schema.prisma`) are generated from it:
-
-```bash
-npm run prisma:sync
-```
+The schema lives in `apps/api/prisma/schema/`, one file per owner: `platform.prisma`
+(User, RefreshToken, Job) and `reader.prisma` (the reader's tables, prefixed `reader_`);
+Prisma keeps the migrations of a schema folder inside it (`prisma/schema/migrations`).
+The API is the only code that reads or writes the database; the Python workers get
+everything they need in the job payload and report back through events.
 
 Schema changes reach the database through migrations, never `db push`:
 
 ```bash
-cd apps/api
-npx prisma migrate dev --name <change>   # writes prisma/migrations/<timestamp>_<change>
-npx prisma migrate deploy                # what the migrate service runs
+cd apps/api && npx prisma migrate dev --name <change>   # writes prisma/schema/migrations/<timestamp>_<change>
 ```
+
+In Docker the one-shot `migrate` service runs `prisma migrate deploy` before `api`
+and `workers` start. Phase 4 regenerated the initial migration (job and summary
+tables, prefixed reader tables); a database created by an earlier phase must be
+reset once before this version starts: `docker compose down -v` (data is disposable)
+or `docker compose run --rm migrate node /repo/node_modules/prisma/build/index.js migrate reset --force`.
+
+## Background jobs
+
+A summary request creates `Job` rows (`reader.extract`, then `reader.summarize`) and
+publishes an envelope to RabbitMQ (`workbench.jobs`, routing key `jobs.<type>`). The
+worker acknowledges on claim and reports `started`, `progress`, `waiting`, `succeeded`
+or `failed` on `workbench.job-events`; the API updates the row and calls the reader's
+hook, which stores the extraction key on the book and the storage key on the summary.
+A job whose heartbeat stops for `JOBS_LEASE_SECONDS` is re-published (up to
+`JOBS_MAX_ATTEMPTS`), a job whose LLM host is down shows `waiting` and resumes by
+itself. Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
+`POST /api/jobs/:id/cancel`, `POST /api/jobs/:id/retry`; dead-lettered messages land in
+the `*.dlq` queues (RabbitMQ management UI).
 
 ## Tests and checks
 

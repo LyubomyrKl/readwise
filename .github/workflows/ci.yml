@@ -51,8 +51,8 @@ jobs:
           psql "$DATABASE_URL" -c 'CREATE DATABASE ci_shadow;'
           npx prisma migrate deploy
           npx prisma migrate diff \
-            --from-migrations prisma/migrations \
-            --to-schema-datamodel prisma/schema.prisma \
+            --from-migrations prisma/schema/migrations \
+            --to-schema-datamodel prisma/schema \
             --shadow-database-url "$SHADOW_DATABASE_URL" \
             --exit-code
       - run: npm run build
