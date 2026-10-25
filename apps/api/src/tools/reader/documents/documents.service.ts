@@ -21,12 +21,7 @@ import {
   UpdateReadingPositionDto,
 } from './document.models';
 import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.constants';
-import {
-  BOOK_WITH_COUNTS,
-  BookCompatState,
-  BookRow,
-  convertBookToResponse,
-} from './document.helpers';
+import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse } from './document.helpers';
 
 /**
  * Owns the reader_book table and the objects behind it (file, cover,
@@ -118,25 +113,18 @@ export class DocumentsService {
   }
 
   /** All books of the user, newest activity first. */
-  async getAllBooks(
-    userId: string,
-    compat: (bookId: string) => BookCompatState = () => ({}),
-  ): Promise<BookResponse[]> {
+  async getAllBooks(userId: string): Promise<BookResponse[]> {
     const books = await this.prisma.book.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },
       ...BOOK_WITH_COUNTS,
     });
-    return books.map((book) => convertBookToResponse(book, compat(book.id)));
+    return books.map((book) => convertBookToResponse(book));
   }
 
-  async getBook(
-    userId: string,
-    bookId: string,
-    compat: BookCompatState = {},
-  ): Promise<BookResponse> {
+  async getBook(userId: string, bookId: string): Promise<BookResponse> {
     const book = await this.findBookRow(bookId, userId);
-    return convertBookToResponse(book, compat);
+    return convertBookToResponse(book);
   }
 
   async setLastAccessed(bookId: string, userId: string): Promise<UpdateLastAccessedResponse> {

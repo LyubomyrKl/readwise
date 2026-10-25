@@ -58,19 +58,23 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     expect(queue.consume).toHaveBeenCalledWith('q.api.job-events', expect.any(Function), expect.anything());
   });
 
-  it('protects platform and tool routes with the JWT guard, at new and compatibility paths', async () => {
+  it('protects platform and tool routes with the JWT guard', async () => {
     const server = app.getHttpServer();
     await request(server).get('/api/jobs').expect(401);
-    await request(server).get('/api/books').expect(401);
     await request(server).get('/api/reader/documents').expect(401);
     await request(server).get('/api/reader/documents/book-1/summaries').expect(401);
+    await request(server).get('/api/reader/summaries').expect(401);
     await request(server).get('/api/reader/documents/book-1/notes').expect(401);
     await request(server).get('/api/reader/documents/book-1/highlights').expect(401);
-    await request(server).post('/api/summarizer/request').send({ bookId: 'book-1' }).expect(401);
+    await request(server).patch('/api/users/me').send({ name: 'x' }).expect(401);
   });
 
-  it('does not expose removed APIs', async () => {
-    await request(app.getHttpServer()).get('/api/learning/notes').expect(404);
-    await request(app.getHttpServer()).get('/api').expect(404);
+  it('no longer answers at the pre-Phase-5 paths', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/books').expect(404);
+    await request(server).get('/api/books/book-1/notes').expect(404);
+    await request(server).post('/api/summarizer/request').send({ bookId: 'book-1' }).expect(404);
+    await request(server).get('/api/summarizer/status/book-1').expect(404);
+    await request(server).get('/api/learning/notes').expect(404);
   });
 });

@@ -6,15 +6,11 @@ import { JobsService } from '@platform/jobs/jobs.service';
 import { toJobResponse } from '@platform/jobs/job.models';
 import { isActive } from '@platform/jobs/job-hooks';
 import { DocumentsService } from '../documents/documents.service';
-import { BookCompatState } from '../documents/document.helpers';
 import {
   CreateSummaryResponse,
-  LegacySummaryResponse,
   SummaryContentResponse,
-  SummaryRequestResponse,
   SummaryResponse,
   SummaryState,
-  SummaryStatusResponse,
 } from './summary.models';
 
 export const READER_TOOL_ID = 'reader';
@@ -161,6 +157,21 @@ export class SummariesService {
     return this.toResponse(await this.loadOwned(userId, summaryId));
   }
 
+  /** Every summary of the user, newest first; with latestPerBook only the newest of each document. */
+  async listForUser(
+    userId: string,
+    opts: { latestPerBook?: boolean; limit?: number } = {},
+  ): Promise<SummaryResponse[]> {
+    const rows = await this.prisma.summary.findMany({ where: { userId }, orderBy: { createdAt: 'desc' } });
+    let selected = rows;
+    if (opts.latestPerBook) {
+      const seen = new Set<string>();
+      selected = rows.filter((row) => (seen.has(row.bookId) ? false : (seen.add(row.bookId), true)));
+    }
+    selected = selected.slice(0, opts.limit ?? 100);
+    return (await this.withJobs(selected)).map((pair) => this.toResponse(pair));
+  }
+
   async getContent(userId: string, summaryId: string): Promise<SummaryContentResponse> {
     const pair = await this.loadOwned(userId, summaryId);
     const storageKey = this.storageKeyOf(pair.summary, pair.job);
@@ -169,88 +180,6 @@ export class SummariesService {
     }
     const summary = await this.storage.getJson('summaries', storageKey);
     return { ...this.toResponse(pair), summary };
-  }
-
-  // ---- compatibility with the current web client (removed in Phase 5) ------------
-
-  async requestSummaryCompat(
-    userId: string,
-    bookId: string,
-    type: SummaryType,
-    strategy?: SummarizationStrategy,
-  ): Promise<SummaryRequestResponse> {
-    const created = await this.create(userId, bookId, type, strategy);
-    return {
-      success: true,
-      message: created.storageKey
-        ? 'Summary already exists'
-        : created.existing
-          ? 'Summary generation already in progress'
-          : 'Summary request queued successfully',
-      userId,
-      bookId,
-      summaryKey: created.storageKey ?? undefined,
-      summaryId: created.summaryId,
-      jobId: created.jobId,
-    };
-  }
-
-  async getSummaryByBookIdCompat(userId: string, bookId: string): Promise<LegacySummaryResponse> {
-    await this.documents.getOwnedBook(userId, bookId);
-    const latest = (await this.latestPerBook(userId, bookId)).get(bookId);
-    const storageKey = latest ? this.storageKeyOf(latest.summary, latest.job) : null;
-    if (!latest || !storageKey) {
-      throw new NotFoundException('Summary not available for this book');
-    }
-    const summary = await this.storage.getJson('summaries', storageKey);
-    return {
-      bookId,
-      summaryId: latest.summary.id,
-      summaryType: latest.summary.type,
-      summarizationStrategy: latest.summary.strategy,
-      summaryKey: storageKey,
-      createdAt: latest.summary.createdAt,
-      summary,
-    };
-  }
-
-  async getSummaryStatusCompat(userId: string, bookId: string): Promise<SummaryStatusResponse> {
-    await this.documents.getOwnedBook(userId, bookId);
-    const latest = (await this.latestPerBook(userId, bookId)).get(bookId);
-    if (!latest) {
-      return { status: 'ready', bookId, isReady: false, errorMessage: null };
-    }
-    const compat = this.compatOf(latest);
-    const { summary, job } = latest;
-    return {
-      status: compat.status ?? 'ready',
-      bookId,
-      isReady: !!compat.summaryKey,
-      summaryKey: compat.summaryKey ?? undefined,
-      summaryType: compat.summaryKey ? summary.type : undefined,
-      summarizationStrategy: compat.summaryKey ? summary.strategy : undefined,
-      errorMessage: compat.errorMessage ?? null,
-      summaryId: summary.id,
-      jobId: job?.id,
-      jobStatus: job?.status,
-      stage: job?.stage ?? null,
-      progress: job?.progress,
-      waitReason: job?.waitReason ?? null,
-    };
-  }
-
-  /** Book-level compat fields (summaryKey, status, errorMessage) for every book of the user. */
-  async compatStateForUser(userId: string): Promise<Map<string, BookCompatState>> {
-    const result = new Map<string, BookCompatState>();
-    for (const [bookId, pair] of await this.latestPerBook(userId)) {
-      result.set(bookId, this.compatOf(pair));
-    }
-    return result;
-  }
-
-  async compatStateForBook(userId: string, bookId: string): Promise<BookCompatState> {
-    const latest = (await this.latestPerBook(userId, bookId)).get(bookId);
-    return latest ? this.compatOf(latest) : {};
   }
 
   // ---- internals -----------------------------------------------------------------
@@ -266,20 +195,6 @@ export class SummariesService {
     const jobs = await this.jobs.getMany(summaries.map((s) => s.jobId).filter((id): id is string => !!id));
     const byId = new Map(jobs.map((j) => [j.id, j]));
     return summaries.map((summary) => ({ summary, job: summary.jobId ? (byId.get(summary.jobId) ?? null) : null }));
-  }
-
-  /** The most recent summary of each book (optionally one book), with its job. */
-  private async latestPerBook(userId: string, bookId?: string): Promise<Map<string, SummaryWithJob>> {
-    const rows = await this.prisma.summary.findMany({
-      where: { userId, bookId },
-      orderBy: { createdAt: 'desc' },
-    });
-    const latest = new Map<string, Summary>();
-    for (const row of rows) {
-      if (!latest.has(row.bookId)) latest.set(row.bookId, row);
-    }
-    const pairs = await this.withJobs([...latest.values()]);
-    return new Map(pairs.map((pair) => [pair.summary.bookId, pair]));
   }
 
   /** The row's key, or the key the job reported if the hook did not get to write it. */
@@ -308,16 +223,6 @@ export class SummariesService {
       default:
         return 'queued';
     }
-  }
-
-  private compatOf({ summary, job }: SummaryWithJob): BookCompatState {
-    const state = this.stateOf(summary, job);
-    const summaryKey = this.storageKeyOf(summary, job);
-    if (state === 'ready') return { summaryKey, status: 'ready', errorMessage: null };
-    if (state === 'failed' || state === 'cancelled') {
-      return { summaryKey: null, status: 'error', errorMessage: job?.error ?? `summary ${state}` };
-    }
-    return { summaryKey: null, status: 'processing', errorMessage: null };
   }
 
   private toResponse({ summary, job }: SummaryWithJob): SummaryResponse {

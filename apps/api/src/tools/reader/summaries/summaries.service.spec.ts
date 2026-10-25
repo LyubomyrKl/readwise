@@ -102,63 +102,68 @@ describe('SummariesService', () => {
     });
   });
 
-  describe('state and compatibility shims', () => {
+  describe('state', () => {
     const workerEvent = (jobId: string, event: 'started' | 'progress' | 'waiting' | 'succeeded' | 'failed', extra: Record<string, unknown> = {}) =>
       jobs.applyEvent({ v: 1, jobId, event, at: '2026-10-25T10:00:00.000Z', workerId: 'w', ...extra } as never);
 
-    it('reports processing while jobs are active, with stage and progress from the summarize job', async () => {
+    it('is queued, then running or waiting with the job attached', async () => {
       const created = await service.create('user-1', 'book-1');
       await workerEvent(created.extractJobId!, 'started');
 
-      const status = await service.getSummaryStatusCompat('user-1', 'book-1');
-      expect(status).toMatchObject({ status: 'processing', isReady: false, bookId: 'book-1', summaryId: created.summaryId, jobId: created.jobId, jobStatus: 'queued' });
+      let summary = await service.get('user-1', created.summaryId);
+      expect(summary).toMatchObject({ state: 'queued', storageKey: null, job: { status: 'queued', parentJobId: created.extractJobId } });
 
       await workerEvent(created.jobId, 'started');
       await workerEvent(created.jobId, 'waiting', { reason: 'LLM host unreachable', stage: 'section 1/3', progress: 10 });
-      expect(await service.getSummaryStatusCompat('user-1', 'book-1')).toMatchObject({
-        status: 'processing', jobStatus: 'waiting', stage: 'section 1/3', progress: 10, waitReason: 'LLM host unreachable',
-      });
-      expect(await service.compatStateForBook('user-1', 'book-1')).toEqual({ summaryKey: null, status: 'processing', errorMessage: null });
+      summary = await service.get('user-1', created.summaryId);
+      expect(summary).toMatchObject({ state: 'waiting', job: { status: 'waiting', stage: 'section 1/3', progress: 10, waitReason: 'LLM host unreachable' } });
     });
 
-    it('reports ready with the stored key, type and strategy; falls back to the job result when the hook did not write the key', async () => {
+    it('is ready with the stored key; falls back to the job result when the hook did not write the key', async () => {
       const created = await service.create('user-1', 'book-1', 'extractive', 'basic');
       await workerEvent(created.jobId, 'started');
       await workerEvent(created.jobId, 'succeeded', { result: { storageKey: 'summary/book-1/x.json' } });
 
-      expect(await service.getSummaryStatusCompat('user-1', 'book-1')).toMatchObject({
-        status: 'ready', isReady: true, summaryKey: 'summary/book-1/x.json', summaryType: 'extractive', summarizationStrategy: 'basic',
-      });
-      const list = await service.listForBook('user-1', 'book-1');
-      expect(list[0]).toMatchObject({ state: 'ready', storageKey: 'summary/book-1/x.json' });
+      const [summary] = await service.listForBook('user-1', 'book-1');
+      expect(summary).toMatchObject({ state: 'ready', storageKey: 'summary/book-1/x.json', type: 'extractive', strategy: 'basic' });
     });
 
-    it('reports error with the job error after a final failure', async () => {
+    it('is failed with the job error after a final failure', async () => {
       const created = await service.create('user-1', 'book-1');
       await workerEvent(created.jobId, 'started', { attempt: 1 });
       await workerEvent(created.jobId, 'failed', { error: 'Unsupported file type', retryable: false });
 
-      expect(await service.getSummaryStatusCompat('user-1', 'book-1')).toMatchObject({ status: 'error', isReady: false, errorMessage: 'Unsupported file type' });
-      const compat = await service.compatStateForUser('user-1');
-      expect(compat.get('book-1')).toEqual({ summaryKey: null, status: 'error', errorMessage: 'Unsupported file type' });
+      expect(await service.get('user-1', created.summaryId)).toMatchObject({ state: 'failed', job: { status: 'failed', error: 'Unsupported file type' } });
     });
 
-    it('serves the JSON of the latest finished summary and 404s before that', async () => {
-      await expect(service.getSummaryByBookIdCompat('user-1', 'book-1')).rejects.toBeInstanceOf(NotFoundException);
+    it('serves the content once ready and 404s before that', async () => {
       const created = await service.create('user-1', 'book-1', 'abstractive', 'two_pass');
+      await expect(service.getContent('user-1', created.summaryId)).rejects.toBeInstanceOf(NotFoundException);
       await service.setStorageKey(created.summaryId, 'summary/book-1/s.json');
       storage.getJson.mockResolvedValue({ sections: [{ id: 's1', title: 'One' }] });
 
-      const result = await service.getSummaryByBookIdCompat('user-1', 'book-1');
+      const result = await service.getContent('user-1', created.summaryId);
 
       expect(storage.getJson).toHaveBeenCalledWith('summaries', 'summary/book-1/s.json');
-      expect(result).toMatchObject({ bookId: 'book-1', summaryId: created.summaryId, summaryType: 'abstractive', summarizationStrategy: 'two_pass', summaryKey: 'summary/book-1/s.json', summary: { sections: [{ id: 's1' }] } });
-      await expect(service.getContent('user-1', created.summaryId)).resolves.toMatchObject({ state: 'ready', summary: { sections: expect.any(Array) } });
+      expect(result).toMatchObject({ id: created.summaryId, state: 'ready', summary: { sections: [{ id: 's1' }] } });
+      await expect(service.get('user-2', created.summaryId)).rejects.toBeInstanceOf(NotFoundException);
     });
 
-    it('status for a book without summaries is "not ready" rather than an error', async () => {
-      await expect(service.getSummaryStatusCompat('user-1', 'book-1')).resolves.toEqual({ status: 'ready', bookId: 'book-1', isReady: false, errorMessage: null });
-      await expect(service.getSummaryStatusCompat('user-1', 'missing')).rejects.toBeInstanceOf(NotFoundException);
+    it('lists all summaries of the user, newest first, or only the newest per document', async () => {
+      documents.getOwnedBook.mockImplementation((userId: string, bookId: string) =>
+        Promise.resolve({ ...book(), id: bookId }),
+      );
+      const a1 = await service.create('user-1', 'book-1', 'abstractive', 'structured');
+      const b1 = await service.create('user-1', 'book-2', 'abstractive', 'structured');
+      const a2 = await service.create('user-1', 'book-1', 'extractive', 'basic');
+
+      expect((await service.listForUser('user-1')).map((s) => s.id)).toEqual([a2.summaryId, b1.summaryId, a1.summaryId]);
+      expect((await service.listForUser('user-1', { latestPerBook: true })).map((s) => [s.bookId, s.id])).toEqual([
+        ['book-1', a2.summaryId],
+        ['book-2', b1.summaryId],
+      ]);
+      expect((await service.listForUser('user-1', { limit: 1 })).map((s) => s.id)).toEqual([a2.summaryId]);
+      expect(await service.listForUser('user-2')).toEqual([]);
     });
   });
 

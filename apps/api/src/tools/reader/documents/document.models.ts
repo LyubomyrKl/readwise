@@ -20,7 +20,8 @@ export class ReadingPositionResponse {
 
 /**
  * A document in the library. Notes and highlights are fetched through the
- * reading endpoints; only their counts travel with the book.
+ * reading endpoints and summaries through /reader/documents/:id/summaries;
+ * only the note and highlight counts travel with the book.
  */
 export class BookResponse {
   @ApiProperty()
@@ -56,12 +57,6 @@ export class BookResponse {
   @ApiProperty()
   isFavorite!: boolean;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Storage key of the latest finished summary, if any',
-  })
-  summaryKey?: string | null;
-
   @ApiProperty()
   lastAccessed: Date | null;
 
@@ -71,17 +66,14 @@ export class BookResponse {
   @ApiProperty()
   sizeBytes!: string;
 
-  @ApiProperty({
-    description:
-      'ready | error for the file itself; "processing" while a summary job is active (compatibility, see summaries)',
-  })
+  @ApiProperty({ description: 'State of the file itself: ready | error. Summary state lives on the summaries and their jobs.' })
   status!: string;
 
-  @ApiPropertyOptional({
-    nullable: true,
-    description: 'Last processing error, present when status is "error"',
-  })
+  @ApiPropertyOptional({ nullable: true, description: 'File-level error, present when status is "error"' })
   errorMessage?: string | null;
+
+  @ApiProperty({ description: 'True once the text has been extracted (a summary request skips the extract job)' })
+  hasExtraction!: boolean;
 
   @ApiProperty({ description: 'Number of notes (not deleted)' })
   noteCount!: number;

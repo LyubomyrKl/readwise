@@ -1,5 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsEnum, IsInt, IsOptional, Max, Min } from 'class-validator';
+import { Transform } from 'class-transformer';
 import { SummaryType, SummarizationStrategy } from '@prisma/client';
 import { JobResponse } from '@platform/jobs/job.models';
 
@@ -48,65 +49,24 @@ export class SummaryContentResponse extends SummaryResponse {
   summary!: Record<string, unknown>;
 }
 
-// ---- compatibility shapes used by the current web client; removed in Phase 5 ----
-
-export class RequestSummaryDto {
-  @ApiProperty({ description: 'ID of the book to summarize' })
-  @IsString()
-  @IsNotEmpty()
-  bookId: string;
-
-  @ApiPropertyOptional({ enum: SummaryType, default: SummaryType.extractive })
+export class ListSummariesQuery {
+  @ApiPropertyOptional({ description: 'Only the newest summary of each document', default: false })
   @IsOptional()
-  @IsEnum(SummaryType)
-  summaryType?: SummaryType;
+  @Transform(({ value }: { value: unknown }) =>
+    value === true || value === 'true' || value === '1'
+      ? true
+      : value === false || value === 'false' || value === '0'
+        ? false
+        : value,
+  )
+  @IsBoolean()
+  latestPerBook?: boolean;
 
-  @ApiPropertyOptional({ enum: SummarizationStrategy, default: SummarizationStrategy.structured })
+  @ApiPropertyOptional({ default: 100, minimum: 1, maximum: 500 })
   @IsOptional()
-  @IsEnum(SummarizationStrategy)
-  summarizationStrategy?: SummarizationStrategy;
-}
-
-export class GetSummaryDto {
-  @ApiProperty({ description: 'ID of the book to get the summary for' })
-  @IsString()
-  @IsNotEmpty()
-  bookId: string;
-}
-
-export class SummaryRequestResponse {
-  @ApiProperty({ example: true }) success: boolean;
-  @ApiProperty({ example: 'Summary request queued successfully' }) message: string;
-  @ApiProperty() userId: string;
-  @ApiProperty() bookId: string;
-  @ApiPropertyOptional({ description: 'storage key of the existing summary, if one exists' }) summaryKey?: string;
-  @ApiPropertyOptional() summaryId?: string;
-  @ApiPropertyOptional() jobId?: string;
-}
-
-export class LegacySummaryResponse {
-  @ApiProperty() bookId: string;
-  @ApiProperty() summaryId: string;
-  @ApiProperty({ enum: SummaryType }) summaryType: SummaryType;
-  @ApiProperty({ enum: SummarizationStrategy }) summarizationStrategy: SummarizationStrategy;
-  @ApiProperty() summaryKey: string;
-  @ApiProperty({ type: 'string', format: 'date-time' }) createdAt: Date;
-  @ApiProperty({ type: 'object', additionalProperties: true }) summary: Record<string, unknown>;
-}
-
-export class SummaryStatusResponse {
-  @ApiProperty({ enum: ['processing', 'ready', 'error'], description: 'processing while a job is active' })
-  status: string;
-  @ApiProperty() bookId: string;
-  @ApiProperty() isReady: boolean;
-  @ApiPropertyOptional() summaryKey?: string;
-  @ApiPropertyOptional({ enum: SummaryType }) summaryType?: SummaryType;
-  @ApiPropertyOptional({ enum: SummarizationStrategy }) summarizationStrategy?: SummarizationStrategy;
-  @ApiPropertyOptional({ nullable: true }) errorMessage?: string | null;
-  @ApiPropertyOptional() summaryId?: string;
-  @ApiPropertyOptional() jobId?: string;
-  @ApiPropertyOptional({ description: 'queued | running | waiting | succeeded | failed | cancelled' }) jobStatus?: string;
-  @ApiPropertyOptional({ nullable: true }) stage?: string | null;
-  @ApiPropertyOptional() progress?: number;
-  @ApiPropertyOptional({ nullable: true }) waitReason?: string | null;
+  @Transform(({ value }: { value: unknown }) => (value === undefined ? undefined : Number(value)))
+  @IsInt()
+  @Min(1)
+  @Max(500)
+  limit?: number;
 }

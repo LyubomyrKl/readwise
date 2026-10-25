@@ -18,13 +18,12 @@ import {
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
 
-// Paths: the reader's own prefix plus the pre-Phase-4 aliases, dropped in Phase 5.
 @ApiTags('highlights')
 @Controller()
 export class HighlightsController {
   constructor(private readonly highlightsService: HighlightsService) {}
 
-  @Get(['books/:bookId/highlights', 'reader/documents/:bookId/highlights'])
+  @Get('reader/documents/:bookId/highlights')
   @ApiParam({ name: 'bookId' })
   @ApiEndpoint({ summary: 'Get all highlights for a book', response: [HighlightResponse] })
   getHighlightsForBook(
@@ -34,7 +33,7 @@ export class HighlightsController {
     return this.highlightsService.getHighlightsForBook(req.user.userId, bookId);
   }
 
-  @Post(['books/:bookId/highlights', 'reader/documents/:bookId/highlights'])
+  @Post('reader/documents/:bookId/highlights')
   @ApiParam({ name: 'bookId' })
   @ApiEndpoint({ summary: 'Create a new highlight', response: HighlightResponse })
   createHighlight(
@@ -45,7 +44,7 @@ export class HighlightsController {
     return this.highlightsService.createHighlight(req.user.userId, bookId, dto);
   }
 
-  @Patch(['highlights/:id', 'reader/highlights/:id'])
+  @Patch('reader/highlights/:id')
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Update a highlight', response: HighlightResponse })
   updateHighlight(
@@ -56,7 +55,7 @@ export class HighlightsController {
     return this.highlightsService.updateHighlight(req.user.userId, id, dto);
   }
 
-  @Delete(['highlights/:id', 'reader/highlights/:id'])
+  @Delete('reader/highlights/:id')
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Delete a highlight', response: SuccessEmptyResponse })
   async deleteHighlight(

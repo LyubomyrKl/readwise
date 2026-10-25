@@ -15,20 +15,7 @@ export const BOOK_WITH_COUNTS = Prisma.validator<Prisma.BookDefaultArgs>()({
 
 export type BookRow = Prisma.BookGetPayload<typeof BOOK_WITH_COUNTS>;
 
-/**
- * Fields that no longer live on the book row but that the current web client
- * still reads from it. Supplied by the summaries sub-module (Phase 5 removes them).
- */
-export interface BookCompatState {
-  summaryKey?: string | null;
-  status?: string;
-  errorMessage?: string | null;
-}
-
-export function convertBookToResponse(
-  book: BookRow,
-  compat: BookCompatState = {},
-): BookResponse {
+export function convertBookToResponse(book: BookRow): BookResponse {
   let readingPosition: ReadingPositionResponse | null = null;
   if (book.readingPosition && typeof book.readingPosition === 'object') {
     const pos = book.readingPosition as Record<string, unknown>;
@@ -46,20 +33,21 @@ export function convertBookToResponse(
     id: book.id,
     title: book.title,
     author: book.author,
-    coverUrl: book.customCoverStorageKey ? `/books/${book.id}/cover` : undefined,
-    fileUrl: `/books/${book.id}/download`,
+    // API-relative; the web client prefixes its proxy path
+    coverUrl: book.customCoverStorageKey ? `/reader/documents/${book.id}/cover` : undefined,
+    fileUrl: `/reader/documents/${book.id}/download`,
     description: book.description,
     spentTime: book.spentTime,
     pageCount: book.pageCount,
     pagePassCount: book.pagePassCount,
-    summaryKey: compat.summaryKey ?? null,
     lastAccessed: book.lastAccessed,
     isFinished: book.isFinished,
     isFavorite: book.isFavorite,
     mime: book.mime,
     sizeBytes: book.sizeBytes.toString(),
-    status: compat.status ?? book.status,
-    errorMessage: compat.errorMessage ?? book.errorMessage ?? null,
+    status: book.status,
+    errorMessage: book.errorMessage ?? null,
+    hasExtraction: !!book.extractionStorageKey,
     noteCount: book._count.notes,
     highlightCount: book._count.highlights,
     readingPosition,

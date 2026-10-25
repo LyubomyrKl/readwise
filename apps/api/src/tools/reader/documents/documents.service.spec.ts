@@ -26,12 +26,16 @@ describe('DocumentsService', () => {
     await prisma.highlight.create({ data: { bookId: 'book-1', userId: 'user-1', text: 'h', anchor: {} } });
   });
 
-  it('lists books with note and highlight counts instead of the relations, merging compat state', async () => {
-    const [book] = await service.getAllBooks('user-1', () => ({ summaryKey: 'summary/book-1/s.json', status: 'ready' }));
+  it('lists books with note and highlight counts instead of the relations and reader-prefixed file URLs', async () => {
+    const [book] = await service.getAllBooks('user-1');
 
-    expect(book).toMatchObject({ id: 'book-1', noteCount: 1, highlightCount: 1, summaryKey: 'summary/book-1/s.json', status: 'ready', sizeBytes: '10' });
+    expect(book).toMatchObject({
+      id: 'book-1', noteCount: 1, highlightCount: 1, status: 'ready', sizeBytes: '10', hasExtraction: true,
+      fileUrl: '/reader/documents/book-1/download', coverUrl: '/reader/documents/book-1/cover',
+    });
     expect(book).not.toHaveProperty('notes');
     expect(book).not.toHaveProperty('highlights');
+    expect(book).not.toHaveProperty('summaryKey');
     expect(await service.getAllBooks('user-2')).toEqual([]);
   });
 

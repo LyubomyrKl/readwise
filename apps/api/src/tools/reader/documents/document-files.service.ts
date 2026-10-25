@@ -52,6 +52,7 @@ export class DocumentFilesService {
     );
 
     res.setHeader('Content-Type', contentType || 'image/jpeg');
+    res.setHeader('Cache-Control', 'private, max-age=31536000, immutable');
     if (contentLength) {
       res.setHeader('Content-Length', contentLength);
     }

@@ -1,16 +1,12 @@
-import { Body, Controller, Get, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { SummariesService } from './summaries.service';
 import {
   CreateSummaryDto,
   CreateSummaryResponse,
-  GetSummaryDto,
-  LegacySummaryResponse,
-  RequestSummaryDto,
+  ListSummariesQuery,
   SummaryContentResponse,
-  SummaryRequestResponse,
   SummaryResponse,
-  SummaryStatusResponse,
 } from './summary.models';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
@@ -38,6 +34,12 @@ export class SummariesController {
     return this.summaries.listForBook(req.user.userId, bookId);
   }
 
+  @Get('reader/summaries')
+  @ApiEndpoint({ summary: 'All my summaries, newest first (latestPerBook=true: one per document)', response: [SummaryResponse] })
+  listAll(@Req() req: UserModel, @Query() query: ListSummariesQuery): Promise<SummaryResponse[]> {
+    return this.summaries.listForUser(req.user.userId, query);
+  }
+
   @Get('reader/summaries/:summaryId')
   @ApiParam({ name: 'summaryId' })
   @ApiEndpoint({ summary: 'A summary and the state of its job', response: SummaryResponse })
@@ -50,31 +52,5 @@ export class SummariesController {
   @ApiEndpoint({ summary: 'The summary JSON (404 until the job succeeded)', response: SummaryContentResponse })
   content(@Req() req: UserModel, @Param('summaryId') summaryId: string): Promise<SummaryContentResponse> {
     return this.summaries.getContent(req.user.userId, summaryId);
-  }
-
-  // ---- paths the current web client calls; removed in Phase 5 ----
-
-  @Post('summarizer/request')
-  @ApiEndpoint({ summary: '[compat] Request summarization', response: SummaryRequestResponse })
-  requestSummary(@Req() req: UserModel, @Body() dto: RequestSummaryDto): Promise<SummaryRequestResponse> {
-    return this.summaries.requestSummaryCompat(
-      req.user.userId,
-      dto.bookId,
-      dto.summaryType ?? 'extractive',
-      dto.summarizationStrategy,
-    );
-  }
-
-  @Post('summarizer/summary')
-  @ApiEndpoint({ summary: '[compat] Latest finished summary of a book', response: LegacySummaryResponse })
-  getSummary(@Req() req: UserModel, @Body() dto: GetSummaryDto): Promise<LegacySummaryResponse> {
-    return this.summaries.getSummaryByBookIdCompat(req.user.userId, dto.bookId);
-  }
-
-  @Get('summarizer/status/:bookId')
-  @ApiParam({ name: 'bookId' })
-  @ApiEndpoint({ summary: '[compat] State of the latest summary of a book', response: SummaryStatusResponse })
-  getStatus(@Req() req: UserModel, @Param('bookId') bookId: string): Promise<SummaryStatusResponse> {
-    return this.summaries.getSummaryStatusCompat(req.user.userId, bookId);
   }
 }

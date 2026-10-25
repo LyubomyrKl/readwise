@@ -31,12 +31,9 @@ import { SummariesService } from '../summaries/summaries.service';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
 
-/**
- * Library endpoints. Mounted at the reader's prefix and, until Phase 5, at the
- * pre-Phase-4 path the web client still calls.
- */
+/** Library endpoints of the reader tool. */
 @ApiTags('reader: documents')
-@Controller(['books', 'reader/documents'])
+@Controller('reader/documents')
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
@@ -82,17 +79,15 @@ export class DocumentsController {
 
   @Get()
   @ApiEndpoint({ summary: 'Get user books', response: [BookResponse] })
-  async getAllBooks(@Req() req: UserModel): Promise<BookResponse[]> {
-    const compat = await this.summaries.compatStateForUser(req.user.userId);
-    return this.documentsService.getAllBooks(req.user.userId, (id) => compat.get(id) ?? {});
+  getAllBooks(@Req() req: UserModel): Promise<BookResponse[]> {
+    return this.documentsService.getAllBooks(req.user.userId);
   }
 
   @Get(':id')
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Get book by id', response: BookResponse })
-  async getBook(@Req() req: UserModel, @Param('id') id: string): Promise<BookResponse> {
-    const compat = await this.summaries.compatStateForBook(req.user.userId, id);
-    return this.documentsService.getBook(req.user.userId, id, compat);
+  getBook(@Req() req: UserModel, @Param('id') id: string): Promise<BookResponse> {
+    return this.documentsService.getBook(req.user.userId, id);
   }
 
   @Get(':id/download')
