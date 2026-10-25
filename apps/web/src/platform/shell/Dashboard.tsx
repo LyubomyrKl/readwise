@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/card";
 import { TOOLS } from "./registry";
 import { toolBasePath } from "./ToolManifest";
+import { RecentJobs } from "@platform/jobs/RecentJobs";
 
 /** Landing page: one card per enabled tool. */
 export function Dashboard() {
@@ -42,6 +43,8 @@ export function Dashboard() {
           );
         })}
       </div>
+
+      <RecentJobs />
     </div>
   );
 }

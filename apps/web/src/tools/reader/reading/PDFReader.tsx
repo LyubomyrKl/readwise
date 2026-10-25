@@ -34,7 +34,7 @@ import type {
   NoteResponse,
   CreateNoteDto,
   UpdateNoteDto,
-} from "@/lib/types";
+} from "@tools/reader/types";
 
 type Props = {
   book: IBook;

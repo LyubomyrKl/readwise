@@ -1,28 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authApi, setTokensToCookies, axios } from "@/lib/api";
-import type { RegisterDto } from "@/lib/types";
+import { apiBaseUrl, setTokensToCookies } from "@platform/api/cookies";
+import type { AuthBundle } from "@platform/api/types";
 
+/** Registers against the API, stores the tokens in httpOnly cookies and returns the user. */
 export async function POST(req: NextRequest) {
+  let body: unknown;
   try {
-    const registerDto = (await req.json()) as RegisterDto;
-
-    const resp = await authApi.register(registerDto);
-
-    await setTokensToCookies(resp.data.tokens);
-
-    return NextResponse.json(resp.data?.user ?? {}, { status: resp.status });
-  } catch (error) {
-    if (error instanceof SyntaxError) {
-      return NextResponse.json({ error: "Invalid JSON in request body" }, { status: 400 });
+    body = await req.json();
+  } catch {
+    return NextResponse.json({ message: "Invalid JSON in request body" }, { status: 400 });
+  }
+  try {
+    const upstream = await fetch(`${apiBaseUrl()}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data: unknown = await upstream.json().catch(() => ({}));
+    if (!upstream.ok) {
+      return NextResponse.json(data, { status: upstream.status });
     }
-    if (axios.isAxiosError(error) && error.response) {
-      return NextResponse.json(error.response.data, {
-        status: error.response.status,
-      });
-    }
-    return NextResponse.json(
-      { error: "Registration failed" },
-      { status: 500 }
-    );
+    const bundle = data as AuthBundle;
+    await setTokensToCookies(bundle.tokens);
+    return NextResponse.json(bundle.user ?? {}, { status: upstream.status });
+  } catch {
+    return NextResponse.json({ message: "Registration failed" }, { status: 502 });
   }
 }

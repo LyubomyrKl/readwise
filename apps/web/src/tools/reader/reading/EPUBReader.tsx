@@ -28,7 +28,7 @@ import type {
   CreateNoteDto,
   UpdateHighlightDto,
   UpdateNoteDto,
-} from "@/lib/types";
+} from "@tools/reader/types";
 
 const ReactReader = dynamic(
   () => import("react-reader").then((m) => m.ReactReader),

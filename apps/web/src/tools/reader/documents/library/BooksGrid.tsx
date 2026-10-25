@@ -2,10 +2,9 @@ import Link from "next/link";
 import { motion } from "framer-motion";
 import { BookOpen, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { IBook } from "@tools/reader/types";
+import { IBook, SummaryResponse } from "@tools/reader/types";
 import { BookCard } from "./BookCard";
 import { useMotion } from "@platform/providers/MotionProvider";
-import {apiFetch} from "@/lib/fetcher";
 
 import { READER_ROUTES } from "@tools/reader/routes";
 interface BooksGridProps {
@@ -13,9 +12,11 @@ interface BooksGridProps {
   filteredBooks: IBook[];
   loading: boolean;
   error: string | null;
+  /** newest summary per book id, for the state badges */
+  summaries?: Record<string, SummaryResponse>;
 }
 
-export function BooksGrid({ books, filteredBooks, loading, error }: BooksGridProps) {
+export function BooksGrid({ books, filteredBooks, loading, error, summaries }: BooksGridProps) {
   const { enabled } = useMotion();
   const Child: any = enabled ? motion.div : "div";
 
@@ -79,7 +80,7 @@ export function BooksGrid({ books, filteredBooks, loading, error }: BooksGridPro
       className="mt-4 grid grid-cols-2 gap-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
     >
       {filteredBooks.map((b) => (
-        <BookCard key={b.id} book={b} />
+        <BookCard key={b.id} book={b} summary={summaries?.[b.id]} />
       ))}
     </Child>
   );

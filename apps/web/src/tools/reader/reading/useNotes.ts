@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { apiFetch } from "@/lib/fetcher";
-import type { NoteResponse, CreateNoteDto, UpdateNoteDto } from "@/lib/types";
+import { readerApi } from "@tools/reader/api";
+import type { NoteResponse, CreateNoteDto, UpdateNoteDto } from "@tools/reader/types";
 
 type UseNotesOptions = {
   bookId: string;
@@ -24,9 +24,7 @@ export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
     async function fetchNotes() {
       setIsLoading(true);
       try {
-        const notesList = await apiFetch("GET", "/api/books/[id]/notes", undefined, {
-          id: bookId,
-        });
+        const notesList = await readerApi.reading.listNotes(bookId);
         setNotes(notesList);
       } catch (err) {
         console.error("Failed to fetch notes:", err);
@@ -42,9 +40,7 @@ export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
     async (dto: CreateNoteDto): Promise<NoteResponse | null> => {
       setError(null);
       try {
-        const newNote = await apiFetch("POST", "/api/books/[id]/notes", dto, {
-          id: bookId,
-        });
+        const newNote = await readerApi.reading.createNote(bookId, dto);
         setNotes((prev) => [newNote, ...prev]);
         return newNote;
       } catch (err) {
@@ -70,7 +66,7 @@ export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
       );
 
       try {
-        await apiFetch("PATCH", "/api/notes/[id]", dto, { id: noteId });
+        await readerApi.reading.updateNote(noteId, dto);
         return true;
       } catch (err) {
         // Rollback on error
@@ -93,7 +89,7 @@ export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
       setNotes((prev) => prev.filter((n) => n.id !== noteId));
 
       try {
-        await apiFetch("DELETE", "/api/notes/[id]", undefined, { id: noteId });
+        await readerApi.reading.deleteNote(noteId);
         return true;
       } catch (err) {
         // Rollback on error
@@ -120,9 +116,7 @@ export function useNotes({ bookId, initialNotes = [] }: UseNotesOptions) {
     setIsLoading(true);
     setError(null);
     try {
-      const notesList = await apiFetch("GET", "/api/books/[id]/notes", undefined, {
-        id: bookId,
-      });
+      const notesList = await readerApi.reading.listNotes(bookId);
       setNotes(notesList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to fetch notes";

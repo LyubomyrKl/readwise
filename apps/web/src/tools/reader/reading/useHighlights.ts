@@ -1,10 +1,10 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { apiFetch } from "@/lib/fetcher";
+import { readerApi } from "@tools/reader/api";
 import type {
   HighlightResponse,
   CreateHighlightDto,
   UpdateHighlightDto,
-} from "@/lib/types";
+} from "@tools/reader/types";
 
 type UseHighlightsOptions = {
   bookId: string;
@@ -31,9 +31,7 @@ export function useHighlights({
     async function fetchHighlights() {
       setIsLoading(true);
       try {
-        const highlightsList = await apiFetch("GET", "/api/books/[id]/highlights", undefined, {
-          id: bookId,
-        });
+        const highlightsList = await readerApi.reading.listHighlights(bookId);
         setHighlights(highlightsList);
       } catch (err) {
         console.error("Failed to fetch highlights:", err);
@@ -49,12 +47,7 @@ export function useHighlights({
     async (dto: CreateHighlightDto): Promise<HighlightResponse | null> => {
       setError(null);
       try {
-        const newHighlight = await apiFetch(
-          "POST",
-          "/api/books/[id]/highlights",
-          dto,
-          { id: bookId }
-        );
+        const newHighlight = await readerApi.reading.createHighlight(bookId, dto);
         setHighlights((prev) => [...prev, newHighlight]);
         return newHighlight;
       } catch (err) {
@@ -80,7 +73,7 @@ export function useHighlights({
       );
 
       try {
-        await apiFetch("PATCH", "/api/highlights/[id]", dto, { id: highlightId });
+        await readerApi.reading.updateHighlight(highlightId, dto);
         return true;
       } catch (err) {
         // Rollback on error
@@ -103,7 +96,7 @@ export function useHighlights({
       setHighlights((prev) => prev.filter((h) => h.id !== highlightId));
 
       try {
-        await apiFetch("DELETE", "/api/highlights/[id]", undefined, { id: highlightId });
+        await readerApi.reading.deleteHighlight(highlightId);
         return true;
       } catch (err) {
         // Rollback on error
@@ -121,9 +114,7 @@ export function useHighlights({
     setIsLoading(true);
     setError(null);
     try {
-      const highlightsList = await apiFetch("GET", "/api/books/[id]/highlights", undefined, {
-        id: bookId,
-      });
+      const highlightsList = await readerApi.reading.listHighlights(bookId);
       setHighlights(highlightsList);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to fetch highlights";

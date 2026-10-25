@@ -6,8 +6,8 @@ import { Button } from "@/components/ui/button";
 import React, { useEffect, useMemo, useRef } from "react";
 import { LastReadCard, LibraryFilters, BooksGrid } from "@tools/reader/documents/library";
 import { useCoverGradient } from "@tools/reader/documents/useCoverGradient";
-import { apiFetch } from "@/lib/fetcher";
-import { IBook } from "@tools/reader/types";
+import { readerApi } from "@tools/reader/api";
+import { IBook, SummaryResponse } from "@tools/reader/types";
 import { filterAndSortBooks } from "@tools/reader/documents/library/utils";
 
 
@@ -21,6 +21,7 @@ export default function LibraryPage() {
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
   const [books, setBooks] = React.useState<IBook[]>([]);
+  const [summaries, setSummaries] = React.useState<Record<string, SummaryResponse>>({});
   const [lastBook, setLastBook] = React.useState<IBook | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
@@ -35,8 +36,12 @@ export default function LibraryPage() {
       try {
         setLoading(true);
         setError(null);
-        const data = await apiFetch("GET", "/api/books");
+        const [data, latestSummaries] = await Promise.all([
+          readerApi.documents.list(),
+          readerApi.summaries.listAll({ latestPerBook: true }).catch(() => [] as SummaryResponse[]),
+        ]);
         setBooks(data);
+        setSummaries(Object.fromEntries(latestSummaries.map((s) => [s.bookId, s])));
 
         const toTs = (d: unknown) => {
           if (!d) return 0;
@@ -101,6 +106,7 @@ export default function LibraryPage() {
           filteredBooks={filtered}
           loading={loading}
           error={error}
+          summaries={summaries}
         />
       </section>
     </div>

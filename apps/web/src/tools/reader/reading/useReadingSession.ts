@@ -1,7 +1,8 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 import { useBookMutations } from "@tools/reader/documents/useBookMutations";
-import { apiFetch } from "@/lib/fetcher";
-import type { ReadingPosition } from "@/lib/types";
+import { readerApi } from "@tools/reader/api";
+import { sendBeaconJson } from "@platform/api/http";
+import type { ReadingPosition } from "@tools/reader/types";
 
 type UseReadingSessionOptions = {
   bookId: string;
@@ -72,10 +73,7 @@ export function useReadingSession({
     if (positionString === lastSavedPositionRef.current) return;
 
     try {
-      await apiFetch("POST", "/api/books/readingPosition", {
-        bookId,
-        position: currentPosition,
-      });
+      await readerApi.documents.setReadingPosition(bookId, currentPosition);
       lastSavedPositionRef.current = positionString;
     } catch (error) {
       console.error("Failed to save reading position:", error);
@@ -162,21 +160,13 @@ export function useReadingSession({
 
       // Save time spent
       if (elapsedHours >= 1 / 3600) {
-        const timePayload = JSON.stringify({
-          bookId,
-          amount: elapsedHours,
-        });
-        navigator.sendBeacon("/api/books/updateSpentTime", timePayload);
+        sendBeaconJson("/reader/documents/time-spent", { bookId, amount: elapsedHours });
       }
 
       // Save position
       const currentPosition = positionRef.current;
       if (currentPosition) {
-        const positionPayload = JSON.stringify({
-          bookId,
-          position: currentPosition,
-        });
-        navigator.sendBeacon("/api/books/readingPosition", positionPayload);
+        sendBeaconJson("/reader/documents/reading-position", { bookId, position: currentPosition });
       }
     };
 

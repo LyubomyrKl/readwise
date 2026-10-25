@@ -1,5 +1,6 @@
 "use client";
 
+import { readerApi } from "@tools/reader/api";
 import React, {
     createContext,
     useContext,
@@ -299,7 +300,7 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                 reject(new Error("Upload timeout"));
             });
 
-            xhr.open("POST", "/api/books/upload");
+            xhr.open("POST", readerApi.documents.uploadUrl);
             xhr.withCredentials = true; // Send cookies for authentication
             xhr.timeout = 10 * 60 * 1000; // 10 minute timeout for large files
             // Don't set Content-Type - browser will set it with boundary for FormData

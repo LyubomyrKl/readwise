@@ -22,7 +22,7 @@ import type {
   CreateNoteDto,
   UpdateNoteDto,
   UpdateHighlightDto,
-} from "@/lib/types";
+} from "@tools/reader/types";
 
 type NotesPanelProps = {
   notes: NoteResponse[];

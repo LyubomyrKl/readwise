@@ -38,7 +38,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useSearchParams } from "next/navigation";
 import { useMotion } from "@platform/providers/MotionProvider";
-import { apiFetch } from "@/lib/fetcher";
+import { authApi } from "@platform/api/auth";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
 const RegisterSchema = z
@@ -113,7 +113,7 @@ function RegisterContent() {
 
     startTransition(async () => {
       try {
-        const r = await apiFetch("POST", "/api/auth/register", {
+        const r = await authApi.register({
           name: values.name,
           email: values.email,
           password: values.password,

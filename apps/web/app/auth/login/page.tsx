@@ -36,7 +36,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { useSearchParams } from "next/navigation";
 import { useMotion } from "@platform/providers/MotionProvider";
-import { apiFetch } from "@/lib/fetcher";
+import { authApi } from "@platform/api/auth";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
 const LoginSchema = z.object({
@@ -98,7 +98,7 @@ function LoginContent() {
   async function onSubmit(values: LoginValues) {
     setServerError(null);
     try {
-      const r = await apiFetch("POST", "/api/auth/login", values);
+      const r = await authApi.login(values);
       if (!r) {
         setServerError("Invalid credentials");
         return;

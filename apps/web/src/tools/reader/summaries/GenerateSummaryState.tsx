@@ -1,25 +1,27 @@
 import React, { useState } from 'react';
 import { Sparkles, Loader2 } from 'lucide-react';
 import { toast } from 'sonner';
-import { apiFetch } from '@/lib/fetcher';
+import { readerApi } from '@tools/reader/api';
 import { IBook } from '@tools/reader/types';
 import {
   SummaryType,
   SummarizationStrategy,
   SUMMARY_TYPES,
-  SUMMARIZATION_STRATEGIES
-} from '@/lib/types';
+  SUMMARIZATION_STRATEGIES,
+  STRATEGIES_WITH_EXTRACTIVE,
+  type CreateSummaryResponse,
+} from '@tools/reader/types';
 
 interface SummaryProps {
   book: IBook | null;
-  setBookProcessing: (book: IBook) => void;
+  /** called with the API's answer once the job is queued (or an equal summary already exists) */
+  onStarted: (created: CreateSummaryResponse) => void;
   setError: (error: string) => void;
+  /** a previous attempt failed: the button reads "Try again" */
+  retry?: boolean;
 }
 
-// Only these strategies support extractive mode
-const STRATEGIES_WITH_EXTRACTIVE: SummarizationStrategy[] = ['basic', 'structured'];
-
-export const GenerateSummaryState = ({book, setBookProcessing, setError}: SummaryProps) => {
+export const GenerateSummaryState = ({ book, onStarted, setError, retry }: SummaryProps) => {
   const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
   const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
   const [isGenerating, setIsGenerating] = useState(false);
@@ -40,15 +42,12 @@ export const GenerateSummaryState = ({book, setBookProcessing, setError}: Summar
 
     setIsGenerating(true);
     try {
-      setBookProcessing(book);
-
-      await apiFetch("POST", "/api/summarizer", {
-        bookId: book.id,
+      const created = await readerApi.summaries.create(book.id, {
         summaryType,
         summarizationStrategy: strategy,
       });
-
-      toast.success("Summary generation started");
+      toast.success(created.existing ? "A matching summary already exists" : "Summary generation started");
+      onStarted(created);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to generate summary. Please try again.";
       setError(message);
@@ -127,7 +126,7 @@ export const GenerateSummaryState = ({book, setBookProcessing, setError}: Summar
           ) : (
             <Sparkles className="w-4 h-4" />
           )}
-          {isGenerating ? "Starting..." : "Generate Summary"}
+          {isGenerating ? "Starting..." : retry ? "Try again" : "Generate Summary"}
         </button>
       </div>
     </div>

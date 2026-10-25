@@ -7,7 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { LogOut, User, ArrowLeft } from "lucide-react";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/fetcher";
+import { authApi } from "@platform/api/auth";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -32,7 +32,7 @@ export default function AccountSettingsPage() {
   async function logout() {
     start(async () => {
       try {
-        await apiFetch("POST", "/api/auth/logout", {});
+        await authApi.logout();
         toast.success("Signed out successfully");
         router.push(PLATFORM_ROUTES.auth.login);
       } catch {

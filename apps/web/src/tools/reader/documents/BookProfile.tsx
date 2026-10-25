@@ -23,7 +23,8 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { IBook } from "@tools/reader/types";
-import { apiFetch } from "@/lib/fetcher";
+import { readerApi } from "@tools/reader/api";
+import { isActiveJob } from "@platform/jobs/types";
 import { useBookMutations } from "./useBookMutations";
 import { toast } from "sonner";
 import {
@@ -49,17 +50,19 @@ import {
   SummarizationStrategy,
   SUMMARY_TYPES,
   SUMMARIZATION_STRATEGIES,
+  STRATEGIES_WITH_EXTRACTIVE,
   type NoteResponse,
-} from "@/lib/types";
+  type SummaryResponse,
+} from "@tools/reader/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
-// Only these strategies support extractive mode
-const STRATEGIES_WITH_EXTRACTIVE: SummarizationStrategy[] = ['basic', 'structured'];
 
 interface BookProfileProps {
   book: IBook;
   /** The book's notes (fetched by the page through the reading endpoints). */
   notes: NoteResponse[];
+  /** The book's summaries, newest first. */
+  summaries: SummaryResponse[];
   onStartReading: () => void;
   onBack: () => void;
 }
@@ -67,6 +70,7 @@ interface BookProfileProps {
 export default function BookProfile({
   book,
   notes,
+  summaries,
   onStartReading,
   onBack,
 }: BookProfileProps) {
@@ -76,14 +80,16 @@ export default function BookProfile({
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showSummaryDialog, setShowSummaryDialog] = useState(false);
+  const latestSummary = summaries[0];
+  const readySummary = summaries.find((s) => s.state === "ready");
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(
-    book.status === "processing"
+    !!latestSummary && isActiveJob(latestSummary.job?.status)
   );
   const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
   const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
 
-  // The last extraction or summarization attempt failed and nothing usable was stored.
-  const summaryFailed = book.status === "error" && !book.summaryKey;
+  // The newest attempt ended without a summary.
+  const summaryFailed = !!latestSummary && (latestSummary.state === "failed" || latestSummary.state === "cancelled");
 
   // Check if current strategy supports extractive mode
   const supportsExtractiveMode = STRATEGIES_WITH_EXTRACTIVE.includes(strategy);
@@ -165,17 +171,17 @@ export default function BookProfile({
       setShowSummaryDialog(false);
       setIsGeneratingSummary(true);
 
-      await apiFetch("POST", "/api/summarizer", {
-        bookId: book.id,
+      const created = await readerApi.summaries.create(book.id, {
         summaryType,
         summarizationStrategy: strategy,
       });
 
-      toast.success("Summary generation started");
+      toast.success(created.existing ? "A matching summary already exists" : "Summary generation started");
+      router.push(READER_ROUTES.bookSummary(book.id));
     } catch (error) {
       console.error("Error generating summary:", error);
       setIsGeneratingSummary(false);
-      toast.error("Failed to generate summary. Please try again.");
+      toast.error(error instanceof Error ? error.message : "Failed to generate summary. Please try again.");
     }
   };
 
@@ -336,14 +342,14 @@ export default function BookProfile({
                     <AlertTriangle />
                     <AlertTitle>Summary generation failed</AlertTitle>
                     <AlertDescription className="break-words">
-                      {book.errorMessage ||
+                      {latestSummary?.job?.error ||
                         "The last attempt did not finish. You can try again or delete the book."}
                     </AlertDescription>
                   </Alert>
                 )}
 
                 <div className="grid grid-cols-1 gap-2">
-                  {book.summaryKey ? (
+                  {readySummary && !isGeneratingSummary ? (
                     <button
                       onClick={() =>
                         (window.location.href = READER_ROUTES.bookSummary(book.id))
@@ -370,6 +376,21 @@ export default function BookProfile({
                           ? "Retry Summary"
                           : "Generate Summary"}
                     </button>
+                  )}
+                  {isGeneratingSummary && (
+                    <button
+                      onClick={() => router.push(READER_ROUTES.bookSummary(book.id))}
+                      className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
+                    >
+                      {latestSummary?.job?.status === "waiting"
+                        ? "Waiting for the LLM host. See progress"
+                        : `${latestSummary?.job?.stage || "In progress"}. See progress`}
+                    </button>
+                  )}
+                  {readySummary && summaries.length > 1 && (
+                    <p className="text-center text-xs text-muted-foreground">
+                      {summaries.filter((s) => s.state === "ready").length} summaries available
+                    </p>
                   )}
                 </div>
 

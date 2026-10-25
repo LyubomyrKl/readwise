@@ -5,8 +5,8 @@ import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@tools/reader/documents/BookProfile";
 import { IBook } from "@tools/reader/types";
-import { apiFetch } from "@/lib/fetcher";
-import type { NoteResponse } from "@/lib/types";
+import { readerApi } from "@tools/reader/api";
+import type { NoteResponse, SummaryResponse } from "@tools/reader/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
 export default function BookProfilePage() {
@@ -16,6 +16,7 @@ export default function BookProfilePage() {
 
   const [book, setBook] = useState<IBook | null>(null);
   const [notes, setNotes] = useState<NoteResponse[]>([]);
+  const [summaries, setSummaries] = useState<SummaryResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
@@ -27,12 +28,14 @@ export default function BookProfilePage() {
     async function fetchBook() {
       try {
         setLoading(true);
-        const [response, bookNotes] = await Promise.all([
-          apiFetch("GET", "/api/books/[id]", undefined, { id: bookId }),
-          apiFetch("GET", "/api/books/[id]/notes", undefined, { id: bookId }).catch(() => [] as NoteResponse[]),
+        const [loadedBook, bookNotes, bookSummaries] = await Promise.all([
+          readerApi.documents.get(bookId),
+          readerApi.reading.listNotes(bookId).catch(() => [] as NoteResponse[]),
+          readerApi.summaries.listForBook(bookId).catch(() => [] as SummaryResponse[]),
         ]);
-        setBook(response.data);
+        setBook(loadedBook);
         setNotes(bookNotes);
+        setSummaries(bookSummaries);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
       } finally {
@@ -90,6 +93,7 @@ export default function BookProfilePage() {
     <BookProfile
       book={book}
       notes={notes}
+      summaries={summaries}
       onStartReading={handleStartReading}
       onBack={handleBack}
     />

@@ -7,11 +7,11 @@ import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "@tools/reader/reading/PDFReader";
 import EPUBReader from "@tools/reader/reading/EPUBReader";
 import { IBook } from "@tools/reader/types";
-import { apiFetch } from "@/lib/fetcher";
+import { readerApi } from "@tools/reader/api";
 import { useReadingSession } from "@tools/reader/reading/useReadingSession";
 import { useHighlights } from "@tools/reader/reading/useHighlights";
 import { useNotes } from "@tools/reader/reading/useNotes";
-import type { ReadingPosition, CreateHighlightDto, HighlightResponse } from "@/lib/types";
+import type { ReadingPosition, CreateHighlightDto, HighlightResponse } from "@tools/reader/types";
 
 export default function BookReaderPage() {
   const params = useParams();
@@ -30,8 +30,7 @@ export default function BookReaderPage() {
     async function fetchBook() {
       try {
         setLoading(true);
-        const response = await apiFetch("GET", "/api/books/[id]", undefined, { id: bookId });
-        setBook(response.data);
+        setBook(await readerApi.documents.get(bookId));
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
       } finally {
