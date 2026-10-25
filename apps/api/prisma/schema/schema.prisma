@@ -1,0 +1,18 @@
+// Workbench database schema, one file per owner (Prisma schema folder):
+//   schema.prisma    this file: generator and datasource
+//   platform.prisma  platform tables: User, RefreshToken, Job
+//   reader.prisma    reader tool tables, prefixed reader_*
+//   migrations/      the migration history (Prisma resolves it inside the schema folder)
+//
+// Schema changes reach the database through migrations, never db push:
+//   cd apps/api && npx prisma migrate dev --name <change>
+// The API is the only code base that touches the database (workers report through job events).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}

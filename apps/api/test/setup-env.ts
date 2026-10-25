@@ -5,6 +5,10 @@
  * mocked inside the specs themselves, so nothing here is ever connected to.
  * Values already present in the environment win.
  */
+import { Logger } from '@nestjs/common';
+
+Logger.overrideLogger(false);
+
 const defaults: Record<string, string> = {
   JWT_ACCESS_SECRET: 'test-access-secret',
   JWT_REFRESH_SECRET: 'test-refresh-secret',

@@ -2,7 +2,7 @@ import { writeFileSync, mkdirSync } from 'fs';
 import { join } from 'path';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import { AppModule } from '../src/app.module';
+import { AppModule } from '@/app.module';
 
 async function main() {
   const app = await NestFactory.create(AppModule, { logger: false });

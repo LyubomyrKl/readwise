@@ -1,0 +1,78 @@
+// ===== platform: users, sessions, jobs =====
+// Platform tables keep plain names. Tool tables may reference them; the
+// back-relation fields below exist because Prisma needs both sides of a relation.
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+  jobs          Job[]
+  books         Book[]
+  notes         Note[]
+  highlights    Highlight[]
+  summaries     Summary[]
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A unit of background work. The row is the source of truth for progress:
+/// workers acknowledge the queue message on claim and report through events.
+model Job {
+  id            String    @id @default(cuid())
+  /// "reader.extract", "reader.summarize", ... (routing key is "jobs.<type>")
+  type          String
+  toolId        String
+  userId        String
+  subjectType   String?
+  subjectId     String?
+  status        JobStatus @default(queued)
+  /// free text shown in the UI, e.g. "segmenting", "section 3/12"
+  stage         String?
+  progress      Int       @default(0)
+  /// why the job is waiting (status = waiting), e.g. the LLM host is unreachable
+  waitReason    String?
+  payload       Json
+  result        Json?
+  error         String?
+  attempts      Int       @default(0)
+  maxAttempts   Int       @default(3)
+  workerId      String?
+  heartbeatAt   DateTime?
+  parentJobId   String?
+  correlationId String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  startedAt     DateTime?
+  finishedAt    DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status, createdAt])
+  @@index([subjectType, subjectId])
+  @@index([status, heartbeatAt])
+  @@index([parentJobId])
+}
+
+enum JobStatus {
+  queued
+  running
+  waiting
+  succeeded
+  failed
+  cancelled
+}

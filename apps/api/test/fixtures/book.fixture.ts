@@ -1,9 +1,7 @@
-import type { BookWithRelations } from '@/modules/books/book.helpers';
+import type { BookRow } from '@tools/reader/documents/document.helpers';
 
-/** A fully populated book row as returned with BOOK_WITH_RELATIONS. */
-export function makeBook(
-  overrides: Partial<BookWithRelations> = {},
-): BookWithRelations {
+/** A book row as returned with BOOK_WITH_COUNTS. */
+export function makeBook(overrides: Partial<BookRow> = {}): BookRow {
   return {
     id: 'book-1',
     userId: 'user-1',
@@ -22,16 +20,12 @@ export function makeBook(
     fileStorageKey: 'user-1-1-a-book.pdf',
     status: 'ready',
     errorMessage: null,
-    summaryStorageKey: null,
     extractionStorageKey: null,
-    summaryType: null,
-    summarizationStrategy: null,
     lastAccessed: new Date('2026-01-01T00:00:00Z'),
     readingPosition: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),
     updatedAt: new Date('2026-01-01T00:00:00Z'),
-    notes: [],
-    highlights: [],
+    _count: { notes: 0, highlights: 0 },
     ...overrides,
   };
 }

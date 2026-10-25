@@ -1,22 +1,18 @@
 import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { APP_GUARD } from '@nestjs/core';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { ConfigModule } from '@nestjs/config';
-import { validate } from './config/env.validation';
-import { UsersModule } from './modules/users/users.module';
-import { AuthModule } from './modules/auth/auth.module';
-import { BooksModule } from './modules/books/books.module';
-import { SummarizerModule } from './modules/summarizer/summarizer.module';
-import { HighlightsModule } from './modules/highlights/highlights.module';
-import { NotesModule } from './modules/notes/notes.module';
-import { HealthModule } from './modules/health/health.module';
-import { PrismaModule } from './infrastructure/prisma/prisma.module';
-import { S3Module } from './infrastructure/s3/s3.module';
-import { RabbitMQModule } from './infrastructure/rabbitmq/rabbitmq.module';
-import { LoggerModule } from './common/logger/logger.module';
-import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
+import { validate } from '@platform/config/env.validation';
+import { LoggerModule } from '@platform/common/logger/logger.module';
+import { RequestLoggerMiddleware } from '@platform/common/middleware/request-logger.middleware';
+import { PrismaModule } from '@platform/db/prisma.module';
+import { StorageModule } from '@platform/storage/storage.module';
+import { QueueModule } from '@platform/queue/queue.module';
+import { JobsModule } from '@platform/jobs/jobs.module';
+import { UsersModule } from '@platform/users/users.module';
+import { AuthModule } from '@platform/auth/auth.module';
+import { HealthModule } from '@platform/health/health.module';
+import { TOOL_MODULES } from './tool-registry';
 
 @Module({
   imports: [
@@ -24,39 +20,24 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
       isGlobal: true,
       validate,
     }),
-    // Rate limiting: 100 requests per minute per IP
     ThrottlerModule.forRoot([
-      {
-        name: 'short',
-        ttl: 1000,    // 1 second
-        limit: 10,    // 10 requests per second
-      },
-      {
-        name: 'medium',
-        ttl: 60000,   // 1 minute
-        limit: 100,   // 100 requests per minute
-      },
-      {
-        name: 'long',
-        ttl: 3600000, // 1 hour
-        limit: 1000,  // 1000 requests per hour
-      },
+      { name: 'short', ttl: 1000, limit: 10 },
+      { name: 'medium', ttl: 60000, limit: 100 },
+      { name: 'long', ttl: 3600000, limit: 1000 },
     ]),
+    // platform
     LoggerModule,
     PrismaModule,
-    S3Module,
-    RabbitMQModule,
+    StorageModule,
+    QueueModule,
+    JobsModule,
     UsersModule,
     AuthModule,
-    BooksModule,
-    SummarizerModule,
-    HighlightsModule,
-    NotesModule,
     HealthModule,
+    // tools
+    ...TOOL_MODULES,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     {
       provide: APP_GUARD,
       useClass: ThrottlerGuard,

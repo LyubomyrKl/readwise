@@ -1,0 +1,122 @@
+// ===== reader tool: documents, reading, summaries =====
+// Every table and enum carries the reader_ prefix so ownership is visible in psql.
+
+model Book {
+  id                    String     @id @default(uuid())
+  userId                String
+  title                 String
+  author                String
+  description           String?
+  customCoverStorageKey String?
+  spentTime             Int        @default(0)
+  pageCount             Int        @default(0)
+  pagePassCount         Int        @default(0)
+  isFinished            Boolean    @default(false)
+  isFavorite            Boolean    @default(false)
+  mime                  String
+  sizeBytes             BigInt
+  sha256                String?
+  fileStorageKey        String
+  /// state of the file itself; pipeline state lives in Job
+  status                BookStatus @default(ready)
+  errorMessage          String?
+  /// set by the reader.extract job; summaries are built from this object
+  extractionStorageKey  String?
+  lastAccessed          DateTime   @default(now())
+  readingPosition       Json? // { type: 'pdf' | 'epub', page?: number, cfi?: string, percentage?: number }
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  notes      Note[]
+  highlights Highlight[]
+  summaries  Summary[]
+
+  @@index([userId, updatedAt])
+  @@map("reader_book")
+}
+
+enum BookStatus {
+  ready
+  error
+
+  @@map("reader_book_status")
+}
+
+enum SummaryType {
+  extractive
+  abstractive
+
+  @@map("reader_summary_type")
+}
+
+enum SummarizationStrategy {
+  basic
+  structured
+  two_pass
+  chain_of_density
+  hybrid
+
+  @@map("reader_summarization_strategy")
+}
+
+/// One requested summary of a book. storageKey is null until its job succeeds;
+/// progress and errors are read from the Job row referenced by jobId
+/// (no foreign key: platform tables stay unaware of tool tables).
+model Summary {
+  id         String                @id @default(cuid())
+  bookId     String
+  userId     String
+  type       SummaryType
+  strategy   SummarizationStrategy
+  percent    Float
+  storageKey String?
+  jobId      String?
+  createdAt  DateTime              @default(now())
+  updatedAt  DateTime              @updatedAt
+
+  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, createdAt])
+  @@index([jobId])
+  @@map("reader_summary")
+}
+
+model Note {
+  id         String      @id @default(cuid())
+  userId     String
+  bookId     String
+  body       String
+  anchor     Json?
+  isPinned   Boolean     @default(false)
+  isArchived Boolean     @default(false)
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  deletedAt  DateTime?
+  highlights Highlight[]
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       Book        @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, bookId, createdAt])
+  @@map("reader_note")
+}
+
+model Highlight {
+  id        String    @id @default(cuid())
+  userId    String
+  bookId    String
+  color     String?
+  text      String
+  anchor    Json
+  noteId    String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book      @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  note      Note?     @relation(fields: [noteId], references: [id], onDelete: SetNull)
+
+  @@index([userId, bookId, createdAt])
+  @@map("reader_highlight")
+}
