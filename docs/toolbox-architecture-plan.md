@@ -911,6 +911,15 @@ Tests: proxy unit tests (auth injection, 401 refresh-then-retry, binary streamin
 
 Exit criteria: the client has three route handlers; no `ApiRegistry`; every page works; adding an endpoint touches two files (API controller, tool `api.ts`). Tag `phase-5`.
 
+**Outcome (2026-10-25, tag `phase-5`).** Landed on `main` as three commits (api, web, docs).
+
+- Web data path: `app/api` holds five server-side routes, the four auth routes (`login`, `register`, `refresh`, `logout`, which set and clear the httpOnly cookies) and the generic proxy `app/api/gw/[...path]`. The proxy logic lives in `src/platform/api/proxy.ts`, pure with respect to Next.js: it validates the path (no empty or `..` segments), forwards method, query and body, drops cookie, host, authorization and hop-by-hop headers on the way in and `set-cookie` plus hop-by-hop headers on the way out, injects the bearer token from the cookie, refreshes it 30 s before the JWT's `exp` or after a 401 (one retry, for bodies up to 1 MiB; larger bodies stream once with half duplex), and streams the response back. `src/platform/api/http.ts` is the browser client (`apiFetch` with a JSON helper, `ApiError` carrying the API's message, 204 handling and a login redirect when the session is gone; `apiUrl`; `sendBeaconJson` for the unload beacons); `src/platform/api/auth.ts` calls the auth routes. `lib/fetcher.ts` with its `ApiRegistry`, `lib/api/*`, `lib/types/*`, nineteen per-endpoint route and schema files and the axios dependency are gone.
+- Typed clients: `src/tools/reader/api.ts` (documents, reading, summaries, with `withBrowserUrls` prefixing the API's file paths) over hand-written types in `src/tools/reader/types.ts`; `src/platform/jobs/api.ts` and `types.ts` for jobs. OpenAPI generation was not adopted: the DTOs are decorated classes and the generated types were noisier than the few interfaces needed, which 2.8 allows. Adding an endpoint touches the API controller and the tool's `api.ts`.
+- Summaries UI on jobs: `useJob` polls a job until it ends; `JobProgress` shows the real stage, the progress bar, the waiting hint ("start the LLM host, the job continues by itself") and cancel/retry; the summary page opens the newest ready summary in the reader, shows live progress of an active job (including the extract stage while the summarize job is queued behind it), offers a retry after a failure, starts a new summary with the strategy picker, and lists previous summaries with view, cancel and retry; the profile's buttons and the library badges (failed, summarizing, waiting) come from the summaries endpoints; the dashboard lists recent jobs with cancel and retry.
+- API: the compatibility routes (`/books`, `/highlights`, `/notes`, `/summarizer/*`) and the derived book fields (`summaryKey`, "processing" status, job error) are removed; `fileUrl` and `coverUrl` are `/reader/documents/:id/download` and `/cover`, `hasExtraction` is new, covers are cacheable; `GET /reader/summaries?latestPerBook=true` serves the library in one request. The smoke script walks the reader and jobs endpoints.
+- Verified: web 47 tests (the proxy suite covers forwarding, header hygiene, refresh-then-retry, proactive refresh, 401 pass-through with cookie clearing, large bodies streamed once, binary and error pass-through, bad paths; plus the HTTP client, the reader client and the progress component), api 73 unit and 15 e2e, workers 62, lint and typecheck clean, `next build` lists exactly the five server routes. Full Compose trial through the web app on shifted ports without an LLM host: register set the two cookies, documents listed, a multipart upload streamed through the proxy, the download came back byte-identical with content-disposition and request id, a missing cover gave 404 and a traversal attempt 400, a summary request produced the jobs and the summarize job reached `waiting` with its reason, the summary list and the per-book list answered, the summary page and the dashboard rendered, removing the access cookie made the proxy refresh and set a new one, cancel, delete and logout worked and the old BFF paths answered 404 with no server errors logged.
+- Notes: the exit criterion said "three route handlers"; the web has five route files (four auth plus the proxy), the per-endpoint layer is what disappeared. "One e2e through the proxy against a mocked API" is the proxy suite's fake API plus the live trial. The essential path of the plan (Phases 0 to 5) is complete; Phase 6 items stay optional.
+
 ### Phase 6: Optional improvements and future optimizations
 
 - **Pipeline speed is not part of this plan.** It is a separate track with its own backlog in `docs/pipeline-speed-backlog.md`, to be started after the refactor. The only overlap is that the `Job` table records `startedAt`, `finishedAt` and `stage`, which that track uses as its baseline.
@@ -1068,11 +1077,11 @@ Legend: **E** essential, **O** optional.
 - [x] E Coordinated deploy; remove adapter; tag `phase-4` (deploy is the user's step: `down -v`, then `up -d --build`)
 
 ### Phase 5: API layer collapse
-- [ ] E Generic proxy with auth injection, 401 refresh-retry, streaming, header hygiene; proxy tests
-- [ ] E `platform/api/http.ts`; delete `lib/fetcher.ts`, `lib/api/*`, all BFF routes except auth
-- [ ] E `src/tools/reader/api.ts`; `packages/api-types` from OpenAPI (or hand-written)
-- [ ] E Summaries UI on `Summary`/`Job`: stages, `waiting` hint, cancel, retry, working strategy picker, summary list
-- [ ] E Remove route aliases and the status shim; tag `phase-5`
+- [x] E Generic proxy with auth injection, 401 refresh-retry, streaming, header hygiene; proxy tests
+- [x] E `platform/api/http.ts`; delete `lib/fetcher.ts`, `lib/api/*`, all BFF routes except auth
+- [x] E `src/tools/reader/api.ts`; `packages/api-types` from OpenAPI (or hand-written) (hand-written types in `src/tools/reader/types.ts` and `src/platform/jobs/types.ts`)
+- [x] E Summaries UI on `Summary`/`Job`: stages, `waiting` hint, cancel, retry, working strategy picker, summary list
+- [x] E Remove route aliases and the status shim; tag `phase-5`
 
 ### Phase 6: optional
 - [ ] O TanStack Query

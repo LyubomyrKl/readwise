@@ -11,7 +11,7 @@ The architecture and the migration plan live in
 
 | Path | Stack | What |
 |---|---|---|
-| `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`, server-side routes that call the API |
+| `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`; five server-side routes: the four auth routes that set the session cookies and the generic proxy `/api/gw/*` |
 | `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries); the only code that touches the database |
 | `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
@@ -84,9 +84,21 @@ python main.py
 A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
 (Caddy on `http://localhost:8080`; override `DEV_*_PORT` if something is already listening).
 
+## How the web app talks to the API
+
+The browser never sees the API origin or the tokens. Sign-in goes through
+`app/api/auth/*`, which stores the JWTs in httpOnly cookies; every other call goes
+through the proxy `app/api/gw/[...path]`, which forwards the request to
+`API_URL/api/<path>` with the token from the cookie, refreshes the token when it is
+about to expire or rejected, and streams the answer back (uploads and downloads
+included). On the client, `src/platform/api/http.ts` (`apiFetch`) calls the proxy;
+each tool keeps its typed functions in `src/tools/<id>/api.ts` and the jobs client
+lives in `src/platform/jobs/api.ts`. Adding an endpoint therefore touches two files:
+the API controller and the tool's `api.ts`.
+
 ## Adding a tool to the web app
 
-1. Create `apps/web/src/tools/<id>/` with a `manifest.ts` (id, name, icon, nav, optional settings) and your pages.
+1. Create `apps/web/src/tools/<id>/` with a `manifest.ts` (id, name, icon, nav, optional settings), an `api.ts` built on `apiFetch`, and your pages.
 2. Add the manifest to `apps/web/src/platform/shell/registry.ts`.
 3. Add route files under `apps/web/app/(shell)/apps/<id>/` that re-export your pages.
 
@@ -129,8 +141,9 @@ hook, which stores the extraction key on the book and the storage key on the sum
 A job whose heartbeat stops for `JOBS_LEASE_SECONDS` is re-published (up to
 `JOBS_MAX_ATTEMPTS`), a job whose LLM host is down shows `waiting` and resumes by
 itself. Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
-`POST /api/jobs/:id/cancel`, `POST /api/jobs/:id/retry`; dead-lettered messages land in
-the `*.dlq` queues (RabbitMQ management UI).
+`POST /api/jobs/:id/cancel`, `POST /api/jobs/:id/retry` (the dashboard lists recent jobs
+and the summary page shows the live stage, the wait reason, cancel and retry);
+dead-lettered messages land in the `*.dlq` queues (RabbitMQ management UI).
 
 ## Tests and checks
 
