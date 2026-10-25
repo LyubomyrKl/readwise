@@ -40,6 +40,7 @@ export type {
   SummaryResponse,
   SummaryRequestResponse,
   SummaryStatusResponse,
+  JobStatus,
 } from "./summarizer";
 
 export { SUMMARY_TYPES, SUMMARIZATION_STRATEGIES } from "./summarizer";

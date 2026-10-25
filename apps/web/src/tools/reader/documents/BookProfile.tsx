@@ -49,6 +49,7 @@ import {
   SummarizationStrategy,
   SUMMARY_TYPES,
   SUMMARIZATION_STRATEGIES,
+  type NoteResponse,
 } from "@/lib/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
@@ -57,12 +58,15 @@ const STRATEGIES_WITH_EXTRACTIVE: SummarizationStrategy[] = ['basic', 'structure
 
 interface BookProfileProps {
   book: IBook;
+  /** The book's notes (fetched by the page through the reading endpoints). */
+  notes: NoteResponse[];
   onStartReading: () => void;
   onBack: () => void;
 }
 
 export default function BookProfile({
   book,
+  notes,
   onStartReading,
   onBack,
 }: BookProfileProps) {
@@ -323,7 +327,7 @@ export default function BookProfile({
 
                   <button className="flex items-center justify-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm">
                     <Bookmark className="h-4 w-4" />
-                    {book.notes.length} Notes
+                    {notes.length} Notes
                   </button>
                 </div>
 
@@ -611,7 +615,7 @@ export default function BookProfile({
                     <div className="text-sm text-muted-foreground">
                       Notes
                     </div>
-                    <div className="font-medium">{book.notes.length}</div>
+                    <div className="font-medium">{notes.length}</div>
                   </div>
                 </div>
 
@@ -622,7 +626,7 @@ export default function BookProfile({
                       <div className="text-sm text-muted-foreground">
                         Highlights
                       </div>
-                      <div className="font-medium">{book.highlights.length}</div>
+                      <div className="font-medium">{book.highlightCount}</div>
                     </div>
                   </div>
                 )}
@@ -717,7 +721,7 @@ export default function BookProfile({
             </div>
 
             {/* Notes Preview */}
-            {book.notes.length > 0 && (
+            {notes.length > 0 && (
               <div>
                 <h3 className="font-medium mb-4 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-muted-foreground" />
@@ -725,7 +729,7 @@ export default function BookProfile({
                 </h3>
 
                 <div className="space-y-3">
-                  {book.notes.slice(0, 3).map((note) => (
+                  {notes.slice(0, 3).map((note) => (
                     <div key={note.id} className="bg-muted/30 rounded-lg p-4">
                       <p className="text-sm line-clamp-3 mb-2">{note.body}</p>
                       <div className="text-xs text-muted-foreground">
@@ -739,9 +743,9 @@ export default function BookProfile({
                     </div>
                   ))}
 
-                  {book.notes.length > 3 && (
+                  {notes.length > 3 && (
                     <button className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-                      View all {book.notes.length} notes →
+                      View all {notes.length} notes →
                     </button>
                   )}
                 </div>

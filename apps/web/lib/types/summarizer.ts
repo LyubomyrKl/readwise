@@ -1,5 +1,3 @@
-import type { BookResponse } from "./books";
-
 // Summary Types
 export type SummaryType = 'extractive' | 'abstractive';
 
@@ -82,17 +80,34 @@ export interface Summary {
   sections: SummarySection[];
 }
 
-export interface SummaryResponse extends BookResponse {
+/** The latest finished summary of a book (POST /api/summarizer/get-summary). */
+export interface SummaryResponse {
+  bookId: string;
+  summaryId: string;
+  summaryType: SummaryType;
+  summarizationStrategy: SummarizationStrategy;
+  summaryKey: string;
+  createdAt: string;
   summary: Summary;
 }
 
 export interface SummaryRequestResponse {
+  success: boolean;
+  message: string;
+  userId: string;
   bookId: string;
-  status: string;
+  /** Storage key when a matching summary already exists. */
+  summaryKey?: string;
+  summaryId?: string;
+  /** The reader.summarize job; GET /api/jobs/:id for details. */
+  jobId?: string;
 }
 
+export type JobStatus = 'queued' | 'running' | 'waiting' | 'succeeded' | 'failed' | 'cancelled';
+
 export interface SummaryStatusResponse {
-  status: 'pending' | 'processing' | 'ready' | 'error';
+  /** processing while a job is active, ready when a summary exists, error after a final failure */
+  status: 'processing' | 'ready' | 'error';
   bookId: string;
   isReady: boolean;
   summaryKey?: string;
@@ -102,4 +117,13 @@ export interface SummaryStatusResponse {
   summarizationStrategy?: SummarizationStrategy;
   /** Last processing error, present when status is "error". */
   errorMessage?: string | null;
+  summaryId?: string;
+  jobId?: string;
+  jobStatus?: JobStatus;
+  /** Real pipeline stage, e.g. "section 3/12". */
+  stage?: string | null;
+  /** 0-100 */
+  progress?: number;
+  /** Why the job waits, e.g. the LLM host is unreachable. */
+  waitReason?: string | null;
 }

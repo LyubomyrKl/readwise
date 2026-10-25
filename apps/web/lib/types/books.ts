@@ -115,9 +115,11 @@ export interface BookResponse {
   pagePassCount: number;
   description?: string;
   sizeBytes: string;
-  highlights: HighlightResponse[];
-  summaryKey?: string;
+  /** Storage key of the latest finished summary (compatibility field, see summaries). */
+  summaryKey?: string | null;
   lastAccessed?: string;
-  notes: NoteResponse[];
+  /** Notes and highlights are fetched through their own endpoints; only counts travel with the book. */
+  noteCount: number;
+  highlightCount: number;
   readingPosition?: ReadingPosition | null;
 }

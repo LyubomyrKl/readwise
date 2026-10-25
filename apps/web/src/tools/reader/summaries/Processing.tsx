@@ -27,6 +27,9 @@ export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => 
   const [status, setStatus] = useState<BookStatus>("processing");
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(0);
+  // Real pipeline state reported by the job (stage such as "section 3/12", or why it waits).
+  const [stage, setStage] = useState<string | null>(null);
+  const [waitReason, setWaitReason] = useState<string | null>(null);
   const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -34,6 +37,12 @@ export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => 
     try {
       const data = await apiFetch("GET", "/api/summarizer/status/[bookId]", undefined, { bookId });
       setStatus(data.status);
+      setStage(data.stage ?? null);
+      setWaitReason(data.jobStatus === "waiting" ? (data.waitReason ?? "Waiting") : null);
+      if (typeof data.progress === "number" && data.progress > 0) {
+        // never show 100% before the summary is actually there
+        setProgress((prev) => Math.max(prev, Math.min(99, data.progress as number)));
+      }
 
       if (data.isReady) {
         setProgress(100);
@@ -168,6 +177,15 @@ export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => 
               : "Our AI is analyzing the book and generating a comprehensive summary tailored for you."}
           </p>
 
+          {status !== "error" && (waitReason || stage) && (
+            <p
+              className={`mb-6 text-sm ${waitReason ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}`}
+              data-testid="summary-stage"
+            >
+              {waitReason ? `Waiting: ${waitReason}` : stage}
+            </p>
+          )}
+
           {/* Progress Bar */}
           {status !== "error" && (
             <div className="mb-8">
@@ -245,7 +263,9 @@ export const Processing = ({ bookId, onComplete, onError }: ProcessingProps) => 
           <div className="text-sm text-muted-foreground">
             {status === "error"
               ? "Please go back and try generating again."
-              : "This usually takes 2-3 minutes. Feel free to wait or come back later."}
+              : waitReason
+                ? "The job resumes by itself once the LLM host is reachable. Feel free to come back later."
+                : "A whole book can take hours. Feel free to wait or come back later."}
           </div>
         </motion.div>
       </div>

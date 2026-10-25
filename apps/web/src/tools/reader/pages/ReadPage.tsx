@@ -55,10 +55,7 @@ export default function BookReaderPage() {
     createHighlight,
     updateHighlight,
     deleteHighlight,
-  } = useHighlights({
-    bookId,
-    initialHighlights: book?.highlights || [],
-  });
+  } = useHighlights({ bookId });
 
   // Initialize notes management
   const {
@@ -66,10 +63,7 @@ export default function BookReaderPage() {
     createNote,
     updateNote,
     deleteNote,
-  } = useNotes({
-    bookId,
-    initialNotes: book?.notes || [],
-  });
+  } = useNotes({ bookId });
 
   // Handle back navigation with save
   const handleBack = useCallback(async () => {

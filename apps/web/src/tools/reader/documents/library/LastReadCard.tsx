@@ -127,8 +127,8 @@ export function LastReadCard({ dynamicBg, lastBook }: LastReadCardProps) {
 
           <CardFooter className="flex flex-wrap items-center gap-2 sm:gap-4 border-t bg-muted/30 px-3 sm:px-6 py-3 sm:py-4">
               {lastBook.pageCount && <Stat label="Total pages" value={lastBook.pageCount}/>}
-            <Stat label="Notes" value={lastBook.notes.length} icon={<NotebookPen  className="h-4 w-4"/>}/>
-            <Stat label="Highlights" value={lastBook.highlights.length} icon={<Bookmark className="h-4 w-4" />} />
+            <Stat label="Notes" value={lastBook.noteCount} icon={<NotebookPen  className="h-4 w-4"/>}/>
+            <Stat label="Highlights" value={lastBook.highlightCount} icon={<Bookmark className="h-4 w-4" />} />
           </CardFooter>
         </Card>
       </Wrapper>

@@ -5,7 +5,8 @@ import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@tools/reader/documents/BookProfile";
 import { IBook } from "@tools/reader/types";
-import {apiFetch} from "@/lib/fetcher";
+import { apiFetch } from "@/lib/fetcher";
+import type { NoteResponse } from "@/lib/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
 export default function BookProfilePage() {
@@ -14,6 +15,7 @@ export default function BookProfilePage() {
   const bookId = params.id as string;
 
   const [book, setBook] = useState<IBook | null>(null);
+  const [notes, setNotes] = useState<NoteResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const fetchedRef = useRef(false);
@@ -25,8 +27,12 @@ export default function BookProfilePage() {
     async function fetchBook() {
       try {
         setLoading(true);
-        const response = await apiFetch('GET', `/api/books/[id]`, undefined, {id: bookId});
+        const [response, bookNotes] = await Promise.all([
+          apiFetch("GET", "/api/books/[id]", undefined, { id: bookId }),
+          apiFetch("GET", "/api/books/[id]/notes", undefined, { id: bookId }).catch(() => [] as NoteResponse[]),
+        ]);
         setBook(response.data);
+        setNotes(bookNotes);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load book");
       } finally {
@@ -83,6 +89,7 @@ export default function BookProfilePage() {
   return (
     <BookProfile
       book={book}
+      notes={notes}
       onStartReading={handleStartReading}
       onBack={handleBack}
     />
