@@ -1,0 +1,14 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://workbench.local/contracts/jobs/job-control.schema.json",
+  "title": "JobControl",
+  "description": "Sent by the API to all workers on the fanout exchange workbench.job-control.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["v", "jobId", "action"],
+  "properties": {
+    "v": { "const": 1 },
+    "jobId": { "type": "string", "minLength": 1 },
+    "action": { "type": "string", "enum": ["cancel"] }
+  }
+}

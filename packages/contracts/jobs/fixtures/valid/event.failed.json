@@ -1,0 +1,1 @@
+{ "v": 1, "jobId": "cm2summarize00000000001", "event": "failed", "at": "2026-10-25T11:00:00.000Z", "workerId": "workers-1", "error": "Unsupported file type: application/x-mobipocket-ebook", "retryable": false }

@@ -1,0 +1,61 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://workbench.local/contracts/jobs/job-envelope.schema.json",
+  "title": "JobEnvelope",
+  "description": "A unit of work published by the API to exchange workbench.jobs with routing key jobs.<type>. Workers acknowledge on claim and report through JobEvent messages.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v",
+    "jobId",
+    "type",
+    "toolId",
+    "userId",
+    "attempt",
+    "publishedAt",
+    "payload"
+  ],
+  "properties": {
+    "v": {
+      "const": 1
+    },
+    "jobId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "type": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9_]*\\.[a-z][a-z0-9_]*$",
+      "description": "<toolId>.<name>, e.g. reader.extract"
+    },
+    "toolId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "userId": {
+      "type": "string",
+      "minLength": 1
+    },
+    "attempt": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "1 for the first delivery; the sweep re-publishes with attempt+1"
+    },
+    "publishedAt": {
+      "type": "string",
+      "format": "date-time",
+      "description": "when this envelope was published; a cancel received before it does not apply to this delivery (retries)"
+    },
+    "correlationId": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "minLength": 1
+    },
+    "payload": {
+      "type": "object",
+      "description": "tool-specific; the worker must not need anything else"
+    }
+  }
+}

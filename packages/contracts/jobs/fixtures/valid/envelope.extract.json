@@ -1,0 +1,16 @@
+{
+  "v": 1,
+  "jobId": "cm2extract0000000000001",
+  "type": "reader.extract",
+  "toolId": "reader",
+  "userId": "cm2user000000000000001",
+  "attempt": 1,
+  "correlationId": "cm2summary000000000001",
+  "publishedAt": "2026-10-25T09:59:58.000Z",
+  "payload": {
+    "bookId": "4b3c5f1e-0c4e-4d8a-9c1a-0f6b5e3a2d11",
+    "fileStorageKey": "cm2user000000000000001-1761350000000-book.pdf",
+    "mime": "application/pdf",
+    "title": "A Book"
+  }
+}

@@ -1,0 +1,1 @@
+{ "v": 1, "jobId": "cm2extract0000000000001", "event": "succeeded", "at": "2026-10-25T10:01:30.000Z", "workerId": "workers-1", "progress": 100, "result": { "extractionStorageKey": "extraction/4b3c5f1e-0c4e-4d8a-9c1a-0f6b5e3a2d11_extraction.md", "metadata": { "total_pages": 2, "pages_processed": 2 } } }
