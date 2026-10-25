@@ -1,6 +1,6 @@
 """The presets the worker selects with PIPELINE_MODE, and the strategy override."""
-from config.settings import ChunkerType, SummarizationStrategy
-from orchestration.pipeline_builder import PipelineBuilder
+from worker.tools.reader.summarize.config.settings import ChunkerType, SummarizationStrategy
+from worker.tools.reader.summarize.orchestration.pipeline_builder import PipelineBuilder
 
 FEATURE_FLAGS = (
     "use_semantic_chunking", "use_running_context", "use_entity_tracking",

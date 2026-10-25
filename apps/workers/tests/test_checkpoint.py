@@ -1,7 +1,7 @@
 """Resumable summarization: checkpoint bookkeeping and S3 persistence."""
 from botocore.exceptions import ClientError
 
-from checkpoint.manager import CHECKPOINT_BUCKET, Checkpoint, CheckpointManager
+from worker.tools.reader.summarize.checkpoint.manager import CHECKPOINT_BUCKET, Checkpoint, CheckpointManager
 
 
 def _client_error(code, operation):
@@ -107,3 +107,11 @@ def test_checkpoints_are_keyed_per_book_and_summary_type():
     assert manager.exists("book-1", "extractive") and manager.exists("book-1", "abstractive")
     assert not manager.exists("book-2", "extractive")
     assert len(s3.store) == 2
+
+
+def test_manager_uses_the_configured_bucket():
+    s3 = _FakeS3Storage()
+    manager = CheckpointManager(s3, bucket="my-checkpoints")
+    manager.save(Checkpoint(book_id="b", summary_type="abstractive", strategy="basic", summary_percent=0.3, total_sections=1))
+    assert list(s3.store) == [("my-checkpoints", "checkpoint/b_abstractive.json")]
+    assert manager.exists("b", "abstractive") and manager.delete("b", "abstractive")

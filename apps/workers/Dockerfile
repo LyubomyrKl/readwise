@@ -4,24 +4,21 @@
 FROM python:3.11-slim
 WORKDIR /app
 
-# tesseract + poppler for extraction, libatomic1 for the Prisma engine, procps for the health check
+# tesseract + poppler for extraction, procps for the health check
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    tesseract-ocr tesseract-ocr-eng poppler-utils libatomic1 procps \
+    tesseract-ocr tesseract-ocr-eng poppler-utils procps \
     && rm -rf /var/lib/apt/lists/*
 
 # dependencies first, for layer caching
 COPY apps/workers/pyproject.toml ./
-COPY apps/workers/shared ./shared
-RUN pip install --no-cache-dir .
+RUN mkdir -p worker && touch worker/__init__.py && pip install --no-cache-dir . && rm -rf worker build *.egg-info
 
 # sources
-COPY apps/workers/schema.prisma apps/workers/main.py apps/workers/entrypoint.sh ./
-COPY apps/workers/workers ./workers
-RUN prisma generate \
-    && python -c "import nltk; [nltk.download(p, quiet=True) for p in ('punkt', 'punkt_tab')]" \
-    && chmod +x entrypoint.sh
+COPY apps/workers/worker ./worker
+RUN pip install --no-cache-dir --no-deps . \
+    && python -c "import nltk; [nltk.download(p, quiet=True) for p in ('punkt', 'punkt_tab')]"
 
-ENV PYTHONPATH=/app PYTHONUNBUFFERED=1
+ENV PYTHONUNBUFFERED=1
 HEALTHCHECK --interval=60s --timeout=10s --start-period=30s --retries=3 \
-  CMD pgrep -f "python main.py" > /dev/null || exit 1
-ENTRYPOINT ["./entrypoint.sh"]
+  CMD pgrep -f "python -m worker" > /dev/null || exit 1
+CMD ["python", "-m", "worker"]
