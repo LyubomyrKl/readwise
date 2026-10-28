@@ -23,7 +23,8 @@
     "openapi:build": "ts-node -r tsconfig-paths/register -T scripts/generate-openapi.ts",
     "lint:fix": "eslint \"src/**/*.ts\" --fix",
     "db:migrate": "prisma migrate deploy",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "test:db": "jest --config ./test/jest-db.json --runInBand"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.864.0",

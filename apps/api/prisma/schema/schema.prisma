@@ -2,6 +2,7 @@
 //   schema.prisma    this file: generator and datasource
 //   platform.prisma  platform tables: User, RefreshToken, Job
 //   reader.prisma    reader tool tables, prefixed reader_*
+//   money.prisma     money tool tables, prefixed money_*
 //   migrations/      the migration history (Prisma resolves it inside the schema folder)
 //
 // Schema changes reach the database through migrations, never db push:

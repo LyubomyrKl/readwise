@@ -2,7 +2,8 @@
 
 A personal toolbox. The first tool is a reader with an AI summarizer: upload
 PDF/EPUB books, read them, keep highlights and notes, and generate structured
-summaries with a local LLM (Ollama).
+summaries with a local LLM (Ollama). The second is money: accounts, movements and
+investments in a double-entry ledger ([`docs/money/`](docs/money/plan.md), built milestone by milestone).
 
 The architecture and the migration plan live in
 [`docs/toolbox-architecture-plan.md`](docs/toolbox-architecture-plan.md).
@@ -12,12 +13,12 @@ The architecture and the migration plan live in
 | Path | Stack | What |
 |---|---|---|
 | `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`; five server-side routes: the four auth routes that set the session cookies and the generic proxy `/api/gw/*` |
-| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries); the only code that touches the database |
+| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries; money: ledger and investments); the only code that touches the database |
 | `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
 | `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
 | `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
-| `docs/` | markdown | plan, pipeline speed backlog |
+| `docs/` | markdown | plan, pipeline speed backlog, `money/` requirements and plan |
 
 `apps/web` and `apps/api` are npm workspaces orchestrated by Turborepo; one
 `package-lock.json` at the root. `apps/workers` is a Python project (`pyproject.toml`).
@@ -132,7 +133,8 @@ checks this in both apps).
 ## Database and migrations
 
 The schema lives in `apps/api/prisma/schema/`, one file per owner: `platform.prisma`
-(User, RefreshToken, Job) and `reader.prisma` (the reader's tables, prefixed `reader_`);
+(User, RefreshToken, Job), `reader.prisma` (the reader's tables, prefixed `reader_`) and
+`money.prisma` (prefixed `money_`; its migration adds triggers that enforce the ledger rules);
 Prisma keeps the migrations of a schema folder inside it (`prisma/schema/migrations`).
 The API is the only code that reads or writes the database; the Python workers get
 everything they need in the job payload and report back through events.
@@ -174,6 +176,7 @@ messages land in the `*.dlq` queues (RabbitMQ management UI).
 ```bash
 npm run lint && npm run typecheck && npm test   # Turborepo across web + api
 npm run test:e2e                                # api e2e with mocked infrastructure
+npm run test:db --workspace apps/api            # money ledger rules against the Postgres at DATABASE_URL (migrated)
 npm run test:workers                            # pytest in python:3.11-slim
 npm run smoke                                   # end to end against a running stack
 ```

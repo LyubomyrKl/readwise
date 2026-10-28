@@ -16,6 +16,18 @@ model User {
   notes         Note[]
   highlights    Highlight[]
   summaries     Summary[]
+
+  moneySettings      MoneySettings?
+  moneyCommodities   MoneyCommodity[]
+  moneyAssetClasses  MoneyAssetClass[]
+  moneyInstitutions  MoneyInstitution[]
+  moneyAccounts      MoneyAccount[]
+  moneyCategories    MoneyCategory[]
+  moneyTransactions  MoneyTransaction[]
+  moneyRecurring     MoneyRecurringRule[]
+  moneyImportBatches MoneyImportBatch[]
+  moneyApiTokens     MoneyApiToken[]
+  moneyAuditLog      MoneyAuditLog[]
 }
 
 model RefreshToken {

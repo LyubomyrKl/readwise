@@ -55,6 +55,8 @@ jobs:
             --to-schema-datamodel prisma/schema \
             --shadow-database-url "$SHADOW_DATABASE_URL" \
             --exit-code
+      - name: Money ledger rules against Postgres
+        run: npm run test:db --workspace apps/api
       - run: npm run build
 
   python:

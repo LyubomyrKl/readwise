@@ -34,6 +34,7 @@ describe("tool registry", () => {
   it("resolves the current tool from a pathname", () => {
     expect(findToolByPath("/apps/reader")?.id).toBe("reader");
     expect(findToolByPath("/apps/reader/book/1/read")?.id).toBe("reader");
+    expect(findToolByPath("/apps/money")?.id).toBe("money");
     expect(findToolByPath("/apps/readers")).toBeUndefined();
     expect(findToolByPath("/settings/reader")).toBeUndefined();
     expect(findToolByPath("/")).toBeUndefined();
