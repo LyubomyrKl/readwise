@@ -7,6 +7,13 @@ import { CategoriesService } from './categories/categories.service';
 import { DraftsController } from './drafts/drafts.controller';
 import { DraftsService } from './drafts/drafts.service';
 import { ImportsController } from './imports/imports.controller';
+import { AssetsService } from './investments/assets.service';
+import { InvestmentsController } from './investments/investments.controller';
+import { LotsService } from './investments/lots.service';
+import { PositionsService } from './investments/positions.service';
+import { PricesService } from './investments/prices.service';
+import { TradesService } from './investments/trades.service';
+import { ValuationService } from './investments/valuation.service';
 import { ImportsService } from './imports/imports.service';
 import { AuditService } from './ledger/audit.service';
 import { LedgerService } from './ledger/ledger.service';
@@ -14,6 +21,7 @@ import { MovementsController } from './movements/movements.controller';
 import { MovementsService } from './movements/movements.service';
 import { CommoditiesService } from './reference/commodities.service';
 import { CurrenciesController } from './reference/currencies.controller';
+import { RatesService } from './rates/rates.service';
 import { MoneySettingsController } from './settings/settings.controller';
 import { MoneySettingsService } from './settings/settings.service';
 import { TransactionsController } from './transactions/transactions.controller';
@@ -34,6 +42,7 @@ import { TransactionsService } from './transactions/transactions.service';
     TransactionsController,
     DraftsController,
     ImportsController,
+    InvestmentsController,
   ],
   providers: [
     CommoditiesService,
@@ -47,6 +56,13 @@ import { TransactionsService } from './transactions/transactions.service';
     MovementsService,
     DraftsService,
     ImportsService,
+    RatesService,
+    LotsService,
+    ValuationService,
+    AssetsService,
+    PricesService,
+    PositionsService,
+    TradesService,
   ],
   exports: [LedgerService, MovementsService, TransactionsService],
 })

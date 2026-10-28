@@ -102,3 +102,11 @@ entries of posted transactions cannot be updated or deleted.
   detection, today's balances turned into opening balances, one-transaction commit. Tests:
   `test/db/money-m2.db-spec.ts` (every balance equals the bank's figure to the cent; a re-import
   is recognised; a hand-typed movement is not doubled).
+- **M3** — done: assets (any instrument; manual price, price feed or bond formula), asset classes
+  with target history and per-asset shares, cash of an account counted in a class; buy (all-in
+  cost, paid from any account, or held before tracking), sell (FIFO or average cost per
+  account, never back-dated past a later sale), investment income with tax withheld, unit moves
+  that keep cost and dates, splits; lots with cost in PLN at the NBP rate of the business day
+  before; positions with value and gain; the EDO formula (annual capitalisation, margin plus
+  inflation, floored at the margin). Tests: `test/db/money-m3.db-spec.ts` (71 VWCE at the exact
+  cost of three buys; a sale takes the oldest lots first; reversals restore lots).

@@ -5,6 +5,12 @@
 import { apiFetch } from "@platform/api/http";
 import type {
   AccountResponse,
+  AssetClassResponse,
+  AssetResponse,
+  CreateAssetInput,
+  LotResponse,
+  PositionResponse,
+  PriceResponse,
   BalancePreview,
   BalanceTarget,
   ImportBatch,
@@ -101,6 +107,39 @@ export const moneyApi = {
     commit: (id: string) => post<{ imported: number; openingBalances: number; categoriesCreated: number }>(`/money/imports/${enc(id)}/commit`),
     remove: (id: string) => apiFetch<{ removed: true }>(`/money/imports/${enc(id)}`, { method: "DELETE" }),
   },
+
+  assets: {
+    list: (archived = false) => apiFetch<AssetResponse[]>("/money/assets", { query: { archived } }),
+    create: (input: CreateAssetInput) => post<AssetResponse>("/money/assets", input),
+    update: (
+      id: string,
+      input: Partial<Omit<CreateAssetInput, "isin" | "ticker">> & { archived?: boolean; isin?: string | null; ticker?: string | null }
+    ) =>
+      patch<AssetResponse>(`/money/assets/${enc(id)}`, input),
+    setClasses: (id: string, classes: { classId: string; percent: string }[]) =>
+      apiFetch<AssetResponse>(`/money/assets/${enc(id)}/classes`, { method: "PUT", json: { classes } }),
+  },
+
+  classes: {
+    list: () => apiFetch<AssetClassResponse[]>("/money/asset-classes"),
+    create: (input: { name: string; targetPercent?: string; sortOrder?: number }) =>
+      post<AssetClassResponse>("/money/asset-classes", input),
+    update: (id: string, input: { name?: string; sortOrder?: number }) =>
+      patch<AssetClassResponse>(`/money/asset-classes/${enc(id)}`, input),
+    setTarget: (id: string, percent: string, validFrom: string) =>
+      apiFetch<AssetClassResponse>(`/money/asset-classes/${enc(id)}/target`, { method: "PUT", json: { percent, validFrom } }),
+  },
+
+  prices: {
+    list: (assetId: string) => apiFetch<PriceResponse[]>("/money/prices", { query: { assetId } }),
+    record: (input: { assetId: string; date: string; price: string }) => post<PriceResponse>("/money/prices", input),
+    remove: (id: string) => apiFetch<{ removed: true }>(`/money/prices/${enc(id)}`, { method: "DELETE" }),
+  },
+
+  positions: (query: { accountId?: string; asOf?: string } = {}) =>
+    apiFetch<PositionResponse[]>("/money/positions", { query }),
+  lots: (query: { accountId?: string; assetId?: string; open?: boolean } = {}) =>
+    apiFetch<LotResponse[]>("/money/lots", { query }),
 
   drafts: {
     list: () => apiFetch<TransactionPage>("/money/drafts"),

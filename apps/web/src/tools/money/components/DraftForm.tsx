@@ -4,6 +4,7 @@ import { moneyApi } from "../api";
 import { useMoneyMutation } from "../queries";
 import type { TransactionResponse } from "../types";
 import { CASH_KINDS, MovementForm, type CashKind } from "./MovementForm";
+import { TradeForm, TRADE_KINDS, type TradeKind } from "./TradeForm";
 
 /** The draft's proposal in the form of its kind; submitting approves it with the edited input. */
 export function DraftForm({ draft, onDone }: { draft: TransactionResponse; onDone: () => void }) {
@@ -25,5 +26,17 @@ export function DraftForm({ draft, onDone }: { draft: TransactionResponse; onDon
       />
     );
   }
-  return <p className="text-sm text-muted-foreground">Open this kind of draft from the investments page.</p>;
+  if (TRADE_KINDS.some((k) => k.value === proposal.kind)) {
+    return (
+      <TradeForm
+        initial={initial}
+        initialKind={proposal.kind as TradeKind}
+        lockKind
+        submitLabel="Approve"
+        onSubmit={(m) => approve.mutateAsync(m.input)}
+        onDone={onDone}
+      />
+    );
+  }
+  return <p className="text-sm text-muted-foreground">This kind of draft cannot be edited here.</p>;
 }

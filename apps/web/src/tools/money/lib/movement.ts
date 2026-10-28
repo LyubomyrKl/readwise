@@ -54,6 +54,57 @@ export function movementFromTransaction(tx: TransactionResponse): Movement | und
       if (into.amount.currency !== out.amount.currency) input.amountIn = into.amount.value;
       return { kind, input };
     }
+    case "buy": {
+      const units = own.find((e) => e.units && !e.units.startsWith("-"));
+      const cash = tx.entries.find((e) => e.amount && e.amount.value.startsWith("-") && e.systemRole !== "conversion");
+      if (!units || !cash?.amount || !tx.asset) return undefined;
+      const input: Record<string, unknown> = {
+        ...base,
+        accountId: units.accountId,
+        assetId: tx.asset.id,
+        units: units.units,
+        total: abs(cash.amount.value),
+        currency: cash.amount.currency,
+      };
+      if (cash.systemRole === "opening_balance") input.heldBefore = true;
+      else if (cash.accountId !== units.accountId) input.paidFromAccountId = cash.accountId;
+      return { kind, input };
+    }
+    case "sell": {
+      const units = own.find((e) => e.units && e.units.startsWith("-"));
+      const cash = own.find((e) => e.amount && !e.amount.value.startsWith("-"));
+      if (!units || !cash?.amount || !tx.asset) return undefined;
+      const input: Record<string, unknown> = {
+        ...base,
+        accountId: units.accountId,
+        assetId: tx.asset.id,
+        units: abs(units.units!),
+        proceeds: cash.amount.value,
+        currency: cash.amount.currency,
+      };
+      if (cash.accountId !== units.accountId) input.proceedsToAccountId = cash.accountId;
+      return { kind, input };
+    }
+    case "investment_income": {
+      const leg = own[0];
+      if (!leg?.amount) return undefined;
+      const input: Record<string, unknown> = {
+        ...base,
+        accountId: leg.accountId,
+        currency: leg.amount.currency,
+        amount: leg.amount.value,
+        incomeCategoryId: income?.categoryId ?? undefined,
+      };
+      if (expense?.amount) input.withholding = expense.amount.value;
+      if (tx.asset) input.assetId = tx.asset.id;
+      return { kind, input };
+    }
+    case "unit_move": {
+      const out = own.find((e) => e.units?.startsWith("-"));
+      const into = own.find((e) => e.units && !e.units.startsWith("-"));
+      if (!out || !into || !tx.asset) return undefined;
+      return { kind, input: { ...base, fromAccountId: out.accountId, toAccountId: into.accountId, assetId: tx.asset.id, units: into.units } };
+    }
     default:
       return undefined;
   }

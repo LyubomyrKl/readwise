@@ -22,6 +22,11 @@ export const moneyKeys = {
   importBatch: (id: string) => ["money", "import", id] as const,
   importRows: (id: string, status: string, offset: number) => ["money", "import", id, "rows", status, offset] as const,
   importBalances: (id: string) => ["money", "import", id, "balances"] as const,
+  assets: (archived: boolean) => ["money", "assets", archived] as const,
+  classes: ["money", "classes"] as const,
+  prices: (assetId: string) => ["money", "prices", assetId] as const,
+  positions: (accountId?: string) => ["money", "positions", accountId ?? "all"] as const,
+  lots: (accountId: string, assetId: string) => ["money", "lots", accountId, assetId] as const,
 };
 
 export function errorMessage(error: unknown): string {
@@ -123,4 +128,28 @@ export function useImportRows(id: string, status: string, offset: number) {
 
 export function useImportBalances(id: string, enabled: boolean) {
   return useQuery({ queryKey: moneyKeys.importBalances(id), queryFn: () => moneyApi.imports.balances(id), enabled });
+}
+
+export function useAssets(archived = false) {
+  return useQuery({ queryKey: moneyKeys.assets(archived), queryFn: () => moneyApi.assets.list(archived) });
+}
+
+export function useAssetClasses() {
+  return useQuery({ queryKey: moneyKeys.classes, queryFn: moneyApi.classes.list });
+}
+
+export function usePrices(assetId: string | undefined) {
+  return useQuery({ queryKey: moneyKeys.prices(assetId ?? ""), queryFn: () => moneyApi.prices.list(assetId!), enabled: !!assetId });
+}
+
+export function usePositions(accountId?: string) {
+  return useQuery({ queryKey: moneyKeys.positions(accountId), queryFn: () => moneyApi.positions({ accountId }) });
+}
+
+export function useLots(accountId: string, assetId: string, enabled = true) {
+  return useQuery({
+    queryKey: moneyKeys.lots(accountId, assetId),
+    queryFn: () => moneyApi.lots({ accountId, assetId }),
+    enabled,
+  });
 }

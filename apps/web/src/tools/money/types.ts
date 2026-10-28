@@ -261,3 +261,92 @@ export interface BalanceTarget {
   balance: string;
   asOf?: string;
 }
+
+// ---- investments ------------------------------------------------------------------------
+
+export type Valuation = "manual" | "price_feed" | "bond_formula";
+
+export interface PriceJson {
+  price: string;
+  currency: string;
+  date: string;
+  source: "manual" | "import" | "feed";
+}
+
+export interface AssetResponse {
+  id: string;
+  code: string;
+  name: string;
+  ticker: string | null;
+  isin: string | null;
+  unitName: string;
+  quoteCurrency: string;
+  valuation: Valuation;
+  valuationConfig: Record<string, unknown> | null;
+  classes: { classId: string; percent: string }[];
+  latestPrice: PriceJson | null;
+  archived: boolean;
+}
+
+export interface CreateAssetInput {
+  code: string;
+  name: string;
+  quoteCurrency: string;
+  unitName?: string;
+  isin?: string;
+  ticker?: string;
+  valuation?: Valuation;
+  valuationConfig?: Record<string, unknown>;
+  classes?: { classId: string; percent: string }[];
+}
+
+export interface AssetClassResponse {
+  id: string;
+  name: string;
+  sortOrder: number;
+  targetPercent: string | null;
+  targetValidFrom: string | null;
+  targets: { percent: string; validFrom: string }[];
+}
+
+export interface PriceResponse extends PriceJson {
+  id: string;
+  assetId: string;
+}
+
+export interface PositionResponse {
+  accountId: string;
+  accountName: string;
+  assetId: string;
+  code: string;
+  name: string;
+  unitName: string;
+  units: string;
+  cost: AmountJson[];
+  averageCost: string | null;
+  price: PriceJson | null;
+  value: AmountJson | null;
+  gain: AmountJson | null;
+  gainPercent: string | null;
+  valuedBy: "price" | "bond_formula" | "cost" | "none";
+  estimated: boolean;
+  lots: number;
+}
+
+export interface LotResponse {
+  id: string;
+  accountId: string;
+  assetId: string;
+  acquiredAt: string;
+  units: string;
+  remainingUnits: string;
+  cost: AmountJson;
+  remainingCost: AmountJson;
+  costPln: AmountJson | null;
+  costPlnRate: string | null;
+  costPlnRateDate: string | null;
+  tradeCost: AmountJson | null;
+  transactionId: string;
+  parentLotId: string | null;
+  closed: boolean;
+}

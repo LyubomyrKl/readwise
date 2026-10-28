@@ -167,14 +167,17 @@ export interface BuyParams {
   paidFrom: { accountId: string; currency: string };
   /** all-in: price times units plus every fee, in the currency paid */
   total: bigint;
+  /** units held before tracking started: the cash side is the opening balance, no account pays */
+  heldBefore?: boolean;
 }
 
 /** Cash out, units in; each side balances through the conversion account (a transfer at cost). */
 export function buyLines(p: BuyParams): PostingLine[] {
   positive(p.units, 'units');
   if (p.total < 0n) throw new PostingError('the amount paid cannot be negative');
+  const payer = p.heldBefore ? system('opening_balance') : own(p.paidFrom.accountId);
   return balanced([
-    { account: own(p.paidFrom.accountId), commodityId: p.paidFrom.currency, amountMinor: -p.total },
+    { account: payer, commodityId: p.paidFrom.currency, amountMinor: -p.total },
     { account: system('conversion'), commodityId: p.paidFrom.currency, amountMinor: p.total },
     { account: system('conversion'), commodityId: p.assetId, quantity: -p.units },
     { account: own(p.accountId), commodityId: p.assetId, quantity: p.units },
