@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Job, JobStatus, Prisma } from '@prisma/client';
+import { EventEmitter } from 'events';
 import { PrismaService } from '@platform/db/prisma.service';
 import { QueueService } from '@platform/queue/queue.service';
 import { EXCHANGES, jobRoutingKey } from '@platform/queue/topology';
@@ -48,6 +49,24 @@ export interface SweepResult {
 
 type HookExtra = Pick<JobEventContext, 'result' | 'error' | 'reason'>;
 
+export interface TimelineEntry {
+  at: string;
+  status: JobStatus;
+  stage: string | null;
+}
+
+/** Entries kept per job; enough for a long book, bounded for the row. */
+export const TIMELINE_LIMIT = 200;
+
+/** The timeline with one more entry when the stage or the status changed. */
+export function nextTimeline(job: Job, status: JobStatus, stage: string | null | undefined, at: Date): TimelineEntry[] {
+  const current = (Array.isArray(job.timeline) ? job.timeline : []) as unknown as TimelineEntry[];
+  const resolvedStage = stage ?? job.stage ?? null;
+  const last = current[current.length - 1];
+  if (last && last.status === status && last.stage === resolvedStage) return current;
+  return [...current, { at: at.toISOString(), status, stage: resolvedStage }].slice(-TIMELINE_LIMIT);
+}
+
 /**
  * The job state machine. The Job row is the source of truth; workers report
  * through events (applyEvent) and the Node runner calls the same method, so
@@ -57,6 +76,8 @@ type HookExtra = Pick<JobEventContext, 'result' | 'error' | 'reason'>;
 export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly logger = new Logger(JobsService.name);
   private readonly hooks = new Map<string, JobHooks[]>();
+  /** In-process notifications of every row change this service makes (SSE subscribers). */
+  readonly changes = new EventEmitter();
   private readonly leaseMs: number;
   private readonly sweepIntervalMs: number;
   private readonly defaultMaxAttempts: number;
@@ -215,9 +236,12 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         heartbeatAt: null,
         startedAt: null,
         finishedAt: null,
+        timeline: Prisma.JsonNull,
       },
     });
-    return this.publish(jobId);
+    const published = await this.publish(jobId);
+    this.notify(published);
+    return published;
   }
 
   async cancelChildren(parentJobId: string, reason: string): Promise<void> {
@@ -238,13 +262,21 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
   }
 
   private async cancelJob(job: Job, reason: string): Promise<Job> {
+    const now = new Date();
     const updated = await this.prisma.job.update({
       where: { id: job.id },
-      data: { status: 'cancelled', error: reason, waitReason: null, finishedAt: new Date() },
+      data: {
+        status: 'cancelled',
+        error: reason,
+        waitReason: null,
+        finishedAt: now,
+        timeline: nextTimeline(job, 'cancelled', undefined, now) as unknown as Prisma.InputJsonValue,
+      },
     });
     await this.publishControl({ v: 1, jobId: job.id, action: 'cancel' });
     await this.cancelChildren(job.id, `parent job ${job.id} cancelled`);
     await this.runHooks(updated, 'cancelled', { error: reason });
+    this.notify(updated);
     return updated;
   }
 
@@ -281,6 +313,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
             progress: event.progress ?? job.progress,
             waitReason: null,
             error: null,
+            timeline: nextTimeline(job, 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
           },
         });
         break;
@@ -297,6 +330,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
             stage: event.stage ?? job.stage,
             progress: event.progress ?? job.progress,
             waitReason: event.event === 'waiting' ? (event.reason ?? 'waiting') : null,
+            timeline: nextTimeline(job, event.event === 'waiting' ? 'waiting' : 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
           },
         });
         break;
@@ -313,6 +347,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
             heartbeatAt: at,
             waitReason: null,
             error: null,
+            timeline: nextTimeline(job, 'succeeded', event.stage, at) as unknown as Prisma.InputJsonValue,
           },
         });
         break;
@@ -331,7 +366,13 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         } else {
           updated = await this.prisma.job.update({
             where: { id: job.id },
-            data: { status: 'failed', error, finishedAt: at, waitReason: null },
+            data: {
+              status: 'failed',
+              error,
+              finishedAt: at,
+              waitReason: null,
+              timeline: nextTimeline(job, 'failed', event.stage, at) as unknown as Prisma.InputJsonValue,
+            },
           });
           this.logger.error(`Job ${job.id} failed: ${error}`);
         }
@@ -341,13 +382,20 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         if (isTerminal(job.status)) return job;
         updated = await this.prisma.job.update({
           where: { id: job.id },
-          data: { status: 'cancelled', error: event.error ?? 'cancelled by worker', finishedAt: at, waitReason: null },
+          data: {
+            status: 'cancelled',
+            error: event.error ?? 'cancelled by worker',
+            finishedAt: at,
+            waitReason: null,
+            timeline: nextTimeline(job, 'cancelled', event.stage, at) as unknown as Prisma.InputJsonValue,
+          },
         });
         break;
       }
     }
 
     await this.runHooks(updated, event.event, extra);
+    this.notify(updated);
     return updated;
   }
 
@@ -377,7 +425,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
             waitReason: null,
           },
         });
-        await this.publish(job.id);
+        this.notify(await this.publish(job.id));
         result.requeued += 1;
         this.logger.warn(`Sweep re-queued ${job.type} ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
       } else {
@@ -389,12 +437,18 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         result.failed += 1;
         this.logger.error(`Sweep failed ${job.type} ${job.id}: ${error}`);
         await this.runHooks(updated, 'failed', { error });
+        this.notify(updated);
       }
     }
     return result;
   }
 
   // ---- internals ---------------------------------------------------------------
+
+  private notify(job: Job): void {
+    this.changes.emit('job', job);
+    this.changes.emit(`job:${job.id}`, job);
+  }
 
   private async publishControl(message: JobControl): Promise<void> {
     try {

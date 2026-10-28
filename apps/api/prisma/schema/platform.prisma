@@ -48,6 +48,8 @@ model Job {
   waitReason    String?
   payload       Json
   result        Json?
+  /// stage and status changes in order: [{ at, status, stage }], capped; per-stage durations fall out of it
+  timeline      Json?
   error         String?
   attempts      Int       @default(0)
   maxAttempts   Int       @default(3)

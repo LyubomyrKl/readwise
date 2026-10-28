@@ -115,6 +115,25 @@ export class EnvironmentVariables {
   @IsString()
   RABBITMQ_PASS!: string;
 
+  // ---- LLM host for Node tools (platform/ai); the same variables the workers read
+  @IsOptional()
+  @IsString()
+  OLLAMA_BASE_URL?: string;
+
+  @IsOptional()
+  @IsString()
+  OLLAMA_MODEL?: string;
+
+  @IsOptional()
+  @IsString()
+  OLLAMA_EMBED_MODEL?: string;
+
+  @IsOptional()
+  @IsInt()
+  @Min(5)
+  @intWithDefault(120)
+  AI_TIMEOUT_SECONDS = 120;
+
   // ---- jobs (platform/jobs)
   /** A running or waiting job whose last heartbeat is older than this is considered lost. */
   @IsOptional()

@@ -1,9 +1,16 @@
-import { Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
+import { Controller, Get, MessageEvent, Param, Post, Query, Req, Sse } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
+import { Observable } from 'rxjs';
+import { Job } from '@prisma/client';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
+import { Authenticated } from '@platform/common/authenticated.decorator';
 import { UserModel } from '@platform/common/models';
 import { JobsService } from './jobs.service';
 import { JobResponse, ListJobsQuery, toJobResponse } from './job.models';
+import { isActive } from './job-hooks';
+
+/** Keeps proxies and browsers from closing an idle stream (seconds). */
+const SSE_KEEPALIVE_MS = 25_000;
 
 @ApiTags('jobs')
 @Controller('jobs')
@@ -22,6 +29,46 @@ export class JobsController {
   @ApiEndpoint({ summary: 'Get a job', response: JobResponse })
   async get(@Req() req: UserModel, @Param('id') id: string): Promise<JobResponse> {
     return toJobResponse(await this.jobs.get(req.user.userId, id));
+  }
+
+  /**
+   * Server-sent events: the job as it changes, starting with its current state,
+   * one `job` event per change, closed after the terminal state. A comment line
+   * every 25 s keeps the connection alive through proxies.
+   */
+  @Sse(':id/stream')
+  @ApiParam({ name: 'id' })
+  @Authenticated()
+  stream(@Req() req: UserModel, @Param('id') id: string): Observable<MessageEvent> {
+    return new Observable<MessageEvent>((subscriber) => {
+      let closed = false;
+      const send = (job: Job) => {
+        if (closed) return;
+        subscriber.next({ type: 'job', data: toJobResponse(job) });
+        if (!isActive(job.status)) {
+          closed = true;
+          subscriber.complete();
+        }
+      };
+      const onChange = (job: Job) => send(job);
+      const keepalive = setInterval(() => {
+        if (!closed) subscriber.next({ type: 'keepalive', data: '' });
+      }, SSE_KEEPALIVE_MS);
+
+      this.jobs
+        .get(req.user.userId, id)
+        .then((job) => {
+          send(job);
+          if (!closed) this.jobs.changes.on(`job:${id}`, onChange);
+        })
+        .catch((error: unknown) => subscriber.error(error));
+
+      return () => {
+        closed = true;
+        clearInterval(keepalive);
+        this.jobs.changes.off(`job:${id}`, onChange);
+      };
+    });
   }
 
   @Post(':id/cancel')

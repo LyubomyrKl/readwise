@@ -24,6 +24,12 @@ export class JobResponse {
   @ApiPropertyOptional({ nullable: true }) correlationId?: string | null;
   @ApiPropertyOptional({ nullable: true, type: 'object', additionalProperties: true })
   result?: Record<string, unknown> | null;
+  @ApiPropertyOptional({
+    description: 'stage and status changes in order: [{ at, status, stage }]',
+    type: 'array',
+    items: { type: 'object', additionalProperties: true },
+  })
+  timeline?: Array<{ at: string; status: JobStatus; stage: string | null }>;
   @ApiProperty({ type: 'string', format: 'date-time' }) createdAt!: Date;
   @ApiPropertyOptional({ nullable: true, type: 'string', format: 'date-time' }) startedAt?: Date | null;
   @ApiPropertyOptional({ nullable: true, type: 'string', format: 'date-time' }) finishedAt?: Date | null;
@@ -49,6 +55,7 @@ export function toJobResponse(job: Job): JobResponse {
     parentJobId: job.parentJobId,
     correlationId: job.correlationId,
     result: (job.result as Record<string, unknown> | null) ?? null,
+    timeline: (Array.isArray(job.timeline) ? job.timeline : []) as Array<{ at: string; status: JobStatus; stage: string | null }>,
     createdAt: job.createdAt,
     startedAt: job.startedAt,
     finishedAt: job.finishedAt,

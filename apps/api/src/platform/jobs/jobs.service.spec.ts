@@ -186,6 +186,53 @@ describe('JobsService', () => {
     });
   });
 
+  describe('timeline', () => {
+    it('records stage and status changes once each, not every heartbeat', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'started', at: '2026-10-25T10:00:00.000Z' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', stage: 'segmenting', progress: 3, at: '2026-10-25T10:00:10.000Z' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', stage: 'segmenting', progress: 4, at: '2026-10-25T10:00:20.000Z' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'waiting', reason: 'LLM down', at: '2026-10-25T10:01:00.000Z' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', stage: 'section 1/2', progress: 40, at: '2026-10-25T10:05:00.000Z' }));
+      const done = await service.applyEvent(event({ jobId: job.id, event: 'succeeded', result: {}, at: '2026-10-25T10:09:00.000Z' }));
+
+      expect(done!.timeline).toEqual([
+        { at: '2026-10-25T10:00:00.000Z', status: 'running', stage: null },
+        { at: '2026-10-25T10:00:10.000Z', status: 'running', stage: 'segmenting' },
+        { at: '2026-10-25T10:01:00.000Z', status: 'waiting', stage: 'segmenting' },
+        { at: '2026-10-25T10:05:00.000Z', status: 'running', stage: 'section 1/2' },
+        { at: '2026-10-25T10:09:00.000Z', status: 'succeeded', stage: 'section 1/2' },
+      ]);
+    });
+
+    it('is cleared by a retry', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'started', attempt: 1 }));
+      await service.applyEvent(event({ jobId: job.id, event: 'failed', error: 'x', retryable: false }));
+      expect((await prisma.job.findUnique({ where: { id: job.id } }))!.timeline).toHaveLength(2);
+      const retried = await service.retry('user-1', job.id);
+      expect(retried.timeline).toBeNull();
+    });
+  });
+
+  describe('change notifications', () => {
+    it('emits the row after every transition, per job and globally', async () => {
+      const job = await enqueueExtract();
+      const perJob: string[] = [];
+      const all: string[] = [];
+      service.changes.on(`job:${job.id}`, (j: { status: string }) => perJob.push(j.status));
+      service.changes.on('job', (j: { status: string }) => all.push(j.status));
+
+      await service.applyEvent(event({ jobId: job.id, event: 'started' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', stage: 's' }));
+      await service.cancel('user-1', job.id);
+      await service.retry('user-1', job.id);
+
+      expect(perJob).toEqual(['running', 'running', 'cancelled', 'queued']);
+      expect(all).toEqual(perJob);
+    });
+  });
+
   describe('cancel', () => {
     it('cancels an active job, broadcasts a control message and cancels its queued children', async () => {
       const parent = await enqueueExtract();

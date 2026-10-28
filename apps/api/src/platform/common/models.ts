@@ -6,14 +6,18 @@ class UserDto {
 
   @ApiProperty({ example: 'user@example.com' })
   email: string;
+
+  @ApiProperty({ description: 'session id (the refresh token row)', required: false })
+  sid?: string;
 }
 
+/** Shape of the request once the JWT guard ran. */
 export class UserModel {
   @ApiProperty({ type: UserDto })
   user: UserDto;
 }
 
 export class SuccessEmptyResponse {
-  @ApiProperty({ example: { status: "success" } })
+  @ApiProperty({ example: { status: 'success' } })
   status: 'success';
 }

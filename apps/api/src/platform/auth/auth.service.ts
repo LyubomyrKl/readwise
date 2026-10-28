@@ -6,14 +6,27 @@ import {
 } from '@nestjs/common';
 import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
-import { PrismaService } from '@platform/db/prisma.service';
+import { randomUUID } from 'crypto';
 import { add } from 'date-fns';
+import { PrismaService } from '@platform/db/prisma.service';
 import { LoginDto, RefreshDto, RegisterDto } from './auth.models';
 
-interface RefreshPayload {
+/**
+ * Sessions. A session is one RefreshToken row; its id travels in both JWTs as
+ * `sid`. Refreshing rotates the session (the old refresh token is revoked and a
+ * new row is created), logout revokes one session, logoutAll revokes every
+ * session of the user. Several sessions (devices) may be alive at once.
+ */
+
+export interface AccessPayload {
   sub: string;
   email: string;
-  typ?: string;
+  /** session id = RefreshToken.id */
+  sid: string;
+}
+
+interface RefreshPayload extends AccessPayload {
+  typ: 'refresh';
 }
 
 type JwtTtl = NonNullable<JwtSignOptions['expiresIn']>;
@@ -23,6 +36,8 @@ export type SafeUser = { id: string; email: string; name?: string | null };
 export type AuthBundle = { user: SafeUser; tokens: ServiceTokens };
 export type LogoutResult = { success: true };
 
+const REFRESH_DAYS = 7;
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -31,7 +46,7 @@ export class AuthService {
   ) {}
 
   async register(body: RegisterDto): Promise<AuthBundle> {
-    const {email, password, name} = body;
+    const { email, password, name } = body;
 
     try {
       const existingUser = await this.prisma.user.findUnique({
@@ -46,21 +61,12 @@ export class AuthService {
       const hash = await argon2.hash(password);
 
       const user = await this.prisma.user.create({
-        data: {
-          email,
-          passwordHash: hash,
-          name,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-        },
+        data: { email, passwordHash: hash, name },
+        select: { id: true, email: true, name: true },
       });
 
-      const tokens = await this.issueTokens(user.id, user.email);
-      const safe = this.mapToSafeUser(user);
-      return { user: safe, tokens };
+      const tokens = await this.openSession(user.id, user.email);
+      return { user: this.mapToSafeUser(user), tokens };
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
@@ -73,12 +79,7 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          passwordHash: true,
-        },
+        select: { id: true, email: true, name: true, passwordHash: true },
       });
 
       if (!user) return null;
@@ -90,6 +91,7 @@ export class AuthService {
     }
   }
 
+  /** Opens a new session; other sessions of the user stay valid (several devices). */
   async login(dto: LoginDto): Promise<AuthBundle> {
     try {
       const user = await this.validateUser(dto.email, dto.password);
@@ -98,11 +100,8 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      const tokens = await this.issueTokens(user.id, user.email);
-
-      const safe = this.mapToSafeUser(user);
-
-      return { user: safe, tokens };
+      const tokens = await this.openSession(user.id, user.email);
+      return { user: this.mapToSafeUser(user), tokens };
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -111,43 +110,48 @@ export class AuthService {
     }
   }
 
+  /**
+   * Rotates the session: the presented refresh token is revoked and a new pair is
+   * issued. A revoked, expired or unknown token is rejected.
+   */
   async refresh(dto: RefreshDto): Promise<ServiceTokens> {
-    try {
-      const token = String(dto.refreshToken).replace(/^Bearer\s+/i, '');
+    const token = String(dto.refreshToken).replace(/^Bearer\s+/i, '');
 
-      const payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
+    let payload: RefreshPayload;
+    try {
+      payload = await this.jwt.verifyAsync<RefreshPayload>(token, {
         secret: this.getJwtRefreshSecret(),
       });
-
-      // Verify the refresh token exists in database and is not revoked
-      await this.verifyRefreshToken(payload.sub, token);
-
-      // Generate new access token but keep the same refresh token
-      const accessToken = await this.jwt.signAsync(
-        { sub: payload.sub, email: payload.email },
-        {
-          secret: this.getJwtAccessSecret(),
-          expiresIn: this.getJwtAccessTtl(),
-        },
-      );
-
-      return { accessToken, refreshToken: token };
-    } catch (error) {
-      if (error instanceof UnauthorizedException) {
-        throw error;
-      }
+    } catch {
       throw new UnauthorizedException('Invalid refresh token');
     }
+    if (payload.typ !== 'refresh' || !payload.sid) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const session = await this.prisma.refreshToken.findUnique({ where: { id: payload.sid } });
+    if (
+      !session ||
+      session.userId !== payload.sub ||
+      session.revokedAt ||
+      session.expiresAt.getTime() < Date.now() ||
+      !(await argon2.verify(session.tokenHash, token))
+    ) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    await this.prisma.refreshToken.update({
+      where: { id: session.id },
+      data: { revokedAt: new Date() },
+    });
+    return this.openSession(payload.sub, payload.email);
   }
 
   async me(userId: string): Promise<{ userId: string; email: string }> {
     try {
       const user = await this.prisma.user.findUnique({
         where: { id: userId },
-        select: {
-          id: true,
-          email: true,
-        },
+        select: { id: true, email: true },
       });
 
       if (!user) {
@@ -163,7 +167,23 @@ export class AuthService {
     }
   }
 
-  async logout(userId: string): Promise<LogoutResult> {
+  /** Ends the session the access token belongs to. */
+  async logout(userId: string, sid: string | undefined): Promise<LogoutResult> {
+    try {
+      if (sid) {
+        await this.prisma.refreshToken.updateMany({
+          where: { id: sid, userId, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+      }
+      return { success: true };
+    } catch {
+      throw new InternalServerErrorException('Logout failed');
+    }
+  }
+
+  /** Ends every session of the user (all devices). */
+  async logoutAll(userId: string): Promise<LogoutResult> {
     try {
       await this.prisma.refreshToken.updateMany({
         where: { userId, revokedAt: null },
@@ -175,63 +195,24 @@ export class AuthService {
     }
   }
 
-  private async verifyRefreshToken(userId: string, refreshToken: string): Promise<void> {
-    const tokens = await this.prisma.refreshToken.findMany({
-      where: { userId, revokedAt: null },
-    });
-
-    if (tokens.length === 0) {
-      throw new UnauthorizedException('No valid refresh tokens found');
-    }
-
-    const match = await Promise.any(
-      tokens.map(async (t) =>
-        (await argon2.verify(t.tokenHash, refreshToken))
-          ? t
-          : Promise.reject(new Error()),
-      ),
-    ).catch(() => null);
-
-    if (!match) {
-      throw new UnauthorizedException('Invalid refresh token');
-    }
-  }
-
-  private async issueTokens(
-    userId: string,
-    email: string,
-    revokeExisting = true,
-  ): Promise<ServiceTokens> {
+  private async openSession(userId: string, email: string): Promise<ServiceTokens> {
     try {
-      // Revoke existing refresh tokens for this user if requested
-      if (revokeExisting) {
-        await this.prisma.refreshToken.updateMany({
-          where: { userId, revokedAt: null },
-          data: { revokedAt: new Date() },
-        });
-      }
-
+      const sid = randomUUID();
       const accessToken = await this.jwt.signAsync(
-        { sub: userId, email },
-        {
-          secret: this.getJwtAccessSecret(),
-          expiresIn: this.getJwtAccessTtl(),
-        },
+        { sub: userId, email, sid } satisfies AccessPayload,
+        { secret: this.getJwtAccessSecret(), expiresIn: this.getJwtAccessTtl() },
       );
-
       const refreshToken = await this.jwt.signAsync(
-        { sub: userId, email, typ: 'refresh' },
-        {
-          secret: this.getJwtRefreshSecret(),
-          expiresIn: this.getJwtRefreshTtl(),
-        },
+        { sub: userId, email, sid, typ: 'refresh' } satisfies RefreshPayload,
+        { secret: this.getJwtRefreshSecret(), expiresIn: this.getJwtRefreshTtl() },
       );
 
       await this.prisma.refreshToken.create({
         data: {
+          id: sid,
           userId,
           tokenHash: await argon2.hash(refreshToken),
-          expiresAt: add(new Date(), { days: 7 }),
+          expiresAt: add(new Date(), { days: REFRESH_DAYS }),
         },
       });
 
@@ -244,9 +225,7 @@ export class AuthService {
   private getJwtAccessSecret(): string {
     const secret = process.env.JWT_ACCESS_SECRET;
     if (!secret) {
-      throw new InternalServerErrorException(
-        'JWT_ACCESS_SECRET not configured',
-      );
+      throw new InternalServerErrorException('JWT_ACCESS_SECRET not configured');
     }
     return secret;
   }
@@ -254,9 +233,7 @@ export class AuthService {
   private getJwtRefreshSecret(): string {
     const secret = process.env.JWT_REFRESH_SECRET;
     if (!secret) {
-      throw new InternalServerErrorException(
-        'JWT_REFRESH_SECRET not configured',
-      );
+      throw new InternalServerErrorException('JWT_REFRESH_SECRET not configured');
     }
     return secret;
   }
@@ -269,15 +246,7 @@ export class AuthService {
     return (process.env.JWT_REFRESH_TTL || '7d') as JwtTtl;
   }
 
-  private mapToSafeUser(user: {
-    id: string;
-    email: string;
-    name: string | null;
-  }): SafeUser {
-    return {
-      id: user.id,
-      email: user.email,
-      name: user.name ?? null,
-    };
+  private mapToSafeUser(user: { id: string; email: string; name: string | null }): SafeUser {
+    return { id: user.id, email: user.email, name: user.name ?? null };
   }
 }

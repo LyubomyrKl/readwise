@@ -176,7 +176,7 @@ export class FakeTable<T extends Row = Row> {
 
 export class FakePrisma {
   readonly user = new FakeTable<User>(this, 'user');
-  readonly refreshToken = new FakeTable<RefreshToken>(this, 'refreshToken');
+  readonly refreshToken = new FakeTable<RefreshToken>(this, 'refreshToken', () => ({ revokedAt: null }));
   readonly job = new FakeTable<Job>(this, 'job', () => ({
     status: 'queued',
     progress: 0,
@@ -185,6 +185,7 @@ export class FakePrisma {
     stage: null,
     waitReason: null,
     result: null,
+    timeline: null,
     error: null,
     workerId: null,
     heartbeatAt: null,

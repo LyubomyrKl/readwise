@@ -67,6 +67,7 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     await request(server).get('/api/reader/documents/book-1/notes').expect(401);
     await request(server).get('/api/reader/documents/book-1/highlights').expect(401);
     await request(server).patch('/api/users/me').send({ name: 'x' }).expect(401);
+    await request(server).post('/api/auth/logout-all').expect(401);
   });
 
   it('no longer answers at the pre-Phase-5 paths', async () => {
