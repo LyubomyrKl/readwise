@@ -26,4 +26,4 @@ first, then the code, then run everything. Update the Progress section of the pl
 In code: parse and format through `apps/api/src/tools/money/core/money.ts`
 (`Money`, minor units) and `quantity.ts` (units scaled by 10^10); check every
 transaction with `assertBalanced` from `core/ledger.ts` before writing it. The
-database backs rules 2 and 4 with triggers (see the `money_init` migration).
+database backs rules 2 and 4 with triggers (see the `money_rules` migration).

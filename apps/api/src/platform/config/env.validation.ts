@@ -153,6 +153,49 @@ export class EnvironmentVariables {
   @Min(1)
   @intWithDefault(3)
   JOBS_MAX_ATTEMPTS = 3;
+
+  // ---- passkeys (platform/auth): the site the browser sees
+  /** host name of the site, e.g. money.example.com (default: localhost) */
+  @IsOptional()
+  @IsString()
+  WEBAUTHN_RP_ID?: string;
+
+  /** origin of the site, e.g. https://money.example.com (default: http://localhost:3000) */
+  @IsOptional()
+  @IsString()
+  WEBAUTHN_ORIGIN?: string;
+
+  @IsOptional()
+  @IsString()
+  WEBAUTHN_RP_NAME?: string;
+
+  // ---- money tool (tools/money)
+  /** time zone of the daily schedule (rates, prices, recurring movements, snapshots) */
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'Europe/Warsaw')
+  MONEY_TIMEZONE = 'Europe/Warsaw';
+
+  /** "off" stops the scheduler from enqueuing the daily money jobs */
+  @IsOptional()
+  @IsIn(['on', 'off'])
+  @Transform(({ value }: { value: string }) => value || 'on')
+  MONEY_SCHEDULER: 'on' | 'off' = 'on';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'https://www.ecb.europa.eu/stats/eurofxref')
+  MONEY_ECB_BASE_URL = 'https://www.ecb.europa.eu/stats/eurofxref';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'https://api.nbp.pl/api')
+  MONEY_NBP_BASE_URL = 'https://api.nbp.pl/api';
+
+  @IsOptional()
+  @IsString()
+  @Transform(({ value }: { value: string }) => value || 'https://stooq.com')
+  MONEY_STOOQ_BASE_URL = 'https://stooq.com';
 }
 
 export function validate(config: Record<string, unknown>) {

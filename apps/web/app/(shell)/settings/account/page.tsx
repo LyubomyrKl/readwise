@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
+import { SecuritySettings } from "@platform/auth/SecuritySettings";
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: {
@@ -114,6 +115,8 @@ export default function AccountSettingsPage() {
           </CardContent>
         </Card>
       </Wrapper>
+
+      <SecuritySettings />
     </div>
   );
 }

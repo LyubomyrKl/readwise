@@ -26,4 +26,4 @@ export class UserResponse {
 }
 
 
-export type PublicUser = Omit<User, 'passwordHash'>;
+export type PublicUser = Omit<User, 'passwordHash' | 'totpSecret' | 'totpEnabledAt' | 'totpLastStep'>;

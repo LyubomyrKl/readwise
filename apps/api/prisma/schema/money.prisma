@@ -4,8 +4,9 @@
 //
 // Rules (docs/money/plan.md, CLAUDE.md):
 // - currency amounts are BigInt minor units (amountMinor); asset quantities are Decimal(28,10)
-// - a transaction's entries sum to zero per commodity (deferred trigger, money_init migration)
-// - entries of posted transactions are never updated or deleted (trigger); fixes are corrections
+// - a transaction's entries sum to zero per commodity (deferred trigger, money_rules migration)
+// - posted transactions and their entries never change (triggers); fixes are corrections
+// - a draft carries the proposed movement as JSON and has no entries until it is posted
 
 enum MoneyCommodityKind {
   currency
@@ -90,12 +91,10 @@ enum MoneyTransactionKind {
 }
 
 enum MoneyTransactionStatus {
-  /// counts in balances; its entries are immutable
+  /// counts in balances; it and its entries are immutable
   posted
-  /// proposed (by a recurring rule, an import or Claude), awaiting approval
+  /// proposed (by a recurring rule or Claude), awaiting approval; no entries yet
   draft
-  /// the shape a recurring rule copies; never counts
-  template
 
   @@map("money_transaction_status")
 }
@@ -116,29 +115,51 @@ enum MoneyPriceSource {
   @@map("money_price_source")
 }
 
-enum MoneyImportStatus {
+enum MoneyImportBatchStatus {
+  /// uploaded; rows parsed and waiting for review
+  preview
+  committed
+
+  @@map("money_import_batch_status")
+}
+
+enum MoneyImportRowStatus {
+  /// parsed, not yet mapped to a movement
   pending
-  mapped
+  /// mapped and will be imported on commit
+  ready
+  /// same dedupe hash as a row imported before
   duplicate
+  /// looks like a movement already in the ledger (same account, amount, nearby date)
+  matched
   imported
   skipped
   error
 
-  @@map("money_import_status")
+  @@map("money_import_row_status")
 }
 
 enum MoneyTokenScope {
+  /// read accounts, movements, positions and views
   read
+  /// read, and propose drafts that wait for approval
   draft
 
   @@map("money_token_scope")
+}
+
+enum MoneyLotConsumptionKind {
+  sale
+  move
+
+  @@map("money_lot_consumption_kind")
 }
 
 model MoneySettings {
   userId           String               @id
   baseCurrencyId   String               @default("PLN")
   defaultCostBasis MoneyCostBasisMethod @default(fifo)
-  /// ISO 3166-1 alpha-2; decides which central bank rates the tax report uses
+  /// ISO 3166-1 alpha-2; decides the tax currency and the central bank rates of the tax report
   taxResidence     String               @default("PL")
   updatedAt        DateTime             @updatedAt
 
@@ -167,9 +188,11 @@ model MoneyCommodity {
   subAccounts  MoneySubAccount[]
   settings     MoneySettings[]
   lotCosts     MoneyLot[]          @relation("MoneyLotCostCurrency")
+  lotTrades    MoneyLot[]          @relation("MoneyLotTradeCurrency")
   prices       MoneyPrice[]
   ratesFrom    MoneyExchangeRate[] @relation("MoneyRateFrom")
   ratesTo      MoneyExchangeRate[] @relation("MoneyRateTo")
+  snapshots    MoneySnapshot[]
 
   @@index([kind, code])
   @@index([userId])
@@ -179,12 +202,14 @@ model MoneyCommodity {
 model MoneyAsset {
   commodityId     String         @id
   ticker          String?
-  /// "units", "bond of 100 PLN", ...
+  isin            String?
+  /// "units", "bonds of 100 PLN", ...
   unitName        String         @default("units")
   quoteCurrencyId String
   valuation       MoneyValuation @default(manual)
-  /// parameters for the bond formula or the price feed symbol
+  /// price feed: { provider, symbol }; bond formula: see core/bonds.ts
   valuationConfig Json?
+  archivedAt      DateTime?
   createdAt       DateTime       @default(now())
 
   commodity     MoneyCommodity         @relation(fields: [commodityId], references: [id], onDelete: Cascade)
@@ -192,6 +217,7 @@ model MoneyAsset {
   classSplits   MoneyAssetClassSplit[]
   lots          MoneyLot[]
   prices        MoneyPrice[]
+  transactions  MoneyTransaction[]
 
   @@map("money_asset")
 }
@@ -200,11 +226,13 @@ model MoneyAssetClass {
   id        String   @id @default(cuid())
   userId    String
   name      String
+  sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
-  user    User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  splits  MoneyAssetClassSplit[]
-  targets MoneyAllocationTarget[]
+  user     User                    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  splits   MoneyAssetClassSplit[]
+  targets  MoneyAllocationTarget[]
+  accounts MoneyAccount[]
 
   @@unique([userId, name])
   @@map("money_asset_class")
@@ -262,13 +290,21 @@ model MoneyAccount {
   taxWrapper      MoneyTaxWrapper       @default(taxable)
   /// null: use MoneySettings.defaultCostBasis
   costBasisMethod MoneyCostBasisMethod?
+  /// the asset class this account's cash counts in (e.g. the emergency fund)
+  cashClassId     String?
+  /// IBAN or account number as printed on statements; recognizes transfers between own accounts
+  number          String?
+  /// default statement profile for imports into this account ("mbank", "pko", "zen", "ibkr")
+  importProfile   String?
   archivedAt      DateTime?
   createdAt       DateTime              @default(now())
 
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institution MoneyInstitution? @relation(fields: [institutionId], references: [id], onDelete: NoAction)
-  subAccounts MoneySubAccount[]
-  lots        MoneyLot[]
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  institution   MoneyInstitution?  @relation(fields: [institutionId], references: [id], onDelete: NoAction)
+  cashClass     MoneyAssetClass?   @relation(fields: [cashClassId], references: [id], onDelete: SetNull)
+  subAccounts   MoneySubAccount[]
+  lots          MoneyLot[]
+  importBatches MoneyImportBatch[]
 
   @@unique([userId, systemRole])
   @@index([userId, archivedAt])
@@ -291,18 +327,23 @@ model MoneySubAccount {
 }
 
 model MoneyCategory {
-  id        String            @id @default(cuid())
-  userId    String
-  name      String
-  kind      MoneyCategoryKind
-  parentId  String?
-  createdAt DateTime          @default(now())
+  id         String            @id @default(cuid())
+  userId     String
+  name       String
+  kind       MoneyCategoryKind
+  parentId   String?
+  /// set on the categories the ledger itself uses: fees, taxes, dividends, interest, other_income, other_expense
+  key        String?
+  archivedAt DateTime?
+  createdAt  DateTime          @default(now())
 
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent       MoneyCategory?     @relation("MoneyCategoryTree", fields: [parentId], references: [id], onDelete: NoAction)
   children     MoneyCategory[]    @relation("MoneyCategoryTree")
   transactions MoneyTransaction[]
+  entries      MoneyEntry[]
 
+  @@unique([userId, key])
   @@index([userId, kind])
   @@map("money_category")
 }
@@ -315,26 +356,35 @@ model MoneyTransaction {
   kind            MoneyTransactionKind
   status          MoneyTransactionStatus @default(posted)
   note            String?
+  /// main category; each income or expense entry carries its own as well
   categoryId      String?
+  /// the asset of a buy, sell, investment income, unit move or split
+  assetId         String?
   /// the transaction this one corrects or reverses
   correctsId      String?
   recurringRuleId String?
   importRowId     String?                @unique
+  /// for drafts: { kind, input } as the movement endpoints accept it
+  draft           Json?
+  /// who proposed a draft or posted it: "user", "token:<id>", "recurring:<id>", "import:<batch>"
+  proposedBy      String?
   postedAt        DateTime?
   createdAt       DateTime               @default(now())
 
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
   category      MoneyCategory?        @relation(fields: [categoryId], references: [id], onDelete: NoAction)
+  asset         MoneyAsset?           @relation(fields: [assetId], references: [commodityId], onDelete: NoAction)
   corrects      MoneyTransaction?     @relation("MoneyCorrection", fields: [correctsId], references: [id], onDelete: NoAction)
   correctedBy   MoneyTransaction[]    @relation("MoneyCorrection")
-  recurringRule MoneyRecurringRule?   @relation("MoneyRuleRuns", fields: [recurringRuleId], references: [id], onDelete: NoAction)
-  templateOf    MoneyRecurringRule?   @relation("MoneyRuleTemplate")
+  recurringRule MoneyRecurringRule?   @relation(fields: [recurringRuleId], references: [id], onDelete: NoAction)
   importRow     MoneyImportRow?       @relation(fields: [importRowId], references: [id], onDelete: NoAction)
   entries       MoneyEntry[]
-  lotsSold      MoneyLotConsumption[]
+  lotsOpened    MoneyLot[]
+  consumptions  MoneyLotConsumption[]
 
   @@index([userId, status, date])
   @@index([correctsId])
+  @@index([assetId])
   @@map("money_transaction")
 }
 
@@ -346,57 +396,81 @@ model MoneyEntry {
   subAccountId  String
   amountMinor   BigInt?
   quantity      Decimal? @db.Decimal(28, 10)
+  /// the category of an income or expense entry
+  categoryId    String?
   createdAt     DateTime @default(now())
 
   transaction MoneyTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   subAccount  MoneySubAccount  @relation(fields: [subAccountId], references: [id], onDelete: Cascade)
-  lot         MoneyLot?
+  category    MoneyCategory?   @relation(fields: [categoryId], references: [id], onDelete: NoAction)
+  lotsOpened  MoneyLot[]
 
   @@index([transactionId])
   @@index([subAccountId])
+  @@index([categoryId])
   @@map("money_entry")
 }
 
+/// Opened by every buy (and by unit moves, which carry the cost of the lots they move).
 model MoneyLot {
-  id             String   @id @default(cuid())
-  /// the asset entry of the buy that opened the lot
-  buyEntryId     String   @unique
-  assetId        String
-  accountId      String
-  units          Decimal  @db.Decimal(28, 10)
-  remainingUnits Decimal  @db.Decimal(28, 10)
+  id                 String    @id @default(cuid())
+  accountId          String
+  assetId            String
+  /// the buy or unit move that opened the lot, and its asset entry
+  transactionId      String
+  openingEntryId     String
+  /// the lot this one was moved from (unit move)
+  parentLotId        String?
+  units              Decimal   @db.Decimal(28, 10)
+  remainingUnits     Decimal   @db.Decimal(28, 10)
   /// all-in cost in the currency actually paid
-  costMinor      BigInt
-  costCurrencyId String
-  /// cost at the central bank rate of the business day before acquisition (tax)
-  costPlnMinor   BigInt?
-  acquiredAt     DateTime @db.Date
-  createdAt      DateTime @default(now())
+  costMinor          BigInt
+  remainingCostMinor BigInt
+  costCurrencyId     String
+  /// what the broker charged in the trade currency, when that differs from the currency paid
+  tradeCostMinor     BigInt?
+  tradeCurrencyId    String?
+  /// cost in the tax currency at the central bank rate of the business day before acquisition
+  costPlnMinor       BigInt?
+  costPlnRate        Decimal?  @db.Decimal(28, 12)
+  costPlnRateDate    DateTime? @db.Date
+  acquiredAt         DateTime  @db.Date
+  reversedAt         DateTime?
+  createdAt          DateTime  @default(now())
 
-  buyEntry     MoneyEntry            @relation(fields: [buyEntryId], references: [id], onDelete: Cascade)
-  asset        MoneyAsset            @relation(fields: [assetId], references: [commodityId], onDelete: Cascade)
-  account      MoneyAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
-  costCurrency MoneyCommodity        @relation("MoneyLotCostCurrency", fields: [costCurrencyId], references: [id])
-  consumptions MoneyLotConsumption[]
+  account       MoneyAccount          @relation(fields: [accountId], references: [id], onDelete: Cascade)
+  asset         MoneyAsset            @relation(fields: [assetId], references: [commodityId], onDelete: Cascade)
+  transaction   MoneyTransaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  openingEntry  MoneyEntry            @relation(fields: [openingEntryId], references: [id], onDelete: Cascade)
+  parentLot     MoneyLot?             @relation("MoneyLotMove", fields: [parentLotId], references: [id], onDelete: NoAction)
+  childLots     MoneyLot[]            @relation("MoneyLotMove")
+  costCurrency  MoneyCommodity        @relation("MoneyLotCostCurrency", fields: [costCurrencyId], references: [id])
+  tradeCurrency MoneyCommodity?       @relation("MoneyLotTradeCurrency", fields: [tradeCurrencyId], references: [id])
+  consumptions  MoneyLotConsumption[]
 
   @@index([accountId, assetId, acquiredAt])
+  @@index([transactionId])
   @@map("money_lot")
 }
 
+/// Units taken out of a lot by a sale or a unit move, with the cost they carry.
 model MoneyLotConsumption {
-  id                    String   @id @default(cuid())
-  sellTransactionId     String
-  lotId                 String
-  units                 Decimal  @db.Decimal(28, 10)
+  id                 String                  @id @default(cuid())
+  lotId              String
+  transactionId      String
+  kind               MoneyLotConsumptionKind
+  units              Decimal                 @db.Decimal(28, 10)
   /// share of the lot's cost, in the lot's cost currency
-  costAllocatedMinor    BigInt
-  costAllocatedPlnMinor BigInt?
-  createdAt             DateTime @default(now())
+  costAllocatedMinor BigInt
+  /// set when the sale or move was reversed; the units went back into the lot
+  reversedAt         DateTime?
+  createdAt          DateTime                @default(now())
 
-  sellTransaction MoneyTransaction @relation(fields: [sellTransactionId], references: [id], onDelete: Cascade)
-  lot             MoneyLot         @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  lot         MoneyLot         @relation(fields: [lotId], references: [id], onDelete: Cascade)
+  transaction MoneyTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
 
   @@index([lotId])
+  @@index([transactionId])
   @@map("money_lot_consumption")
 }
 
@@ -414,6 +488,7 @@ model MoneyPrice {
   quoteCurrency MoneyCommodity @relation(fields: [quoteCurrencyId], references: [id])
 
   @@unique([assetId, date, source])
+  @@index([assetId, date])
   @@map("money_price")
 }
 
@@ -436,53 +511,91 @@ model MoneyExchangeRate {
 }
 
 model MoneyRecurringRule {
-  id                    String    @id @default(cuid())
-  userId                String
-  /// a transaction with status = template; each run copies it
-  templateTransactionId String    @unique
-  /// RFC 5545 RRULE, e.g. "FREQ=MONTHLY;BYMONTHDAY=10"
-  schedule              String
-  nextRunAt             DateTime  @db.Date
-  autoPost              Boolean   @default(false)
-  pausedAt              DateTime?
-  createdAt             DateTime  @default(now())
+  id        String               @id @default(cuid())
+  userId    String
+  name      String
+  kind      MoneyTransactionKind
+  /// the movement each run proposes, as the movement endpoints accept it (date excluded)
+  template  Json
+  /// RFC 5545 subset, e.g. "FREQ=MONTHLY;BYMONTHDAY=10" (see core/schedule.ts)
+  schedule  String
+  startDate DateTime             @db.Date
+  endDate   DateTime?            @db.Date
+  nextRunAt DateTime             @db.Date
+  /// post at once instead of creating a draft
+  autoPost  Boolean              @default(false)
+  pausedAt  DateTime?
+  lastRunAt DateTime?
+  createdAt DateTime             @default(now())
 
-  user     User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  template MoneyTransaction   @relation("MoneyRuleTemplate", fields: [templateTransactionId], references: [id], onDelete: NoAction)
-  runs     MoneyTransaction[] @relation("MoneyRuleRuns")
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  runs MoneyTransaction[]
 
   @@index([nextRunAt])
   @@map("money_recurring_rule")
 }
 
+/// Net worth and positions frozen at a date (the quarterly checkpoint).
+model MoneySnapshot {
+  id             String   @id @default(cuid())
+  userId         String
+  date           DateTime @db.Date
+  label          String?
+  baseCurrencyId String
+  netWorthMinor  BigInt
+  /// accounts, positions with prices and values, allocation (views/net-worth shape)
+  data           Json
+  createdAt      DateTime @default(now())
+
+  user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  baseCurrency MoneyCommodity @relation(fields: [baseCurrencyId], references: [id])
+
+  @@unique([userId, date])
+  @@map("money_snapshot")
+}
+
 model MoneyImportBatch {
-  id            String   @id @default(cuid())
+  id            String                 @id @default(cuid())
   userId        String
-  /// "money-manager", "mbank", "pko", "zen", "ibkr"
+  /// "money-manager", "mbank", "pko", "zen", "ibkr", "prices"
   sourceProfile String
+  /// the account a statement belongs to (bank and broker profiles)
+  accountId     String?
   fileName      String
   fileSha256    String
-  /// column mapping chosen on the mapping screen
+  encoding      String?
+  status        MoneyImportBatchStatus @default(preview)
+  /// detected header and the column mapping chosen on the mapping screen
   mapping       Json?
-  createdAt     DateTime @default(now())
+  /// profile options: date format, decimal separator, opening balance targets
+  options       Json?
+  rowCount      Int                    @default(0)
+  committedAt   DateTime?
+  createdAt     DateTime               @default(now())
 
-  user User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  rows MoneyImportRow[]
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  account MoneyAccount?    @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  rows    MoneyImportRow[]
 
   @@unique([userId, fileSha256])
   @@map("money_import_batch")
 }
 
 model MoneyImportRow {
-  id         String            @id @default(cuid())
-  batchId    String
-  rowNumber  Int
-  raw        Json
-  /// stable hash of the fields that identify a movement (date, amount, account, reference)
-  dedupeHash String
-  status     MoneyImportStatus @default(pending)
-  error      String?
-  createdAt  DateTime          @default(now())
+  id                 String               @id @default(cuid())
+  batchId            String
+  rowNumber          Int
+  /// the cells as read from the file
+  raw                Json
+  /// the movement this row becomes: { kind, input } as the movement endpoints accept it
+  proposal           Json?
+  /// stable hash of the fields that identify a movement, plus its ordinal among identical rows
+  dedupeHash         String?
+  status             MoneyImportRowStatus @default(pending)
+  message            String?
+  /// an existing transaction this row looks like (status matched)
+  matchTransactionId String?
+  createdAt          DateTime             @default(now())
 
   batch       MoneyImportBatch  @relation(fields: [batchId], references: [id], onDelete: Cascade)
   transaction MoneyTransaction?
@@ -499,19 +612,22 @@ model MoneyApiToken {
   scope      MoneyTokenScope @default(read)
   /// sha256 of the token; the token itself is shown once
   tokenHash  String          @unique
+  /// first characters, to recognize the token in the list
+  prefix     String
   lastUsedAt DateTime?
   revokedAt  DateTime?
   createdAt  DateTime        @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@map("money_api_token")
 }
 
 model MoneyAuditLog {
   id        String   @id @default(cuid())
   userId    String
-  /// "user" or "token:<id>"
+  /// "user", "token:<id>", "recurring:<id>", "system"
   actor     String
   /// "transaction.post", "account.archive", ...
   action    String

@@ -10,6 +10,7 @@ import { randomUUID } from 'crypto';
 import { add } from 'date-fns';
 import { PrismaService } from '@platform/db/prisma.service';
 import { LoginDto, RefreshDto, RegisterDto } from './auth.models';
+import { verifyTotp } from './totp';
 
 /**
  * Sessions. A session is one RefreshToken row; its id travels in both JWTs as
@@ -79,7 +80,7 @@ export class AuthService {
     try {
       const user = await this.prisma.user.findUnique({
         where: { email },
-        select: { id: true, email: true, name: true, passwordHash: true },
+        select: { id: true, email: true, name: true, passwordHash: true, totpSecret: true, totpEnabledAt: true, totpLastStep: true },
       });
 
       if (!user) return null;
@@ -91,7 +92,11 @@ export class AuthService {
     }
   }
 
-  /** Opens a new session; other sessions of the user stay valid (several devices). */
+  /**
+   * Opens a new session; other sessions of the user stay valid (several devices).
+   * With the authenticator app turned on, the password alone is not enough: the
+   * first attempt answers 401 with code TOTP_REQUIRED and the client asks for the code.
+   */
   async login(dto: LoginDto): Promise<AuthBundle> {
     try {
       const user = await this.validateUser(dto.email, dto.password);
@@ -100,8 +105,28 @@ export class AuthService {
         throw new UnauthorizedException('Invalid credentials');
       }
 
-      const tokens = await this.openSession(user.id, user.email);
-      return { user: this.mapToSafeUser(user), tokens };
+      if (user.totpEnabledAt && user.totpSecret) {
+        if (!dto.code) {
+          throw new UnauthorizedException({
+            statusCode: 401,
+            error: 'Unauthorized',
+            code: 'TOTP_REQUIRED',
+            message: 'Enter the code from your authenticator app',
+          });
+        }
+        const step = verifyTotp(user.totpSecret, dto.code, Date.now(), user.totpLastStep);
+        if (step === null) {
+          throw new UnauthorizedException({
+            statusCode: 401,
+            error: 'Unauthorized',
+            code: 'TOTP_INVALID',
+            message: 'That code does not match',
+          });
+        }
+        await this.prisma.user.update({ where: { id: user.id }, data: { totpLastStep: step } });
+      }
+
+      return await this.issueBundle(user);
     } catch (error) {
       if (error instanceof UnauthorizedException) {
         throw error;
@@ -193,6 +218,12 @@ export class AuthService {
     } catch {
       throw new InternalServerErrorException('Logout failed');
     }
+  }
+
+  /** A new session for a user who already proved who they are (password and code, or a passkey). */
+  async issueBundle(user: { id: string; email: string; name: string | null }): Promise<AuthBundle> {
+    const tokens = await this.openSession(user.id, user.email);
+    return { user: this.mapToSafeUser(user), tokens };
   }
 
   private async openSession(userId: string, email: string): Promise<ServiceTokens> {

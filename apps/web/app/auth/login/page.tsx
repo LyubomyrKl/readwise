@@ -10,7 +10,10 @@ import {
   LogIn,
   Shield,
   ArrowRight,
+  KeyRound,
+  Smartphone,
 } from "lucide-react";
+import { startAuthentication } from "@simplewebauthn/browser";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -37,12 +40,24 @@ import { Separator } from "@/components/ui/separator";
 import { useSearchParams } from "next/navigation";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { authApi } from "@platform/api/auth";
+import { ApiError } from "@platform/api/http";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
 const LoginSchema = z.object({
   email: z.email("Invalid email"),
   password: z.string().min(8, "Min 8 characters"),
+  code: z
+    .string()
+    .regex(/^\s*(\d{3}\s?\d{3})?\s*$/, "Six digits")
+    .optional(),
 });
+
+/** The code the API attaches to a 401 when the authenticator app is on. */
+function loginErrorCode(error: unknown): string | undefined {
+  if (!(error instanceof ApiError) || !error.body || typeof error.body !== "object") return undefined;
+  const code = (error.body as { code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
 type LoginValues = z.infer<typeof LoginSchema>;
 
 export default function Login() {
@@ -82,6 +97,8 @@ function LoginFallback() {
 function LoginContent() {
   const [showPwd, setShowPwd] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [needCode, setNeedCode] = useState(false);
+  const [passkeyPending, setPasskeyPending] = useState(false);
   const [isPending, startTransition] = useTransition();
   const searchParams = useSearchParams();
   const { enabled } = useMotion();
@@ -91,14 +108,15 @@ function LoginContent() {
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(LoginSchema),
-    defaultValues: { email: "", password: "" },
+    defaultValues: { email: "", password: "", code: "" },
     mode: "onTouched",
   });
 
   async function onSubmit(values: LoginValues) {
     setServerError(null);
     try {
-      const r = await authApi.login(values);
+      const code = values.code?.replace(/\s/g, "") || undefined;
+      const r = await authApi.login({ email: values.email, password: values.password, code });
       if (!r) {
         setServerError("Invalid credentials");
         return;
@@ -107,8 +125,36 @@ function LoginContent() {
       // Use hard navigation to ensure cookies are picked up properly (fixes PWA issues)
       window.location.href = redirectTo;
     } catch (e) {
+      const code = loginErrorCode(e);
+      if (code === "TOTP_REQUIRED") {
+        setNeedCode(true);
+        return;
+      }
       const errorMessage = e instanceof Error ? e.message : "Network error";
       setServerError(errorMessage);
+    }
+  }
+
+  async function signInWithPasskey() {
+    setServerError(null);
+    setPasskeyPending(true);
+    try {
+      const email = form.getValues("email").trim();
+      const optionsJSON = await authApi.passkeyOptions(email || undefined);
+      const response = await startAuthentication({ optionsJSON });
+      await authApi.passkeyLogin(response);
+      window.location.href = redirectTo;
+    } catch (e) {
+      const name = e instanceof Error ? e.name : "";
+      setServerError(
+        name === "NotAllowedError"
+          ? "Passkey sign-in was cancelled"
+          : e instanceof Error
+            ? e.message
+            : "Passkey sign-in failed"
+      );
+    } finally {
+      setPasskeyPending(false);
     }
   }
 
@@ -198,6 +244,35 @@ function LoginContent() {
                   )}
                 />
 
+                {needCode ? (
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Authenticator code</FormLabel>
+                        <div className="relative">
+                          <Smartphone className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                          <FormControl>
+                            <Input
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              placeholder="123 456"
+                              className="pl-10 tracking-widest"
+                              autoFocus
+                              {...field}
+                            />
+                          </FormControl>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Open your authenticator app and enter the six digits it shows.
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : null}
+
                 {serverError ? (
                   <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">
                     {serverError}
@@ -212,6 +287,18 @@ function LoginContent() {
                 >
                   <LogIn className="mr-2 h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                   {isPending ? "Signing in..." : "Sign in"}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                  disabled={passkeyPending}
+                  onClick={() => void signInWithPasskey()}
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  {passkeyPending ? "Waiting for passkey…" : "Sign in with a passkey"}
                 </Button>
               </form>
             </Form>

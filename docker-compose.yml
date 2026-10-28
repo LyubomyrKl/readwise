@@ -132,6 +132,12 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # passkeys: the site as the browser sees it (host name and origin)
+      WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
+      WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost}
+      # money tool: daily rates, prices, recurring movements and quarterly snapshots
+      MONEY_TIMEZONE: ${MONEY_TIMEZONE:-Europe/Warsaw}
+      MONEY_SCHEDULER: ${MONEY_SCHEDULER:-on}
     ports:
       # loopback only: for host tools such as scripts/smoke-summary.sh; the public entry point is Caddy
       - "127.0.0.1:${API_PORT:-5173}:5173"
@@ -228,6 +234,25 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: unless-stopped
+
+  # Off-server copy of the dumps (profile backup). rclone reads its remote from
+  # RCLONE_CONFIG_OFFSITE_* variables in .env (e.g. a Hetzner Storage Box over SFTP,
+  # or any S3 bucket); BACKUP_REMOTE names the target, e.g. offsite:workbench-backups.
+  backup-offsite:
+    image: rclone/rclone:1.68.2
+    container_name: workbench-backup-offsite
+    profiles: ["backup"]
+    env_file: .env
+    environment:
+      BACKUP_REMOTE: ${BACKUP_REMOTE:-}
+      BACKUP_OFFSITE_HOUR_UTC: ${BACKUP_OFFSITE_HOUR_UTC:-3}
+    volumes:
+      - ./infra/backup/offsite.sh:/offsite.sh:ro
+      - backups:/backups:ro
+    entrypoint: ["/bin/sh", "/offsite.sh"]
+    depends_on:
+      - backup
     restart: unless-stopped
 
 volumes:

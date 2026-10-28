@@ -8,7 +8,7 @@ import  { PublicUser} from './user.dto';
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findById(id: string): Promise<User | null> {
+  async findById(id: string): Promise<Omit<User, 'totpSecret' | 'totpEnabledAt' | 'totpLastStep'> | null> {
     return this.prisma.user.findUnique({
       where: { id },
       select: {

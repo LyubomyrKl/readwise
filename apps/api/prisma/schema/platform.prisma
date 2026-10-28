@@ -3,14 +3,21 @@
 // back-relation fields below exist because Prisma needs both sides of a relation.
 
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
-  passwordHash String
-  name         String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id            String    @id @default(cuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  /// base32 TOTP secret; the second factor is on once totpEnabledAt is set
+  totpSecret    String?
+  totpEnabledAt DateTime?
+  /// last accepted 30-second time step, so a code works only once
+  totpLastStep  Int?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   refreshTokens RefreshToken[]
+  passkeys      PasskeyCredential[]
+  challenges    AuthChallenge[]
   jobs          Job[]
   books         Book[]
   notes         Note[]
@@ -28,6 +35,39 @@ model User {
   moneyImportBatches MoneyImportBatch[]
   moneyApiTokens     MoneyApiToken[]
   moneyAuditLog      MoneyAuditLog[]
+  moneySnapshots     MoneySnapshot[]
+}
+
+/// A WebAuthn credential (passkey). id is the credential id, base64url.
+model PasskeyCredential {
+  id         String    @id
+  userId     String
+  publicKey  Bytes
+  counter    BigInt    @default(0)
+  transports String[]
+  /// "singleDevice" | "multiDevice"
+  deviceType String?
+  backedUp   Boolean   @default(false)
+  name       String?
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A one-time WebAuthn challenge (registration or sign-in), valid for a few minutes.
+model AuthChallenge {
+  id        String   @id @default(cuid())
+  challenge String   @unique
+  /// "passkey-register" | "passkey-login"
+  purpose   String
+  userId    String?
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User?    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([expiresAt])
 }
 
 model RefreshToken {

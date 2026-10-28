@@ -5,6 +5,7 @@
  */
 
 import { ApiError } from "./http";
+import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
 import type { AuthBundle, LoginDto, RegisterDto, SafeUser } from "./types";
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
@@ -31,4 +32,8 @@ export const authApi = {
   logout: () => post<{ redirectTo: string }>("/api/auth/logout"),
   /** ends every session of the user, on every device */
   logoutAll: () => post<{ redirectTo: string }>("/api/auth/logout", { everywhere: true }),
+  passkeyOptions: (email?: string) =>
+    post<PublicKeyCredentialRequestOptionsJSON>("/api/auth/passkey/options", email ? { email } : {}),
+  passkeyLogin: (response: AuthenticationResponseJSON) =>
+    post<{ user: SafeUser }>("/api/auth/passkey/login", { response }),
 };

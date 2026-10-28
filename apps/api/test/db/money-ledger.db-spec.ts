@@ -2,7 +2,7 @@ import { PrismaClient } from '@prisma/client';
 import { parseQuantity, quantityToDb } from '@tools/money/core/quantity';
 
 /**
- * The rules the database enforces on its own (money_init migration), against a
+ * The rules the database enforces on its own (money_rules migration), against a
  * real Postgres with the migrations applied: DATABASE_URL must point at it.
  *   cd apps/api && npx prisma migrate deploy && npm run test:db
  */
@@ -46,22 +46,15 @@ describe('money ledger in Postgres', () => {
     await prisma.$disconnect();
   });
 
-  const post = (entries: { subAccountId: string; amountMinor?: bigint; quantity?: string }[], status = 'posted' as const) =>
+  const post = (entries: { subAccountId: string; amountMinor?: bigint; quantity?: string }[]) =>
     prisma.moneyTransaction.create({
       data: {
         userId,
         date: new Date('2026-10-28'),
         kind: 'transfer',
-        status,
-        postedAt: status === 'posted' ? new Date() : null,
+        postedAt: new Date(),
         entries: { create: entries },
       },
-      include: { entries: true },
-    });
-
-  const draft = (entries: { subAccountId: string; amountMinor?: bigint }[]) =>
-    prisma.moneyTransaction.create({
-      data: { userId, date: new Date('2026-10-28'), kind: 'transfer', status: 'draft', entries: { create: entries } },
       include: { entries: true },
     });
 
@@ -220,28 +213,57 @@ describe('money ledger in Postgres', () => {
       expect(reversal.correctsId).toBe(original.id);
     });
 
-    it('lets drafts change until they are posted', async () => {
-      const tx = await draft([
-        { subAccountId: sub.mbankPln, amountMinor: -100n },
-        { subAccountId: sub.zenPln, amountMinor: 100n },
-      ]);
-      await prisma.$transaction([
-        prisma.moneyEntry.update({ where: { id: tx.entries[0].id }, data: { amountMinor: -150n } }),
-        prisma.moneyEntry.update({ where: { id: tx.entries[1].id }, data: { amountMinor: 150n } }),
-      ]);
-      await prisma.moneyTransaction.update({ where: { id: tx.id }, data: { status: 'posted', postedAt: new Date() } });
+    it('keeps drafts free of entries until the database transaction that posts them', async () => {
+      const draft = await prisma.moneyTransaction.create({
+        data: {
+          userId,
+          date: new Date('2026-10-28'),
+          kind: 'transfer',
+          status: 'draft',
+          draft: { kind: 'transfer', input: { amount: '1.00' } },
+        },
+      });
       await expect(
-        prisma.moneyEntry.update({ where: { id: tx.entries[0].id }, data: { amountMinor: -1n } }),
-      ).rejects.toThrow(/immutable/);
+        prisma.moneyEntry.createMany({
+          data: [
+            { transactionId: draft.id, subAccountId: sub.mbankPln, amountMinor: -100n },
+            { transactionId: draft.id, subAccountId: sub.zenPln, amountMinor: 100n },
+          ],
+        }),
+      ).rejects.toThrow(/posted transactions only/);
+
+      await prisma.moneyTransaction.update({ where: { id: draft.id }, data: { note: 'edited while a draft' } });
+      await prisma.$transaction(async (db) => {
+        await db.moneyTransaction.update({ where: { id: draft.id }, data: { status: 'posted', postedAt: new Date() } });
+        await db.moneyEntry.createMany({
+          data: [
+            { transactionId: draft.id, subAccountId: sub.mbankPln, amountMinor: -100n },
+            { transactionId: draft.id, subAccountId: sub.zenPln, amountMinor: 100n },
+          ],
+        });
+      });
+      await expect(prisma.moneyTransaction.update({ where: { id: draft.id }, data: { note: 'x' } })).rejects.toThrow(
+        /immutable/,
+      );
     });
 
-    it('still refuses an unbalanced draft', async () => {
+    it('refuses a draft without its proposal and a posted transaction without entries', async () => {
       await expect(
-        draft([
-          { subAccountId: sub.mbankPln, amountMinor: -100n },
-          { subAccountId: sub.zenPln, amountMinor: 99n },
-        ]),
-      ).rejects.toThrow(/does not balance/);
+        prisma.moneyTransaction.create({
+          data: { userId, date: new Date('2026-10-28'), kind: 'transfer', status: 'draft' },
+        }),
+      ).rejects.toThrow(/has no proposal/);
+      await expect(
+        prisma.moneyTransaction.create({ data: { userId, date: new Date('2026-10-28'), kind: 'transfer' } }),
+      ).rejects.toThrow(/fewer than two entries/);
+    });
+
+    it('lets a draft be dropped', async () => {
+      const draft = await prisma.moneyTransaction.create({
+        data: { userId, date: new Date('2026-10-28'), kind: 'expense', status: 'draft', draft: { kind: 'expense' } },
+      });
+      await prisma.moneyTransaction.delete({ where: { id: draft.id } });
+      expect(await prisma.moneyTransaction.findUnique({ where: { id: draft.id } })).toBeNull();
     });
   });
 
