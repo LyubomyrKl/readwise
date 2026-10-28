@@ -3,11 +3,11 @@
 import Link from "next/link";
 import {BookPlus, Sparkles} from "lucide-react";
 import { Button } from "@/components/ui/button";
-import React, { useEffect, useMemo, useRef } from "react";
+import React, { useMemo } from "react";
 import { LastReadCard, LibraryFilters, BooksGrid } from "@tools/reader/documents/library";
 import { useCoverGradient } from "@tools/reader/documents/useCoverGradient";
-import { readerApi } from "@tools/reader/api";
-import { IBook, SummaryResponse } from "@tools/reader/types";
+import { useBooks, useLatestSummaries } from "@tools/reader/queries";
+import { IBook } from "@tools/reader/types";
 import { filterAndSortBooks } from "@tools/reader/documents/library/utils";
 
 
@@ -20,50 +20,21 @@ export default function LibraryPage() {
   const [sortBy, setSortBy] = React.useState<
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
-  const [books, setBooks] = React.useState<IBook[]>([]);
-  const [summaries, setSummaries] = React.useState<Record<string, SummaryResponse>>({});
-  const [lastBook, setLastBook] = React.useState<IBook | null>(null);
-  const [loading, setLoading] = React.useState(true);
-  const [error, setError] = React.useState<string | null>(null);
-  const fetchedRef = useRef(false);
+  const booksQuery = useBooks();
+  const latestSummaries = useLatestSummaries();
+  const books = useMemo(() => booksQuery.data ?? [], [booksQuery.data]);
+  const summaries = latestSummaries.data ?? {};
+  const loading = booksQuery.isPending;
+  const error = booksQuery.error ? booksQuery.error.message || "Failed to fetch books" : null;
 
-  // Fetch books on component mount
-  useEffect(() => {
-    if (fetchedRef.current) return;
-    fetchedRef.current = true;
-
-    const fetchBooks = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const [data, latestSummaries] = await Promise.all([
-          readerApi.documents.list(),
-          readerApi.summaries.listAll({ latestPerBook: true }).catch(() => [] as SummaryResponse[]),
-        ]);
-        setBooks(data);
-        setSummaries(Object.fromEntries(latestSummaries.map((s) => [s.bookId, s])));
-
-        const toTs = (d: unknown) => {
-          if (!d) return 0;
-          const t = new Date(d as any).getTime();
-          return Number.isFinite(t) ? t : 0;
-        };
-
-        const lastBook = data.reduce((best, b) =>
-            toTs(b.lastAccessed) > toTs(best?.lastAccessed) ? b : best
-          , null as typeof data[number] | null);
-
-        setLastBook(lastBook);
-
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to fetch books");
-      } finally {
-        setLoading(false);
-      }
+  const lastBook = useMemo<IBook | null>(() => {
+    const toTs = (d: unknown) => {
+      if (!d) return 0;
+      const t = new Date(d as string).getTime();
+      return Number.isFinite(t) ? t : 0;
     };
-
-    fetchBooks();
-  }, []);
+    return books.reduce<IBook | null>((best, b) => (toTs(b.lastAccessed) > toTs(best?.lastAccessed) ? b : best), null);
+  }, [books]);
 
   const filtered = useMemo(() => {
     return filterAndSortBooks(books, query, filter, sortBy);

@@ -29,11 +29,11 @@ export default function AccountSettingsPage() {
   const { enabled } = useMotion();
   const router = useRouter();
 
-  async function logout() {
+  async function logout(everywhere = false) {
     start(async () => {
       try {
-        await authApi.logout();
-        toast.success("Signed out successfully");
+        await (everywhere ? authApi.logoutAll() : authApi.logout());
+        toast.success(everywhere ? "Signed out on every device" : "Signed out successfully");
         router.push(PLATFORM_ROUTES.auth.login);
       } catch {
         toast.error("Logout failed", {
@@ -90,15 +90,26 @@ export default function AccountSettingsPage() {
                   End your current session. You will be redirected to the login page.
                 </p>
               </div>
-              <Button
-                variant="destructive"
-                onClick={logout}
-                disabled={pending}
-                className="w-full sm:w-auto"
-              >
-                <LogOut className="mr-2 h-4 w-4" />
-                {pending ? "Signing out…" : "Logout"}
-              </Button>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Button
+                  variant="destructive"
+                  onClick={() => logout()}
+                  disabled={pending}
+                  className="w-full sm:w-auto"
+                >
+                  <LogOut className="mr-2 h-4 w-4" />
+                  {pending ? "Signing out…" : "Logout"}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => logout(true)}
+                  disabled={pending}
+                  className="w-full sm:w-auto"
+                  title="Ends your sessions on every device"
+                >
+                  Sign out everywhere
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>

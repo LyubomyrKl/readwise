@@ -29,4 +29,6 @@ export const authApi = {
   register: (dto: RegisterDto) => post<SafeUser>("/api/auth/register", dto),
   refresh: () => post<{ accessToken: string }>("/api/auth/refresh"),
   logout: () => post<{ redirectTo: string }>("/api/auth/logout"),
+  /** ends every session of the user, on every device */
+  logoutAll: () => post<{ redirectTo: string }>("/api/auth/logout", { everywhere: true }),
 };

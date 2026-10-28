@@ -1,6 +1,8 @@
 "use client";
 
 import { readerApi } from "@tools/reader/api";
+import { useQueryClient } from "@tanstack/react-query";
+import { readerKeys } from "@tools/reader/queries";
 import React, {
     createContext,
     useContext,
@@ -86,6 +88,7 @@ function calculateStats(uploads: UploadProgress[]): UploadStats {
 }
 
 export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
+    const queryClient = useQueryClient();
     const [uploads, setUploads] = useState<UploadProgress[]>([]);
     const [isPaused, setIsPaused] = useState(false);
     const [maxConcurrent, setMaxConcurrent] = useState(DEFAULT_MAX_CONCURRENT);
@@ -175,6 +178,7 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                 speed: undefined,
                 eta: undefined,
             });
+            void queryClient.invalidateQueries({ queryKey: readerKeys.books });
         } catch (error) {
             console.error(`[Upload ${uploadId}] Upload failed:`, error);
 

@@ -1,48 +1,30 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useState } from "react";
 import { Ban, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { jobsApi } from "./api";
 import { JobStatusBadge, jobLabel } from "./JobProgress";
-import { isActiveJob, type JobResponse } from "./types";
-
-const REFRESH_MS = 5000;
+import { useInvalidateJobs, useJobs } from "./queries";
+import { isActiveJob, jobDuration } from "./types";
 
 function when(iso: string): string {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" });
 }
 
-/** The user's latest jobs with cancel and retry; polls while any of them is active. */
+/** The user's latest jobs with cancel and retry; refreshes while any of them is active. */
 export function RecentJobs({ limit = 8 }: { limit?: number }) {
-  const [jobs, setJobs] = useState<JobResponse[] | null>(null);
+  const { data: jobs } = useJobs({ limit });
+  const invalidate = useInvalidateJobs();
   const [busyId, setBusyId] = useState<string | null>(null);
-
-  const load = useCallback(async () => {
-    try {
-      setJobs(await jobsApi.list({ limit }));
-    } catch {
-      setJobs((prev) => prev ?? []);
-    }
-  }, [limit]);
-
-  useEffect(() => {
-    void load();
-  }, [load]);
-
-  useEffect(() => {
-    if (!jobs?.some((j) => isActiveJob(j.status))) return;
-    const timer = setInterval(() => void load(), REFRESH_MS);
-    return () => clearInterval(timer);
-  }, [jobs, load]);
 
   const act = async (id: string, action: "cancel" | "retry") => {
     setBusyId(id);
     try {
       await (action === "cancel" ? jobsApi.cancel(id) : jobsApi.retry(id));
-      await load();
+      await invalidate();
     } finally {
       setBusyId(null);
     }
@@ -69,6 +51,7 @@ export function RecentJobs({ limit = 8 }: { limit?: number }) {
                   : job.stage ?? ""}
               {isActiveJob(job.status) && job.progress > 0 ? ` · ${job.progress}%` : ""}
             </span>
+            {jobDuration(job) && <span className="text-xs text-muted-foreground">took {jobDuration(job)}</span>}
             <span className="text-xs text-muted-foreground">{when(job.createdAt)}</span>
             {isActiveJob(job.status) && (
               <Button size="sm" variant="ghost" disabled={busyId === job.id} onClick={() => void act(job.id, "cancel")} title="Cancel">

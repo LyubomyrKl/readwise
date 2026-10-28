@@ -3,8 +3,9 @@
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import { IBook, type SummaryResponse } from "@tools/reader/types";
+import type { SummaryResponse } from "@tools/reader/types";
 import { readerApi } from "@tools/reader/api";
+import { useBook, useBookSummaries, useInvalidateReader } from "@tools/reader/queries";
 import { jobsApi } from "@platform/jobs/api";
 import { isActiveJob, type JobResponse } from "@platform/jobs/types";
 import type { Summary } from "@tools/reader/summaries/types";
@@ -20,49 +21,41 @@ export default function BookSummaryPage() {
   const params = useParams();
   const bookId = params.id as string;
 
-  const [book, setBook] = useState<IBook | null>(null);
-  const [summaries, setSummaries] = useState<SummaryResponse[]>([]);
+  const bookQuery = useBook(bookId);
+  const summariesQuery = useBookSummaries(bookId);
+  const invalidate = useInvalidateReader();
+  const book = bookQuery.data ?? null;
+  const summaries = summariesQuery.data ?? [];
   const [viewing, setViewing] = useState<{ id: string; summary: Summary } | null>(null);
   const [showOverview, setShowOverview] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [openedNewest, setOpenedNewest] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const loading = bookQuery.isPending || summariesQuery.isPending;
+  const loadError = bookQuery.error ?? summariesQuery.error;
 
   const refreshSummaries = useCallback(async () => {
-    const list = await readerApi.summaries.listForBook(bookId);
-    setSummaries(list);
-    return list;
-  }, [bookId]);
+    await invalidate(bookId);
+    return (await summariesQuery.refetch()).data ?? [];
+  }, [bookId, invalidate, summariesQuery]);
 
   const view = useCallback(async (summary: SummaryResponse) => {
-    const content = await readerApi.summaries.content(summary.id);
-    setViewing({ id: summary.id, summary: content.summary });
-    setShowOverview(false);
+    try {
+      const content = await readerApi.summaries.content(summary.id);
+      setViewing({ id: summary.id, summary: content.summary });
+      setShowOverview(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load the summary");
+    }
   }, []);
 
+  // The newest ready summary opens in the reader when the page loads.
   useEffect(() => {
-    if (!bookId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const [loadedBook, list] = await Promise.all([readerApi.documents.get(bookId), readerApi.summaries.listForBook(bookId)]);
-        if (cancelled) return;
-        setBook(loadedBook);
-        setSummaries(list);
-        const newest = list[0];
-        if (newest?.state === "ready") await view(newest);
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : "Failed to load the summary");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [bookId, view]);
+    if (openedNewest || summariesQuery.isPending) return;
+    setOpenedNewest(true);
+    const newest = summaries[0];
+    if (newest?.state === "ready") void view(newest);
+  }, [openedNewest, summariesQuery.isPending, summaries, view]);
 
   const onJobSettled = useCallback(
     async (job: JobResponse) => {
@@ -103,6 +96,7 @@ export default function BookSummaryPage() {
   };
 
   if (loading) return <Loader />;
+  if (loadError) return <ErrorState error={loadError.message || "Failed to load the summary"} />;
   if (error) return <ErrorState error={error} />;
 
   if (viewing && !showOverview) {

@@ -1,13 +1,12 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback } from "react";
 
 import { Loader2 } from "lucide-react";
 import VirtualPDFReader from "@tools/reader/reading/PDFReader";
 import EPUBReader from "@tools/reader/reading/EPUBReader";
-import { IBook } from "@tools/reader/types";
-import { readerApi } from "@tools/reader/api";
+import { useBook } from "@tools/reader/queries";
 import { useReadingSession } from "@tools/reader/reading/useReadingSession";
 import { useHighlights } from "@tools/reader/reading/useHighlights";
 import { useNotes } from "@tools/reader/reading/useNotes";
@@ -18,28 +17,10 @@ export default function BookReaderPage() {
   const router = useRouter();
   const bookId = params.id as string;
 
-  const [book, setBook] = useState<IBook | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const fetchedRef = useRef(false);
-
-  useEffect(() => {
-    if (fetchedRef.current || !bookId) return;
-    fetchedRef.current = true;
-
-    async function fetchBook() {
-      try {
-        setLoading(true);
-        setBook(await readerApi.documents.get(bookId));
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load book");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchBook();
-  }, [bookId]);
+  const bookQuery = useBook(bookId);
+  const book = bookQuery.data ?? null;
+  const loading = bookQuery.isPending;
+  const error = bookQuery.error ? bookQuery.error.message || "Failed to load book" : null;
 
   // Initialize reading session with position from book data
   const { position, setPosition, forceSave } = useReadingSession({

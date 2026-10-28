@@ -1,5 +1,6 @@
 import { useCallback, useRef } from "react";
 import { readerApi } from "@tools/reader/api";
+import { useInvalidateReader } from "@tools/reader/queries";
 
 type BookMutationCallbacks = {
   onFavoriteChange?: (bookId: string, isFavorite: boolean) => void;
@@ -13,6 +14,7 @@ type BookMutationCallbacks = {
  */
 export function useBookMutations(callbacks?: BookMutationCallbacks) {
   const pendingRequests = useRef<Map<string, AbortController>>(new Map());
+  const invalidate = useInvalidateReader();
 
   const setFavorite = useCallback(
     async (bookId: string, isFavorite: boolean) => {
@@ -24,6 +26,7 @@ export function useBookMutations(callbacks?: BookMutationCallbacks) {
       try {
         await readerApi.documents.setFavorite(bookId, isFavorite, controller.signal);
         callbacks?.onFavoriteChange?.(bookId, isFavorite);
+        void invalidate(bookId);
       } catch (error) {
         if (error instanceof Error && error.name !== "AbortError") {
           callbacks?.onError?.(error);
@@ -33,7 +36,7 @@ export function useBookMutations(callbacks?: BookMutationCallbacks) {
         pendingRequests.current.delete(`favorite-${bookId}`);
       }
     },
-    [callbacks]
+    [callbacks, invalidate]
   );
 
   const updateLastAccessed = useCallback(async (bookId: string) => {
@@ -59,6 +62,7 @@ export function useBookMutations(callbacks?: BookMutationCallbacks) {
       try {
         await readerApi.documents.delete(bookId);
         callbacks?.onDeleteSuccess?.(bookId);
+        void invalidate();
         onSuccess?.();
       } catch (error) {
         if (error instanceof Error) {
@@ -67,7 +71,7 @@ export function useBookMutations(callbacks?: BookMutationCallbacks) {
         throw error;
       }
     },
-    [callbacks]
+    [callbacks, invalidate]
   );
 
   return { setFavorite, updateLastAccessed, updateSpentTime, deleteBook };

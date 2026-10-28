@@ -1,7 +1,7 @@
 /**
  * @jest-environment node
  */
-import { apiPath, proxyRequest, tokenExpiry, RETRYABLE_BODY_BYTES, type ProxyDeps } from "@platform/api/proxy";
+import { apiPath, proxyRequest, refreshTokens, tokenExpiry, RETRYABLE_BODY_BYTES, type ProxyDeps } from "@platform/api/proxy";
 
 function jwt(exp: number): string {
   const b64 = (s: string) => Buffer.from(s).toString("base64url");
@@ -177,5 +177,27 @@ describe("proxyRequest", () => {
     const res = await proxyRequest(new Request("http://web/x"), ["..", "etc"], "", deps({ fetchImpl: api.fetchImpl }));
     expect(res.status).toBe(400);
     expect(api.calls).toHaveLength(0);
+  });
+});
+
+describe("refresh single flight", () => {
+  it("shares one refresh between concurrent requests that hold the same (rotated) refresh token", async () => {
+    const api = fakeApi();
+    const d = deps({ fetchImpl: api.fetchImpl, accessToken: expiring, refreshToken: "shared" });
+
+    const [a, b, c] = await Promise.all([
+      proxyRequest(new Request("http://web/api/gw/jobs"), ["jobs"], "", d),
+      proxyRequest(new Request("http://web/api/gw/reader/documents"), ["reader", "documents"], "", d),
+      refreshTokens(d, api.fetchImpl),
+    ]);
+
+    expect([a.status, b.status]).toEqual([200, 200]);
+    expect(c?.accessToken).toBe("renewed");
+    expect(api.calls.filter((call) => call.url.endsWith("/auth/refresh"))).toHaveLength(1);
+    // one exchange, but every caller stores the pair in its own response
+    expect(d.tokens).toHaveLength(3);
+    // the next refresh with a different token runs on its own
+    await refreshTokens({ ...d, refreshToken: "other" }, api.fetchImpl);
+    expect(api.calls.filter((call) => call.url.endsWith("/auth/refresh"))).toHaveLength(2);
   });
 });

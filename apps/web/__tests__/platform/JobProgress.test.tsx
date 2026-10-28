@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { JobProgress, jobLabel } from "@platform/jobs/JobProgress";
-import type { JobResponse } from "@platform/jobs/types";
+import { jobDuration, type JobResponse } from "@platform/jobs/types";
 
 const job = (overrides: Partial<JobResponse> = {}): JobResponse => ({
   id: "j1",
@@ -48,5 +48,14 @@ describe("JobProgress", () => {
   it("labels job types", () => {
     expect(jobLabel("reader.summarize")).toBe("Summarize");
     expect(jobLabel("x.two_pass")).toBe("Two pass");
+  });
+});
+
+describe("jobDuration", () => {
+  it("formats the time between start and finish", () => {
+    expect(jobDuration({ startedAt: "2026-10-25T10:00:00Z", finishedAt: "2026-10-25T10:00:07Z" })).toBe("7s");
+    expect(jobDuration({ startedAt: "2026-10-25T10:00:00Z", finishedAt: "2026-10-25T10:12:05Z" })).toBe("12m 05s");
+    expect(jobDuration({ startedAt: "2026-10-25T10:00:00Z", finishedAt: "2026-10-25T13:30:00Z" })).toBe("3h 30m");
+    expect(jobDuration({ startedAt: "2026-10-25T10:00:00Z", finishedAt: null })).toBeNull();
   });
 });

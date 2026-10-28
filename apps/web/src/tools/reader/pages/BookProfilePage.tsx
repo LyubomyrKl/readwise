@@ -1,50 +1,19 @@
 "use client";
 
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useState, useRef } from "react";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@tools/reader/documents/BookProfile";
-import { IBook } from "@tools/reader/types";
-import { readerApi } from "@tools/reader/api";
-import type { NoteResponse, SummaryResponse } from "@tools/reader/types";
-
+import { useBook, useBookNotes, useBookSummaries } from "@tools/reader/queries";
 import { READER_ROUTES } from "@tools/reader/routes";
+
 export default function BookProfilePage() {
   const params = useParams();
   const router = useRouter();
   const bookId = params.id as string;
 
-  const [book, setBook] = useState<IBook | null>(null);
-  const [notes, setNotes] = useState<NoteResponse[]>([]);
-  const [summaries, setSummaries] = useState<SummaryResponse[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const fetchedRef = useRef(false);
-
-  useEffect(() => {
-    if (fetchedRef.current || !bookId) return;
-    fetchedRef.current = true;
-
-    async function fetchBook() {
-      try {
-        setLoading(true);
-        const [loadedBook, bookNotes, bookSummaries] = await Promise.all([
-          readerApi.documents.get(bookId),
-          readerApi.reading.listNotes(bookId).catch(() => [] as NoteResponse[]),
-          readerApi.summaries.listForBook(bookId).catch(() => [] as SummaryResponse[]),
-        ]);
-        setBook(loadedBook);
-        setNotes(bookNotes);
-        setSummaries(bookSummaries);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "Failed to load book");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchBook();
-  }, [bookId]);
+  const book = useBook(bookId);
+  const notes = useBookNotes(bookId);
+  const summaries = useBookSummaries(bookId);
 
   const handleStartReading = () => {
     router.push(READER_ROUTES.bookReader(bookId));
@@ -54,7 +23,7 @@ export default function BookProfilePage() {
     router.push(READER_ROUTES.library);
   };
 
-  if (loading) {
+  if (book.isPending) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="flex items-center gap-2">
@@ -65,18 +34,18 @@ export default function BookProfilePage() {
     );
   }
 
-  if (error) {
+  if (book.error) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
           <h1 className="text-xl font-semibold text-red-600 mb-2">Error</h1>
-          <p className="text-muted-foreground">{error}</p>
+          <p className="text-muted-foreground">{book.error.message || "Failed to load book"}</p>
         </div>
       </div>
     );
   }
 
-  if (!book) {
+  if (!book.data) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="text-center">
@@ -91,9 +60,9 @@ export default function BookProfilePage() {
 
   return (
     <BookProfile
-      book={book}
-      notes={notes}
-      summaries={summaries}
+      book={book.data}
+      notes={notes.data ?? []}
+      summaries={summaries.data ?? []}
       onStartReading={handleStartReading}
       onBack={handleBack}
     />

@@ -31,6 +31,8 @@ export interface JobResponse {
   parentJobId?: string | null;
   correlationId?: string | null;
   result?: Record<string, unknown> | null;
+  /** stage and status changes in order */
+  timeline?: Array<{ at: string; status: JobStatus; stage: string | null }>;
   createdAt: string;
   startedAt?: string | null;
   finishedAt?: string | null;
@@ -44,3 +46,15 @@ export type ListJobsFilter = {
   type?: string;
   limit?: number;
 };
+
+/** "12m 05s" between two timestamps, or null when either is missing. */
+export function jobDuration(job: Pick<JobResponse, "startedAt" | "finishedAt">): string | null {
+  if (!job.startedAt || !job.finishedAt) return null;
+  const ms = new Date(job.finishedAt).getTime() - new Date(job.startedAt).getTime();
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  const total = Math.round(ms / 1000);
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
+}

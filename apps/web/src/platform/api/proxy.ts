@@ -94,25 +94,55 @@ function responseHeaders(upstream: Headers): Headers {
   return headers;
 }
 
-async function refresh(deps: ProxyDeps, fetchImpl: typeof fetch): Promise<string | undefined> {
-  if (!deps.refreshToken) return undefined;
-  try {
-    const response = await fetchImpl(`${deps.apiBase}/api/auth/refresh`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ refreshToken: deps.refreshToken }),
-    });
-    if (!response.ok) {
-      if (response.status === 401) await deps.clearTokens();
-      return undefined;
+/**
+ * Refreshes in flight, keyed by refresh token. The API rotates the refresh
+ * token on every use, so concurrent requests holding the same token share one
+ * exchange instead of racing (the second would be rejected). The exchange is
+ * shared; storing the cookies is not: every caller writes the new pair into
+ * its own response, so whichever response reaches the browser first carries
+ * the rotated token.
+ */
+type RefreshOutcome = { status: "ok"; tokens: Tokens } | { status: "rejected" } | { status: "failed" };
+const inflight = new Map<string, Promise<RefreshOutcome>>();
+
+function exchange(apiBase: string, token: string, fetchImpl: typeof fetch): Promise<RefreshOutcome> {
+  const existing = inflight.get(token);
+  if (existing) return existing;
+  const run = (async (): Promise<RefreshOutcome> => {
+    try {
+      const response = await fetchImpl(`${apiBase}/api/auth/refresh`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ refreshToken: token }),
+      });
+      if (!response.ok) return { status: response.status === 401 ? "rejected" : "failed" };
+      const tokens = (await response.json()) as Tokens;
+      return tokens?.accessToken ? { status: "ok", tokens } : { status: "failed" };
+    } catch {
+      return { status: "failed" };
+    } finally {
+      inflight.delete(token);
     }
-    const tokens = (await response.json()) as Tokens;
-    if (!tokens?.accessToken) return undefined;
-    await deps.setTokens(tokens);
-    return tokens.accessToken;
-  } catch {
-    return undefined;
+  })();
+  inflight.set(token, run);
+  return run;
+}
+
+/** Exchanges the refresh token for a new pair and stores it; undefined when the session is gone. */
+export async function refreshTokens(deps: ProxyDeps, fetchImpl: typeof fetch = fetch): Promise<Tokens | undefined> {
+  const token = deps.refreshToken;
+  if (!token) return undefined;
+  const outcome = await exchange(deps.apiBase, token, fetchImpl);
+  if (outcome.status === "ok") {
+    await deps.setTokens(outcome.tokens);
+    return outcome.tokens;
   }
+  if (outcome.status === "rejected") await deps.clearTokens();
+  return undefined;
+}
+
+async function refresh(deps: ProxyDeps, fetchImpl: typeof fetch): Promise<string | undefined> {
+  return (await refreshTokens(deps, fetchImpl))?.accessToken;
 }
 
 /**
