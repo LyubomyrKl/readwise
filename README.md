@@ -16,7 +16,6 @@ The architecture and the migration plan live in
 | `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
 | `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
-| `packages/contracts` | reserved | job/event contracts shared by API and workers (Phase 4) |
 | `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
 | `docs/` | markdown | plan, pipeline speed backlog |
 
@@ -26,10 +25,16 @@ The architecture and the migration plan live in
 ## Run the whole stack (Docker)
 
 ```bash
-cp .env.example .env          # set the secrets, SITE_ADDRESS and the Ollama host
+cp .env.example .env          # set the secrets, SITE_ADDRESS and the Ollama host (see below)
 docker compose up -d --build  # db, minio (+buckets), rabbitmq, migrate, api, workers, web, caddy
 docker compose --profile backup up -d   # optional nightly pg_dump
 ```
+
+`.env` must set `JWT_ACCESS_SECRET` and `JWT_REFRESH_SECRET` (`openssl rand -hex 32`
+each) and `OLLAMA_BASE_URL` as reachable *from the workers container*: on a Mac
+running Ollama locally that is `http://host.docker.internal:11434`, on the host it is
+the address of the Ollama machine. Jobs wait while that host is down and continue when
+it comes up.
 
 Caddy is the only public entry point. `SITE_ADDRESS=workbench.example.com`
 gives automatic HTTPS; `:80` serves plain HTTP. The API listens on
@@ -73,12 +78,12 @@ npm run dev:api                          # http://localhost:5173/api, Swagger at
 npm run dev:web                          # http://localhost:3000
 ```
 
-Workers on the host:
+Workers on the host (Python 3.11):
 
 ```bash
 cd apps/workers
-cp .env.example .env && pip install -e ".[dev]" && prisma generate
-python main.py
+cp .env.example .env && pip install -e ".[dev]"   # point OLLAMA_BASE_URL at your Ollama host
+python -m worker --queues reader
 ```
 
 A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
