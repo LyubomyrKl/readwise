@@ -498,7 +498,7 @@ ALTER TABLE "money_institution" ADD CONSTRAINT "money_institution_userId_fkey" F
 ALTER TABLE "money_account" ADD CONSTRAINT "money_account_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_account" ADD CONSTRAINT "money_account_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "money_institution"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_account" ADD CONSTRAINT "money_account_institutionId_fkey" FOREIGN KEY ("institutionId") REFERENCES "money_institution"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "money_account" ADD CONSTRAINT "money_account_cashClassId_fkey" FOREIGN KEY ("cashClassId") REFERENCES "money_asset_class"("id") ON DELETE SET NULL ON UPDATE CASCADE;
@@ -513,25 +513,25 @@ ALTER TABLE "money_sub_account" ADD CONSTRAINT "money_sub_account_commodityId_fk
 ALTER TABLE "money_category" ADD CONSTRAINT "money_category_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_category" ADD CONSTRAINT "money_category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "money_category"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_category" ADD CONSTRAINT "money_category_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "money_category"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "money_category"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "money_category"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "money_asset"("commodityId") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_assetId_fkey" FOREIGN KEY ("assetId") REFERENCES "money_asset"("commodityId") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_correctsId_fkey" FOREIGN KEY ("correctsId") REFERENCES "money_transaction"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_correctsId_fkey" FOREIGN KEY ("correctsId") REFERENCES "money_transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_recurringRuleId_fkey" FOREIGN KEY ("recurringRuleId") REFERENCES "money_recurring_rule"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_recurringRuleId_fkey" FOREIGN KEY ("recurringRuleId") REFERENCES "money_recurring_rule"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_importRowId_fkey" FOREIGN KEY ("importRowId") REFERENCES "money_import_row"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_transaction" ADD CONSTRAINT "money_transaction_importRowId_fkey" FOREIGN KEY ("importRowId") REFERENCES "money_import_row"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "money_entry" ADD CONSTRAINT "money_entry_transactionId_fkey" FOREIGN KEY ("transactionId") REFERENCES "money_transaction"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -540,7 +540,7 @@ ALTER TABLE "money_entry" ADD CONSTRAINT "money_entry_transactionId_fkey" FOREIG
 ALTER TABLE "money_entry" ADD CONSTRAINT "money_entry_subAccountId_fkey" FOREIGN KEY ("subAccountId") REFERENCES "money_sub_account"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_entry" ADD CONSTRAINT "money_entry_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "money_category"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_entry" ADD CONSTRAINT "money_entry_categoryId_fkey" FOREIGN KEY ("categoryId") REFERENCES "money_category"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_accountId_fkey" FOREIGN KEY ("accountId") REFERENCES "money_account"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -555,7 +555,7 @@ ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_transactionId_fkey" FOREIGN KE
 ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_openingEntryId_fkey" FOREIGN KEY ("openingEntryId") REFERENCES "money_entry"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_parentLotId_fkey" FOREIGN KEY ("parentLotId") REFERENCES "money_lot"("id") ON DELETE NO ACTION ON UPDATE CASCADE;
+ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_parentLotId_fkey" FOREIGN KEY ("parentLotId") REFERENCES "money_lot"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "money_lot" ADD CONSTRAINT "money_lot_costCurrencyId_fkey" FOREIGN KEY ("costCurrencyId") REFERENCES "money_commodity"("id") ON DELETE RESTRICT ON UPDATE CASCADE;

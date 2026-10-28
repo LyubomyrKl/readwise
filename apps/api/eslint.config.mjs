@@ -38,6 +38,35 @@ const toolBoundaries = {
   },
 };
 
+const moneyBoundaries = {
+  files: ['src/tools/money/**/*.ts'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          { regex: '^@tools/(?!money(/|$))', message: 'a tool must not import another tool' },
+          { group: ['@/app.module', '@/tool-registry'], message: 'tools must not import the app wiring' },
+        ],
+      },
+    ],
+  },
+};
+
+const moneyCoreIsPure = {
+  files: ['src/tools/money/core/**/*.ts'],
+  rules: {
+    'no-restricted-imports': [
+      'error',
+      {
+        patterns: [
+          { group: ['@nestjs/*', '@prisma/*', '@platform/*', '@tools/*', '../*'], message: 'money/core is pure: no Nest, Prisma or outside imports' },
+        ],
+      },
+    ],
+  },
+};
+
 const summariesNotReading = {
   files: ['src/tools/reader/summaries/**/*.ts'],
   rules: {
@@ -91,6 +120,8 @@ export default [
   },
   noToolsFromPlatform,
   toolBoundaries,
+  moneyBoundaries,
+  moneyCoreIsPure,
   summariesNotReading,
   specOverrides,
 ];

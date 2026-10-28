@@ -100,16 +100,26 @@ CREATE CONSTRAINT TRIGGER "money_entry_balanced"
 
 -- Rule 4: a posted transaction never changes; a draft may be edited, posted or dropped.
 -- A posted row goes away only together with its user (the cascade deletes the user first).
+-- Its links to a recurring rule or an import row are not money: they are cleared when
+-- the rule or the import is deleted.
 CREATE FUNCTION money_transaction_guard() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-  IF OLD."status" = 'posted' THEN
-    IF TG_OP = 'DELETE' AND NOT EXISTS (SELECT 1 FROM "User" u WHERE u."id" = OLD."userId") THEN
+  IF OLD."status" <> 'posted' THEN
+    RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  END IF;
+  IF TG_OP = 'DELETE' THEN
+    IF NOT EXISTS (SELECT 1 FROM "User" u WHERE u."id" = OLD."userId") THEN
       RETURN OLD;
     END IF;
-    RAISE EXCEPTION 'money: posted transaction % is immutable; post a correction instead', OLD."id"
-      USING ERRCODE = 'integrity_constraint_violation';
+  ELSIF (NEW."userId", NEW."date", NEW."kind", NEW."status", NEW."note", NEW."categoryId", NEW."assetId",
+         NEW."correctsId", NEW."draft", NEW."proposedBy", NEW."postedAt", NEW."createdAt")
+        IS NOT DISTINCT FROM
+        (OLD."userId", OLD."date", OLD."kind", OLD."status", OLD."note", OLD."categoryId", OLD."assetId",
+         OLD."correctsId", OLD."draft", OLD."proposedBy", OLD."postedAt", OLD."createdAt") THEN
+    RETURN NEW;
   END IF;
-  RETURN CASE WHEN TG_OP = 'DELETE' THEN OLD ELSE NEW END;
+  RAISE EXCEPTION 'money: posted transaction % is immutable; post a correction instead', OLD."id"
+    USING ERRCODE = 'integrity_constraint_violation';
 END $$;
 
 CREATE TRIGGER "money_transaction_guard"

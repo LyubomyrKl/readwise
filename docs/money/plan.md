@@ -88,4 +88,11 @@ entries of posted transactions cannot be updated or deleted.
 
 ## Progress
 
-- **M0** — done except passkey + TOTP login (platform task, scheduled before M1 goes to the server).
+- **M0** — done: schema for every milestone with the rules enforced in Postgres (`money_rules`
+  migration), money helpers, currency seed, passkeys and the authenticator-app second factor,
+  nightly dump with an off-server copy (`backup-offsite`) and a restore check.
+- **M1** — done: institutions, accounts with currency sub-accounts and opening balances,
+  archive; income, expense, fee, transfer (same and cross-currency, fee as an expense, implied
+  rate); categories; reversal and correction; drafts with approval. Tests:
+  `test/db/money-m1.db-spec.ts` (a cross-currency transfer with a fee nets to zero per
+  currency; balances add up to the cent through every kind of movement).

@@ -10,6 +10,8 @@ import {
   type PublicKeyCredentialCreationOptionsJSON,
   type PublicKeyCredentialRequestOptionsJSON,
   type RegistrationResponseJSON,
+  type VerifiedAuthenticationResponse,
+  type VerifiedRegistrationResponse,
 } from '@simplewebauthn/server';
 import * as QRCode from 'qrcode';
 import { PrismaService } from '@platform/db/prisma.service';
@@ -119,7 +121,7 @@ export class SecondFactorService {
   async registerPasskey(userId: string, response: RegistrationResponseJSON, name?: string) {
     const challenge = await this.takeChallenge(clientChallenge(response.response.clientDataJSON), 'passkey-register');
     if (challenge.userId !== userId) throw new BadRequestException('Challenge does not belong to this session');
-    let verification;
+    let verification: VerifiedRegistrationResponse;
     try {
       verification = await verifyRegistrationResponse({
         response,
@@ -180,7 +182,7 @@ export class SecondFactorService {
     if (!passkey || (challenge.userId && challenge.userId !== passkey.userId)) {
       throw new UnauthorizedException('Unknown passkey');
     }
-    let verification;
+    let verification: VerifiedAuthenticationResponse;
     try {
       verification = await verifyAuthenticationResponse({
         response,

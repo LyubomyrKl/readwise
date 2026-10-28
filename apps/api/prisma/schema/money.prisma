@@ -300,7 +300,7 @@ model MoneyAccount {
   createdAt       DateTime              @default(now())
 
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  institution   MoneyInstitution?  @relation(fields: [institutionId], references: [id], onDelete: NoAction)
+  institution   MoneyInstitution?  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
   cashClass     MoneyAssetClass?   @relation(fields: [cashClassId], references: [id], onDelete: SetNull)
   subAccounts   MoneySubAccount[]
   lots          MoneyLot[]
@@ -338,7 +338,7 @@ model MoneyCategory {
   createdAt  DateTime          @default(now())
 
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  parent       MoneyCategory?     @relation("MoneyCategoryTree", fields: [parentId], references: [id], onDelete: NoAction)
+  parent       MoneyCategory?     @relation("MoneyCategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
   children     MoneyCategory[]    @relation("MoneyCategoryTree")
   transactions MoneyTransaction[]
   entries      MoneyEntry[]
@@ -372,12 +372,12 @@ model MoneyTransaction {
   createdAt       DateTime               @default(now())
 
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  category      MoneyCategory?        @relation(fields: [categoryId], references: [id], onDelete: NoAction)
-  asset         MoneyAsset?           @relation(fields: [assetId], references: [commodityId], onDelete: NoAction)
-  corrects      MoneyTransaction?     @relation("MoneyCorrection", fields: [correctsId], references: [id], onDelete: NoAction)
+  category      MoneyCategory?        @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  asset         MoneyAsset?           @relation(fields: [assetId], references: [commodityId], onDelete: Cascade)
+  corrects      MoneyTransaction?     @relation("MoneyCorrection", fields: [correctsId], references: [id], onDelete: Cascade)
   correctedBy   MoneyTransaction[]    @relation("MoneyCorrection")
-  recurringRule MoneyRecurringRule?   @relation(fields: [recurringRuleId], references: [id], onDelete: NoAction)
-  importRow     MoneyImportRow?       @relation(fields: [importRowId], references: [id], onDelete: NoAction)
+  recurringRule MoneyRecurringRule?   @relation(fields: [recurringRuleId], references: [id], onDelete: SetNull)
+  importRow     MoneyImportRow?       @relation(fields: [importRowId], references: [id], onDelete: SetNull)
   entries       MoneyEntry[]
   lotsOpened    MoneyLot[]
   consumptions  MoneyLotConsumption[]
@@ -402,7 +402,7 @@ model MoneyEntry {
 
   transaction MoneyTransaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   subAccount  MoneySubAccount  @relation(fields: [subAccountId], references: [id], onDelete: Cascade)
-  category    MoneyCategory?   @relation(fields: [categoryId], references: [id], onDelete: NoAction)
+  category    MoneyCategory?   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
   lotsOpened  MoneyLot[]
 
   @@index([transactionId])
@@ -442,7 +442,7 @@ model MoneyLot {
   asset         MoneyAsset            @relation(fields: [assetId], references: [commodityId], onDelete: Cascade)
   transaction   MoneyTransaction      @relation(fields: [transactionId], references: [id], onDelete: Cascade)
   openingEntry  MoneyEntry            @relation(fields: [openingEntryId], references: [id], onDelete: Cascade)
-  parentLot     MoneyLot?             @relation("MoneyLotMove", fields: [parentLotId], references: [id], onDelete: NoAction)
+  parentLot     MoneyLot?             @relation("MoneyLotMove", fields: [parentLotId], references: [id], onDelete: Cascade)
   childLots     MoneyLot[]            @relation("MoneyLotMove")
   costCurrency  MoneyCommodity        @relation("MoneyLotCostCurrency", fields: [costCurrencyId], references: [id])
   tradeCurrency MoneyCommodity?       @relation("MoneyLotTradeCurrency", fields: [tradeCurrencyId], references: [id])
