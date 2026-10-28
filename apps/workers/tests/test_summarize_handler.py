@@ -7,7 +7,7 @@ import pytest
 from conftest import make_envelope
 from worker.platform import llm
 from worker.platform.jobs import JobCancelled, JobFailed
-from worker.tools.reader.summarize.handler import SummarizeHandler, extracted_content
+from worker.tools.reader.summarize.handler import SummarizeHandler, ensure_subsections, extracted_content
 
 EXTRACTION = "# Book Extraction: book-1\n\n## Content\n\nOnce upon a time there was a text.\n"
 
@@ -35,7 +35,10 @@ def _fake_pipeline(sections=("one", "two")):
 
 
 def _segment(text):
-    return {"sections": ["one", "two"]}
+    return {"sections": [
+        {"id": "one", "title": "one", "level": "chapter", "content": text, "subsections": []},
+        {"id": "two", "title": "two", "level": "chapter", "content": text, "subsections": []},
+    ]}
 
 
 @pytest.fixture(autouse=True)
@@ -154,3 +157,36 @@ def test_connection_error_heuristic():
     except RuntimeError as chained:
         assert llm.looks_like_connection_error(chained)
     assert not llm.looks_like_connection_error(ValueError("bad json"))
+
+
+def test_ensure_subsections_wraps_unsplit_sections_only():
+    data = {"sections": [
+        {"id": "s1", "title": "Complete Text", "level": "chapter", "start_char": 0, "end_char": 12, "content": "Short book.", "subsections": []},
+        {"id": "s2", "title": "Chapter 2", "level": "chapter", "content": "intro", "subsections": [{"id": "s2.1", "title": "2.1", "content": "body"}]},
+        {"id": "s3", "title": "Empty", "level": "chapter", "content": "   ", "subsections": []},
+    ]}
+
+    out = ensure_subsections(data)
+
+    assert out["sections"][0]["subsections"] == [{
+        "id": "s1-all", "title": "Complete Text", "level": "subsection", "start_char": 0, "end_char": 12, "content": "Short book.",
+    }]
+    assert out["sections"][1]["subsections"] == [{"id": "s2.1", "title": "2.1", "content": "body"}], "existing subsections untouched"
+    assert out["sections"][2]["subsections"] == [], "nothing to summarize stays empty"
+
+
+def test_handler_feeds_the_pipeline_sections_with_subsections(settings, storage, publisher, make_ctx, monkeypatch):
+    storage.store[("extractions", "extraction/book-1_extraction.md")] = EXTRACTION
+    monkeypatch.setattr(llm, "probe_ollama", lambda url, timeout=5.0: True)
+    seen = {}
+
+    def run(ctx, json_data, *args):
+        seen["sections"] = json_data["sections"]
+        return {"sections": []}, {}
+
+    def unsplit(text):
+        return {"sections": [{"id": "s1", "title": "Complete Text", "level": "chapter", "content": text, "subsections": []}]}
+
+    SummarizeHandler(settings, storage, run_pipeline=run, segment=unsplit)(_ctx(make_ctx))
+
+    assert seen["sections"][0]["subsections"][0]["content"] == "Once upon a time there was a text."

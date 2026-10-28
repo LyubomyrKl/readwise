@@ -44,6 +44,32 @@ def extracted_content(markdown: str) -> str:
     return markdown
 
 
+def ensure_subsections(json_data: dict) -> dict:
+    """Give every section without subsections one subsection carrying its own text.
+
+    The pipeline summarizes subsection content only. The segmenter returns a
+    section with its text in `content` and no subsections for documents too short
+    to segment (and for any chapter it could not split), which used to produce a
+    "successful" empty summary. Sections that already have subsections are left
+    alone, so nothing is summarized twice.
+    """
+    for section in json_data.get("sections", []):
+        if not isinstance(section, dict) or section.get("subsections"):
+            continue
+        content = (section.get("content") or "").strip()
+        if not content:
+            continue
+        section["subsections"] = [{
+            "id": f"{section.get('id', 'section')}-all",
+            "title": section.get("title") or "Text",
+            "level": "subsection",
+            "start_char": section.get("start_char", 0),
+            "end_char": section.get("end_char", len(content)),
+            "content": content,
+        }]
+    return json_data
+
+
 class SummarizeHandler:
     def __init__(self, settings: WorkerSettings, storage: S3Storage,
                  run_pipeline: Optional[Callable[..., tuple[dict, dict]]] = None,
@@ -128,7 +154,7 @@ class SummarizeHandler:
             try:
                 ctx.progress("segmenting", 3)
                 t0 = time.monotonic()
-                json_data = self._segment(text)
+                json_data = ensure_subsections(self._segment(text))
                 timings["segmentation_seconds"] = round(time.monotonic() - t0, 3)
                 total_sections = len(json_data.get('sections', []))
                 ctx.log.info("segmented into %s sections", total_sections)
