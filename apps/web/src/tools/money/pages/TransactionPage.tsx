@@ -153,7 +153,7 @@ export default function TransactionPage() {
 
       <div className="text-xs text-muted-foreground">
         {tx.postedAt ? `Posted ${new Date(tx.postedAt).toLocaleString()}` : `Created ${new Date(tx.createdAt).toLocaleString()}`}
-        {tx.proposedBy && tx.proposedBy !== "user" ? ` · proposed by ${tx.proposedBy}` : ""}
+        {tx.proposedBy && tx.proposedBy !== "user" ? ` · ${proposedByText(tx.proposedBy)}` : ""}
       </div>
     </MoneyPage>
   );
@@ -180,4 +180,13 @@ function EntryTable({ entries }: { entries: EntryResponse[] }) {
       ))}
     </div>
   );
+}
+
+/** "token:…" -> "proposed by Claude", "recurring:…" -> "from a recurring movement", "import:…" -> "imported". */
+function proposedByText(actor: string): string {
+  if (actor.startsWith("token:")) return "proposed by Claude";
+  if (actor.startsWith("recurring:")) return "from a recurring movement";
+  if (actor.startsWith("import:")) return "imported";
+  if (actor === "scheduler") return "by the daily jobs";
+  return `by ${actor}`;
 }

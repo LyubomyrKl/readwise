@@ -38,6 +38,7 @@ export const moneyKeys = {
   tax: (year: number) => ["money", "tax", year] as const,
   rates: (filter: string) => ["money", "rates", filter] as const,
   automation: ["money", "automation"] as const,
+  tokens: ["money", "tokens"] as const,
   snapshot: (id: string) => ["money", "snapshot", id] as const,
 };
 
@@ -242,4 +243,8 @@ export function useAutomation() {
     queryFn: moneyApi.automation.status,
     refetchInterval: (q) => (q.state.data?.tasks.some((t) => t.lastJob && ["queued", "running", "waiting"].includes(t.lastJob.status)) ? 3000 : false),
   });
+}
+
+export function useApiTokens() {
+  return useQuery({ queryKey: moneyKeys.tokens, queryFn: moneyApi.tokens.list });
 }

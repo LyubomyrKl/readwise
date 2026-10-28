@@ -4,7 +4,8 @@ import { divRound, pow10, toFraction } from './decimal';
  * Exchange rates for display (rule 5): stored amounts never change, totals in
  * a base currency are computed on the fly. A rate is the latest one on or
  * before the day asked; pairs without a direct rate cross through EUR (ECB)
- * or PLN (NBP), or through both. Exact fractions all the way. Pure.
+ * or PLN (NBP), or through both; the freshest way wins, a rate typed in on
+ * ties. Exact fractions all the way. Pure.
  */
 
 export type RateSource = 'manual' | 'ecb' | 'nbp';
@@ -97,31 +98,38 @@ export class RateBook {
     return found;
   }
 
+  /**
+   * Every way to the rate, in order of preference: by hand, ECB, NBP, then
+   * crossing two sources. The freshest wins; on the same day, the earlier one
+   * in that order (an old rate typed in does not hide this week's ECB rate).
+   */
   private find(from: string, to: string, date: string): FoundRate | null {
-    // 1. a rate entered by hand wins
+    const candidates: FoundRate[] = [];
     const manual = this.pair('manual', from, to, date);
-    if (manual) return { rate: manual.rate, date: manual.date, sources: ['manual'] };
-    // 2. one source, crossing its own pivot
+    if (manual) candidates.push({ rate: manual.rate, date: manual.date, sources: ['manual'] });
+    // one source, crossing its own pivot
     for (const [source, pivot] of [
       ['ecb', 'EUR'],
       ['nbp', 'PLN'],
     ] as const) {
       const a = this.toPivot(source, from, pivot, date);
       const b = this.toPivot(source, to, pivot, date);
-      if (a && b) return { rate: mul(a.rate, inv(b.rate)), date: a.date < b.date ? a.date : b.date, sources: [source] };
+      if (a && b) candidates.push({ rate: mul(a.rate, inv(b.rate)), date: a.date < b.date ? a.date : b.date, sources: [source] });
     }
-    // 3. two sources: from -> pivot in one, pivot -> to in the other (e.g. UAH -> PLN (NBP), PLN -> USD (ECB))
+    // two sources: from -> pivot in one, pivot -> to in the other (e.g. UAH -> PLN (NBP), PLN -> USD (ECB))
     for (const pivot of ['PLN', 'EUR']) {
       for (const s1 of ['ecb', 'nbp'] as const) {
         for (const s2 of ['ecb', 'nbp'] as const) {
           if (s1 === s2) continue;
           const a = this.crossTo(s1, from, pivot, date);
           const b = this.crossTo(s2, to, pivot, date);
-          if (a && b) return { rate: mul(a.rate, inv(b.rate)), date: a.date < b.date ? a.date : b.date, sources: [s1, s2] };
+          if (a && b) candidates.push({ rate: mul(a.rate, inv(b.rate)), date: a.date < b.date ? a.date : b.date, sources: [s1, s2] });
         }
       }
     }
-    return null;
+    let best: FoundRate | null = null;
+    for (const c of candidates) if (!best || c.date > best.date) best = c;
+    return best;
   }
 
   /** `currency` -> `pivot` in one source, via that source's own pivot when needed. */

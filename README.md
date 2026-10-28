@@ -3,7 +3,8 @@
 A personal toolbox. The first tool is a reader with an AI summarizer: upload
 PDF/EPUB books, read them, keep highlights and notes, and generate structured
 summaries with a local LLM (Ollama). The second is money: accounts, movements and
-investments in a double-entry ledger ([`docs/money/`](docs/money/plan.md), built milestone by milestone).
+investments in a double-entry ledger ([`docs/money/`](docs/money/plan.md), built milestone by milestone),
+which Claude can read through an MCP server ([`docs/money/claude-access.md`](docs/money/claude-access.md)).
 
 The architecture and the migration plan live in
 [`docs/toolbox-architecture-plan.md`](docs/toolbox-architecture-plan.md).
@@ -18,7 +19,7 @@ The architecture and the migration plan live in
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
 | `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
 | `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
-| `docs/` | markdown | plan, pipeline speed backlog, `money/` requirements and plan |
+| `docs/` | markdown | plan, pipeline speed backlog, `money/` requirements, plan and Claude access |
 
 `apps/web` and `apps/api` are npm workspaces orchestrated by Turborepo; one
 `package-lock.json` at the root. `apps/workers` is a Python project (`pyproject.toml`).

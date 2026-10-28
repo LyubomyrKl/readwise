@@ -21,6 +21,12 @@ import { MovementsController } from './movements/movements.controller';
 import { MovementsService } from './movements/movements.service';
 import { CommoditiesService } from './reference/commodities.service';
 import { CurrenciesController } from './reference/currencies.controller';
+import { ClaudeController } from './claude/claude.controller';
+import { ClaudeService } from './claude/claude.service';
+import { McpController } from './claude/mcp.controller';
+import { MoneyTokenGuard } from './claude/token.guard';
+import { TokensController } from './claude/tokens.controller';
+import { TokensService } from './claude/tokens.service';
 import { RatesController } from './rates/rates.controller';
 import { RatesService } from './rates/rates.service';
 import { MoneyHttp } from './feeds/http.service';
@@ -58,6 +64,9 @@ import { TransactionsService } from './transactions/transactions.service';
     RatesController,
     RecurringController,
     TaxController,
+    TokensController,
+    ClaudeController,
+    McpController,
   ],
   providers: [
     CommoditiesService,
@@ -85,6 +94,9 @@ import { TransactionsService } from './transactions/transactions.service';
     PriceFeedService,
     RecurringService,
     TaxService,
+    TokensService,
+    ClaudeService,
+    MoneyTokenGuard,
   ],
   exports: [LedgerService, MovementsService, TransactionsService, RateFeedService, PriceFeedService, RecurringService, SnapshotsService],
 })

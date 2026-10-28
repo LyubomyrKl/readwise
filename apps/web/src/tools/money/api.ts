@@ -4,6 +4,9 @@
  */
 import { apiFetch } from "@platform/api/http";
 import type {
+  ApiToken,
+  CreatedApiToken,
+  TokenScope,
   AutomationJob,
   AutomationStatus,
   CreateRecurringInput,
@@ -189,6 +192,12 @@ export const moneyApi = {
     list: (query: { from?: string; to?: string; source?: string } = {}) => apiFetch<RateRow[]>("/money/rates", { query }),
     create: (input: { date: string; from: string; to: string; rate: string }) => post<RateRow>("/money/rates", input),
     remove: (id: string) => apiFetch<{ removed: true }>(`/money/rates/${enc(id)}`, { method: "DELETE" }),
+  },
+
+  tokens: {
+    list: () => apiFetch<ApiToken[]>("/money/tokens"),
+    create: (input: { name: string; scope: TokenScope }) => post<CreatedApiToken>("/money/tokens", input),
+    revoke: (id: string) => apiFetch<ApiToken>(`/money/tokens/${enc(id)}`, { method: "DELETE" }),
   },
 
   automation: {

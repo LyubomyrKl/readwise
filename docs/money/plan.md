@@ -131,3 +131,14 @@ entries of posted transactions cannot be updated or deleted.
   `test/db/money-m5.db-spec.ts` (rates arrive from the schedule and fill a lot's PLN cost; July's
   IBKR statement and then July plus August import with no duplicates; the tax report's costs
   are the shares of the lots' PLN cost).
+- **M6** — done: Claude's access with tokens the user creates and revokes (only the SHA-256 is
+  stored; scopes read, and read-and-propose); a read API and an MCP server (Streamable HTTP,
+  stateless) at `/api/money/claude/*`, the only API path Caddy routes past the web app; tools for
+  the summary, months, net worth, allocation, accounts, categories, transactions, positions and
+  drafts, and `propose_movement` for draft tokens, whose proposals wait under Drafts marked
+  "From Claude". The overview answers the three questions (since M4); phone home-screen
+  shortcuts to Money and a new movement. Rates: the freshest rate wins, a rate typed in on ties.
+  Tests: `test/db/money-m6.db-spec.ts` (over HTTP with the MCP client: the savings rate this
+  month, live; no token, an unknown or a revoked one get 401; a read token cannot propose; a
+  Claude draft moves no money until it is approved). Connecting Claude:
+  [`claude-access.md`](claude-access.md).

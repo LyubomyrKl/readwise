@@ -1,7 +1,14 @@
 # Single public entry point. Everything goes to the web app; its server-side
-# routes talk to the api container internally (API_URL), so the API itself is
-# never exposed. SITE_ADDRESS: a hostname enables automatic HTTPS, ":80" is plain HTTP.
+# routes talk to the api container internally (API_URL). The one exception is
+# Claude's access to the money tool (token-authenticated REST and MCP), which
+# goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
+# ":80" is plain HTTP.
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
-	reverse_proxy web:3000
+	handle /api/money/claude/* {
+		reverse_proxy api:5173
+	}
+	handle {
+		reverse_proxy web:3000
+	}
 }

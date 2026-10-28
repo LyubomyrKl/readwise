@@ -67,6 +67,10 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     await request(server).get('/api/reader/documents/book-1/notes').expect(401);
     await request(server).get('/api/reader/documents/book-1/highlights').expect(401);
     await request(server).get('/api/money/currencies').expect(401);
+    await request(server).get('/api/money/tokens').expect(401);
+    // Claude's routes take a money API token instead of a session
+    await request(server).get('/api/money/claude/summary').expect(401);
+    await request(server).post('/api/money/claude/mcp').send({ jsonrpc: '2.0', id: 1, method: 'tools/list' }).expect(401);
     await request(server).patch('/api/users/me').send({ name: 'x' }).expect(401);
     await request(server).post('/api/auth/logout-all').expect(401);
   });

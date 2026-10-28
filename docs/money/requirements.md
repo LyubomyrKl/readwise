@@ -87,7 +87,7 @@ Not in v1: live bank sync, more than one user, a mobile app, budgets.
 - [ ] Base currency for net worth: PLN, USD or EUR? (Built as a switchable setting; default PLN.)
 - [ ] Sub-accounts: currencies only, or also purpose pockets inside one currency?
 - [ ] Target allocation to compare against: today's numbers from the investment policy, or new ones?
-- [ ] Claude's access: a read-only API, an MCP server, or a nightly JSON export? (Plan: API + MCP server in M6.)
+- [ ] Claude's access: a read-only API, an MCP server, or a nightly JSON export? (Built in M6: both the API and an MCP server, with revocable tokens; see [`claude-access.md`](claude-access.md).)
 - [ ] History import: does the current money-manager export include transfers between accounts, or only income and expenses?
 
 Scope decided 10-28: everything in this doc gets built, in the order of

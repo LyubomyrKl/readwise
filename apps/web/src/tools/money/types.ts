@@ -621,3 +621,22 @@ export interface AutomationStatus {
   priceFeeds: { assetId: string; code: string; symbol: string; latest: { date: string; price: string; currency: string } | null }[];
   recurring: { active: number; nextRunAt: string | null };
 }
+
+// ---- Claude access -------------------------------------------------------------------
+
+export type TokenScope = "read" | "draft";
+
+export interface ApiToken {
+  id: string;
+  name: string;
+  scope: TokenScope;
+  prefix: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+  createdAt: string;
+}
+
+export interface CreatedApiToken extends ApiToken {
+  /** shown once */
+  token: string;
+}

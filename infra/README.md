@@ -4,7 +4,7 @@ Host-side pieces of the Docker Compose stack defined in the repository root.
 
 | Path | Used by | Purpose |
 |---|---|---|
-| `caddy/Caddyfile` | `caddy` service | single public entry point; proxies to the web app, automatic HTTPS when `SITE_ADDRESS` is a hostname |
+| `caddy/Caddyfile` | `caddy` service | single public entry point; proxies to the web app, except `/api/money/claude/*` (Claude's token-authenticated access) which goes to the API; automatic HTTPS when `SITE_ADDRESS` is a hostname |
 | `rabbitmq/rabbitmq.conf` | `rabbitmq` service | raises the consumer acknowledgement timeout to 24 h for long summarizations (interim until Phase 4 of the plan) |
 | `backup/backup.sh` | `backup` service (`--profile backup`) | nightly `pg_dump` into the `backups` volume, 14-day retention |
 | `backup/offsite.sh` | `backup-offsite` service (`--profile backup`) | daily `rclone copy` of the dumps to an off-server remote (`BACKUP_REMOTE`, configured with `RCLONE_CONFIG_OFFSITE_*`); copies only, so a wiped server cannot delete the remote's history |

@@ -35,9 +35,12 @@ describe('rate book', () => {
     expect(book.rate('UAH', 'EUR', '2026-10-27')?.sources).toEqual(['nbp', 'ecb']);
   });
 
-  it('prefers a rate entered by hand', () => {
+  it('prefers a rate entered by hand for its day, not over a fresher feed', () => {
     expect(book.convert(10_000n, 'CHF', 2, 'PLN', 2, '2026-10-27')).toBe(45_000n);
     expect(book.rate('CHF', 'PLN', '2026-10-27')?.sources).toEqual(['manual']);
+    const typed = (date: string, rate: string): RateRow => ({ date, from: 'EUR', to: 'PLN', rate, source: 'manual' });
+    expect(new RateBook([ecb('2026-10-27', 'PLN', '4.3000'), typed('2026-10-27', '4.3100')]).rate('EUR', 'PLN', '2026-10-27')?.sources).toEqual(['manual']);
+    expect(new RateBook([ecb('2026-10-27', 'PLN', '4.3000'), typed('2026-09-01', '4.1000')]).rate('EUR', 'PLN', '2026-10-27')?.sources).toEqual(['ecb']);
   });
 
   it('converts between currencies with different minor units', () => {

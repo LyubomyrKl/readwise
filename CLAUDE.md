@@ -31,3 +31,6 @@ Every way into the ledger (endpoints, drafts, imports, recurring rules) posts
 through `MovementsService`. What runs on its own lives in `automation/` (jobs
 `money.rates`, `money.prices`, `money.recurring`, `money.snapshot` on the platform
 job runner); `MoneyModule` itself needs no queue, which is what `test/db` relies on.
+Claude's access (`claude/`: tokens, the read API and the MCP server at
+`/api/money/claude/mcp`) is read-only except `propose_movement`, which only makes
+drafts; keep it that way. See `docs/money/claude-access.md`.
