@@ -61,9 +61,27 @@ export type PostedTransaction = MoneyTransaction & { entries: EntryWithAccount[]
  * lines balance (rule 2) and writes the transaction with its entries through
  * the caller's database transaction (rule 3). The database checks it again.
  */
+/** What one database transaction already resolved; imports post thousands of movements through one. */
+interface WriteCache {
+  accounts: Map<string, MoneyAccount>;
+  categories: Map<string, { id: string; kind: 'income' | 'expense'; name: string }>;
+  systemAccounts?: MoneyAccount[];
+  subAccounts: Map<string, string>;
+}
+
 @Injectable()
 export class LedgerService {
   private readonly ready = new Set<string>();
+  private readonly caches = new WeakMap<object, WriteCache>();
+
+  private cacheOf(db: Db): WriteCache {
+    let cache = this.caches.get(db);
+    if (!cache) {
+      cache = { accounts: new Map(), categories: new Map(), subAccounts: new Map() };
+      this.caches.set(db, cache);
+    }
+    return cache;
+  }
 
   constructor(
     private readonly prisma: PrismaService,
@@ -127,11 +145,15 @@ export class LedgerService {
     }
 
     // own accounts: the user's, not system, not archived
+    const cache = this.cacheOf(db);
     const ownIds = [...new Set(lines.flatMap((l) => ('accountId' in l.account ? [l.account.accountId] : [])))];
-    const accounts = await db.moneyAccount.findMany({ where: { id: { in: ownIds }, userId } });
+    const missing = ownIds.filter((id) => !cache.accounts.has(id));
+    if (missing.length > 0) {
+      for (const a of await db.moneyAccount.findMany({ where: { id: { in: missing }, userId } })) cache.accounts.set(a.id, a);
+    }
     for (const id of ownIds) {
-      const account = accounts.find((a) => a.id === id);
-      if (!account || account.type === 'system') throw new NotFoundException(`account ${id} not found`);
+      const account = cache.accounts.get(id);
+      if (!account || account.type === 'system' || account.userId !== userId) throw new NotFoundException(`account ${id} not found`);
       if (account.archivedAt && !opts.allowArchived) {
         throw new BadRequestException(`${account.name} is archived; unarchive it to record new movements`);
       }
@@ -141,7 +163,8 @@ export class LedgerService {
     await this.checkCategories(db, userId, lines, opts.categoryId);
 
     // sub-accounts, created on first use
-    const systemAccounts = await db.moneyAccount.findMany({ where: { userId, type: 'system' } });
+    cache.systemAccounts ??= await db.moneyAccount.findMany({ where: { userId, type: 'system' } });
+    const systemAccounts = cache.systemAccounts;
     const accountIdOf = (line: PostingLine): string => {
       if ('accountId' in line.account) return line.account.accountId;
       const role = line.account.system;
@@ -149,7 +172,7 @@ export class LedgerService {
       if (!found) throw new Error(`system account ${role} missing; ensureSetup was not called`);
       return found.id;
     };
-    const subAccountIds = new Map<string, string>();
+    const subAccountIds = cache.subAccounts;
     for (const line of lines) {
       const accountId = accountIdOf(line);
       const key = `${accountId}/${line.commodityId}`;
@@ -231,13 +254,17 @@ export class LedgerService {
     const ids = new Set(lines.flatMap((l) => (l.categoryId ? [l.categoryId] : [])));
     if (mainCategoryId) ids.add(mainCategoryId);
     if (ids.size === 0) return;
-    const categories = await db.moneyCategory.findMany({ where: { id: { in: [...ids] }, userId } });
+    const cache = this.cacheOf(db).categories;
+    const missing = [...ids].filter((id) => !cache.has(id));
+    if (missing.length > 0) {
+      for (const c of await db.moneyCategory.findMany({ where: { id: { in: missing }, userId } })) cache.set(c.id, c);
+    }
     for (const id of ids) {
-      if (!categories.some((c) => c.id === id)) throw new NotFoundException(`category ${id} not found`);
+      if (!cache.has(id)) throw new NotFoundException(`category ${id} not found`);
     }
     for (const line of lines) {
       if (!line.categoryId || 'accountId' in line.account) continue;
-      const category = categories.find((c) => c.id === line.categoryId)!;
+      const category = cache.get(line.categoryId)!;
       const expected = line.account.system === 'income' ? 'income' : line.account.system === 'expense' ? 'expense' : null;
       if (expected && category.kind !== expected) {
         throw new BadRequestException(`${category.name} is an ${category.kind} category; this line needs an ${expected} category`);

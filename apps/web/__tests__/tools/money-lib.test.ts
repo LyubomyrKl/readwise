@@ -60,3 +60,21 @@ describe("money web helpers", () => {
     });
   });
 });
+
+describe("import proposals", () => {
+  it("describes each kind in one line", () => {
+    const { describeProposal } = jest.requireActual<typeof import("@tools/money/lib/proposal")>("@tools/money/lib/proposal");
+    const name = (id: string) => ({ a: "mBank", b: "ZEN" })[id] ?? "?";
+    const transfer = describeProposal(
+      { kind: "transfer", input: { date: "2026-10-03", fromAccountId: "a", fromCurrency: "PLN", amountOut: "1000.00", toAccountId: "b", toCurrency: "EUR", amountIn: "230.45" } },
+      name
+    );
+    expect(transfer.detail).toBe("mBank → ZEN");
+    expect(transfer.amount).toContain("1,000.00");
+    const expense = describeProposal(
+      { kind: "expense", input: { date: "2026-10-05", accountId: "a", currency: "PLN", amount: "45.99" }, category: { name: "Sklep", parent: "Jedzenie", kind: "expense" } },
+      name
+    );
+    expect(expense).toMatchObject({ title: "Jedzenie / Sklep", negative: true });
+  });
+});

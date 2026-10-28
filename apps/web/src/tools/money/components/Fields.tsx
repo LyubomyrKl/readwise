@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { cloneElement, isValidElement, useId, type ReactNode } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -26,10 +26,15 @@ export function Field({
   className?: string;
   children: ReactNode;
 }) {
+  // ties the label to the control: an explicit id, else one generated and given to a single child
+  const generated = useId();
+  const single = isValidElement<{ id?: string }>(children) ? children : null;
+  const id = htmlFor ?? single?.props.id ?? (single ? generated : undefined);
+  const control = single && !single.props.id && !htmlFor ? cloneElement(single, { id }) : children;
   return (
     <div className={cn("space-y-1.5 min-w-0", className)}>
-      <Label htmlFor={htmlFor}>{label}</Label>
-      {children}
+      <Label htmlFor={id}>{label}</Label>
+      {control}
       {error ? (
         <p className="text-xs text-destructive">{error}</p>
       ) : hint ? (

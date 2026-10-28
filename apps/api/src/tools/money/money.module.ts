@@ -6,6 +6,8 @@ import { CategoriesController } from './categories/categories.controller';
 import { CategoriesService } from './categories/categories.service';
 import { DraftsController } from './drafts/drafts.controller';
 import { DraftsService } from './drafts/drafts.service';
+import { ImportsController } from './imports/imports.controller';
+import { ImportsService } from './imports/imports.service';
 import { AuditService } from './ledger/audit.service';
 import { LedgerService } from './ledger/ledger.service';
 import { MovementsController } from './movements/movements.controller';
@@ -31,6 +33,7 @@ import { TransactionsService } from './transactions/transactions.service';
     MovementsController,
     TransactionsController,
     DraftsController,
+    ImportsController,
   ],
   providers: [
     CommoditiesService,
@@ -43,6 +46,7 @@ import { TransactionsService } from './transactions/transactions.service';
     TransactionsService,
     MovementsService,
     DraftsService,
+    ImportsService,
   ],
   exports: [LedgerService, MovementsService, TransactionsService],
 })

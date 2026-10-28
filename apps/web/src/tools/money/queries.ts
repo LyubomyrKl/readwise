@@ -17,6 +17,11 @@ export const moneyKeys = {
   transactions: (filters: TransactionFilters) => ["money", "transactions", filters] as const,
   transaction: (id: string) => ["money", "transaction", id] as const,
   drafts: ["money", "drafts"] as const,
+  importProfiles: ["money", "import-profiles"] as const,
+  imports: ["money", "imports"] as const,
+  importBatch: (id: string) => ["money", "import", id] as const,
+  importRows: (id: string, status: string, offset: number) => ["money", "import", id, "rows", status, offset] as const,
+  importBalances: (id: string) => ["money", "import", id, "balances"] as const,
 };
 
 export function errorMessage(error: unknown): string {
@@ -95,4 +100,27 @@ export function usePostMovement(onSuccess?: () => void) {
     success: "Saved",
     onSuccess,
   });
+}
+
+export function useImportProfiles() {
+  return useQuery({ queryKey: moneyKeys.importProfiles, queryFn: moneyApi.imports.profiles, staleTime: Infinity });
+}
+
+export function useImports() {
+  return useQuery({ queryKey: moneyKeys.imports, queryFn: moneyApi.imports.list });
+}
+
+export function useImportBatch(id: string | undefined) {
+  return useQuery({ queryKey: moneyKeys.importBatch(id ?? ""), queryFn: () => moneyApi.imports.get(id!), enabled: !!id });
+}
+
+export function useImportRows(id: string, status: string, offset: number) {
+  return useQuery({
+    queryKey: moneyKeys.importRows(id, status, offset),
+    queryFn: () => moneyApi.imports.rows(id, { status: status === "all" ? undefined : (status as never), offset, limit: 100 }),
+  });
+}
+
+export function useImportBalances(id: string, enabled: boolean) {
+  return useQuery({ queryKey: moneyKeys.importBalances(id), queryFn: () => moneyApi.imports.balances(id), enabled });
 }

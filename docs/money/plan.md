@@ -96,3 +96,9 @@ entries of posted transactions cannot be updated or deleted.
   rate); categories; reversal and correction; drafts with approval. Tests:
   `test/db/money-m1.db-spec.ts` (a cross-currency transfer with a fee nets to zero per
   currency; balances add up to the cent through every kind of movement).
+- **M2** — done: upload (UTF-8 or Windows-1250, delimiter detected), column mapping screen with
+  guesses from the header (English and Polish), type values, account mapping or creation, review
+  with duplicate (same fingerprint imported before) and match (same account, amount, ±3 days)
+  detection, today's balances turned into opening balances, one-transaction commit. Tests:
+  `test/db/money-m2.db-spec.ts` (every balance equals the bank's figure to the cent; a re-import
+  is recognised; a hand-typed movement is not doubled).

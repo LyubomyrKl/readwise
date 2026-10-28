@@ -155,3 +155,109 @@ export interface Movement {
   kind: MovementKind;
   input: Record<string, unknown>;
 }
+
+// ---- imports ---------------------------------------------------------------------------
+
+export interface ImportProfileInfo {
+  id: string;
+  label: string;
+  needsAccount: boolean;
+  needsMapping: boolean;
+}
+
+export interface ImportColumns {
+  date: number;
+  amount: number;
+  account?: number;
+  type?: number;
+  toAccount?: number;
+  toAmount?: number;
+  currency?: number;
+  toCurrency?: number;
+  category?: number;
+  subcategory?: number;
+  note?: number[];
+}
+
+export interface ImportTypeValues {
+  income: string[];
+  expense: string[];
+  transfer: string[];
+  transferOut: string[];
+  transferIn: string[];
+}
+
+export interface ImportMapping {
+  headerRow: number;
+  columns: ImportColumns;
+  dateFormat: string;
+  decimalSeparator: "auto" | "." | ",";
+  defaultCurrency: string;
+  fixedAccountId?: string;
+  amountSign: "signed" | "type";
+  typeValues: ImportTypeValues;
+  accounts: Record<string, string>;
+}
+
+export type ImportRowStatus = "pending" | "ready" | "duplicate" | "matched" | "imported" | "skipped" | "error";
+
+export interface ImportBatch {
+  id: string;
+  profile: string;
+  fileName: string;
+  accountId: string | null;
+  encoding: string | null;
+  status: "preview" | "committed";
+  rowCount: number;
+  counts: Partial<Record<ImportRowStatus, number>>;
+  mapping: ImportMapping | null;
+  suggestedMapping: ImportMapping | null;
+  accountNames: string[];
+  typeValuesFound: string[];
+  head: string[][];
+  committedAt: string | null;
+  createdAt: string;
+}
+
+export interface ImportProposal {
+  kind: MovementKind;
+  input: Record<string, string>;
+  category?: { name: string; parent?: string; kind: "income" | "expense" };
+  asset?: { ticker: string; currency: string; name?: string };
+}
+
+export interface ImportRow {
+  id: string;
+  rowNumber: number;
+  raw: string[];
+  status: ImportRowStatus;
+  message: string | null;
+  proposal: ImportProposal | null;
+  matchTransactionId: string | null;
+  transactionId: string | null;
+}
+
+export interface ImportRowPage {
+  items: ImportRow[];
+  total: number;
+}
+
+export interface BalancePreview {
+  accountId: string;
+  accountName: string;
+  currency: string;
+  before: AmountJson;
+  change: AmountJson;
+  after: AmountJson;
+  target: AmountJson | null;
+  asOf: string | null;
+  openingBalance: AmountJson | null;
+  openingDate: string | null;
+}
+
+export interface BalanceTarget {
+  accountId: string;
+  currency: string;
+  balance: string;
+  asOf?: string;
+}

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
+import type { Db } from '../common/db';
 import { parseQuantity } from '../core/quantity';
 
 export interface SubAccountTotal {
@@ -24,6 +25,7 @@ export class BalancesService {
   async subAccountTotals(
     userId: string,
     opts: { asOf?: Date; includeSystem?: boolean; accountIds?: string[] } = {},
+    db: Db | PrismaService = this.prisma,
   ): Promise<SubAccountTotal[]> {
     const asOf = opts.asOf ? opts.asOf.toISOString().slice(0, 10) : FAR_FUTURE;
     const accountFilter =
@@ -31,7 +33,7 @@ export class BalancesService {
         ? Prisma.sql`AND a."id" IN (${Prisma.join(opts.accountIds)})`
         : Prisma.empty;
     const systemFilter = opts.includeSystem ? Prisma.empty : Prisma.sql`AND a."type" <> 'system'`;
-    const rows = await this.prisma.$queryRaw<
+    const rows = await db.$queryRaw<
       { subAccountId: string; accountId: string; commodityId: string; minor: string; qty: string }[]
     >(Prisma.sql`
       SELECT s."id" AS "subAccountId", s."accountId", s."commodityId",

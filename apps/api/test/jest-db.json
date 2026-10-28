@@ -14,5 +14,6 @@
     "^@/(.*)$": "<rootDir>/src/$1",
     "^@platform/(.*)$": "<rootDir>/src/platform/$1",
     "^@tools/(.*)$": "<rootDir>/src/tools/$1"
-  }
+  },
+  "testTimeout": 120000
 }

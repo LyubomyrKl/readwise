@@ -5,6 +5,13 @@
 import { apiFetch } from "@platform/api/http";
 import type {
   AccountResponse,
+  BalancePreview,
+  BalanceTarget,
+  ImportBatch,
+  ImportMapping,
+  ImportProfileInfo,
+  ImportRowPage,
+  ImportRowStatus,
   CategoryResponse,
   CreateAccountInput,
   CurrencyResponse,
@@ -67,6 +74,32 @@ export const moneyApi = {
   movements: {
     post: (movement: Movement) => post<TransactionResponse>("/money/movements", movement),
     correct: (id: string, movement: Movement) => post<TransactionResponse>(`/money/movements/correct/${enc(id)}`, movement),
+  },
+
+  imports: {
+    profiles: () => apiFetch<ImportProfileInfo[]>("/money/imports/profiles"),
+    list: () => apiFetch<ImportBatch[]>("/money/imports"),
+    get: (id: string) => apiFetch<ImportBatch>(`/money/imports/${enc(id)}`),
+    upload: (file: File, profile: string, accountId?: string) => {
+      const body = new FormData();
+      body.append("file", file);
+      body.append("profile", profile);
+      if (accountId) body.append("accountId", accountId);
+      return apiFetch<ImportBatch>("/money/imports", { method: "POST", body });
+    },
+    rows: (id: string, query: { status?: ImportRowStatus; offset?: number; limit?: number } = {}) =>
+      apiFetch<ImportRowPage>(`/money/imports/${enc(id)}/rows`, { query }),
+    mapping: (id: string, mapping: ImportMapping) =>
+      apiFetch<ImportBatch>(`/money/imports/${enc(id)}/mapping`, { method: "PUT", json: mapping }),
+    createAccounts: (id: string, names: string[], institutionName?: string) =>
+      post<ImportBatch>(`/money/imports/${enc(id)}/accounts`, { names, institutionName }),
+    decide: (id: string, rowId: string, status: "ready" | "skipped") =>
+      patch<{ status: string }>(`/money/imports/${enc(id)}/rows/${enc(rowId)}`, { status }),
+    balances: (id: string) => apiFetch<BalancePreview[]>(`/money/imports/${enc(id)}/balances`),
+    setBalances: (id: string, targets: BalanceTarget[]) =>
+      apiFetch<BalancePreview[]>(`/money/imports/${enc(id)}/balances`, { method: "PUT", json: { targets } }),
+    commit: (id: string) => post<{ imported: number; openingBalances: number; categoriesCreated: number }>(`/money/imports/${enc(id)}/commit`),
+    remove: (id: string) => apiFetch<{ removed: true }>(`/money/imports/${enc(id)}`, { method: "DELETE" }),
   },
 
   drafts: {
