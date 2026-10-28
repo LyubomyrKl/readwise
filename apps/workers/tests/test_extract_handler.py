@@ -28,7 +28,11 @@ def test_pdf_is_extracted_cleaned_and_stored_in_the_extractions_bucket(settings,
     result = handler(make_ctx())
 
     assert result["extractionStorageKey"] == "extraction/book-1_extraction.md"
-    assert result["metadata"] == {"total_pages": 2, "pages_processed": 2, "extraction_method": "fake"}
+    assert result["metadata"] == {
+        "total_pages": 2, "pages_processed": 2, "extraction_method": "fake",
+        "characters": len("Hello world"), "seconds": result["metadata"]["seconds"],
+    }
+    assert isinstance(result["metadata"]["seconds"], float)
     assert pdf.calls[0] == ("extract", "books", "user-1-1-book.pdf")
     assert pdf.calls[1][:4] == ("save", "extractions", "book-1", "Hello world")
     assert [e.stage for e in publisher.events] == ["extracting pdf", "cleaning text", "storing extraction"]

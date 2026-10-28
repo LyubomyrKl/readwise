@@ -14,6 +14,7 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import time
 from typing import Any, Callable, Optional
 
 from worker.platform.jobs import JobCancelled, JobContext, JobFailed
@@ -121,14 +122,19 @@ class SummarizeHandler:
 
         # Both stages talk to the LLM host; if it disappears mid-run we wait and start the stage
         # again (segmentation is cheap, summarization resumes from the checkpoint).
+        timings: dict[str, float] = {}
         while True:
             ctx.check_cancelled()
             try:
                 ctx.progress("segmenting", 3)
+                t0 = time.monotonic()
                 json_data = self._segment(text)
+                timings["segmentation_seconds"] = round(time.monotonic() - t0, 3)
                 total_sections = len(json_data.get('sections', []))
                 ctx.log.info("segmented into %s sections", total_sections)
+                t0 = time.monotonic()
                 summary_json, metadata = self._run_pipeline(ctx, json_data, book_id, summary_type, strategy, percent, title)
+                timings["summarization_seconds"] = round(time.monotonic() - t0, 3)
                 break
             except JobCancelled:
                 raise
@@ -141,6 +147,12 @@ class SummarizeHandler:
 
         metadata = dict(metadata or {})
         metadata['summarization_strategy'] = strategy
+        metadata['sections'] = len(json_data.get('sections', []))
+        metadata.update(timings)
+        if self._segmenter is not None and hasattr(self._segmenter, "ollama_client"):
+            calls = getattr(self._segmenter.ollama_client, "calls", {})
+            metadata['segmentation_embedding_calls'] = int(calls.get("embeddings", 0))
+            metadata['segmentation_llm_calls'] = int(calls.get("llm", 0))
         ctx.progress("storing summary", 98)
         key = self.storage.upload_summary(
             bucket=self.settings.s3_summaries_bucket_name,
@@ -210,12 +222,19 @@ class SummarizeHandler:
                 pipeline.set_progress_callback(on_chunk)
                 pipeline.set_section_callback(on_section)
                 ctx.progress(f"summarizing {total_sections} sections", pct())
-                return await pipeline.process(
+                result_json, result_meta = await pipeline.process(
                     json_data=json_data,
                     summary_type=summary_type,
                     summary_percent=percent,
                     skip_section_indices=skip_indices,
                     preloaded_sections=preloaded_sections,
                 )
+                # how many LLM requests this run made (the rate limiter counts them)
+                llm_stats = pipeline.stats.get("llm", {}) if isinstance(pipeline.stats, dict) else {}
+                result_meta = dict(result_meta or {})
+                result_meta["llm_calls"] = int(llm_stats.get("total_requests", 0))
+                result_meta["chunks_total"] = int(total_chunks)
+                result_meta["resumed_sections"] = len(skip_indices)
+                return result_json, result_meta
 
         return asyncio.run(run())

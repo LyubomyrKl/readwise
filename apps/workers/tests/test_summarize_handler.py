@@ -53,6 +53,9 @@ def test_waits_for_the_llm_host_then_summarizes_and_stores_the_json(settings, st
 
     assert result["storageKey"] == "summary/book-1/sum-1.json"
     assert result["metadata"]["summarization_strategy"] == "two_pass"
+    assert result["metadata"]["sections"] == 2
+    assert isinstance(result["metadata"]["segmentation_seconds"], float)
+    assert isinstance(result["metadata"]["summarization_seconds"], float)
     stored = json.loads(storage.store[("summaries", "summary/book-1/sum-1.json")])
     assert [s["title"] for s in stored["sections"]] == ["one", "two"]
     upload = storage.uploads[-1]

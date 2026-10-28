@@ -7,6 +7,7 @@ Result:  { extractionStorageKey, metadata: { total_pages | total_items, ... } }
 from __future__ import annotations
 
 import re
+import time
 from typing import Any, Optional
 
 from worker.platform.jobs import JobContext, JobFailed
@@ -72,6 +73,7 @@ class ExtractHandler:
             ctx.progress("already extracted", 100)
             return {"extractionStorageKey": key, "metadata": {"skipped": True}}
 
+        started = time.monotonic()
         ctx.progress(f"extracting {kind}", 5)
         extractor = self._extractor(kind)
         text, metadata = extractor.extract_from_s3_file(bucket=self.settings.s3_book_bucket_name, file_key=file_key)
@@ -92,5 +94,9 @@ class ExtractHandler:
         ctx.log.info("extracted %s characters", len(cleaned))
         return {
             "extractionStorageKey": stored_key,
-            "metadata": {k: v for k, v in metadata.items() if isinstance(v, (int, float, str, bool))},
+            "metadata": {
+                **{k: v for k, v in metadata.items() if isinstance(v, (int, float, str, bool))},
+                "characters": len(cleaned),
+                "seconds": round(time.monotonic() - started, 3),
+            },
         }

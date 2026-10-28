@@ -20,9 +20,12 @@ class OllamaClient:
         self.base_url = base_url or os.environ['OLLAMA_BASE_URL']
         self.llm_model = llm_model or os.environ['OLLAMA_MODEL']
         self.embed_model = embed_model or os.environ['OLLAMA_EMBED_MODEL']
+        # call counters, reported in the job result (pipeline speed track baseline)
+        self.calls = {"embeddings": 0, "llm": 0}
 
     def get_embedding(self, text: str) -> np.ndarray:
         """Get L2-normalized embedding from bge-m3 via Ollama."""
+        self.calls["embeddings"] += 1
         try:
             response = requests.post(
                 f"{self.base_url}/api/embeddings",
@@ -42,6 +45,7 @@ class OllamaClient:
 
     def call_llm(self, prompt: str) -> Dict:
         """Call LLM via Ollama and return JSON response."""
+        self.calls["llm"] += 1
         try:
             response = requests.post(
                 f"{self.base_url}/api/generate",
