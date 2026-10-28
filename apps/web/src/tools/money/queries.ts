@@ -1,6 +1,6 @@
 "use client";
 
-import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { moneyApi } from "./api";
 import type { Movement, TransactionFilters } from "./types";
@@ -27,6 +27,14 @@ export const moneyKeys = {
   prices: (assetId: string) => ["money", "prices", assetId] as const,
   positions: (accountId?: string) => ["money", "positions", accountId ?? "all"] as const,
   lots: (accountId: string, assetId: string) => ["money", "lots", accountId, assetId] as const,
+  home: (base: string) => ["money", "views", "home", base] as const,
+  netWorth: (base: string, asOf: string) => ["money", "views", "net-worth", base, asOf] as const,
+  allocation: (base: string, asOf: string) => ["money", "views", "allocation", base, asOf] as const,
+  monthly: (base: string, from: string) => ["money", "views", "monthly", base, from] as const,
+  month: (month: string, base: string) => ["money", "views", "month", month, base] as const,
+  history: (base: string, from: string) => ["money", "views", "history", base, from] as const,
+  snapshots: ["money", "snapshots"] as const,
+  snapshot: (id: string) => ["money", "snapshot", id] as const,
 };
 
 export function errorMessage(error: unknown): string {
@@ -152,4 +160,61 @@ export function useLots(accountId: string, assetId: string, enabled = true) {
     queryFn: () => moneyApi.lots({ accountId, assetId }),
     enabled,
   });
+}
+
+// Views keep showing the previous answer while a new base currency or range loads.
+
+export function useHome(base?: string) {
+  return useQuery({ queryKey: moneyKeys.home(base ?? ""), queryFn: () => moneyApi.views.home(base), placeholderData: keepPreviousData });
+}
+
+export function useNetWorth(base?: string, asOf?: string) {
+  return useQuery({
+    queryKey: moneyKeys.netWorth(base ?? "", asOf ?? ""),
+    queryFn: () => moneyApi.views.netWorth({ base, asOf }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useAllocation(base?: string, asOf?: string) {
+  return useQuery({
+    queryKey: moneyKeys.allocation(base ?? "", asOf ?? ""),
+    queryFn: () => moneyApi.views.allocation({ base, asOf }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Months from `from` (YYYY-MM or "start") to this month. */
+export function useMonthly(base: string | undefined, from: string) {
+  return useQuery({
+    queryKey: moneyKeys.monthly(base ?? "", from),
+    queryFn: () => moneyApi.views.monthly({ base, from }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useMonth(month: string | undefined, base?: string) {
+  return useQuery({
+    queryKey: moneyKeys.month(month ?? "", base ?? ""),
+    queryFn: () => moneyApi.views.month(month!, base),
+    enabled: !!month,
+    placeholderData: keepPreviousData,
+  });
+}
+
+/** Net worth at each month end from `from` (YYYY-MM or "start") to today. */
+export function useHistory(base: string | undefined, from: string) {
+  return useQuery({
+    queryKey: moneyKeys.history(base ?? "", from),
+    queryFn: () => moneyApi.views.history({ base, from }),
+    placeholderData: keepPreviousData,
+  });
+}
+
+export function useSnapshots() {
+  return useQuery({ queryKey: moneyKeys.snapshots, queryFn: moneyApi.snapshots.list });
+}
+
+export function useSnapshot(id: string | undefined) {
+  return useQuery({ queryKey: moneyKeys.snapshot(id ?? ""), queryFn: () => moneyApi.snapshots.get(id!), enabled: !!id });
 }

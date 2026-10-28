@@ -5,6 +5,13 @@
 import { apiFetch } from "@platform/api/http";
 import type {
   AccountResponse,
+  AllocationResponse,
+  HistoryResponse,
+  HomeResponse,
+  MonthDetail,
+  MonthlyResponse,
+  NetWorthResponse,
+  SnapshotResponse,
   AssetClassResponse,
   AssetResponse,
   CreateAssetInput,
@@ -140,6 +147,24 @@ export const moneyApi = {
     apiFetch<PositionResponse[]>("/money/positions", { query }),
   lots: (query: { accountId?: string; assetId?: string; open?: boolean } = {}) =>
     apiFetch<LotResponse[]>("/money/lots", { query }),
+
+  views: {
+    home: (base?: string) => apiFetch<HomeResponse>("/money/views/home", { query: { base } }),
+    netWorth: (query: { base?: string; asOf?: string } = {}) => apiFetch<NetWorthResponse>("/money/views/net-worth", { query }),
+    allocation: (query: { base?: string; asOf?: string } = {}) =>
+      apiFetch<AllocationResponse>("/money/views/allocation", { query }),
+    monthly: (query: { base?: string; from?: string; to?: string } = {}) =>
+      apiFetch<MonthlyResponse>("/money/views/monthly", { query }),
+    month: (month: string, base?: string) => apiFetch<MonthDetail>(`/money/views/month/${enc(month)}`, { query: { base } }),
+    history: (query: { base?: string; from?: string; to?: string } = {}) =>
+      apiFetch<HistoryResponse>("/money/views/history", { query }),
+  },
+
+  snapshots: {
+    list: () => apiFetch<SnapshotResponse[]>("/money/snapshots"),
+    get: (id: string) => apiFetch<SnapshotResponse>(`/money/snapshots/${enc(id)}`),
+    take: (input: { date?: string; label?: string }) => post<SnapshotResponse>("/money/snapshots", input),
+  },
 
   drafts: {
     list: () => apiFetch<TransactionPage>("/money/drafts"),

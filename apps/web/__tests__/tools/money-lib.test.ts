@@ -1,6 +1,8 @@
+import { barPath, labelEvery, monthBounds, niceScale, quarterLabel, shiftMonth } from "@tools/money/lib/chart";
 import { divide, subtract } from "@tools/money/lib/decimal";
 import { decimalsOf, formatAmount, isNegative, normalizeAmountInput } from "@tools/money/lib/format";
 import { movementFromTransaction } from "@tools/money/lib/movement";
+import { rangeFrom, suggestBases, trimLeadingEmpty } from "@tools/money/lib/views";
 import type { TransactionResponse } from "@tools/money/types";
 
 describe("money web helpers", () => {
@@ -76,5 +78,54 @@ describe("import proposals", () => {
       name
     );
     expect(expense).toMatchObject({ title: "Jedzenie / Sklep", negative: true });
+  });
+});
+
+describe("money chart and view helpers", () => {
+  it("rounds an axis out to steps that hold zero", () => {
+    expect(niceScale([16622.86])).toEqual({ min: 0, max: 20000, ticks: [0, 5000, 10000, 15000, 20000] });
+    expect(niceScale([-7857.14, 12000])).toEqual({ min: -10000, max: 15000, ticks: [-10000, -5000, 0, 5000, 10000, 15000] });
+    expect(niceScale([63.1]).ticks).toEqual([0, 20, 40, 60, 80]);
+    expect(niceScale([]).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
+  });
+
+  it("labels as many points as fit, counting from the latest", () => {
+    expect(labelEvery(12, 12)).toBe(1);
+    expect(labelEvery(36, 8)).toBe(5);
+    expect(labelEvery(5, 0)).toBe(5);
+  });
+
+  it("rounds a bar at its data end only", () => {
+    expect(barPath(10, 20, 100, 40)).toBe("M10,100V44Q10,40 14,40H26Q30,40 30,44V100Z");
+    expect(barPath(10, 20, 100, 102)).toBe("M10,100V100Q10,102 12,102H28Q30,102 30,100V100Z");
+    expect(barPath(10, 20, 100, 100)).toBe("");
+  });
+
+  it("moves between months and quarters", () => {
+    expect(shiftMonth("2026-10", -11)).toBe("2025-11");
+    expect(shiftMonth("2026-01", -1)).toBe("2025-12");
+    expect(shiftMonth("2026-12", 1)).toBe("2027-01");
+    expect(monthBounds("2028-02")).toEqual({ from: "2028-02-01", to: "2028-02-29" });
+    expect(quarterLabel("2026-10-28")).toBe("Q4 2026");
+    expect(rangeFrom("12m", "2026-10")).toBe("2025-11");
+    expect(rangeFrom("3y", "2026-10")).toBe("2023-11");
+    expect(rangeFrom("all", "2026-10")).toBe("start");
+  });
+
+  it("starts net worth history at the first month with something in it", () => {
+    const zero = { currency: "PLN", minor: "0", value: "0.00" };
+    const some = { currency: "PLN", minor: "100", value: "1.00" };
+    const points = [
+      { date: "2026-08-31", total: zero, assets: zero, liabilities: zero },
+      { date: "2026-09-30", total: some, assets: some, liabilities: zero },
+      { date: "2026-10-28", total: zero, assets: some, liabilities: { ...some, value: "-1.00", minor: "-100" } },
+    ];
+    expect(trimLeadingEmpty(points).map((p) => p.date)).toEqual(["2026-09-30", "2026-10-28"]);
+    expect(trimLeadingEmpty([points[0]])).toHaveLength(1);
+  });
+
+  it("suggests the setting, then held currencies, as base currencies", () => {
+    expect(suggestBases("PLN", ["PLN", "EUR", "USD", "GBP"])).toEqual(["PLN", "EUR", "USD", "GBP"]);
+    expect(suggestBases(undefined, ["CHF"])).toEqual(["CHF", "EUR", "USD", "PLN"]);
   });
 });

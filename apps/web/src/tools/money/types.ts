@@ -350,3 +350,128 @@ export interface LotResponse {
   parentLotId: string | null;
   closed: boolean;
 }
+
+// ---- views ---------------------------------------------------------------------------
+
+export interface NetWorthItem {
+  code: string;
+  kind: "cash" | "asset";
+  /** cash balance, or the asset value in its currency */
+  native: AmountJson | null;
+  units: string | null;
+  /** in the base currency; null without a rate */
+  value: AmountJson | null;
+  valuedBy: "balance" | "price" | "bond_formula" | "cost" | "none";
+}
+
+export interface NetWorthAccount {
+  accountId: string;
+  name: string;
+  institution: string | null;
+  type: AccountType;
+  value: AmountJson;
+  items: NetWorthItem[];
+}
+
+export interface NamedValue {
+  key: string | null;
+  name: string;
+  value: AmountJson;
+  native: AmountJson | null;
+}
+
+export interface NetWorthResponse {
+  base: string;
+  asOf: string;
+  total: AmountJson;
+  assets: AmountJson;
+  liabilities: AmountJson;
+  accounts: NetWorthAccount[];
+  currencies: NamedValue[];
+  types: NamedValue[];
+  classes: NamedValue[];
+  /** currencies without a rate to the base currency; left out of the totals */
+  missingRates: string[];
+  rateDate: string | null;
+}
+
+export interface AllocationRow {
+  classId: string | null;
+  name: string;
+  value: AmountJson;
+  percent: string | null;
+  targetPercent: string | null;
+  /** percentage points above (+) or below (-) target */
+  drift: string | null;
+  /** above (+) or below (-) the target amount */
+  driftAmount: AmountJson | null;
+}
+
+export interface AllocationResponse {
+  base: string;
+  asOf: string;
+  total: AmountJson;
+  rows: AllocationRow[];
+  targetsTotal: string | null;
+  missingRates: string[];
+}
+
+export interface MonthFlow {
+  month: string;
+  income: AmountJson;
+  expenses: AmountJson;
+  invested: AmountJson;
+  savings: AmountJson;
+  savingsRate: string | null;
+}
+
+export interface MonthlyResponse {
+  base: string;
+  months: MonthFlow[];
+  missingRates: string[];
+}
+
+export interface CategoryValue {
+  categoryId: string | null;
+  name: string;
+  value: AmountJson;
+  percent: string | null;
+}
+
+export interface MonthDetail extends MonthFlow {
+  base: string;
+  expensesByCategory: CategoryValue[];
+  incomeByCategory: CategoryValue[];
+  missingRates: string[];
+}
+
+export interface HistoryPoint {
+  date: string;
+  total: AmountJson;
+  assets: AmountJson;
+  liabilities: AmountJson;
+}
+
+export interface HistoryResponse {
+  base: string;
+  points: HistoryPoint[];
+  missingRates: string[];
+}
+
+export interface HomeResponse {
+  base: string;
+  netWorth: NetWorthResponse;
+  month: MonthDetail;
+  allocation: AllocationResponse;
+  drafts: number;
+}
+
+export interface SnapshotResponse {
+  id: string;
+  date: string;
+  label: string | null;
+  netWorth: AmountJson;
+  /** what the snapshot froze; null in lists */
+  data: { netWorth: NetWorthResponse; allocation: AllocationResponse; positions: PositionResponse[] } | null;
+  createdAt: string;
+}

@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { ListOrdered, Plus, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,12 +15,14 @@ import { useTransactions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { TransactionFilters, TransactionKind } from "../types";
 
+/** Filters start from the link that opened the page (?account=&category=&kind=&from=&to=), e.g. a category in a report. */
 export default function TransactionsPage() {
-  const [accountId, setAccountId] = useState("");
-  const [categoryId, setCategoryId] = useState("");
-  const [kind, setKind] = useState<string>(NONE);
-  const [from, setFrom] = useState("");
-  const [to, setTo] = useState("");
+  const params = useSearchParams();
+  const [accountId, setAccountId] = useState(params.get("account") ?? "");
+  const [categoryId, setCategoryId] = useState(params.get("category") ?? "");
+  const [kind, setKind] = useState<string>(params.get("kind") ?? NONE);
+  const [from, setFrom] = useState(params.get("from") ?? "");
+  const [to, setTo] = useState(params.get("to") ?? "");
   const [q, setQ] = useState("");
 
   const filters = useMemo<TransactionFilters>(

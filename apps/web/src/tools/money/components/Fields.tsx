@@ -214,15 +214,21 @@ export function Segmented<T extends string>({
   value,
   onChange,
   options,
+  scroll = false,
   className,
 }: {
   value: T;
   onChange: (value: T) => void;
   options: { value: T; label: ReactNode }[];
+  /** one row that scrolls sideways on narrow screens instead of wrapping */
+  scroll?: boolean;
   className?: string;
 }) {
   return (
-    <div className={cn("inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1", className)} role="tablist">
+    <div
+      className={cn("inline-flex max-w-full gap-1 rounded-lg bg-muted p-1", scroll ? "flex-nowrap overflow-x-auto" : "flex-wrap", className)}
+      role="tablist"
+    >
       {options.map((o) => (
         <button
           key={o.value}
@@ -231,7 +237,7 @@ export function Segmented<T extends string>({
           aria-selected={value === o.value}
           onClick={() => onChange(o.value)}
           className={cn(
-            "rounded-md px-3 py-1.5 text-sm transition-colors",
+            "shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 text-sm transition-colors",
             value === o.value ? "bg-background shadow-sm font-medium" : "text-muted-foreground hover:text-foreground"
           )}
         >

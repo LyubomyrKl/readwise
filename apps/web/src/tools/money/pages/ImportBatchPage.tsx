@@ -313,7 +313,7 @@ function AccountsCard({ batch }: { batch: ImportBatch }) {
   const unmapped = batch.accountNames.filter((n) => !accounts[n]);
   const save = useMoneyMutation(() => moneyApi.imports.mapping(batch.id, { ...mapping, accounts }), { success: "Accounts mapped" });
   const create = useMoneyMutation(() => moneyApi.imports.createAccounts(batch.id, unmapped, institutionName), {
-    success: (b) => `${unmapped.length} accounts created`,
+    success: `${unmapped.length} accounts created`,
   });
 
   return (

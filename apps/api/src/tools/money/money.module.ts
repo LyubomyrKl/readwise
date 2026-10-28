@@ -25,6 +25,9 @@ import { RatesService } from './rates/rates.service';
 import { MoneySettingsController } from './settings/settings.controller';
 import { MoneySettingsService } from './settings/settings.service';
 import { TransactionsController } from './transactions/transactions.controller';
+import { SnapshotsService } from './views/snapshots.service';
+import { ViewsController } from './views/views.controller';
+import { ViewsService } from './views/views.service';
 import { TransactionsService } from './transactions/transactions.service';
 
 /**
@@ -43,6 +46,7 @@ import { TransactionsService } from './transactions/transactions.service';
     DraftsController,
     ImportsController,
     InvestmentsController,
+    ViewsController,
   ],
   providers: [
     CommoditiesService,
@@ -63,6 +67,8 @@ import { TransactionsService } from './transactions/transactions.service';
     PricesService,
     PositionsService,
     TradesService,
+    ViewsService,
+    SnapshotsService,
   ],
   exports: [LedgerService, MovementsService, TransactionsService],
 })

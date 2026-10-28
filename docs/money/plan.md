@@ -110,3 +110,11 @@ entries of posted transactions cannot be updated or deleted.
   before; positions with value and gain; the EDO formula (annual capitalisation, margin plus
   inflation, floored at the margin). Tests: `test/db/money-m3.db-spec.ts` (71 VWCE at the exact
   cost of three buys; a sale takes the oldest lots first; reversals restore lots).
+- **M4** — done: net worth in any base currency (by account, currency, type and class; assets
+  priced, bonds by formula, unpriced at cost; missing rates named, never guessed), allocation
+  against the target with drift in points and amount, monthly income, expenses, amount invested
+  (money moved from bank and debt accounts into investments, at cost) and savings rate, net
+  worth at each month end, snapshots. Web: the overview answers the three questions; Reports
+  has net worth over time, monthly bars and savings rate, month categories, allocation and
+  snapshots, each chart with a table view. Tests: `test/db/money-m4.db-spec.ts` (USD, EUR and PLN
+  totals each match a hand calculation; March savings rate 63.1% by hand).
