@@ -84,6 +84,16 @@ python main.py
 A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
 (Caddy on `http://localhost:8080`; override `DEV_*_PORT` if something is already listening).
 
+## Sessions and rate limits
+
+A session is one refresh-token row; its id travels in both JWTs as `sid`. Logging in
+opens a new session without touching the others (several devices), refreshing rotates
+it (the old refresh token is revoked), "Logout" ends the current session and "Sign out
+everywhere" ends all of them. The web proxy refreshes on behalf of the browser and
+shares one refresh between concurrent requests, so the rotation never races. Rate
+limits are keyed by session (anonymous requests by the forwarded client address), with
+a small per-address budget on the credential endpoints.
+
 ## How the web app talks to the API
 
 The browser never sees the API origin or the tokens. Sign-in goes through
@@ -92,9 +102,10 @@ through the proxy `app/api/gw/[...path]`, which forwards the request to
 `API_URL/api/<path>` with the token from the cookie, refreshes the token when it is
 about to expire or rejected, and streams the answer back (uploads and downloads
 included). On the client, `src/platform/api/http.ts` (`apiFetch`) calls the proxy;
-each tool keeps its typed functions in `src/tools/<id>/api.ts` and the jobs client
-lives in `src/platform/jobs/api.ts`. Adding an endpoint therefore touches two files:
-the API controller and the tool's `api.ts`.
+each tool keeps its typed functions in `src/tools/<id>/api.ts` and its TanStack Query
+hooks in `src/tools/<id>/queries.ts` (keys, caching, invalidation); the jobs client lives
+in `src/platform/jobs/{api,queries,useJob}.ts`. Adding an endpoint therefore touches two
+files: the API controller and the tool's `api.ts`.
 
 ## Adding a tool to the web app
 
@@ -108,8 +119,10 @@ On the API side: `apps/api/src/tools/<id>/<id>.module.ts`, one line in
 `apps/api/src/tool-registry.ts`, a `prisma/schema/<id>.prisma` with `@@map("<id>_*")`
 tables and a migration. Background work: register a Node handler with `NodeJobRunner`
 in the module, or add a Python handler under `apps/workers/worker/tools/<id>/` and list
-the tool in `apps/workers/worker/__main__.py`. Tool code may import the platform; the
-platform never imports a tool (lint checks this in both apps).
+the tool in `apps/workers/worker/__main__.py`. LLM calls from Node go through
+`AiService` (`apps/api/src/platform/ai`), which uses the same `OLLAMA_*` variables as the
+workers. Tool code may import the platform; the platform never imports a tool (lint
+checks this in both apps).
 
 ## Database and migrations
 
@@ -140,10 +153,16 @@ or `failed` on `workbench.job-events`; the API updates the row and calls the rea
 hook, which stores the extraction key on the book and the storage key on the summary.
 A job whose heartbeat stops for `JOBS_LEASE_SECONDS` is re-published (up to
 `JOBS_MAX_ATTEMPTS`), a job whose LLM host is down shows `waiting` and resumes by
-itself. Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
-`POST /api/jobs/:id/cancel`, `POST /api/jobs/:id/retry` (the dashboard lists recent jobs
-and the summary page shows the live stage, the wait reason, cancel and retry);
-dead-lettered messages land in the `*.dlq` queues (RabbitMQ management UI).
+itself. Every job keeps a `timeline` of its stage and status changes, and the
+reader's jobs report their own numbers in `result.metadata` (extraction seconds and
+characters; segmentation and summarization seconds, section and chunk counts, LLM and
+embedding call counts), which is the baseline the pipeline-speed track
+(`docs/pipeline-speed-backlog.md`) starts from. Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
+`GET /api/jobs/:id/stream` (server-sent events: the current state, then one event per
+change, closed after the terminal state), `POST /api/jobs/:id/cancel` and
+`POST /api/jobs/:id/retry`. The dashboard lists recent jobs and the summary page follows
+its job through the stream (polling when the stream is unavailable); dead-lettered
+messages land in the `*.dlq` queues (RabbitMQ management UI).
 
 ## Tests and checks
 

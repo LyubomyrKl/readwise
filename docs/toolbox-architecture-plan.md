@@ -931,6 +931,16 @@ Exit criteria: the client has three route handlers; no `ApiRegistry`; every page
 - Document tagging as a reader feature; `UserPreference` table when a second tool needs settings.
 - Observability upgrades (Loki, metrics) when log volume justifies them.
 
+**Outcome (2026-10-28, tag `phase-6`).** The items with a concrete trigger today landed on `main` as four commits (api, workers, web, docs); the rest stay deferred with the reason noted in the checklist.
+
+- Sessions: a session is one `RefreshToken` row whose id travels in both JWTs as `sid`. Login opens a session without touching the others (several devices), refresh rotates it (the old refresh token is revoked and rejected afterwards), `POST /auth/logout` ends the current session and `POST /auth/logout-all` every session; the JWT strategy checks the session row on each request (one primary-key lookup), so both take effect at once rather than when the access token expires. The web proxy shares one refresh exchange between concurrent requests holding the same token and lets every one of them store the rotated pair in its own response; the account page offers "Sign out everywhere".
+- Rate limits: `SessionThrottlerGuard` keys the budgets by a hash of the bearer token, or by the forwarded client address for anonymous calls, since every browser request reaches the API from the web container; 30/s, 600/min and 10 000/h per session, and 5/s, 30/min and 200/h per address on the credential endpoints.
+- Jobs: `Job.timeline` (migration `20261027000000_job_timeline`) records every stage and status change, capped at 200 entries and cleared by a retry; the reader's workers report their own numbers in the result (extraction seconds and characters; segmentation and summarization seconds, sections, chunk and LLM call counts), the baseline the pipeline-speed track starts from. `GET /jobs/:id/stream` is a server-sent event stream fed by in-process change notifications: the current state first, one event per change, a keep-alive comment every 25 s, closed after the terminal state. `useJob` follows the stream through the proxy and falls back to polling; the dashboard shows how long finished jobs took.
+- Data layer: TanStack Query with a provider in the platform, `src/tools/reader/queries.ts` (books, book, notes, summaries with a refetch interval while one is generating, newest summary per book) and `src/platform/jobs/queries.ts`; the library, profile, summary and reader pages and the recent-jobs panel read from it, mutations and finished uploads invalidate it. The highlight, note and reading-session hooks keep their optimistic logic.
+- `platform/ai`: `AiService` (complete, embed, availability probe) over the OpenAI-compatible endpoint of the same Ollama host the workers use, returning 503 while the host is down; registered globally, no consumer yet.
+- Verified: api 88 unit tests in 12 suites and 15 e2e, web 51 in 9 suites, workers 62; both migrations deploy on a throwaway database with no drift; all images build (the Docker build cache had to be wiped twice after a daemon restart left it with missing parent snapshots). Live trial on a fresh stack: register plus a second login gave two live sessions; three concurrent requests without an access cookie produced one refresh exchange, three responses carrying the rotated token, one new session row and a 401 for the old token at the API; a 45-request burst from one session got 30 answers and 15 rejections while another session was unaffected; seven wrong passwords from one address gave five 401s and then 429s; the event stream delivered the job through the proxy and a finished job's stream sent its state and closed at once; the timeline recorded running, waiting and cancelled with the extraction's seconds and characters in the result; "sign out everywhere" left no live session and the other device's next request was rejected immediately; no server errors were logged.
+- Deferred, with reasons: presigned uploads and downloads (MinIO would have to be exposed through Caddy with CORS, while the proxy already streams both ways), tagging (a product feature; the legacy tag tables went in Phase 1), `UserPreference` (no second tool needs settings yet), Loki and metrics (JSON logs carry request and job ids and `docker compose logs` is enough at this volume).
+
 ---
 
 ## 6. Decision log
@@ -1084,12 +1094,12 @@ Legend: **E** essential, **O** optional.
 - [x] E Remove route aliases and the status shim; tag `phase-5`
 
 ### Phase 6: optional
-- [ ] O TanStack Query
-- [ ] O `platform/ai` facade in the API for the first Node tool
-- [ ] O Presigned uploads/downloads
-- [ ] O SSE job stream
-- [ ] O Refresh rotation, multi-session, user-keyed throttling
-- [ ] O Tagging; `UserPreference`; Loki/metrics
+- [x] O TanStack Query (query provider; reader and jobs query hooks; pages converted; the reading hooks stay hand-rolled)
+- [x] O `platform/ai` facade in the API for the first Node tool (`AiService`: complete, embed, availability; same `OLLAMA_*` variables as the workers; no consumer yet)
+- [ ] O Presigned uploads/downloads (deferred: needs MinIO exposed through Caddy with CORS; the proxy streams both ways and was verified byte for byte)
+- [x] O SSE job stream (`GET /jobs/:id/stream`; `useJob` follows it through the proxy, polls when unavailable)
+- [x] O Refresh rotation, multi-session, user-keyed throttling (sessions with `sid`, per-session and everywhere logout, session-keyed limits)
+- [ ] O Tagging; `UserPreference`; Loki/metrics (deferred: tagging is a product feature, `UserPreference` waits for a second tool, JSON logs with request and job ids suffice at this volume)
 
 ---
 
