@@ -131,8 +131,8 @@ describe('M3 investments', () => {
   it('works out the cost in PLN at the NBP rate of the business day before', async () => {
     const [first, second] = await lots(ibkr);
     expect(first).toMatchObject({ costPln: { value: '14490.00' }, costPlnRateDate: '2025-05-30' });
-    // no NBP rate stored before 2025-11-14 except the May one: the latest before the date is used
-    expect(second.costPlnRateDate).toBe('2025-05-30');
+    // the only NBP table stored before 2025-11-14 is May's: too old to be the day before, so it waits for the rates job
+    expect(second.costPln).toBeNull();
   });
 
   it('sells the oldest lots first', async () => {

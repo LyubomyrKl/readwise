@@ -1,0 +1,22 @@
+mBank S.A. Bankowość Detaliczna;
+Skrytka Pocztowa 2108;
+90-959 Łódź 2;
+www.mBank.pl;
+
+#Klient;
+JAN KOWALSKI;
+
+#Za okres:;
+01.07.2027;31.07.2027;
+
+#Waluta;#Wpływy;#Wydatki;
+PLN;15 000,00;-8 545,99;
+
+#Data operacji;#Opis operacji;#Rachunek;#Kategoria;#Kwota;#Saldo po operacji;
+2027-07-01;"WYNAGRODZENIE ACME SP Z O O  ";"eKonto 1111 ... 1234";"Wpływy";15 000,00 PLN;25 000,00 PLN;
+2027-07-03;"CZYNSZ LIPIEC  ";"eKonto 1111 ... 1234";"Mieszkanie";-3 500,00 PLN;21 500,00 PLN;
+2027-07-05;"PRZELEW WŁASNY ZEN  Rachunek odbiorcy: PL61 1090 1014 0000 0712 1981 2874";"eKonto 1111 ... 1234";"Przelew własny";-5 000,00 PLN;16 500,00 PLN;
+2027-07-12;"BIEDRONKA 1234 WARSZAWA  ";"eKonto 1111 ... 1234";"Jedzenie i napoje";-45,99 PLN;16 454,01 PLN;
+2027-07-12;"BIEDRONKA 1234 WARSZAWA  ";"eKonto 1111 ... 1234";"Jedzenie i napoje";-45,99 PLN;16 408,02 PLN;
+
+#Saldo końcowe;16 408,02 PLN;

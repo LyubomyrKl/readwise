@@ -6,6 +6,9 @@ import { addDays, formatDate } from '../core/dates';
 import { convertMinor } from '../core/money';
 import { RateBook, type RateRow } from '../core/rates';
 
+/** Calendar days back a tax rate may be looked for. */
+export const NBP_MAX_GAP_DAYS = 7;
+
 export interface TaxRate {
   /** units of PLN per unit of the currency */
   rate: string;
@@ -23,12 +26,14 @@ export class RatesService {
 
   /**
    * The Polish tax rule: the NBP average rate of the last business day before
-   * `date` (the last table published before it). Null when it is not stored yet.
+   * `date` (the last table published before it). Null when it is not stored yet:
+   * a table older than a week means the days in between are missing (the longest
+   * run of Polish holidays and weekends is six days), not that none was published.
    */
   async nbpBefore(db: Db | PrismaService, currency: string, date: Date): Promise<TaxRate | null> {
     if (currency === 'PLN') return { rate: '1', date };
     const row = await db.moneyExchangeRate.findFirst({
-      where: { source: 'nbp', fromId: currency, toId: 'PLN', date: { lt: date } },
+      where: { source: 'nbp', fromId: currency, toId: 'PLN', date: { lt: date, gte: addDays(date, -NBP_MAX_GAP_DAYS) } },
       orderBy: { date: 'desc' },
     });
     return row ? { rate: row.rate.toFixed(), date: row.date } : null;

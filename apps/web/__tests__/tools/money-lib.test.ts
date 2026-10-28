@@ -2,6 +2,7 @@ import { barPath, labelEvery, monthBounds, niceScale, quarterLabel, shiftMonth }
 import { divide, subtract } from "@tools/money/lib/decimal";
 import { decimalsOf, formatAmount, isNegative, normalizeAmountInput } from "@tools/money/lib/format";
 import { movementFromTransaction } from "@tools/money/lib/movement";
+import { buildRule, describeRule, parseRule } from "@tools/money/lib/schedule";
 import { rangeFrom, suggestBases, trimLeadingEmpty } from "@tools/money/lib/views";
 import type { TransactionResponse } from "@tools/money/types";
 
@@ -127,5 +128,26 @@ describe("money chart and view helpers", () => {
   it("suggests the setting, then held currencies, as base currencies", () => {
     expect(suggestBases("PLN", ["PLN", "EUR", "USD", "GBP"])).toEqual(["PLN", "EUR", "USD", "GBP"]);
     expect(suggestBases(undefined, ["CHF"])).toEqual(["CHF", "EUR", "USD", "PLN"]);
+  });
+});
+
+describe("recurring schedules in words", () => {
+  it("builds and reads the rules the API takes", () => {
+    const monthly = { freq: "MONTHLY" as const, interval: 1, byDay: [], byMonthDay: 10, byMonth: null };
+    expect(buildRule(monthly)).toBe("FREQ=MONTHLY;BYMONTHDAY=10");
+    expect(parseRule("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH")).toEqual({ freq: "WEEKLY", interval: 2, byDay: [0, 3], byMonthDay: null, byMonth: null });
+    expect(buildRule(parseRule("FREQ=YEARLY;BYMONTHDAY=-1;BYMONTH=3"))).toBe("FREQ=YEARLY;BYMONTHDAY=-1;BYMONTH=3");
+  });
+
+  it("describes them", () => {
+    expect(describeRule("FREQ=MONTHLY;BYMONTHDAY=10")).toBe("Monthly on the 10th");
+    expect(describeRule("FREQ=MONTHLY;BYMONTHDAY=-1")).toBe("Monthly on the last day");
+    expect(describeRule("FREQ=MONTHLY;INTERVAL=3", "2026-01-22")).toBe("Every 3 months on the 22nd");
+    expect(describeRule("FREQ=MONTHLY", "2026-01-01")).toBe("Monthly on the 1st");
+    expect(describeRule("FREQ=MONTHLY;BYMONTHDAY=11")).toBe("Monthly on the 11th");
+    expect(describeRule("FREQ=WEEKLY;INTERVAL=2;BYDAY=MO,TH")).toBe("Every 2 weeks on Mon, Thu");
+    expect(describeRule("FREQ=WEEKLY", "2026-10-28")).toBe("Weekly on Wed");
+    expect(describeRule("FREQ=YEARLY;BYMONTH=3;BYMONTHDAY=31")).toBe("Yearly on 31 Mar");
+    expect(describeRule("FREQ=DAILY;INTERVAL=2")).toBe("Every 2 days");
   });
 });

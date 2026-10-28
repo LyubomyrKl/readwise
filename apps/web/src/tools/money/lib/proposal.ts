@@ -19,18 +19,28 @@ export function describeProposal(
       return {
         date: i.date,
         title: i.note || "Transfer",
-        detail: `${accountName(i.fromAccountId)} → ${accountName(i.toAccountId)}${i.fee ? ` · fee ${formatValue(i.fee, i.fromCurrency)}` : ""}`,
+        detail: `${i.fromAccountId ? accountName(i.fromAccountId) : "another account"} → ${i.toAccountId ? accountName(i.toAccountId) : "another account"}${i.fee ? ` · fee ${formatValue(i.fee, i.fromCurrency)}` : ""}`,
         amount: `${formatValue(i.amountOut, i.fromCurrency)}${received}`,
         negative: false,
       };
     }
     case "buy":
-      return { date: i.date, title: i.note || `Buy ${p.asset?.ticker ?? ""}`.trim(), detail: `${formatUnits(i.units)} units · ${accountName(i.accountId)}`, amount: `-${formatValue(i.total, i.currency)}`, negative: true };
+      return { date: i.date, title: i.note || `Buy ${p.asset?.ticker ?? ""}`.trim(), detail: `${unitsText(i.units)} · ${accountName(i.accountId)}`, amount: `-${formatValue(i.total, i.currency)}`, negative: true };
     case "sell":
-      return { date: i.date, title: i.note || `Sell ${p.asset?.ticker ?? ""}`.trim(), detail: `${formatUnits(i.units)} units · ${accountName(i.accountId)}`, amount: `+${formatValue(i.proceeds, i.currency)}`, negative: false };
+      return { date: i.date, title: i.note || `Sell ${p.asset?.ticker ?? ""}`.trim(), detail: `${unitsText(i.units)} · ${accountName(i.accountId)}`, amount: `+${formatValue(i.proceeds, i.currency)}`, negative: false };
     case "investment_income":
-      return { date: i.date, title: i.note || category || "Investment income", detail: accountName(i.accountId), amount: `+${formatValue(i.amount, i.currency)}`, negative: false };
+      return {
+        date: i.date,
+        title: i.note || category || "Investment income",
+        detail: [accountName(i.accountId), p.asset?.ticker, i.withholding ? `${formatValue(i.withholding, i.currency)} tax withheld` : ""].filter(Boolean).join(" · "),
+        amount: `+${formatValue(i.amount, i.currency)}`,
+        negative: false,
+      };
     default:
       return { date: i.date ?? "", title: i.note || p.kind, detail: "", amount: "", negative: false };
   }
+}
+
+function unitsText(units: string | undefined): string {
+  return units ? `${formatUnits(units)} units` : "units on approval";
 }

@@ -16,7 +16,16 @@ import { AuditService } from '../ledger/audit.service';
 import { asBadRequest, jsonInput, LedgerService } from '../ledger/ledger.service';
 import { MovementsService } from '../movements/movements.service';
 import { CommoditiesService } from '../reference/commodities.service';
-import { MONEY_MANAGER_PROFILE, type ImportProfile, type ImportProposal, type ProfileRow } from './import-profile';
+import {
+  IBKR_PROFILE,
+  MBANK_PROFILE,
+  MONEY_MANAGER_PROFILE,
+  PKO_PROFILE,
+  ZEN_PROFILE,
+  type ImportProfile,
+  type ImportProposal,
+  type ProfileRow,
+} from './import-profile';
 import {
   BalancePreview,
   BalanceTargetDto,
@@ -63,7 +72,7 @@ export class ImportsService {
     private readonly accounts: AccountsService,
     private readonly audit: AuditService,
   ) {
-    this.register(MONEY_MANAGER_PROFILE);
+    for (const profile of [MONEY_MANAGER_PROFILE, MBANK_PROFILE, PKO_PROFILE, ZEN_PROFILE, IBKR_PROFILE]) this.register(profile);
   }
 
   register(profile: ImportProfile): void {
@@ -193,6 +202,9 @@ export class ImportsService {
     const row = await this.prisma.moneyImportRow.findFirst({ where: { id: rowId, batchId: id } });
     if (!row) throw new NotFoundException('row not found');
     if (!row.proposal) throw new BadRequestException(row.message ?? 'this row has nothing to import');
+    if (status === 'ready' && (row.proposal as unknown as ImportProposal).matchOnly) {
+      throw new BadRequestException('this is half of a transfer: record the transfer from the other account instead');
+    }
     await this.prisma.moneyImportRow.update({ where: { id: rowId }, data: { status } });
     return { status };
   }
@@ -338,14 +350,23 @@ export class ImportsService {
         const cached = assetIds.get(key);
         if (cached) return cached;
         const found = await db.moneyAsset.findFirst({
-          where: { OR: [{ ticker: { equals: ref.ticker, mode: 'insensitive' } }, { commodity: { code: { equals: ref.ticker, mode: 'insensitive' } } }], commodity: { userId } },
+          where: {
+            OR: [
+              ...(ref.isin ? [{ isin: { equals: ref.isin, mode: 'insensitive' as const } }] : []),
+              { ticker: { equals: ref.ticker, mode: 'insensitive' } },
+              { commodity: { code: { equals: ref.ticker, mode: 'insensitive' } } },
+            ],
+            commodity: { userId },
+          },
         });
         let assetId = found?.commodityId;
         if (!assetId) {
           const commodity = await db.moneyCommodity.create({
-            data: { kind: 'asset', code: ref.ticker.toUpperCase(), name: ref.name ?? ref.ticker, decimals: 4, userId },
+            data: { kind: 'asset', code: ref.ticker.toUpperCase(), name: (ref.name ?? ref.ticker).slice(0, 120), decimals: 4, userId },
           });
-          await db.moneyAsset.create({ data: { commodityId: commodity.id, ticker: ref.ticker, quoteCurrencyId: (await this.commodities.currency(ref.currency)).id } });
+          await db.moneyAsset.create({
+            data: { commodityId: commodity.id, ticker: ref.ticker, isin: ref.isin ?? null, quoteCurrencyId: (await this.commodities.currency(ref.currency)).id },
+          });
           assetId = commodity.id;
         }
         assetIds.set(key, assetId);
@@ -429,11 +450,13 @@ export class ImportsService {
       where: { userId, type: { not: 'system' } },
       select: { id: true, name: true, number: true },
     });
+    const decimals = new Map((await this.commodities.list()).map((c) => [c.code, c.decimals]));
     const mapped = profile.map({
       rows: raw,
       mapping,
       account: account ? { id: account.id, number: account.number, currencies: account.subAccounts.map((s) => s.commodityId) } : undefined,
       ownAccounts,
+      decimalsOf: (code) => decimals.get(code),
     });
     const byRow = new Map(mapped.map((m) => [m.rowNumber, m]));
     await this.holdBackKnown(userId, batchId, mapped);
@@ -486,8 +509,11 @@ export class ImportsService {
       }
     }
 
-    // nearby movements already in the ledger
-    const candidates = ready.filter((r) => r.status === 'ready').map((r) => ({ row: r, leg: mainLeg(r.proposal!) })).filter((c) => c.leg);
+    // nearby movements already in the ledger; the halves of transfers are only ever matched
+    const halves = rows.filter((r) => r.proposal?.matchOnly);
+    const candidates = [...ready.filter((r) => r.status === 'ready'), ...halves]
+      .map((r) => ({ row: r, leg: mainLeg(r.proposal!) }))
+      .filter((c) => c.leg);
     if (candidates.length > 0) {
       const accountIds = [...new Set(candidates.map((c) => c.leg!.accountId))];
       const dates = candidates.map((c) => c.leg!.date).sort();
@@ -676,7 +702,8 @@ export function proposalEffects(p: ImportProposal): LegAmount[] {
 /** The leg duplicate matching compares: the movement as the account's statement shows it. */
 function mainLeg(p: ImportProposal): { accountId: string; currency: string; amount: string; sign: '+' | '-'; date: string } | null {
   const legs = proposalEffects(p);
-  const leg = legs[0];
+  // the statement's own side: half of a transfer leaves the other account blank
+  const leg = legs.find((l) => l.accountId);
   if (!leg) return null;
   return { accountId: leg.accountId, currency: leg.currency, amount: leg.amount, sign: leg.sign < 0n ? '-' : '+', date: p.input.date };
 }

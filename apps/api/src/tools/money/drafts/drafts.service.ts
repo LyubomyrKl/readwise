@@ -2,7 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 import { PrismaService } from '@platform/db/prisma.service';
-import { WRITE_TX } from '../common/db';
+import { WRITE_TX, type Db } from '../common/db';
 import { toDate } from '../common/parse';
 import { todayIn } from '../core/dates';
 import { AuditService } from '../ledger/audit.service';
@@ -40,33 +40,46 @@ export class DraftsService {
     movement: MovementDto,
     opts: { actor: string; note?: string; recurringRuleId?: string; date?: Date },
   ): Promise<TransactionResponse> {
+    await this.check(movement);
+    await this.ledger.ensureSetup(userId);
+    const { id } = await this.prisma.$transaction((db) => this.createIn(db, userId, movement, opts));
+    return this.transactions.get(userId, id);
+  }
+
+  /** Throws a 400 listing what is wrong with the fields present. */
+  async check(movement: MovementDto): Promise<void> {
     const handler = this.movements.handler(movement.kind);
     const instance = plainToInstance(handler.dto, movement.input);
     const errors = await validate(instance, { skipMissingProperties: true, whitelist: true, forbidNonWhitelisted: true });
     if (errors.length > 0) {
       throw new BadRequestException(errors.flatMap((e) => Object.values(e.constraints ?? {})));
     }
-    await this.ledger.ensureSetup(userId);
+  }
+
+  /** Stores a checked draft inside the caller's database transaction. */
+  async createIn(
+    db: Db,
+    userId: string,
+    movement: MovementDto,
+    opts: { actor: string; note?: string; recurringRuleId?: string; date?: Date },
+  ): Promise<{ id: string }> {
     const rawDate = (movement.input as { date?: unknown }).date;
     const date = opts.date ?? (typeof rawDate === 'string' ? toDate(rawDate) : todayIn('UTC'));
     const note = opts.note ?? (typeof movement.input.note === 'string' ? movement.input.note : null);
-    const row = await this.prisma.$transaction(async (db) => {
-      const draft = await db.moneyTransaction.create({
-        data: {
-          userId,
-          date,
-          kind: movement.kind,
-          status: 'draft',
-          note,
-          draft: jsonInput({ kind: movement.kind, input: movement.input }),
-          proposedBy: opts.actor,
-          recurringRuleId: opts.recurringRuleId ?? null,
-        },
-      });
-      await this.audit.record(db, { userId, actor: opts.actor, action: 'draft.create', subjectId: draft.id, details: { kind: movement.kind } });
-      return draft;
+    const draft = await db.moneyTransaction.create({
+      data: {
+        userId,
+        date,
+        kind: movement.kind,
+        status: 'draft',
+        note,
+        draft: jsonInput({ kind: movement.kind, input: movement.input }),
+        proposedBy: opts.actor,
+        recurringRuleId: opts.recurringRuleId ?? null,
+      },
     });
-    return this.transactions.get(userId, row.id);
+    await this.audit.record(db, { userId, actor: opts.actor, action: 'draft.create', subjectId: draft.id, details: { kind: movement.kind } });
+    return { id: draft.id };
   }
 
   /** Posts the draft, as proposed or with the input the user corrected. */

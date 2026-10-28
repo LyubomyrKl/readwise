@@ -73,11 +73,13 @@ function initialState(movement?: Movement, accountId?: string): State {
  * Income, expense, transfer, fee and opening balance in one form. It only
  * collects strings; the API parses and checks every amount (rule 1).
  */
-export function MovementForm({
+export function MovementForm<T = TransactionResponse>({
   initial,
   initialKind = "expense",
   accountId,
   lockKind = false,
+  template = false,
+  kinds = CASH_KINDS,
   submitLabel = "Save",
   onSubmit,
   onDone,
@@ -87,9 +89,12 @@ export function MovementForm({
   /** preselect this account (an account page) */
   accountId?: string;
   lockKind?: boolean;
+  /** a recurring movement: no date, each run brings its own */
+  template?: boolean;
+  kinds?: { value: CashKind; label: string }[];
   submitLabel?: string;
-  onSubmit: (movement: Movement) => Promise<TransactionResponse>;
-  onDone?: (tx: TransactionResponse) => void;
+  onSubmit: (movement: Movement) => Promise<T>;
+  onDone?: (result: T) => void;
 }) {
   const [kind, setKind] = useState<CashKind>(
     (initial?.kind as CashKind | undefined) && CASH_KINDS.some((k) => k.value === initial?.kind)
@@ -131,8 +136,8 @@ export function MovementForm({
   const rate = crossCurrency && sentNet && s.amountIn ? divide(normalizeAmountInput(s.amountIn), sentNet, 6) : null;
 
   function build(): Movement | string {
-    const base = { date: s.date, ...(s.note.trim() ? { note: s.note.trim() } : {}) };
-    if (!s.date) return "Pick a date";
+    const base = { ...(template ? {} : { date: s.date }), ...(s.note.trim() ? { note: s.note.trim() } : {}) };
+    if (!template && !s.date) return "Pick a date";
     if (kind === "transfer") {
       if (!s.fromAccountId || !s.toAccountId) return "Pick both accounts";
       if (!AMOUNT_RE.test(out)) return "Enter the amount sent";
@@ -171,8 +176,8 @@ export function MovementForm({
     }
     setPending(true);
     try {
-      const tx = await onSubmit(movement);
-      onDone?.(tx);
+      const result = await onSubmit(movement);
+      onDone?.(result);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -188,12 +193,14 @@ export function MovementForm({
         void submit();
       }}
     >
-      {lockKind ? null : <Segmented value={kind} onChange={setKind} options={CASH_KINDS} />}
+      {lockKind ? null : <Segmented value={kind} onChange={setKind} options={kinds} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date" htmlFor="mv-date">
-          <DateInput id="mv-date" value={s.date} onChange={(v) => set("date", v)} />
-        </Field>
+        {template ? null : (
+          <Field label="Date" htmlFor="mv-date">
+            <DateInput id="mv-date" value={s.date} onChange={(v) => set("date", v)} />
+          </Field>
+        )}
 
         {kind === "transfer" ? null : (
           <Field label="Account" htmlFor="mv-account">

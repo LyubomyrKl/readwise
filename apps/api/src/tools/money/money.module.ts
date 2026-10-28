@@ -21,7 +21,15 @@ import { MovementsController } from './movements/movements.controller';
 import { MovementsService } from './movements/movements.service';
 import { CommoditiesService } from './reference/commodities.service';
 import { CurrenciesController } from './reference/currencies.controller';
+import { RatesController } from './rates/rates.controller';
 import { RatesService } from './rates/rates.service';
+import { MoneyHttp } from './feeds/http.service';
+import { PriceFeedService } from './feeds/price-feed.service';
+import { RateFeedService } from './feeds/rate-feed.service';
+import { RecurringController } from './recurring/recurring.controller';
+import { RecurringService } from './recurring/recurring.service';
+import { TaxController } from './tax/tax.controller';
+import { TaxService } from './tax/tax.service';
 import { MoneySettingsController } from './settings/settings.controller';
 import { MoneySettingsService } from './settings/settings.service';
 import { TransactionsController } from './transactions/transactions.controller';
@@ -47,6 +55,9 @@ import { TransactionsService } from './transactions/transactions.service';
     ImportsController,
     InvestmentsController,
     ViewsController,
+    RatesController,
+    RecurringController,
+    TaxController,
   ],
   providers: [
     CommoditiesService,
@@ -69,7 +80,12 @@ import { TransactionsService } from './transactions/transactions.service';
     TradesService,
     ViewsService,
     SnapshotsService,
+    MoneyHttp,
+    RateFeedService,
+    PriceFeedService,
+    RecurringService,
+    TaxService,
   ],
-  exports: [LedgerService, MovementsService, TransactionsService],
+  exports: [LedgerService, MovementsService, TransactionsService, RateFeedService, PriceFeedService, RecurringService, SnapshotsService],
 })
 export class MoneyModule {}

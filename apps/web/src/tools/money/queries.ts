@@ -34,6 +34,10 @@ export const moneyKeys = {
   month: (month: string, base: string) => ["money", "views", "month", month, base] as const,
   history: (base: string, from: string) => ["money", "views", "history", base, from] as const,
   snapshots: ["money", "snapshots"] as const,
+  recurring: ["money", "recurring"] as const,
+  tax: (year: number) => ["money", "tax", year] as const,
+  rates: (filter: string) => ["money", "rates", filter] as const,
+  automation: ["money", "automation"] as const,
   snapshot: (id: string) => ["money", "snapshot", id] as const,
 };
 
@@ -217,4 +221,25 @@ export function useSnapshots() {
 
 export function useSnapshot(id: string | undefined) {
   return useQuery({ queryKey: moneyKeys.snapshot(id ?? ""), queryFn: () => moneyApi.snapshots.get(id!), enabled: !!id });
+}
+
+export function useRecurring() {
+  return useQuery({ queryKey: moneyKeys.recurring, queryFn: moneyApi.recurring.list });
+}
+
+export function useTaxReport(year: number) {
+  return useQuery({ queryKey: moneyKeys.tax(year), queryFn: () => moneyApi.tax(year), placeholderData: keepPreviousData });
+}
+
+export function useRates(query: { from?: string; to?: string; source?: string }) {
+  return useQuery({ queryKey: moneyKeys.rates(JSON.stringify(query)), queryFn: () => moneyApi.rates.list(query) });
+}
+
+/** Refreshes every few seconds while a job it started is still running. */
+export function useAutomation() {
+  return useQuery({
+    queryKey: moneyKeys.automation,
+    queryFn: moneyApi.automation.status,
+    refetchInterval: (q) => (q.state.data?.tasks.some((t) => t.lastJob && ["queued", "running", "waiting"].includes(t.lastJob.status)) ? 3000 : false),
+  });
 }

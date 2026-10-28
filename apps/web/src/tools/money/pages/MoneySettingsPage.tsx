@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { PLATFORM_ROUTES } from "@platform/routes";
 import { moneyApi } from "../api";
 import { COST_BASIS_LABELS } from "../components/AccountForm";
+import { AutomationCard, RatesCard } from "../components/AutomationCards";
 import { categoryPath, CurrencySelect, Field, NONE, SimpleSelect } from "../components/Fields";
 import { useCategories, useMoneyMutation, useMoneySettings } from "../queries";
 import type { CategoryResponse, CostBasisMethod } from "../types";
@@ -29,10 +30,12 @@ export default function MoneySettingsPage() {
           <Wallet className="h-6 w-6" />
           Money
         </h1>
-        <p className="mt-1 text-muted-foreground">Base currency, tax rules and categories</p>
+        <p className="mt-1 text-muted-foreground">Base currency, tax rules, categories, and what runs on its own</p>
       </div>
       <GeneralCard />
       <CategoriesCard />
+      <AutomationCard />
+      <RatesCard />
     </div>
   );
 }

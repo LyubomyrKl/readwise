@@ -402,7 +402,7 @@ function ReviewCard({ batch }: { batch: ImportBatch }) {
           <ul className="divide-y rounded-md border">
             {(page?.items ?? []).map((row) => {
               const d = row.proposal ? describeProposal(row.proposal, nameOf) : null;
-              const canToggle = open && !!row.proposal && row.status !== "imported";
+              const canToggle = open && !!row.proposal && !row.proposal.matchOnly && row.status !== "imported";
               return (
                 <li key={row.id} className="flex items-start justify-between gap-3 px-3 py-2 text-sm">
                   <div className="min-w-0 flex-1">

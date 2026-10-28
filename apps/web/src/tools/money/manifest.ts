@@ -1,4 +1,4 @@
-import { BarChart3, FileUp, Inbox, Landmark, LayoutDashboard, LineChart, ListOrdered, Plus, Wallet } from "lucide-react";
+import { BarChart3, FileUp, Inbox, Landmark, LayoutDashboard, LineChart, ListOrdered, Plus, Receipt, Repeat, Wallet } from "lucide-react";
 import type { ToolManifest } from "@platform/shell/ToolManifest";
 import { MONEY_ROUTES } from "./routes";
 
@@ -13,6 +13,8 @@ export const moneyManifest: ToolManifest = {
     { title: "Transactions", icon: ListOrdered, href: MONEY_ROUTES.transactions },
     { title: "Investments", icon: LineChart, href: MONEY_ROUTES.investments },
     { title: "Reports", icon: BarChart3, href: MONEY_ROUTES.reports },
+    { title: "Recurring", icon: Repeat, href: MONEY_ROUTES.recurring },
+    { title: "Tax", icon: Receipt, href: MONEY_ROUTES.tax },
     { title: "Drafts", icon: Inbox, href: MONEY_ROUTES.drafts },
     { title: "Import", icon: FileUp, href: MONEY_ROUTES.imports },
   ],
@@ -20,7 +22,7 @@ export const moneyManifest: ToolManifest = {
   settings: [
     {
       title: "Money",
-      description: "Base currency, tax rules, categories",
+      description: "Base currency, tax rules, categories, automation",
       icon: Wallet,
       href: MONEY_ROUTES.settings,
     },

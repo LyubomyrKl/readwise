@@ -4,6 +4,14 @@
  */
 import { apiFetch } from "@platform/api/http";
 import type {
+  AutomationJob,
+  AutomationStatus,
+  CreateRecurringInput,
+  MoneyTask,
+  RateRow,
+  RecurringRule,
+  RecurringRunResult,
+  TaxReport,
   AccountResponse,
   AllocationResponse,
   HistoryResponse,
@@ -164,6 +172,28 @@ export const moneyApi = {
     list: () => apiFetch<SnapshotResponse[]>("/money/snapshots"),
     get: (id: string) => apiFetch<SnapshotResponse>(`/money/snapshots/${enc(id)}`),
     take: (input: { date?: string; label?: string }) => post<SnapshotResponse>("/money/snapshots", input),
+  },
+
+  recurring: {
+    list: () => apiFetch<RecurringRule[]>("/money/recurring"),
+    create: (input: CreateRecurringInput) => post<RecurringRule>("/money/recurring", input),
+    update: (id: string, input: Partial<Omit<CreateRecurringInput, "kind" | "startDate">> & { paused?: boolean }) =>
+      patch<RecurringRule>(`/money/recurring/${enc(id)}`, input),
+    remove: (id: string) => apiFetch<{ removed: true }>(`/money/recurring/${enc(id)}`, { method: "DELETE" }),
+    run: () => post<RecurringRunResult>("/money/recurring/run"),
+  },
+
+  tax: (year: number) => apiFetch<TaxReport>(`/money/tax/${year}`),
+
+  rates: {
+    list: (query: { from?: string; to?: string; source?: string } = {}) => apiFetch<RateRow[]>("/money/rates", { query }),
+    create: (input: { date: string; from: string; to: string; rate: string }) => post<RateRow>("/money/rates", input),
+    remove: (id: string) => apiFetch<{ removed: true }>(`/money/rates/${enc(id)}`, { method: "DELETE" }),
+  },
+
+  automation: {
+    status: () => apiFetch<AutomationStatus>("/money/automation"),
+    run: (task: MoneyTask) => post<AutomationJob>(`/money/automation/${task}`),
   },
 
   drafts: {

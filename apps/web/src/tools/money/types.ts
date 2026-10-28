@@ -223,7 +223,9 @@ export interface ImportProposal {
   kind: MovementKind;
   input: Record<string, string>;
   category?: { name: string; parent?: string; kind: "income" | "expense" };
-  asset?: { ticker: string; currency: string; name?: string };
+  asset?: { ticker: string; currency: string; name?: string; isin?: string };
+  /** half of a transfer: compared with the ledger, never posted from the import */
+  matchOnly?: boolean;
 }
 
 export interface ImportRow {
@@ -474,4 +476,148 @@ export interface SnapshotResponse {
   /** what the snapshot froze; null in lists */
   data: { netWorth: NetWorthResponse; allocation: AllocationResponse; positions: PositionResponse[] } | null;
   createdAt: string;
+}
+
+// ---- recurring -----------------------------------------------------------------------
+
+export type RecurringKind = "income" | "expense" | "fee" | "transfer" | "buy" | "sell" | "investment_income";
+
+export interface RecurringRule {
+  id: string;
+  name: string;
+  kind: RecurringKind;
+  /** the movement without its date */
+  template: Record<string, unknown>;
+  /** FREQ=MONTHLY;BYMONTHDAY=10 and the like */
+  schedule: string;
+  startDate: string;
+  endDate: string | null;
+  nextRunAt: string;
+  upcoming: string[];
+  autoPost: boolean;
+  paused: boolean;
+  finished: boolean;
+  lastRunAt: string | null;
+  runs: number;
+  createdAt: string;
+}
+
+export interface CreateRecurringInput {
+  name: string;
+  kind: RecurringKind;
+  template: Record<string, unknown>;
+  schedule: string;
+  startDate: string;
+  endDate?: string | null;
+  autoPost?: boolean;
+}
+
+export interface RecurringRunResult {
+  posted: number;
+  drafted: number;
+  errors: { ruleId: string; name: string; date: string; error: string }[];
+}
+
+// ---- tax -----------------------------------------------------------------------------
+
+export interface TaxLotLine {
+  lotId: string;
+  acquiredAt: string;
+  units: string;
+  cost: AmountJson;
+  costPln: AmountJson | null;
+  rate: string | null;
+  rateDate: string | null;
+}
+
+export interface TaxSale {
+  transactionId: string;
+  date: string;
+  accountName: string;
+  assetCode: string;
+  assetName: string;
+  units: string;
+  proceeds: AmountJson;
+  proceedsPln: AmountJson | null;
+  rate: string | null;
+  rateDate: string | null;
+  costPln: AmountJson | null;
+  gainPln: AmountJson | null;
+  lots: TaxLotLine[];
+}
+
+export interface TaxIncome {
+  transactionId: string;
+  date: string;
+  accountName: string;
+  assetCode: string | null;
+  category: string;
+  gross: AmountJson;
+  withheld: AmountJson;
+  grossPln: AmountJson | null;
+  withheldPln: AmountJson | null;
+  rate: string | null;
+  rateDate: string | null;
+  taxPln: AmountJson | null;
+  creditPln: AmountJson | null;
+}
+
+export interface TaxReport {
+  year: number;
+  currency: string;
+  accounts: { id: string; name: string }[];
+  sales: TaxSale[];
+  income: TaxIncome[];
+  totals: {
+    revenue: AmountJson;
+    costs: AmountJson;
+    income: AmountJson;
+    base: AmountJson;
+    tax: AmountJson;
+    incomeGross: AmountJson;
+    incomeTax: AmountJson;
+    incomeCredit: AmountJson;
+    incomeDue: AmountJson;
+  };
+  complete: boolean;
+  missing: string[];
+}
+
+// ---- rates and automation ------------------------------------------------------------
+
+export interface RateRow {
+  id: string;
+  date: string;
+  from: string;
+  to: string;
+  rate: string;
+  source: "ecb" | "nbp" | "manual";
+}
+
+export interface RateSourceStatus {
+  source: "ecb" | "nbp" | "manual";
+  first: string | null;
+  latest: string | null;
+  count: number;
+}
+
+export type MoneyTask = "recurring" | "snapshot" | "rates" | "prices";
+
+export interface AutomationJob {
+  id: string;
+  type: string;
+  status: "queued" | "running" | "waiting" | "succeeded" | "failed" | "cancelled";
+  error?: string | null;
+  result?: Record<string, unknown> | null;
+  createdAt: string;
+  finishedAt?: string | null;
+}
+
+export interface AutomationStatus {
+  timeZone: string;
+  scheduler: boolean;
+  tasks: { task: MoneyTask; startsAt: string; lastJob: AutomationJob | null }[];
+  rates: RateSourceStatus[];
+  priceFeeds: { assetId: string; code: string; symbol: string; latest: { date: string; price: string; currency: string } | null }[];
+  recurring: { active: number; nextRunAt: string | null };
 }

@@ -118,3 +118,16 @@ entries of posted transactions cannot be updated or deleted.
   has net worth over time, monthly bars and savings rate, month categories, allocation and
   snapshots, each chart with a table view. Tests: `test/db/money-m4.db-spec.ts` (USD, EUR and PLN
   totals each match a hand calculation; March savings rate 63.1% by hand).
+- **M5** — done: the daily jobs on the platform job runner (`money.recurring` 06:00,
+  `money.rates` 17:15, `money.prices` 18:30, `money.snapshot` after each quarter end; a missed
+  day runs at once), ECB and NBP table A fetched from the first movement on and stored once,
+  lots waiting for their NBP rate filled in (a tax rate older than a week counts as missing),
+  rates typed in by hand; Stooq end-of-day prices (month-end history the first time);
+  recurring movements (RRULE subset, a draft each time or posted on the day, caught up after a
+  pause in the server, one database transaction per occurrence); mBank, PKO BP and ZEN statement
+  profiles (transfers between own accounts recognised by account number) and the IBKR activity
+  statement (trades, currency conversions, dividends with the tax withheld, interest, fees;
+  deposits only matched); the yearly PIT-38 report from the lots, with CSV. Tests:
+  `test/db/money-m5.db-spec.ts` (rates arrive from the schedule and fill a lot's PLN cost; July's
+  IBKR statement and then July plus August import with no duplicates; the tax report's costs
+  are the shares of the lots' PLN cost).

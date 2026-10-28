@@ -1,4 +1,6 @@
 import type { MovementKind } from '../movements/movement.models';
+import { mapBankStatement, MBANK, PKO, ZEN, type BankPreset } from '../core/bank-statements';
+import { mapIbkrStatement } from '../core/ibkr';
 import { mapMoneyManagerRows, type CategoryRef, type MoneyManagerMapping } from '../core/money-manager';
 
 /** What an import row becomes: the movement as its endpoint accepts it, categories and assets by name. */
@@ -6,8 +8,10 @@ export interface ImportProposal {
   kind: MovementKind;
   input: Record<string, string>;
   category?: CategoryRef;
-  /** broker imports: the asset by ticker, created on commit when the user has none */
-  asset?: { ticker: string; currency: string; name?: string };
+  /** broker imports: the asset by ticker or ISIN, created on commit when the user has none */
+  asset?: { ticker: string; currency: string; name?: string; isin?: string };
+  /** never posted from the import (half of a transfer): only shown as matched when the ledger has it */
+  matchOnly?: boolean;
 }
 
 export interface ProfileRow {
@@ -27,6 +31,8 @@ export interface ProfileInput {
   account?: { id: string; number: string | null; currencies: string[] };
   /** the user's accounts, to recognise transfers between them by account number */
   ownAccounts: { id: string; name: string; number: string | null }[];
+  /** decimal places of a supported currency */
+  decimalsOf: (currency: string) => number | undefined;
 }
 
 export interface ImportProfile {
@@ -53,5 +59,33 @@ export const MONEY_MANAGER_PROFILE: ImportProfile = {
       proposal: r.proposal,
       dedupeHash: r.dedupeHash,
     }));
+  },
+};
+
+function bankProfile(preset: BankPreset): ImportProfile {
+  return {
+    id: preset.id,
+    label: preset.label,
+    needsAccount: true,
+    needsMapping: false,
+    map({ rows, account, ownAccounts }) {
+      if (!account) return [];
+      return mapBankStatement(preset, { rows, account: { id: account.id, currencies: account.currencies }, ownAccounts });
+    },
+  };
+}
+
+export const MBANK_PROFILE = bankProfile(MBANK);
+export const PKO_PROFILE = bankProfile(PKO);
+export const ZEN_PROFILE = bankProfile(ZEN);
+
+export const IBKR_PROFILE: ImportProfile = {
+  id: 'ibkr',
+  label: 'Interactive Brokers activity statement (CSV)',
+  needsAccount: true,
+  needsMapping: false,
+  map({ rows, account, decimalsOf }) {
+    if (!account) return [];
+    return mapIbkrStatement({ rows, accountId: account.id, decimalsOf });
   },
 };

@@ -62,11 +62,13 @@ export function AssetSelect({
  * Buy, sell, dividend or interest, unit move and split. Like the money form it
  * only collects strings; the API parses, checks and posts (with the lots).
  */
-export function TradeForm({
+export function TradeForm<T = TransactionResponse>({
   initial,
   initialKind = "buy",
   accountId,
   lockKind = false,
+  template = false,
+  kinds = TRADE_KINDS,
   submitLabel = "Save",
   onSubmit,
   onDone,
@@ -75,9 +77,12 @@ export function TradeForm({
   initialKind?: TradeKind;
   accountId?: string;
   lockKind?: boolean;
+  /** a recurring movement: no date; the units may wait for the approval of each draft */
+  template?: boolean;
+  kinds?: { value: TradeKind; label: string }[];
   submitLabel?: string;
-  onSubmit: (movement: Movement) => Promise<TransactionResponse>;
-  onDone?: (tx: TransactionResponse) => void;
+  onSubmit: (movement: Movement) => Promise<T>;
+  onDone?: (result: T) => void;
 }) {
   const i = initial?.input ?? {};
   const [kind, setKind] = useState<TradeKind>((initial?.kind as TradeKind | undefined) ?? initialKind);
@@ -122,19 +127,19 @@ export function TradeForm({
   const unitPrice = (kind === "buy" || kind === "sell") && units && money ? divide(normalizeAmountInput(money), normalizeAmountInput(units), 4) : null;
 
   function build(): Movement | string {
-    const base: Record<string, unknown> = { date, ...(note.trim() ? { note: note.trim() } : {}) };
+    const base: Record<string, unknown> = { ...(template ? {} : { date }), ...(note.trim() ? { note: note.trim() } : {}) };
     const u = normalizeAmountInput(units);
     const m = normalizeAmountInput(money);
-    if (!date) return "Pick a date";
+    if (!template && !date) return "Pick a date";
     switch (kind) {
       case "buy":
       case "sell": {
         if (!account) return "Pick the account that holds the units";
         if (!asset) return "Pick the asset";
-        if (!AMOUNT_RE.test(u)) return "Enter the units";
+        if (!(template && !u) && !AMOUNT_RE.test(u)) return "Enter the units";
         if (!AMOUNT_RE.test(m)) return kind === "buy" ? "Enter the total paid" : "Enter the proceeds";
         if (!currency) return "Pick the currency";
-        const input: Record<string, unknown> = { ...base, accountId: account, assetId: asset, units: u, currency };
+        const input: Record<string, unknown> = { ...base, accountId: account, assetId: asset, ...(u ? { units: u } : {}), currency };
         if (kind === "buy") {
           input.total = m;
           if (heldBefore) input.heldBefore = true;
@@ -181,7 +186,9 @@ export function TradeForm({
     }
     setPending(true);
     try {
-      onDone?.(await onSubmit({ kind: movement.kind as MovementKind, input: movement.input }));
+      // awaited first: in onDone?.(await onSubmit(…)) a missing onDone would skip the submit too
+      const result = await onSubmit({ kind: movement.kind as MovementKind, input: movement.input });
+      onDone?.(result);
     } catch (e) {
       setError(errorMessage(e));
     } finally {
@@ -197,12 +204,14 @@ export function TradeForm({
         void submit();
       }}
     >
-      {lockKind ? null : <Segmented value={kind} onChange={setKind} options={TRADE_KINDS} />}
+      {lockKind ? null : <Segmented value={kind} onChange={setKind} options={kinds} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date">
-          <DateInput value={date} onChange={setDate} />
-        </Field>
+        {template ? null : (
+          <Field label="Date">
+            <DateInput value={date} onChange={setDate} />
+          </Field>
+        )}
         {kind === "split" ? null : (
           <Field label={kind === "unit_move" ? "From account" : "Account"} hint={kind === "buy" ? "Where the units are held" : undefined}>
             <AccountSelect value={account} onChange={setAccount} />
@@ -252,7 +261,7 @@ export function TradeForm({
           ) : (
             <Field
               label={selectedAsset && selectedAsset.unitName !== "units" ? `Units (${selectedAsset.unitName})` : "Units"}
-              hint={held && kind !== "buy" ? `Held: ${formatUnits(held.units)}` : undefined}
+              hint={template ? "Leave empty to fill in on each approval" : held && kind !== "buy" ? `Held: ${formatUnits(held.units)}` : undefined}
             >
               <AmountInput value={units} onChange={setUnits} placeholder="0" />
             </Field>
