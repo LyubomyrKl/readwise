@@ -16,13 +16,6 @@
 	}
 }
 
-# The paths Claude's cloud calls (published by Tailscale Funnel) answer only
-# Anthropic's addresses (IPv4 outbound range and its IPv6 block) and the
-# tailnet: MONEY_CLAUDE_ALLOWED_IPS.
-(claude_only) {
-	@not_claude not client_ip {$MONEY_CLAUDE_ALLOWED_IPS:160.79.104.0/21 2607:6bc0::/48 100.64.0.0/10 fd7a:115c:a1e0::/48}
-	respond @not_claude "Forbidden" 403
-}
 
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
@@ -44,7 +37,6 @@
 	@https protocol https
 	header @https ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	handle /api/money/claude/* {
-		import claude_only
 		reverse_proxy api:5173 {
 			header_up X-Forwarded-For {client_ip}
 		}
@@ -52,7 +44,6 @@
 	# OAuth for Claude's custom connector: metadata, client registration and
 	# token come from Claude's cloud; approving is a page of the web app.
 	handle /.well-known/oauth-* {
-		import claude_only
 		rewrite * /api/money/oauth{uri}
 		reverse_proxy api:5173 {
 			header_up X-Forwarded-For {client_ip}
@@ -60,7 +51,6 @@
 	}
 	@oauth path /api/money/oauth/token /api/money/oauth/register
 	handle @oauth {
-		import claude_only
 		reverse_proxy api:5173 {
 			header_up X-Forwarded-For {client_ip}
 		}
