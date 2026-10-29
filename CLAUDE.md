@@ -8,6 +8,9 @@ sides and own `prisma/schema/<id>.prisma` with `<id>_*` tables.
 Checks before pushing: `npm run lint && npm run typecheck && npm test && npm run test:e2e`,
 and for the money tool with a Postgres at `DATABASE_URL`: `npm run test:db --workspace apps/api`.
 
+Skills for the recurring work live in `.claude/skills/` (`/checks`, `/new-tool`, `/endpoint`,
+`/migration`, `/money-session`); `/new-skill` makes or revises one.
+
 ## Money tool
 
 Requirements: `docs/money/requirements.md`. Plan and milestones: `docs/money/plan.md`.

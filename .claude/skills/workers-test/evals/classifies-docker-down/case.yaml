@@ -1,0 +1,8 @@
+schema_version: "1.1"
+name: classifies-docker-down
+expected_outcome: |
+  The answer says the test suite did not run at all: Docker Desktop is not running, so the
+  python:3.11-slim container that scripts/test-workers.sh needs could not start. Nothing is
+  known about the worker code or the contracts. It tells the user to start Docker Desktop
+  (open -a Docker) and rerun scripts/test-workers.sh or npm run test:workers, and it does
+  not try pytest or pip with the Mac's own Python 3.9 or 3.13 as a workaround.

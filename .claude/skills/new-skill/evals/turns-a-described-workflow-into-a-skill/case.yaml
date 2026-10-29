@@ -1,0 +1,9 @@
+schema_version: "1.1"
+name: turns-a-described-workflow-into-a-skill
+expected_outcome: |
+  A new skill folder (a kebab-case name such as rotate-jwt-secrets) under .claude/skills with a
+  SKILL.md whose frontmatter sets disable-model-invocation: true, so only the user starts it,
+  and whose body has the steps in the user's order: generate two values with openssl rand -hex 32,
+  set JWT_ACCESS_SECRET and JWT_REFRESH_SECRET in the root .env, docker compose up -d api web,
+  then sign in again; it warns that every session is invalidated. The description says when to
+  use it. The validator passes and README.md lists the skill. The secrets were not rotated.
