@@ -35,13 +35,17 @@ def utcnow() -> datetime:
 class JobState:
     """Shared between a handler and the publisher thread: latest stage/progress, cancellation."""
 
-    def __init__(self, job_id: str, attempt: int):
+    def __init__(self, job_id: str, attempt: int, interrupt: Optional[threading.Event] = None):
         self.job_id = job_id
         self.attempt = attempt
         self.stage: Optional[str] = None
         self.progress: Optional[int] = None
         self.wait_reason: Optional[str] = None
         self.cancel_requested = threading.Event()
+        # set when the worker is stopping (the runner shares one event between all its jobs)
+        self.interrupt_requested = interrupt or threading.Event()
+        # the terminal event this run reported; nothing is reported for the run after it
+        self.outcome: Optional[str] = None
         self.lock = threading.Lock()
 
     def heartbeat_event(self, worker_id: str) -> JobEvent:
@@ -64,6 +68,7 @@ class EventPublisher(threading.Thread):
         self.heartbeat_seconds = max(5, heartbeat_seconds)
         self.reconnect_seconds = reconnect_seconds
         self._outbox: "queue.Queue[JobEvent]" = queue.Queue()
+        self._in_flight: Optional[JobEvent] = None  # taken from the outbox, not confirmed by the broker yet
         self._active: dict[str, JobState] = {}
         self._active_lock = threading.Lock()
         self._recent_cancels: "OrderedDict[str, datetime]" = OrderedDict()
@@ -102,11 +107,15 @@ class EventPublisher(threading.Thread):
         return cancelled_at >= published_at
 
     def flush(self, timeout: float = 30.0) -> bool:
-        """Wait until every queued event has been published (terminal events must not be lost)."""
+        """Wait until the broker confirmed every queued event (terminal events must not be lost).
+
+        The outbox counts an event until the publisher thread marks it done, so the one in
+        flight (or waiting to be sent again after a reconnect) is included.
+        """
         deadline = time.monotonic() + timeout
-        while not self._outbox.empty() and time.monotonic() < deadline:
+        while self._outbox.unfinished_tasks and time.monotonic() < deadline:
             time.sleep(0.05)
-        return self._outbox.empty()
+        return not self._outbox.unfinished_tasks
 
     def stop(self) -> None:
         self._stop.set()
@@ -130,6 +139,8 @@ class EventPublisher(threading.Thread):
         params = pika.URLParameters(self.amqp_url)
         self._connection = pika.BlockingConnection(params)
         self._channel = self._connection.channel()
+        # publisher confirms: basic_publish returns once the broker has the event, raises otherwise
+        self._channel.confirm_delivery()
         self._channel.exchange_declare(EVENTS_EXCHANGE, exchange_type="topic", durable=True)
         self._channel.exchange_declare(CONTROL_EXCHANGE, exchange_type="fanout", durable=True)
         result = self._channel.queue_declare(queue="", exclusive=True, auto_delete=True)
@@ -138,22 +149,21 @@ class EventPublisher(threading.Thread):
         logger.info("event publisher connected (control queue %s)", self._control_queue)
 
     def _tick(self) -> None:
-        # 1. drain the outbox (block briefly so the loop is not busy)
-        try:
-            event = self._outbox.get(timeout=1.0)
-        except queue.Empty:
-            event = None
-        if event is not None:
+        # 1. drain the outbox (block briefly so the loop is not busy). An event stays in flight until
+        #    the broker confirmed it; if publishing fails it goes out first after the reconnect.
+        if self._in_flight is None:
             try:
-                self._publish(event)
-            except Exception:
-                self._outbox.put(event)  # try again after reconnecting
-                raise
-            while True:
-                try:
-                    self._publish(self._outbox.get_nowait())
-                except queue.Empty:
-                    break
+                self._in_flight = self._outbox.get(timeout=1.0)
+            except queue.Empty:
+                pass
+        while self._in_flight is not None:
+            self._publish(self._in_flight)
+            self._in_flight = None
+            self._outbox.task_done()
+            try:
+                self._in_flight = self._outbox.get_nowait()
+            except queue.Empty:
+                break
         # 2. heartbeats
         now = time.monotonic()
         if now - self._last_heartbeat >= self.heartbeat_seconds:

@@ -9,7 +9,7 @@ import httpx
 import tiktoken
 
 from worker.tools.reader.summarize.core.models import LLMRequest, LLMResponse
-from worker.tools.reader.summarize.core.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError
+from worker.tools.reader.summarize.core.exceptions import LLMError, LLMTimeoutError, LLMRateLimitError, LLMResponseError
 from worker.tools.reader.summarize.config.settings import SummarizationSettings
 from .rate_limiter import RateLimiter, RetryConfig, retry_with_backoff
 
@@ -116,8 +116,10 @@ class AsyncLLMClient:
             The generated text
 
         Raises:
-            LLMError: If the request fails after retries
+            LLMError: If the host answers with an HTTP error
             LLMTimeoutError: If the request times out
+            LLMResponseError: If the answer is unusable (malformed body, missing fields)
+            httpx.TransportError: If the host cannot be reached (after retries)
         """
         self._ensure_open()
         assert self._client is not None  # Guaranteed by _ensure_open()
@@ -131,6 +133,9 @@ class AsyncLLMClient:
                     messages.append({"role": "system", "content": system_prompt})
                 messages.append({"role": "user", "content": prompt})
 
+                # Transport errors (connection refused or reset, protocol errors) propagate as
+                # they are: they are retried below and then reach the job handler, which waits
+                # for the host instead of failing.
                 try:
                     response = await client.post(
                         "/v1/chat/completions",
@@ -142,9 +147,6 @@ class AsyncLLMClient:
                         },
                     )
                     response.raise_for_status()
-                    data = response.json()
-                    return data["choices"][0]["message"]["content"].strip()
-
                 except httpx.TimeoutException as e:
                     raise LLMTimeoutError(
                         f"Request timed out after {self.timeout}s", timeout=self.timeout
@@ -156,8 +158,12 @@ class AsyncLLMClient:
                         f"HTTP error: {e.response.status_code}",
                         status_code=e.response.status_code,
                     ) from e
-                except Exception as e:
-                    raise LLMError(f"Request failed: {str(e)}") from e
+
+                try:
+                    data = response.json()
+                    return data["choices"][0]["message"]["content"].strip()
+                except (ValueError, KeyError, IndexError, TypeError, AttributeError) as e:
+                    raise LLMResponseError(f"Unusable response: {e!r}") from e
 
         return await retry_with_backoff(
             _make_request,

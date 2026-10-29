@@ -47,6 +47,15 @@ class LLMRateLimitError(LLMError):
         self.retry_after = retry_after
 
 
+class LLMResponseError(LLMError):
+    """The LLM host answered, but the answer is unusable (malformed body, missing fields).
+
+    The only LLM failure a summarizer or merger may replace with a fallback. Transport
+    errors, timeouts and HTTP errors propagate, so the job handler can wait for the host
+    instead of storing unsummarized text as a summary.
+    """
+
+
 class ValidationError(SummarizationError):
     """Summary validation failures."""
 

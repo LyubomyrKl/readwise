@@ -51,7 +51,11 @@ class SimplePDFExtractor:
                 for i, page in enumerate(pdf.pages):
                     # Extract text from page
                     text = page.extract_text()
-                    
+                    # pdfplumber keeps each page's layout, objects and text map until the file is
+                    # closed (about 10 MB for a dense page); release them once the text is read
+                    page.flush_cache()
+                    page.get_textmap.cache_clear()
+
                     if text:
                         pages_text.append(f"--- Page {i + 1} ---\n{text}")
                         metadata["pages_processed"] += 1

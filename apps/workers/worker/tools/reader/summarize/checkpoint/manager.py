@@ -17,6 +17,10 @@ logger = logging.getLogger(__name__)
 CHECKPOINT_BUCKET = "checkpoints"
 
 
+class CheckpointUnreadable(Exception):
+    """A checkpoint exists but cannot be read (storage error, bad content); the job fails retryably."""
+
+
 @dataclass
 class Checkpoint:
     """Represents a summarization checkpoint."""
@@ -32,6 +36,12 @@ class Checkpoint:
 
     # Partial results (sections that are done)
     completed_sections: List[Dict[str, Any]] = field(default_factory=list)
+
+    # What the sections refer to: a hash of the extracted text and the segmentation the
+    # pipeline runs on. A resume reuses the segmentation (segmenting again can cut the text
+    # differently), so finished sections always line up with the ones still to do.
+    extraction_hash: str = ""
+    segmentation: Optional[Dict[str, Any]] = None
 
     # Metadata
     created_at: str = ""
@@ -61,6 +71,12 @@ class Checkpoint:
             self.completed_section_indices.append(section_index)
             self.completed_sections.append(section_data)
             self.updated_at = datetime.utcnow().isoformat()
+
+    def matches(self, extraction_hash: str, strategy: str, summary_percent: float) -> bool:
+        """True when this checkpoint was made for the same text and request (it can be resumed)."""
+        return (bool(self.segmentation and self.segmentation.get("sections"))
+                and self.extraction_hash == extraction_hash
+                and self.strategy == strategy and self.summary_percent == summary_percent)
 
     def get_next_section_index(self) -> int:
         """Get the index of the next section to process."""
@@ -156,32 +172,38 @@ class CheckpointManager:
             summary_type: Summary type
 
         Returns:
-            Checkpoint if found, None otherwise
+            Checkpoint if found, None if there is none
+
+        Raises:
+            CheckpointUnreadable: if it exists but cannot be read (storage error, bad content);
+                starting fresh instead would overwrite it on the next save
         """
+        key = self._get_checkpoint_key(book_id, summary_type)
         try:
-            key = self._get_checkpoint_key(book_id, summary_type)
             content = self._s3.download_text(self._bucket, key)
-            data = json.loads(content)
-            checkpoint = Checkpoint.from_dict(data)
-
-            logger.info(
-                f"Checkpoint loaded: {book_id} "
-                f"({len(checkpoint.completed_section_indices)}/{checkpoint.total_sections} sections, "
-                f"{checkpoint.progress_percent:.1f}%)"
-            )
-            return checkpoint
-
         except ClientError as e:
             error_code = e.response.get("Error", {}).get("Code", "")
-            if error_code in ("404", "NoSuchKey"):
+            if error_code in ("404", "NoSuchKey", "NoSuchBucket"):
                 logger.debug(f"No checkpoint found for {book_id}")
                 return None
-            logger.error(f"Failed to load checkpoint for {book_id}: {e}")
-            return None
-
+            raise CheckpointUnreadable(f"checkpoint s3://{self._bucket}/{key} could not be read: {e}") from e
         except Exception as e:
-            logger.error(f"Failed to load checkpoint for {book_id}: {e}")
-            return None
+            raise CheckpointUnreadable(f"checkpoint s3://{self._bucket}/{key} could not be read: {e}") from e
+
+        try:
+            checkpoint = Checkpoint.from_dict(json.loads(content))
+        except Exception as e:
+            raise CheckpointUnreadable(
+                f"checkpoint s3://{self._bucket}/{key} is not a valid checkpoint ({e}); "
+                "delete it to start this summary over"
+            ) from e
+
+        logger.info(
+            f"Checkpoint loaded: {book_id} "
+            f"({len(checkpoint.completed_section_indices)}/{checkpoint.total_sections} sections, "
+            f"{checkpoint.progress_percent:.1f}%)"
+        )
+        return checkpoint
 
     def delete(self, book_id: str, summary_type: str) -> bool:
         """Delete checkpoint after successful completion.

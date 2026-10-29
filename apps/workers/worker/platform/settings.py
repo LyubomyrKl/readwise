@@ -51,6 +51,9 @@ class WorkerSettings(BaseSettings):
     worker_reconnect_seconds: int = 5
     worker_llm_wait_min_seconds: int = 30
     worker_llm_wait_max_seconds: int = 300
+    # after SIGTERM, how long a running job gets to reach a point where it can stop; then it is
+    # reported as a retryable failure. Keep it below the container's stop timeout (Docker: 10 s).
+    worker_shutdown_grace_seconds: float = 8.0
     log_level: str = "INFO"
 
     @property

@@ -2,22 +2,24 @@
 
 Payload: { bookId, summaryId, extractionStorageKey, summaryType, strategy, summaryPercent, title? }
 Result:  { storageKey, metadata: { original_tokens, summary_tokens, compression_ratio, summarization_strategy } }
+         ({ storageKey, metadata: { skipped: true } } when the summary is already stored)
 
-The pipeline itself is unchanged; this module replaces the old worker's main.py:
-it waits for the LLM host instead of failing, resumes from the S3 checkpoint
-after a restart or a lost host, reports real stages, and stops between sections
-when the job is cancelled.
+This module replaces the old worker's main.py: it waits for the LLM host
+instead of failing, resumes from the S3 checkpoint (which keeps the
+segmentation) after a restart or a lost host, reports real stages, and stops
+between sections when the job is cancelled or the worker stops.
 """
 
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import time
 from typing import Any, Callable, Optional
 
-from worker.platform.jobs import JobCancelled, JobContext, JobFailed
+from worker.platform.jobs import JobCancelled, JobContext, JobFailed, JobInterrupted
 from worker.platform import llm
 from worker.platform.settings import WorkerSettings
 from worker.platform.storage import S3Storage
@@ -45,28 +47,31 @@ def extracted_content(markdown: str) -> str:
 
 
 def ensure_subsections(json_data: dict) -> dict:
-    """Give every section without subsections one subsection carrying its own text.
+    """Hand every section's own text to the pipeline as a subsection.
 
-    The pipeline summarizes subsection content only. The segmenter returns a
-    section with its text in `content` and no subsections for documents too short
-    to segment (and for any chapter it could not split), which used to produce a
-    "successful" empty summary. Sections that already have subsections are left
-    alone, so nothing is summarized twice.
+    The pipeline summarizes subsection content only. The segmenter keeps a
+    section's own text in `content`: all of it for a section without subsections
+    (documents too short to segment, chapters it could not split), which used to
+    produce a "successful" empty summary, and the text before the first
+    subsection for a chapter that has subsections, which used to be dropped. The
+    first becomes one '<id>-all' subsection, the second a leading '<id>-intro'
+    subsection. Subsection text is never copied, so nothing is summarized twice.
     """
     for section in json_data.get("sections", []):
-        if not isinstance(section, dict) or section.get("subsections"):
+        if not isinstance(section, dict):
             continue
         content = (section.get("content") or "").strip()
         if not content:
             continue
+        subsections = section.get("subsections") or []
         section["subsections"] = [{
-            "id": f"{section.get('id', 'section')}-all",
+            "id": f"{section.get('id', 'section')}-{'intro' if subsections else 'all'}",
             "title": section.get("title") or "Text",
             "level": "subsection",
             "start_char": section.get("start_char", 0),
             "end_char": section.get("end_char", len(content)),
             "content": content,
-        }]
+        }, *subsections]
     return json_data
 
 
@@ -137,6 +142,13 @@ class SummarizeHandler:
         if strategy not in STRATEGY_MAP:
             raise JobFailed(f"unknown strategy: {strategy}", retryable=False)
 
+        # a delivery after the summary was stored (lost terminal event, sweep) has nothing to do
+        summary_key = self.storage.summary_key(book_id, summary_id)
+        if self.storage.object_exists(self.settings.s3_summaries_bucket_name, summary_key):
+            ctx.log.info("summary exists, skipping")
+            ctx.progress("already summarized", 100)
+            return {"storageKey": summary_key, "metadata": {"skipped": True}}
+
         llm.wait_for_llm(ctx, self.settings, stage="waiting for LLM host")
 
         ctx.progress("loading extraction", 1)
@@ -145,24 +157,27 @@ class SummarizeHandler:
         if not text.strip():
             raise JobFailed("extraction is empty", retryable=False)
         ctx.log.info("loaded %s characters", len(text))
+        text_hash = hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-        # Both stages talk to the LLM host; if it disappears mid-run we wait and start the stage
-        # again (segmentation is cheap, summarization resumes from the checkpoint).
+        # Both stages talk to the LLM host; if it disappears mid-run we wait and go on from the
+        # checkpoint, which keeps the segmentation and every finished section.
         timings: dict[str, float] = {}
+        checkpoint: Optional[Checkpoint] = None
         while True:
             ctx.check_cancelled()
             try:
-                ctx.progress("segmenting", 3)
+                if checkpoint is None:
+                    t0 = time.monotonic()
+                    checkpoint = self._checkpoint(ctx, text, text_hash, book_id, summary_type, strategy, percent)
+                    timings["segmentation_seconds"] = round(time.monotonic() - t0, 3)
+                json_data = checkpoint.segmentation
+                ctx.log.info("segmented into %s sections", len(json_data.get('sections', [])))
                 t0 = time.monotonic()
-                json_data = ensure_subsections(self._segment(text))
-                timings["segmentation_seconds"] = round(time.monotonic() - t0, 3)
-                total_sections = len(json_data.get('sections', []))
-                ctx.log.info("segmented into %s sections", total_sections)
-                t0 = time.monotonic()
-                summary_json, metadata = self._run_pipeline(ctx, json_data, book_id, summary_type, strategy, percent, title)
+                summary_json, metadata = self._run_pipeline(ctx, json_data, book_id, summary_type, strategy, percent,
+                                                            title, checkpoint)
                 timings["summarization_seconds"] = round(time.monotonic() - t0, 3)
                 break
-            except JobCancelled:
+            except (JobCancelled, JobInterrupted):
                 raise
             except Exception as error:  # noqa: BLE001
                 if llm.looks_like_connection_error(error) and not llm.probe_ollama(self.settings.ollama_base_url):
@@ -196,35 +211,49 @@ class SummarizeHandler:
             "metadata": {k: v for k, v in metadata.items() if isinstance(v, (int, float, str, bool))},
         }
 
+    # ---- the checkpoint: segmentation and finished sections ----------------------------------
+
+    def _checkpoint(self, ctx: JobContext, text: str, text_hash: str, book_id: str, summary_type: str,
+                    strategy: str, percent: float) -> Checkpoint:
+        """This run's checkpoint: the stored one if it was made for this text and request, else a new
+        one holding a fresh segmentation (saved at once, so a restart before the first section reuses
+        it). Segmenting again could cut the text differently, so a resume never does."""
+        checkpoint = self.checkpoints.load(book_id, summary_type)
+        if checkpoint is not None:
+            if checkpoint.matches(text_hash, strategy, percent):
+                ctx.log.info("resuming from checkpoint: %s/%s sections done",
+                             len(checkpoint.completed_section_indices), checkpoint.total_sections)
+                return checkpoint
+            ctx.log.warning("checkpoint does not match this request, starting fresh")
+            self.checkpoints.delete(book_id, summary_type)
+        ctx.progress("segmenting", 3)
+        json_data = ensure_subsections(self._segment(text))
+        checkpoint = Checkpoint(book_id=book_id, summary_type=summary_type, strategy=strategy,
+                                summary_percent=percent, total_sections=len(json_data.get('sections', [])),
+                                extraction_hash=text_hash, segmentation=json_data)
+        self.checkpoints.save(checkpoint)
+        return checkpoint
+
     # ---- the pipeline run with checkpoints (the old _process_with_pipeline) -----------------
 
     def _run_pipeline_default(self, ctx: JobContext, json_data: dict, book_id: str, summary_type: str,
-                              strategy: str, percent: float, title: str) -> tuple[dict, dict]:
+                              strategy: str, percent: float, title: str,
+                              checkpoint: Checkpoint) -> tuple[dict, dict]:
         builder = self._pipeline_builder()
         builder.with_strategy(STRATEGY_MAP[strategy])
         pipeline = builder.build()
         total_sections = len(json_data.get('sections', []))
-
-        checkpoint = self.checkpoints.load(book_id, summary_type)
-        skip_indices: list[int] = []
-        preloaded_sections: list[dict] = []
-        if checkpoint:
-            if (checkpoint.strategy == strategy and checkpoint.summary_percent == percent
-                    and checkpoint.total_sections == total_sections):
-                skip_indices = checkpoint.completed_section_indices
-                preloaded_sections = checkpoint.completed_sections
-                ctx.log.info("resuming from checkpoint: %s/%s sections done", len(skip_indices), total_sections)
-            else:
-                ctx.log.warning("checkpoint does not match this request, starting fresh")
-                self.checkpoints.delete(book_id, summary_type)
-                checkpoint = None
-        if not checkpoint:
-            checkpoint = Checkpoint(book_id=book_id, summary_type=summary_type, strategy=strategy,
-                                    summary_percent=percent, total_sections=total_sections)
+        skip_indices = list(checkpoint.completed_section_indices)
+        preloaded_sections = list(checkpoint.completed_sections)
 
         async def run() -> tuple[dict, dict]:
             async with pipeline:
                 total_chunks = await pipeline.count_total_chunks(json_data)
+                if total_chunks == 0:
+                    # the extraction has text (checked before), so the segmentation lost it; drop the
+                    # checkpoint so a retry after a fix segments again
+                    self.checkpoints.delete(book_id, summary_type)
+                    raise JobFailed("segmentation left no text to summarize", retryable=False)
                 done_chunks = sum(len(sub.get('chunks', [])) for sec in preloaded_sections
                                   for sub in sec.get('subsections', []))
                 state = {"chunks": done_chunks, "sections": len(skip_indices)}
@@ -243,7 +272,7 @@ class SummarizeHandler:
                     self.checkpoints.save(checkpoint)
                     state["sections"] += 1
                     ctx.progress(f"section {state['sections']}/{total_sections} done", pct())
-                    ctx.check_cancelled()  # a cancel between sections keeps the checkpoint
+                    ctx.check_cancelled()  # a cancel or a worker stop between sections keeps the checkpoint
 
                 pipeline.set_progress_callback(on_chunk)
                 pipeline.set_section_callback(on_section)

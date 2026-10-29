@@ -5,7 +5,9 @@ from typing import Optional
 
 from worker.tools.reader.summarize.core.models import Chunk, Summary, SummarizationContext
 from worker.tools.reader.summarize.core.protocols import SummarizerProtocol, LLMClientProtocol
-from worker.tools.reader.summarize.config.settings import SummarizationSettings, SummaryType
+from worker.tools.reader.summarize.core.exceptions import LLMResponseError
+from worker.tools.reader.summarize.config.settings import SummarizationSettings, SummaryType, SummarizationStrategy
+from worker.tools.reader.summarize.summarization.strategies import summarize_with_strategy
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,7 @@ class ChunkSummarizer(SummarizerProtocol):
         self,
         llm_client: LLMClientProtocol,
         summary_type: SummaryType = SummaryType.ABSTRACTIVE,
+        strategy: SummarizationStrategy = SummarizationStrategy.BASIC,
         default_ratio: float = 0.3,
     ):
         """Initialize the chunk summarizer.
@@ -28,10 +31,12 @@ class ChunkSummarizer(SummarizerProtocol):
         Args:
             llm_client: LLM client for summarization
             summary_type: Type of summarization (extractive or abstractive)
+            strategy: Summarization strategy (the job's choice)
             default_ratio: Default compression ratio
         """
         self._llm_client = llm_client
         self.summary_type = summary_type
+        self.strategy = strategy
         self.default_ratio = default_ratio
 
     @classmethod
@@ -45,6 +50,7 @@ class ChunkSummarizer(SummarizerProtocol):
         return cls(
             llm_client=llm_client,
             summary_type=summary_type or SummaryType.ABSTRACTIVE,
+            strategy=settings.summarization_strategy,
             default_ratio=settings.compression_base_ratio,
         )
 
@@ -67,16 +73,13 @@ class ChunkSummarizer(SummarizerProtocol):
         ratio = target_ratio or self.default_ratio
 
         try:
-            if self.summary_type == SummaryType.EXTRACTIVE:
-                summary_text = await self._llm_client.extractive_summarize(
-                    text=chunk.content,
-                    summary_percent=ratio,
-                )
-            else:
-                summary_text = await self._llm_client.abstractive_summarize(
-                    text=chunk.content,
-                    summary_percent=ratio,
-                )
+            summary_text = await summarize_with_strategy(
+                llm_client=self._llm_client,
+                text=chunk.content,
+                strategy=self.strategy,
+                summary_percent=ratio,
+                extractive=(self.summary_type == SummaryType.EXTRACTIVE),
+            )
 
             summary_tokens = self._llm_client.count_tokens(summary_text)
             compression_ratio = summary_tokens / chunk.token_count if chunk.token_count > 0 else 1.0
@@ -92,7 +95,8 @@ class ChunkSummarizer(SummarizerProtocol):
                 attempt_count=1,
             )
 
-        except Exception as e:
+        except LLMResponseError as e:
+            # Only an unusable answer falls back; a lost host or an HTTP error reaches the job handler
             logger.error(f"Failed to summarize chunk {chunk.id}: {e}")
             # Return original content as fallback
             return Summary(

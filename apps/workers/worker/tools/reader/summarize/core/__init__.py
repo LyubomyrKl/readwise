@@ -20,6 +20,7 @@ from .exceptions import (
     LLMError,
     LLMTimeoutError,
     LLMRateLimitError,
+    LLMResponseError,
     ValidationError,
     EntityExtractionError,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "LLMError",
     "LLMTimeoutError",
     "LLMRateLimitError",
+    "LLMResponseError",
     "ValidationError",
     "EntityExtractionError",
 ]

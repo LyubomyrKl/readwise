@@ -7,6 +7,7 @@ import tiktoken
 
 from worker.tools.reader.summarize.core.models import Summary
 from worker.tools.reader.summarize.core.protocols import MergerProtocol, LLMClientProtocol
+from worker.tools.reader.summarize.core.exceptions import LLMResponseError
 from worker.tools.reader.summarize.config.settings import SummarizationSettings
 from worker.tools.reader.summarize.formatting.paragraph_formatter import ParagraphFormatter
 
@@ -211,7 +212,8 @@ class HierarchicalMerger(MergerProtocol):
                 },
             )
 
-        except Exception as e:
+        except LLMResponseError as e:
+            # Only an unusable answer falls back; a lost host or an HTTP error reaches the job handler
             logger.error(f"Failed to merge {level} summaries: {e}")
             # Fallback: concatenate summaries
             fallback_content = "\n\n".join(s.content for s in summaries)
@@ -358,7 +360,8 @@ class HierarchicalMerger(MergerProtocol):
                 },
             )
 
-        except Exception as e:
+        except LLMResponseError as e:
+            # Only an unusable answer falls back; a lost host or an HTTP error reaches the job handler
             logger.error(f"Failed to create document summary: {e}")
             # Fallback
             fallback = "\n\n".join(

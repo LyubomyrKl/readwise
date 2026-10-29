@@ -130,8 +130,9 @@ class DeterministicSegmenter:
         print("No existing structure found, generating chapters with AI...")
         detection_result = self._run_pass1_detection(text)
         if not detection_result:
+            # too few sentences to find topic shifts (a short note, or CJK text punkt cannot split)
             print("Text too short for segmentation, returning as single section")
-            return {"sections": []}
+            return boundaries_to_json(text, [], self.ollama_client, self.tokenizer)
 
         boundaries, sentences = detection_result
         print(f"Analyzing {len(sentences)} sentences for chapter boundaries...")

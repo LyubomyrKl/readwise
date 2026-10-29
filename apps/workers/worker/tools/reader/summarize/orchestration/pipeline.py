@@ -113,12 +113,13 @@ class SummarizationPipeline:
                 self._llm_client, self.settings
             )
 
-        # Summarizer (context-aware or basic)
+        # Summarizer (context-aware or basic), both with the job's strategy
         if self.features.use_running_context or self.features.use_entity_tracking:
             self._summarizer = ContextSummarizer(
                 llm_client=self._llm_client,
                 context_manager=self._context_manager,
                 entity_tracker=self._entity_tracker,
+                strategy=self.settings.summarization_strategy,
                 default_ratio=self.settings.compression_base_ratio,
                 use_entity_tracking=self.features.use_entity_tracking,
                 use_running_context=self.features.use_running_context,
@@ -126,6 +127,7 @@ class SummarizationPipeline:
         else:
             self._summarizer = ChunkSummarizer(
                 llm_client=self._llm_client,
+                strategy=self.settings.summarization_strategy,
                 default_ratio=self.settings.compression_base_ratio,
             )
 

@@ -2,6 +2,7 @@
 
 import re
 from typing import List
+import requests
 import tiktoken
 
 from .models import Sentence, Boundary
@@ -107,6 +108,8 @@ def verify_boundary(
         boundary.level = result.get("level", "none")
         boundary.title = title if title else None
 
+    except (requests.ConnectionError, requests.Timeout):
+        raise  # the host went away: the job waits for it instead of keeping a segmentation made without it
     except Exception:
         boundary.keep = False
         boundary.level = "none"
@@ -134,6 +137,8 @@ def generate_title(
         title = clean_title(result.get("title", ""))
         if title:
             return title
+    except (requests.ConnectionError, requests.Timeout):
+        raise  # the host went away: the job waits for it instead of keeping a segmentation made without it
     except Exception:
         pass
 

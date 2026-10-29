@@ -7,6 +7,7 @@ import logging
 import signal
 import sys
 import threading
+import time
 
 from worker.platform.events import EventPublisher
 from worker.platform.jobs import JobRunner
@@ -61,8 +62,9 @@ def main(argv: list[str] | None = None) -> int:
     stop = threading.Event()
 
     def shutdown(signum, _frame):
-        logger.info("signal %s received, stopping after the current job", signum)
+        logger.info("signal %s received, stopping: a running job stops at its next safe point", signum)
         stop.set()
+        runner.interrupt()
         for consumer in consumers:
             consumer.stop()
 
@@ -76,6 +78,15 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while not stop.is_set() and any(t.is_alive() for t in threads):
             stop.wait(1.0)
+        # A running job stops at its next safe point (the summarizer: between sections, keeping its
+        # checkpoint) and reports a retryable failure. One that cannot within the grace period is
+        # reported here instead; the consumer threads are daemons and end with the process.
+        deadline = time.monotonic() + settings.worker_shutdown_grace_seconds
+        for thread in threads:
+            thread.join(max(0.0, deadline - time.monotonic()))
+        for job_id in runner.abandon():
+            logger.warning("job still running after %ss, reported for a retry", settings.worker_shutdown_grace_seconds,
+                           extra={"jobId": job_id})
     finally:
         publisher.flush()
         publisher.stop()

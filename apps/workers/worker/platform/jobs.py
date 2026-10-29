@@ -9,6 +9,7 @@ Handlers read only the payload and object storage, never a database.
 from __future__ import annotations
 
 import logging
+import threading
 import traceback
 from typing import Any, Callable, Optional, Protocol
 
@@ -31,6 +32,14 @@ class JobFailed(Exception):
 
 class JobCancelled(Exception):
     """Raised by JobContext.check_cancelled() when the API asked to stop."""
+
+
+class JobInterrupted(Exception):
+    """Raised by JobContext.check_cancelled() when the worker is stopping (SIGTERM).
+
+    The job ends as a retryable failure, so the API runs it again; a checkpointed
+    handler resumes where it stopped.
+    """
 
 
 class JobContext:
@@ -60,11 +69,16 @@ class JobContext:
         return self._state.cancel_requested.is_set()
 
     def check_cancelled(self) -> None:
+        """Call at points where the job can stop: raises when it was cancelled or the worker stops."""
         if self.cancelled:
             raise JobCancelled(f"job {self.job_id} cancelled")
+        if self._state.interrupt_requested.is_set():
+            raise JobInterrupted("interrupted: the worker stopped")
 
     def progress(self, stage: Optional[str] = None, progress: Optional[int] = None) -> None:
         with self._state.lock:
+            if self._state.outcome is not None:
+                return  # this run was already reported (given up at shutdown)
             if stage is not None:
                 self._state.stage = stage[:200]
             if progress is not None:
@@ -76,6 +90,8 @@ class JobContext:
 
     def waiting(self, reason: str, stage: Optional[str] = None) -> None:
         with self._state.lock:
+            if self._state.outcome is not None:
+                return  # this run was already reported (given up at shutdown)
             if stage is not None:
                 self._state.stage = stage[:200]
             self._state.wait_reason = reason[:2000]
@@ -98,9 +114,40 @@ class JobRunner:
         self.publisher = publisher
         self.handlers = handlers
         self.worker_id = settings.worker_id
+        self._interrupt = threading.Event()
+        self._running: dict[str, JobState] = {}
+        self._lock = threading.Lock()
 
     def _event(self, job_id: str, event: str, **fields: Any) -> JobEvent:
         return JobEvent(jobId=job_id, event=event, at=utcnow(), workerId=self.worker_id, **fields)
+
+    def _report(self, state: JobState, kind: str, **fields: Any) -> bool:
+        """Emits the run's terminal event once; False when the run was reported already (abandon())."""
+        with state.lock:
+            if state.outcome is not None:
+                logger.warning("job %s ended (%s) after it was reported as %s; not reported again",
+                               state.job_id, kind, state.outcome)
+                return False
+            state.outcome = kind
+        self.publisher.emit(self._event(state.job_id, kind, **fields))
+        return True
+
+    def interrupt(self) -> None:
+        """The worker is stopping: running jobs stop at their next ctx.check_cancelled() and end as
+        retryable failures; a job claimed from now on is handed back the same way without running."""
+        self._interrupt.set()
+
+    def abandon(self) -> list[str]:
+        """Reports the jobs still running as retryable failures; the last step before the process exits
+        when they did not reach a point where they could stop within the shutdown grace period."""
+        with self._lock:
+            states = list(self._running.values())
+        abandoned = [state.job_id for state in states
+                     if self._report(state, "failed", retryable=True,
+                                     error="interrupted: the worker stopped while the job was running")]
+        for job_id in abandoned:
+            self.publisher.unregister(job_id)  # no more heartbeats either
+        return abandoned
 
     def handle(self, envelope: JobEnvelope) -> str:
         """Runs one job to completion; returns the terminal event kind."""
@@ -119,32 +166,44 @@ class JobRunner:
             self.publisher.flush()
             return "cancelled"
 
-        state = JobState(job_id, envelope.attempt)
+        if self._interrupt.is_set():
+            # claimed while the worker stops (the message is acknowledged already): hand it back
+            log.info("worker stopping, job handed back without running")
+            self.publisher.emit(self._event(job_id, "failed", retryable=True,
+                                            error="interrupted: the worker stopped before the job started"))
+            self.publisher.flush()
+            return "failed"
+
+        state = JobState(job_id, envelope.attempt, interrupt=self._interrupt)
+        with self._lock:
+            self._running[job_id] = state
         self.publisher.register(state, envelope.publishedAt)
         self.publisher.emit(self._event(job_id, "started", attempt=envelope.attempt))
         ctx = JobContext(envelope, state, self.publisher, self.settings, self.storage, self.worker_id)
         log.info("job started")
-        outcome = "failed"
         try:
             result = handler(ctx)
-            self.publisher.emit(self._event(job_id, "succeeded", result=result or {}, progress=100, stage=state.stage))
-            outcome = "succeeded"
+            self._report(state, "succeeded", result=result or {}, progress=100, stage=state.stage)
             log.info("job succeeded")
         except JobCancelled:
-            self.publisher.emit(self._event(job_id, "cancelled", error="cancelled by request"))
-            outcome = "cancelled"
+            self._report(state, "cancelled", error="cancelled by request")
             log.info("job cancelled")
+        except JobInterrupted as error:
+            self._report(state, "failed", error=str(error)[:4000], retryable=True)
+            log.info("job interrupted: %s", error)
         except JobFailed as error:
-            self.publisher.emit(self._event(job_id, "failed", error=str(error)[:4000], retryable=error.retryable))
+            self._report(state, "failed", error=str(error)[:4000], retryable=error.retryable)
             log.error("job failed: %s (retryable=%s)", error, error.retryable)
         except Exception as error:  # noqa: BLE001 - every other error fails the job, retryable
             message = f"{type(error).__name__}: {error}"[:4000]
             log.error("job failed: %s\n%s", message, traceback.format_exc())
-            self.publisher.emit(self._event(job_id, "failed", error=message, retryable=True))
+            self._report(state, "failed", error=message, retryable=True)
         finally:
+            with self._lock:
+                self._running.pop(job_id, None)
             self.publisher.unregister(job_id)
             self.publisher.flush()
-        return outcome
+        return state.outcome or "failed"
 
 
 HandlerFactory = Callable[[WorkerSettings, S3Storage], dict[str, Handler]]

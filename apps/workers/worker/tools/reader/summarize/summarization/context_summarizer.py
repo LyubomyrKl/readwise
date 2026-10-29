@@ -10,6 +10,7 @@ from worker.tools.reader.summarize.core.protocols import (
     ContextManagerProtocol,
     EntityTrackerProtocol,
 )
+from worker.tools.reader.summarize.core.exceptions import LLMResponseError
 from worker.tools.reader.summarize.config.settings import SummarizationSettings, SummaryType, SummarizationStrategy
 from worker.tools.reader.summarize.context.running_context import RunningContext
 from worker.tools.reader.summarize.context.entity_tracker import EntityTracker
@@ -205,7 +206,8 @@ class ContextSummarizer(SummarizerProtocol):
 
             return summary
 
-        except Exception as e:
+        except LLMResponseError as e:
+            # Only an unusable answer falls back; a lost host or an HTTP error reaches the job handler
             logger.error(f"Failed to summarize chunk {chunk.id}: {e}")
             # Return original content as fallback
             return Summary(

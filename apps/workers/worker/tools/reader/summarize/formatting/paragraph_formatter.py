@@ -77,15 +77,10 @@ class ParagraphFormatter:
         # Remove trailing whitespace from lines
         text = re.sub(r' +\n', '\n', text)
 
-        # Ensure space after sentence-ending punctuation if followed by a letter/digit
-        # This fixes cases like "word.Another" -> "word. Another"
-        text = re.sub(r'([.!?,:;])([A-Za-z0-9])', r'\1 \2', text)
-
-        # Ensure space before opening brackets/quotes if preceded by letter/digit
-        text = re.sub(r'([A-Za-z0-9])(["\'\(\[])', r'\1 \2', text)
-
-        # Ensure space after closing brackets/quotes if followed by letter/digit
-        text = re.sub(r'([\]\)\"\'])([A-Za-z0-9])', r'\1 \2', text)
+        # Ensure space after sentence-ending punctuation followed by a capitalised word
+        # This fixes cases like "word.Another" -> "word. Another" and leaves "3.5%",
+        # "1,250,000", "10:30", "example.com" and "didn't" alone
+        text = re.sub(r'([.!?])([A-Z][a-z])', r'\1 \2', text)
 
         return text.strip()
 

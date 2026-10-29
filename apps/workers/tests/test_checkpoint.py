@@ -1,7 +1,9 @@
 """Resumable summarization: checkpoint bookkeeping and S3 persistence."""
+import pytest
 from botocore.exceptions import ClientError
 
-from worker.tools.reader.summarize.checkpoint.manager import CHECKPOINT_BUCKET, Checkpoint, CheckpointManager
+from worker.tools.reader.summarize.checkpoint.manager import (
+    CHECKPOINT_BUCKET, Checkpoint, CheckpointManager, CheckpointUnreadable)
 
 
 def _client_error(code, operation):
@@ -62,7 +64,8 @@ def test_checkpoint_tracks_progress_and_next_section():
 
 def test_checkpoint_round_trips_through_dict():
     cp = Checkpoint(book_id="book-1", summary_type="abstractive", strategy="hybrid",
-                    summary_percent=0.25, total_sections=2)
+                    summary_percent=0.25, total_sections=2, extraction_hash="h1",
+                    segmentation={"sections": [{"id": "s1"}, {"id": "s2"}]})
     cp.add_completed_section(1, {"title": "two"})
 
     restored = Checkpoint.from_dict(cp.to_dict())
@@ -72,6 +75,20 @@ def test_checkpoint_round_trips_through_dict():
     assert restored.completed_section_indices == [1]
     assert restored.completed_sections == [{"title": "two"}]
     assert restored.total_sections == 2
+    assert (restored.extraction_hash, restored.segmentation) == ("h1", {"sections": [{"id": "s1"}, {"id": "s2"}]})
+
+
+def test_a_checkpoint_resumes_only_the_text_and_request_it_was_made_for():
+    cp = Checkpoint(book_id="b", summary_type="abstractive", strategy="basic", summary_percent=0.4,
+                    total_sections=1, extraction_hash="h1", segmentation={"sections": [{"id": "s1"}]})
+
+    assert cp.matches("h1", "basic", 0.4)
+    assert not cp.matches("h2", "basic", 0.4), "another text"
+    assert not cp.matches("h1", "two_pass", 0.4) and not cp.matches("h1", "basic", 0.3), "another request"
+    legacy = Checkpoint.from_dict({"book_id": "b", "summary_type": "abstractive", "strategy": "basic",
+                                   "summary_percent": 0.4, "total_sections": 1, "completed_section_indices": [0],
+                                   "completed_sections": [{"id": "s1"}]})
+    assert not legacy.matches("", "basic", 0.4), "written before checkpoints kept their segmentation"
 
 
 def test_manager_saves_loads_and_deletes_in_the_checkpoints_bucket():
@@ -95,6 +112,24 @@ def test_manager_saves_loads_and_deletes_in_the_checkpoints_bucket():
     assert manager.delete("book-1", "abstractive") is True
     assert not manager.exists("book-1", "abstractive")
     assert manager.delete("book-1", "abstractive") is True, "deleting twice is harmless"
+
+
+def test_load_tells_a_missing_checkpoint_from_one_it_cannot_read():
+    """Starting over on an unreadable checkpoint would overwrite it with the first finished section."""
+    s3 = _FakeS3Storage()
+    manager = CheckpointManager(s3)
+    assert manager.load("book-1", "abstractive") is None, "missing"
+
+    s3.store[(CHECKPOINT_BUCKET, "checkpoint/book-1_abstractive.json")] = '{"book_id": "book-1", '
+    with pytest.raises(CheckpointUnreadable, match="not a valid checkpoint"):
+        manager.load("book-1", "abstractive")
+
+    for error in (_client_error("RequestTimeout", "GetObject"), ConnectionResetError(104, "Connection reset by peer")):
+        def unavailable(bucket, key, error=error):
+            raise error
+        s3.download_text = unavailable
+        with pytest.raises(CheckpointUnreadable, match="could not be read"):
+            manager.load("book-1", "abstractive")
 
 
 def test_checkpoints_are_keyed_per_book_and_summary_type():

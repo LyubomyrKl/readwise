@@ -28,7 +28,11 @@ thread emits `progress` every `WORKER_HEARTBEAT_SECONDS` so the API can tell a
 running job from a dead worker (lease of `JOBS_LEASE_SECONDS` on the API side). A
 `POST /jobs/:id/cancel` reaches the worker through the fanout exchange
 `workbench.job-control`; the summarize handler stops between sections and keeps
-its checkpoint.
+its checkpoint (which also holds the segmentation, so a resume lines up with the
+finished sections). On SIGTERM a running job stops at the same points and is
+reported as a retryable `failed`, so the API runs it again; one that cannot stop
+within `WORKER_SHUTDOWN_GRACE_SECONDS` (default 8, below Docker's 10 s stop
+timeout) is reported the same way just before the process exits.
 
 ## Run
 

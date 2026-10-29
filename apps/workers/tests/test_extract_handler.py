@@ -79,3 +79,46 @@ def test_empty_text_fails_without_retry(settings, storage, make_ctx):
 def test_clean_text_collapses_breaks_and_spaces():
     assert clean_text("a\\n\\nb\n\nc\t d   e\r\nf") == "a b c d e f"
     assert clean_text("") == ""
+
+
+def _pdf(pages: int, lines: int = 3) -> bytes:
+    """A plain text PDF (Helvetica, no dependencies) with a few lines per page."""
+    objects = ["<< /Type /Catalog /Pages 2 0 R >>", None, "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>"]
+    kids = []
+    for page in range(1, pages + 1):
+        shown = " ".join(f"(Sheet {page} line {line}: the harbour committee met.) '" for line in range(1, lines + 1))
+        stream = f"BT /F1 9 Tf 40 800 Td 11 TL {shown} ET"
+        objects.append(f"<< /Length {len(stream)} >>\nstream\n{stream}\nendstream")
+        objects.append(f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents {len(objects)} 0 R "
+                       "/Resources << /Font << /F1 3 0 R >> >> >>")
+        kids.append(f"{len(objects)} 0 R")
+    objects[1] = f"<< /Type /Pages /Kids [{' '.join(kids)}] /Count {pages} >>"
+    out, offsets = bytearray(b"%PDF-1.4\n"), []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n{body}\nendobj\n".encode("latin-1")
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    out += b"".join(f"{offset:010d} 00000 n \n".encode() for offset in offsets)
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def test_pdf_pages_let_go_of_their_caches_once_read(tmp_path, monkeypatch):
+    """pdfplumber keeps every page's layout and text map (about 10 MB for a dense page) until the file is closed."""
+    from pdfplumber.page import Page
+    from worker.tools.reader.extract.pdf_extractor import SimplePDFExtractor
+
+    path = tmp_path / "book.pdf"
+    path.write_bytes(_pdf(pages=3))
+    read = []  # the pages themselves: closing the file drops the PDF's list of them, not their caches
+    extract_text = Page.extract_text
+    monkeypatch.setattr(Page, "extract_text", lambda self, *args, **kwargs: read.append(self) or extract_text(self, *args, **kwargs))
+
+    text, metadata = SimplePDFExtractor.__new__(SimplePDFExtractor).extract_text_from_pdf_file(str(path))
+
+    assert metadata["pages_processed"] == 3 and "Sheet 3 line 2: the harbour committee met." in text
+    assert len(read) == 3
+    for page in read:
+        assert [name for name in page.cached_properties if hasattr(page, name)] == []
+        assert page.get_textmap.cache_info().currsize == 0

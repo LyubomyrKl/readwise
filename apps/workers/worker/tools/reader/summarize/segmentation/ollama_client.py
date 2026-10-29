@@ -6,6 +6,9 @@ import requests
 import numpy as np
 from typing import Dict
 
+# Greedy decoding with a fixed seed: the same text is segmented the same way every time
+LLM_OPTIONS = {"temperature": 0, "seed": 42}
+
 
 class OllamaClient:
     """Client for interacting with Ollama API for embeddings and LLM calls."""
@@ -53,7 +56,8 @@ class OllamaClient:
                     "model": self.llm_model,
                     "prompt": prompt,
                     "stream": False,
-                    "format": "json"
+                    "format": "json",
+                    "options": LLM_OPTIONS,
                 },
                 timeout=60
             )
@@ -62,6 +66,8 @@ class OllamaClient:
                 return json.loads(result)
             else:
                 raise Exception(f"LLM call failed: {response.status_code}")
+        except (requests.ConnectionError, requests.Timeout):
+            raise  # the host is unreachable; callers must not take this for an answer
         except json.JSONDecodeError as e:
             raise Exception(f"Invalid JSON from LLM: {e}")
         except Exception as e:

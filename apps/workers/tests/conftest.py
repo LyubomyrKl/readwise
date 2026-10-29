@@ -1,6 +1,6 @@
 """Shared test doubles: in-memory storage, a recording publisher, envelope factory.
 
-Nothing here connects to RabbitMQ, MinIO or an LLM host.
+Nothing here connects to RabbitMQ, MinIO or an LLM host, or downloads tokenizer files.
 """
 from __future__ import annotations
 
@@ -140,6 +140,24 @@ def make_envelope(**overrides) -> JobEnvelope:
     }
     base.update(overrides)
     return JobEnvelope.model_validate(base)
+
+
+class _WordEncoding:
+    """Stands in for tiktoken's cl100k_base, whose first use downloads it: one token per word."""
+
+    def encode(self, text, *args, **kwargs):
+        return (text or "").split()
+
+    def decode(self, tokens):
+        return " ".join(tokens)
+
+
+@pytest.fixture(autouse=True)
+def offline_tokenizer(monkeypatch):
+    """The pipeline counts tokens with tiktoken; no test depends on exact counts."""
+    import tiktoken
+
+    monkeypatch.setattr(tiktoken, "get_encoding", lambda name: _WordEncoding())
 
 
 @pytest.fixture
