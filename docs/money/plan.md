@@ -154,3 +154,14 @@ entries of posted transactions cannot be updated or deleted.
   asset; PLN places come from the currency table. Passkeys and the authenticator app need the
   password again (and the code when it is on). Tests: `test/db/money-concurrency.db-spec.ts` and
   additions to the ledger and milestone specs.
+- **Check, Oct 29** — nothing in the table above is left to build. Every milestone's checks were
+  run again on the current main: lint, typecheck, unit and e2e tests, and the nine DB specs
+  (68 tests) against a freshly migrated database, all passing. Two platform faults found by
+  running the stack on this code were fixed: the web container's health check (`localhost`
+  resolved to IPv6 inside the image, so the container was reported unhealthy for ever), and the
+  API's RabbitMQ setup, where the Node runner's bindings for the money jobs raced the topology
+  on a fresh broker (404, channel closed, again on every reconnect: no job of any tool ran).
+  Binds and consumes now wait for the topology of their channel. What is left needs you: the M2 review (balances against
+  today's screenshots), the M3 review (positions against Investments.md), the open questions
+  in [`requirements.md`](requirements.md), and the latency target (any view under 1 second
+  with 20 years of data), which has no test yet.

@@ -28,5 +28,5 @@ COPY --from=build --chown=node:node /repo/apps/web/public ./apps/web/public
 USER node
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget --no-verbose --tries=1 --spider http://localhost:3000/offline || exit 1
+  CMD wget --no-verbose --tries=1 --spider http://127.0.0.1:3000/offline || exit 1
 CMD ["node", "apps/web/server.js"]
