@@ -49,11 +49,6 @@ export function BookCard({ book, summary, onFavoriteChange }: BookCardProps) {
       onFavoriteChange?.(bookId, newValue);
       toast.success(newValue ? "Added to favorites" : "Removed from favorites");
     },
-    onError: () => {
-      // Revert on error
-      setIsFavorite(!isFavorite);
-      toast.error("Failed to update favorite status");
-    },
   });
 
   // Sync with prop changes (e.g., after refetch)
@@ -75,11 +70,17 @@ export function BookCard({ book, summary, onFavoriteChange }: BookCardProps) {
 
   const handleFavoriteClick = (e: React.MouseEvent) => {
     e.stopPropagation(); // Prevent card navigation
-    const newValue = !isFavorite;
-    setIsFavorite(newValue); // Optimistic update
+    const previous = isFavorite;
+    setIsFavorite(!previous); // Optimistic update
 
     startTransition(async () => {
-      await setFavorite(book.id, newValue);
+      // caught here: an error escaping an async transition replaces the page with the error boundary
+      try {
+        await setFavorite(book.id, !previous);
+      } catch {
+        setIsFavorite(previous);
+        toast.error("Failed to update favorite status");
+      }
     });
   };
 

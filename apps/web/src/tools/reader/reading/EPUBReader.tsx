@@ -60,6 +60,19 @@ export type EPUBReaderProps = {
 };
 
 const LOCATION_KEY = (id: string) => `epub.cfi.${id}`;
+
+/** The spot this device last showed, as `{ cfi, at }`; older builds stored a bare, undated CFI. */
+function readCachedLocation(bookId: string): { cfi: string; at: number } | null {
+  const raw = localStorage.getItem(LOCATION_KEY(bookId));
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as { cfi?: unknown; at?: unknown } | null;
+    return typeof parsed?.cfi === "string" ? { cfi: parsed.cfi, at: Number(parsed.at) || 0 } : null;
+  } catch {
+    return { cfi: raw, at: 0 };
+  }
+}
+
 const FONT_SIZE_KEY = "epub.fontSize";
 const DEFAULT_FONT_SIZE = 100;
 const MIN_FONT_SIZE = 70;
@@ -85,15 +98,15 @@ export default function EPUBReader({
   const containerRef = useRef<HTMLDivElement | null>(null);
   const renditionRef = useRef<any>(null);
 
-  // Initialize location from server position or fallback to localStorage
+  // Open at the server position, unless this device cached a newer spot (pages turned while
+  // saving failed, e.g. offline): every saved position and every open moves the server's
+  // lastAccessed, so a spot cached after it is the latest. No server position: the cached spot.
   const [location, setLocation] = useState<string | null>(() => {
-    if (initialPosition?.type === "epub" && initialPosition.cfi) {
-      return initialPosition.cfi;
-    }
-    if (typeof window !== "undefined") {
-      return localStorage.getItem(LOCATION_KEY(book.id));
-    }
-    return null;
+    const cached = typeof window !== "undefined" ? readCachedLocation(book.id) : null;
+    const serverCfi = initialPosition?.type === "epub" ? initialPosition.cfi : undefined;
+    if (!serverCfi) return cached?.cfi ?? null;
+    const serverAt = book.lastAccessed ? Date.parse(book.lastAccessed) : NaN;
+    return cached && cached.at > serverAt ? cached.cfi : serverCfi;
   });
   const [progress, setProgress] = useState(
     () => initialPosition?.percentage || 0
@@ -208,8 +221,8 @@ export default function EPUBReader({
       setShowToc(false);
 
       setLocation(epubcfi);
-      // Keep localStorage as a local cache/fallback
-      localStorage.setItem(LOCATION_KEY(book.id), epubcfi);
+      // Keep localStorage as a local cache/fallback, dated so it can be weighed against the server
+      localStorage.setItem(LOCATION_KEY(book.id), JSON.stringify({ cfi: epubcfi, at: Date.now() }));
 
       const r = renditionRef.current;
       if (r?.book?.locations) {

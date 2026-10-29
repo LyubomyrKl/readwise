@@ -57,12 +57,15 @@ export default function NotesPanel({
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
   const [editingNoteBody, setEditingNoteBody] = useState("");
 
+  // The callbacks (useNotes, useHighlights) report a failed request by resolving null/false
+  // rather than throwing; each handler treats that as a failure, so an editor keeps its text.
   const handleCreateNote = useCallback(async () => {
     if (!newNoteBody.trim() || !onCreateNote) return;
 
     setIsSaving(true);
     try {
-      await onCreateNote({ body: newNoteBody.trim() });
+      const note = await onCreateNote({ body: newNoteBody.trim() });
+      if (!note) throw new Error("Failed to create note");
       setNewNoteBody("");
       setIsCreating(false);
       toast.success("Note created");
@@ -79,7 +82,8 @@ export default function NotesPanel({
 
       setIsUpdating(true);
       try {
-        await onUpdateNote(noteId, { body: editingNoteBody.trim() });
+        const updated = await onUpdateNote(noteId, { body: editingNoteBody.trim() });
+        if (!updated) throw new Error("Failed to update note");
         setEditingNoteId(null);
         setEditingNoteBody("");
         toast.success("Note updated");
@@ -97,7 +101,8 @@ export default function NotesPanel({
       if (!onUpdateNote) return;
       setTogglingPinId(note.id);
       try {
-        await onUpdateNote(note.id, { isPinned: !note.isPinned });
+        const updated = await onUpdateNote(note.id, { isPinned: !note.isPinned });
+        if (!updated) throw new Error("Failed to update pin status");
         toast.success(note.isPinned ? "Note unpinned" : "Note pinned");
       } catch {
         toast.error("Failed to update pin status");
@@ -113,7 +118,8 @@ export default function NotesPanel({
       if (!onDeleteNote) return;
       setDeletingId(noteId);
       try {
-        await onDeleteNote(noteId);
+        const deleted = await onDeleteNote(noteId);
+        if (!deleted) throw new Error("Failed to delete note");
         toast.success("Note deleted");
       } catch {
         toast.error("Failed to delete note");
@@ -129,7 +135,8 @@ export default function NotesPanel({
       if (!onDeleteHighlight) return;
       setDeletingId(highlightId);
       try {
-        await onDeleteHighlight(highlightId);
+        const deleted = await onDeleteHighlight(highlightId);
+        if (!deleted) throw new Error("Failed to delete highlight");
         toast.success("Highlight deleted");
       } catch {
         toast.error("Failed to delete highlight");

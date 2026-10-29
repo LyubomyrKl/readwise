@@ -102,13 +102,7 @@ export default function BookProfile({
     }
   };
 
-  const { setFavorite, deleteBook } = useBookMutations({
-    onError: () => {
-      // Revert optimistic update on error
-      setIsFavorite(!isFavorite);
-      toast.error("Failed to update favorite status");
-    },
-  });
+  const { setFavorite, deleteBook } = useBookMutations();
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -124,12 +118,18 @@ export default function BookProfile({
   };
 
   const handleFavoriteToggle = () => {
-    const newValue = !isFavorite;
+    const previous = isFavorite;
     // Optimistic update
-    setIsFavorite(newValue);
+    setIsFavorite(!previous);
 
     startTransition(async () => {
-      await setFavorite(book.id, newValue);
+      // caught here: an error escaping an async transition replaces the page with the error boundary
+      try {
+        await setFavorite(book.id, !previous);
+      } catch {
+        setIsFavorite(previous);
+        toast.error("Failed to update favorite status");
+      }
     });
   };
 

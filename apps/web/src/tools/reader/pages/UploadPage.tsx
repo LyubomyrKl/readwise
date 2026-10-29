@@ -25,7 +25,6 @@ import {
 } from "@tools/reader/documents/upload/FileUpload";
 import {
     useUploadEnhanced,
-    UploadProviderEnhanced,
     UploadFile,
 } from "@tools/reader/documents/upload/UploadProvider";
 import { extractBookMetadata } from "@tools/reader/documents/bookParser";
@@ -545,11 +544,8 @@ function BulkUploadContent() {
     );
 }
 
-// Wrap with provider
+// No provider of its own: the queue is the reader layout's (ReaderToolLayout), so uploads keep
+// going after the user leaves this page and the floating UploadWidget shows them.
 export default function BulkUploadPage() {
-    return (
-        <UploadProviderEnhanced>
-            <BulkUploadContent />
-        </UploadProviderEnhanced>
-    );
+    return <BulkUploadContent />;
 }

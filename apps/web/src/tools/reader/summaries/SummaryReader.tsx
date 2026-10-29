@@ -57,6 +57,11 @@ const FONTS = {
   mono: { name: "Mono", family: "ui-monospace, SFMono-Regular, monospace" },
 };
 
+/** Reading settings, shared by every summary. */
+const SETTINGS_KEY = "summary-reader";
+/** The section index, per summary: another summary has other sections. */
+const POSITION_KEY = (summaryId: string) => `summary-reader.position.${summaryId}`;
+
 // ============================================================================
 // Helpers
 // ============================================================================
@@ -109,7 +114,7 @@ const flattenSections = (summary: Summary): Section[] => {
 // Components
 // ============================================================================
 
-export const SummaryReader = ({ summary }: { summary: Summary }) => {
+export const SummaryReader = ({ summary, summaryId }: { summary: Summary; summaryId: string }) => {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -132,9 +137,9 @@ export const SummaryReader = ({ summary }: { summary: Summary }) => {
   const t = THEMES[theme];
   const f = FONTS[font as keyof typeof FONTS];
 
-  // Persist settings
+  // Persist settings (shared) and the position (per summary)
   useEffect(() => {
-    const saved = localStorage.getItem("summary-reader");
+    const saved = localStorage.getItem(SETTINGS_KEY);
     if (saved) {
       try {
         const data = JSON.parse(saved);
@@ -142,14 +147,22 @@ export const SummaryReader = ({ summary }: { summary: Summary }) => {
         if (data.font) setFont(data.font);
         if (data.fontSize) setFontSize(data.fontSize);
         if (data.lineHeight) setLineHeight(data.lineHeight);
-        if (data.currentIdx !== undefined) setCurrentIdx(data.currentIdx);
       } catch {}
     }
-  }, []);
+    // clamped: whatever storage holds, the index must point at one of these sections
+    const savedIdx = Number(localStorage.getItem(POSITION_KEY(summaryId)));
+    if (Number.isInteger(savedIdx) && savedIdx > 0) {
+      setCurrentIdx(Math.max(0, Math.min(savedIdx, sections.length - 1)));
+    }
+  }, [summaryId, sections.length]);
 
   useEffect(() => {
-    localStorage.setItem("summary-reader", JSON.stringify({ theme, font, fontSize, lineHeight, currentIdx }));
-  }, [theme, font, fontSize, lineHeight, currentIdx]);
+    localStorage.setItem(SETTINGS_KEY, JSON.stringify({ theme, font, fontSize, lineHeight }));
+  }, [theme, font, fontSize, lineHeight]);
+
+  useEffect(() => {
+    localStorage.setItem(POSITION_KEY(summaryId), String(currentIdx));
+  }, [summaryId, currentIdx]);
 
   // Navigation
   const goTo = useCallback((idx: number) => {
@@ -185,6 +198,20 @@ export const SummaryReader = ({ summary }: { summary: Summary }) => {
     },
     { target: containerRef, eventOptions: { passive: true } }
   );
+
+  if (!currentSection) {
+    return (
+      <div
+        className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center"
+        style={{ backgroundColor: t.bg }}
+      >
+        <p style={{ color: t.muted }}>This summary has no sections.</p>
+        <button onClick={() => router.back()} className="text-sm font-medium" style={{ color: t.accent }}>
+          Go back
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div

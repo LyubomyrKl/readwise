@@ -78,7 +78,6 @@ export default function PDFReader({
   const [isScrolling, setIsScrolling] = useState(false);
   const [pdfBlobUrl, setPdfBlobUrl] = useState<string | null>(null);
   const [pdfLoadError, setPdfLoadError] = useState<string | null>(null);
-  const fetchedRef = useRef(false);
 
   const { engine, isLoading, error } = usePdfiumEngine();
 
@@ -106,8 +105,9 @@ export default function PDFReader({
   const blobUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (fetchedRef.current || !book.fileUrl) return;
-    fetchedRef.current = true;
+    if (!book.fileUrl) return;
+    // set on unmount: a URL created after it would never be revoked
+    let cancelled = false;
 
     const fetchPdf = async () => {
       try {
@@ -122,10 +122,12 @@ export default function PDFReader({
         }
 
         const blob = await response.blob();
+        if (cancelled) return;
         const url = URL.createObjectURL(blob);
         blobUrlRef.current = url;
         setPdfBlobUrl(url);
       } catch (err) {
+        if (cancelled) return;
         setPdfLoadError(
           err instanceof Error ? err.message : "Failed to load PDF"
         );
@@ -135,6 +137,7 @@ export default function PDFReader({
     fetchPdf();
 
     return () => {
+      cancelled = true;
       if (blobUrlRef.current) {
         URL.revokeObjectURL(blobUrlRef.current);
         blobUrlRef.current = null;

@@ -23,10 +23,13 @@ export default function BookReaderPage() {
   const error = bookQuery.error ? bookQuery.error.message || "Failed to load book" : null;
 
   // Initialize reading session with position from book data
-  const { position, setPosition, forceSave } = useReadingSession({
+  const { setPosition, forceSave } = useReadingSession({
     bookId,
     initialPosition: book?.readingPosition,
     autoSaveInterval: 30_000, // Save every 30 seconds
+    // only once the book is in: its lastAccessed dates the server position for the EPUB
+    // reader, and this visit's own update must not race the request that loads it
+    updateLastAccessedOnMount: !!book,
   });
 
   // Initialize highlights management
@@ -107,12 +110,17 @@ export default function BookReaderPage() {
     book.mime === "application/epub" ||
     (book.fileUrl && book.fileUrl.toLowerCase().endsWith(".epub"));
 
+  // The readers read their start position once, when they mount, so they get the server's
+  // position itself: the session's copy only catches up in an effect after that render, and on
+  // a fresh load the book would open at the start and the next autosave overwrite the saved spot.
+  const startPosition = book.readingPosition ?? null;
+
   if (isEPUB) {
     return (
       <div className="relative w-full h-full">
         <EPUBReader
           book={book}
-          initialPosition={position}
+          initialPosition={startPosition}
           highlights={highlights}
           notes={notes}
           onBackAction={handleBack}
@@ -132,7 +140,7 @@ export default function BookReaderPage() {
     <div className="relative w-full h-full">
       <VirtualPDFReader
         book={book}
-        initialPosition={position}
+        initialPosition={startPosition}
         notes={notes}
         onBackAction={handleBack}
         onPositionChange={handlePositionChange}

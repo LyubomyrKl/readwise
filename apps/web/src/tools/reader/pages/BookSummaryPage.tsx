@@ -100,7 +100,7 @@ export default function BookSummaryPage() {
   if (error) return <ErrorState error={error} />;
 
   if (viewing && !showOverview) {
-    return <SummaryReader summary={viewing.summary} />;
+    return <SummaryReader key={viewing.id} summary={viewing.summary} summaryId={viewing.id} />;
   }
 
   const newest = summaries[0];

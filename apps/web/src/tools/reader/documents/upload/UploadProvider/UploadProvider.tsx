@@ -26,6 +26,11 @@ import {
 
 const UploadContext = createContext<UploadContextType | undefined>(undefined);
 
+/** A failed request, tagged with why: the queue retries network errors and ignores aborts. */
+function uploadError(message: string, code: UploadErrorCode): Error & { code: UploadErrorCode } {
+    return Object.assign(new Error(message), { code });
+}
+
 // Calculate upload statistics from uploads array
 function calculateStats(uploads: UploadProgress[]): UploadStats {
     const stats: UploadStats = {
@@ -95,6 +100,8 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
 
     // Track active uploads for concurrent limit
     const activeUploadsRef = useRef<Set<string>>(new Set());
+    // Uploads waiting out RETRY_DELAY_MS before their next attempt
+    const retryWaitRef = useRef<Set<string>>(new Set());
     const uploadQueueRef = useRef<string[]>([]);
 
     // Calculate stats on each render (memoized in real app)
@@ -128,7 +135,9 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
         setUploads((current) => {
             const queued = current.filter(
                 (u) =>
-                    u.status === "queued" && !activeUploadsRef.current.has(u.id)
+                    u.status === "queued" &&
+                    !activeUploadsRef.current.has(u.id) &&
+                    !retryWaitRef.current.has(u.id)
             );
 
             // Start uploads up to available slots
@@ -180,31 +189,29 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
             });
             void queryClient.invalidateQueries({ queryKey: readerKeys.books });
         } catch (error) {
+            const errorCode: UploadErrorCode =
+                (error as { code?: UploadErrorCode } | null)?.code ??
+                (error instanceof Error ? "SERVER_ERROR" : "UNKNOWN");
+
+            // Pause, cancel and remove abort the request and set the upload's state themselves
+            if (errorCode === "CANCELLED") return;
+
             console.error(`[Upload ${uploadId}] Upload failed:`, error);
 
-            const errorCode: UploadErrorCode =
-                error instanceof Error
-                    ? error.message.includes("network")
-                        ? "NETWORK_ERROR"
-                        : error.message.includes("timeout")
-                            ? "TIMEOUT"
-                            : "SERVER_ERROR"
-                    : "UNKNOWN";
-
-            // Check if we should auto-retry
-            const currentUpload = uploads.find((u) => u.id === uploadId);
-            if (
-                currentUpload &&
-                currentUpload.retryCount < MAX_RETRIES &&
-                errorCode === "NETWORK_ERROR"
-            ) {
-                // Schedule retry
+            // Check if we should auto-retry: uploadData is the queue's copy from when this attempt
+            // started (the `uploads` this closure sees belongs to an older render)
+            if (errorCode === "NETWORK_ERROR" && uploadData.retryCount < MAX_RETRIES) {
+                // Schedule retry: queued, but left alone by the queue until the delay is over
+                retryWaitRef.current.add(uploadId);
                 updateUpload(uploadId, {
-                    retryCount: currentUpload.retryCount + 1,
+                    retryCount: uploadData.retryCount + 1,
                     status: "queued",
-                    error: `Retrying... (attempt ${currentUpload.retryCount + 2}/${MAX_RETRIES + 1})`,
+                    error: `Retrying... (attempt ${uploadData.retryCount + 2}/${MAX_RETRIES + 1})`,
                 });
-                setTimeout(() => processQueue(), RETRY_DELAY_MS);
+                setTimeout(() => {
+                    retryWaitRef.current.delete(uploadId);
+                    processQueue();
+                }, RETRY_DELAY_MS);
             } else {
                 updateUpload(uploadId, {
                     status: "error",
@@ -275,7 +282,7 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                         const response = JSON.parse(xhr.responseText);
                         resolve(response);
                     } catch {
-                        reject(new Error("Invalid response from server"));
+                        reject(uploadError("Invalid response from server", "SERVER_ERROR"));
                     }
                 } else {
                     let errorMsg = `Upload failed with status ${xhr.status}`;
@@ -285,23 +292,23 @@ export function UploadProviderEnhanced({ children }: { children: ReactNode }) {
                     } catch {
                         // Use default error message
                     }
-                    reject(new Error(errorMsg));
+                    reject(uploadError(errorMsg, "SERVER_ERROR"));
                 }
             });
 
             xhr.addEventListener("error", () => {
                 updateUpload(uploadId, { xhr: undefined });
-                reject(new Error("Network error during upload"));
+                reject(uploadError("Network error during upload", "NETWORK_ERROR"));
             });
 
             xhr.addEventListener("abort", () => {
                 updateUpload(uploadId, { xhr: undefined });
-                reject(new Error("Upload cancelled"));
+                reject(uploadError("Upload cancelled", "CANCELLED"));
             });
 
             xhr.addEventListener("timeout", () => {
                 updateUpload(uploadId, { xhr: undefined });
-                reject(new Error("Upload timeout"));
+                reject(uploadError("Upload timeout", "TIMEOUT"));
             });
 
             xhr.open("POST", readerApi.documents.uploadUrl);

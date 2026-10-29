@@ -20,9 +20,11 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
     pdfjsLib.GlobalWorkerOptions.workerSrc = "/pdf-worker/pdf.worker.min.mjs";
   }
 
+  let loadingTask: ReturnType<typeof pdfjsLib.getDocument> | undefined;
   try {
     const arrayBuffer = await file.arrayBuffer();
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+    const pdf = await loadingTask.promise;
     const metadata = await pdf.getMetadata();
 
     const info = metadata.info as any;
@@ -68,6 +70,9 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
   } catch (error) {
     console.error("Error extracting PDF metadata:", error);
     throw new Error("Failed to parse PDF file");
+  } finally {
+    // Frees the document and terminates its worker; a failed cleanup must not fail the parse
+    loadingTask?.destroy().catch(() => {});
   }
 }
 

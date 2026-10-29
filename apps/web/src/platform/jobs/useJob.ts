@@ -22,11 +22,14 @@ export function useJob(jobId: string | null | undefined, options: UseJobOptions 
   const [job, setJob] = useState<JobResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [generation, setGeneration] = useState(0);
+  // the latest job, for the stream's callbacks: they outlive the render they were created in
+  const jobRef = useRef<JobResponse | null>(null);
   const settledRef = useRef<string | null>(null);
   const onSettledRef = useRef(onSettled);
   onSettledRef.current = onSettled;
 
   const absorb = useCallback((next: JobResponse): boolean => {
+    jobRef.current = next;
     setJob(next);
     setError(null);
     const terminal = !isActiveJob(next.status);
@@ -51,6 +54,7 @@ export function useJob(jobId: string | null | undefined, options: UseJobOptions 
 
   useEffect(() => {
     settledRef.current = null;
+    jobRef.current = null;
     setJob(null);
     if (!jobId) return;
     let stopped = false;
@@ -86,7 +90,7 @@ export function useJob(jobId: string | null | undefined, options: UseJobOptions 
         // the server ends the stream after the terminal state; anything else: fall back to polling
         source?.close();
         source = null;
-        if (!stopped && (!received || isActiveJob(job?.status))) void poll();
+        if (!stopped && (!received || isActiveJob(jobRef.current?.status))) void poll();
       };
     }
 
@@ -95,7 +99,6 @@ export function useJob(jobId: string | null | undefined, options: UseJobOptions 
       if (timer) clearTimeout(timer);
       source?.close();
     };
-    // `job` is intentionally not a dependency: the stream decides when to stop
   }, [jobId, intervalMs, refresh, absorb, generation]);
 
   const cancel = useCallback(async () => {

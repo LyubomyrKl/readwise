@@ -46,3 +46,72 @@ describe("useJob without an event stream (jsdom has no EventSource)", () => {
     await waitFor(() => expect(r2.current.job?.status).toBe("succeeded"));
   });
 });
+
+class FakeEventSource {
+  static last: FakeEventSource | null = null;
+  listeners: Record<string, ((e: MessageEvent) => void)[]> = {};
+  onerror: ((e: Event) => void) | null = null;
+  closed = false;
+  constructor(public url: string) {
+    FakeEventSource.last = this;
+  }
+  addEventListener(type: string, fn: (e: MessageEvent) => void) {
+    (this.listeners[type] ??= []).push(fn);
+  }
+  close() {
+    this.closed = true;
+  }
+  emit(data: JobResponse) {
+    this.listeners.job?.forEach((fn) => fn({ data: JSON.stringify(data) } as MessageEvent));
+  }
+}
+
+describe("useJob with an event stream", () => {
+  const get = jobsApi.get as jest.Mock;
+  beforeAll(() => {
+    (global as unknown as { EventSource: unknown }).EventSource = FakeEventSource;
+  });
+  afterAll(() => {
+    delete (global as unknown as { EventSource?: unknown }).EventSource;
+  });
+  beforeEach(() => get.mockReset());
+
+  it("falls back to polling when the stream drops while the job is still running", async () => {
+    get.mockResolvedValue(job({ status: "succeeded", progress: 100 }));
+    const onSettled = jest.fn();
+    const { result } = renderHook(() => useJob("j1", { intervalMs: 5, onSettled }));
+
+    await act(async () => {
+      FakeEventSource.last!.emit(job({ progress: 40 }));
+    });
+    expect(result.current.job?.progress).toBe(40);
+
+    // a network blip or a proxy restart, mid-job
+    await act(async () => {
+      FakeEventSource.last!.onerror?.(new Event("error"));
+    });
+
+    await waitFor(() => expect(result.current.job?.status).toBe("succeeded"));
+    expect(get).toHaveBeenCalledWith("j1");
+    expect(onSettled).toHaveBeenCalledTimes(1);
+    expect(result.current.isActive).toBe(false);
+  });
+
+  it("does not poll once the stream delivered the terminal state", async () => {
+    const onSettled = jest.fn();
+    renderHook(() => useJob("j1", { intervalMs: 5, onSettled }));
+    const source = FakeEventSource.last!;
+
+    await act(async () => {
+      source.emit(job({ status: "succeeded", progress: 100 }));
+    });
+    expect(source.closed).toBe(true);
+    await act(async () => {
+      source.onerror?.(new Event("error"));
+      await new Promise((r) => setTimeout(r, 20));
+    });
+
+    expect(get).not.toHaveBeenCalled();
+    expect(onSettled).toHaveBeenCalledTimes(1);
+  });
+});
