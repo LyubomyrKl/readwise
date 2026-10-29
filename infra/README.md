@@ -11,6 +11,8 @@ Host-side pieces of the Docker Compose stack defined in the repository root.
 
 Credentials and host settings live in the root `.env` (see `.env.example`). Every container has
 rotated logs (json-file, three files of 10 MB) and a memory and CPU limit (`*_MEM_LIMIT`, `*_CPUS`).
+Sign-ups: `REGISTRATION=first-user` (the default) lets one account register on a fresh server and
+nobody after it; set `open` or `closed` to change that.
 
 ## Money data: durability and encryption at rest
 

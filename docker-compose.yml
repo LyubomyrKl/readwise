@@ -161,6 +161,10 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # who may sign up: first-user (only while there is no account), open, closed
+      REGISTRATION: ${REGISTRATION:-first-user}
+      # the API description at /api/docs (off in production unless on)
+      SWAGGER: ${SWAGGER:-off}
       # largest accepted upload (a book or a cover), in bytes; it is held in memory while stored,
       # so keep it well under API_MEM_LIMIT
       UPLOAD_MAX_FILE_BYTES: ${UPLOAD_MAX_FILE_BYTES:-209715200}
