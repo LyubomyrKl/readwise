@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Build from the repository root:  docker build -f apps/web/Dockerfile -t workbench-web .
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 WORKDIR /repo
 
 # ---- dependencies (postinstall copies the pdf.js worker into public/)
@@ -19,7 +19,7 @@ ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
 RUN npm run build --workspace apps/web
 
 # ---- runtime
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 ENV NODE_ENV=production NEXT_TELEMETRY_DISABLED=1 PORT=3000 HOSTNAME=0.0.0.0
 WORKDIR /app
 COPY --from=build --chown=node:node /repo/apps/web/.next/standalone ./

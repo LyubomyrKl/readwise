@@ -2,15 +2,18 @@
 #   cp .env.example .env   (fill in the secrets)
 #   docker compose up -d --build
 # Local full-stack run with published ports: add -f docker-compose.dev.yml (see that file).
+# Every container has rotated logs and a memory and CPU limit (*_MEM_LIMIT, *_CPUS in .env), so no
+# single one can starve Postgres; the defaults suit a 4-8 GB host with at least 2 CPUs.
 name: workbench
 
-x-app-env: &app-env
-  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-workbench}?schema=public
-  POSTGRES_HOST: db
-  POSTGRES_PORT: "5432"
-  POSTGRES_USER: ${POSTGRES_USER}
-  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
-  POSTGRES_DB: ${POSTGRES_DB:-workbench}
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+# Object storage and the broker: what the API and the workers both use.
+x-shared-env: &shared-env
   S3_HOST: minio
   S3_PORT: "9000"
   S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
@@ -25,6 +28,17 @@ x-app-env: &app-env
   RABBITMQ_PORT: "5672"
   RABBITMQ_USER: ${RABBITMQ_USER}
   RABBITMQ_PASS: ${RABBITMQ_PASS}
+
+# The API's environment: the shared part plus Postgres. The workers never touch the database, so
+# they get none of this.
+x-app-env: &app-env
+  <<: *shared-env
+  DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-workbench}?schema=public
+  POSTGRES_HOST: db
+  POSTGRES_PORT: "5432"
+  POSTGRES_USER: ${POSTGRES_USER}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+  POSTGRES_DB: ${POSTGRES_DB:-workbench}
 
 services:
   db:
@@ -41,6 +55,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    mem_limit: ${DB_MEM_LIMIT:-1g}
+    cpus: ${DB_CPUS:-2}
+    logging: *logging
     restart: unless-stopped
 
   minio:
@@ -62,6 +79,9 @@ services:
       interval: 5s
       timeout: 5s
       retries: 24
+    mem_limit: ${MINIO_MEM_LIMIT:-512m}
+    cpus: ${MINIO_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   # Creates the buckets once; safe to re-run.
@@ -80,6 +100,9 @@ services:
       - >
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
         mc mb --ignore-existing local/books local/covers local/extractions local/summaries local/checkpoints
+    mem_limit: ${MINIO_MEM_LIMIT:-512m}
+    cpus: ${MINIO_CPUS:-1}
+    logging: *logging
     restart: "no"
 
   rabbitmq:
@@ -95,6 +118,9 @@ services:
       interval: 10s
       timeout: 10s
       retries: 12
+    mem_limit: ${RABBITMQ_MEM_LIMIT:-512m}
+    cpus: ${RABBITMQ_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   # One-shot: applies Prisma migrations before the applications start.
@@ -110,6 +136,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-1}
+    logging: *logging
     restart: "no"
 
   api:
@@ -132,6 +161,9 @@ services:
       JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
       CORS_ORIGIN: ${CORS_ORIGIN:-}
       SENTRY_DSN: ${SENTRY_DSN:-}
+      # largest accepted upload (a book or a cover), in bytes; it is held in memory while stored,
+      # so keep it well under API_MEM_LIMIT
+      UPLOAD_MAX_FILE_BYTES: ${UPLOAD_MAX_FILE_BYTES:-209715200}
       # passkeys: the site as the browser sees it (host name and origin)
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost}
@@ -154,6 +186,9 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
+    mem_limit: ${API_MEM_LIMIT:-1g}
+    cpus: ${API_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   workers:
@@ -163,7 +198,7 @@ services:
     image: workbench-workers
     container_name: workbench-workers
     environment:
-      <<: *app-env
+      <<: *shared-env
       RABBITMQ_HEARTBEAT: "0"
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?set OLLAMA_BASE_URL in .env}
       OLLAMA_MODEL: ${OLLAMA_MODEL:?set OLLAMA_MODEL in .env}
@@ -181,6 +216,9 @@ services:
         condition: service_completed_successfully
       rabbitmq:
         condition: service_healthy
+    mem_limit: ${WORKERS_MEM_LIMIT:-1536m}
+    cpus: ${WORKERS_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   web:
@@ -198,6 +236,9 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    mem_limit: ${WEB_MEM_LIMIT:-512m}
+    cpus: ${WEB_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   caddy:
@@ -214,6 +255,9 @@ services:
       - caddy_config:/config
     depends_on:
       - web
+    mem_limit: ${CADDY_MEM_LIMIT:-256m}
+    cpus: ${CADDY_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
   # Optional: docker compose --profile backup up -d
@@ -226,33 +270,51 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB:-workbench}
       BACKUP_KEEP_DAYS: ${BACKUP_KEEP_DAYS:-14}
+      BACKUP_KEEP_MIN: ${BACKUP_KEEP_MIN:-7}
+      BACKUP_MAX_AGE_HOURS: ${BACKUP_MAX_AGE_HOURS:-26}
     volumes:
       - ./infra/backup/backup.sh:/backup.sh:ro
       - ./infra/backup/restore-check.sh:/restore-check.sh:ro
       - backups:/backups
     entrypoint: ["/bin/sh", "/backup.sh"]
+    healthcheck:
+      # unhealthy while the newest verified dump is older than BACKUP_MAX_AGE_HOURS
+      test: ["CMD", "/bin/sh", "/backup.sh", "check"]
+      interval: 15m
+      timeout: 30s
+      retries: 1
+      start_period: 1h
     depends_on:
       db:
         condition: service_healthy
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    cpus: ${BACKUP_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
-  # Off-server copy of the dumps (profile backup). rclone reads its remote from
-  # RCLONE_CONFIG_OFFSITE_* variables in .env (e.g. a Hetzner Storage Box over SFTP,
-  # or any S3 bucket); BACKUP_REMOTE names the target, e.g. offsite:workbench-backups.
+  # Off-server copy of the dumps (profile backup) to the rclone remote "offsite", which must be
+  # of type crypt (offsite.sh refuses anything else): see .env.example. Only these variables
+  # reach the container, not the rest of .env.
   backup-offsite:
     image: rclone/rclone:1.68.2
     container_name: workbench-backup-offsite
     profiles: ["backup"]
-    env_file: .env
     environment:
       BACKUP_REMOTE: ${BACKUP_REMOTE:-}
       BACKUP_OFFSITE_HOUR_UTC: ${BACKUP_OFFSITE_HOUR_UTC:-3}
+      RCLONE_CONFIG_OFFSITE_TYPE: ${RCLONE_CONFIG_OFFSITE_TYPE:-}
+      RCLONE_CONFIG_OFFSITE_REMOTE: ${RCLONE_CONFIG_OFFSITE_REMOTE:-}
+      RCLONE_CONFIG_OFFSITE_PASSWORD: ${RCLONE_CONFIG_OFFSITE_PASSWORD:-}
+      RCLONE_CONFIG_OFFSITE_PASSWORD2: ${RCLONE_CONFIG_OFFSITE_PASSWORD2:-}
     volumes:
       - ./infra/backup/offsite.sh:/offsite.sh:ro
       - backups:/backups:ro
     entrypoint: ["/bin/sh", "/offsite.sh"]
     depends_on:
       - backup
+    mem_limit: ${BACKUP_MEM_LIMIT:-512m}
+    cpus: ${BACKUP_CPUS:-1}
+    logging: *logging
     restart: unless-stopped
 
 volumes:

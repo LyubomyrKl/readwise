@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # Build from the repository root:  docker build -f apps/api/Dockerfile -t workbench-api .
 
-FROM node:20-alpine AS base
+FROM node:22-alpine AS base
 WORKDIR /repo
 # Native modules (argon2) compile when no prebuilt binary matches the platform.
 RUN apk add --no-cache python3 make g++
@@ -27,7 +27,7 @@ COPY apps/api/prisma apps/api/prisma
 RUN npm ci --workspace apps/api --omit=dev --no-audit --no-fund && mkdir -p apps/api/node_modules
 
 # ---- runtime
-FROM node:20-alpine AS runtime
+FROM node:22-alpine AS runtime
 ENV NODE_ENV=production
 WORKDIR /repo/apps/api
 RUN addgroup -g 1001 -S nodejs && adduser -S nestjs -u 1001 -G nodejs

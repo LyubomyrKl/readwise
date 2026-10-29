@@ -17,7 +17,7 @@ The architecture and the migration plan live in
 | `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries; money: ledger and investments); the only code that touches the database |
 | `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
-| `infra/` | Caddy, RabbitMQ config, backup | host-side files used by `docker-compose.yml` |
+| `infra/` | Caddy, backup | host-side files used by `docker-compose.yml` |
 | `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
 | `docs/` | markdown | plan, pipeline speed backlog, `money/` requirements, plan and Claude access |
 
@@ -69,7 +69,7 @@ docker compose up -d
 
 ## Local development
 
-Node `>=20` (`.nvmrc`), npm `>=11`, Python 3.11, Docker.
+Node `>=22` (`.nvmrc`), npm `>=11`, Python 3.11, Docker.
 
 ```bash
 docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db minio minio-init rabbitmq

@@ -3,26 +3,27 @@
 # Infrastructure only, for running the apps on the host (npm run dev:api / dev:web, python main.py):
 #   docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d db minio minio-init rabbitmq
 # Set DEV_*_PORT variables if the defaults collide with something already running.
+# Every port is published on loopback only: the dev stack runs with the .env.example passwords.
 services:
   db:
     ports:
-      - "${DEV_PG_PORT:-5432}:5432"
+      - "127.0.0.1:${DEV_PG_PORT:-5432}:5432"
   minio:
     ports:
-      - "${DEV_MINIO_PORT:-9000}:9000"
-      - "${DEV_MINIO_CONSOLE_PORT:-9001}:9001"
+      - "127.0.0.1:${DEV_MINIO_PORT:-9000}:9000"
+      - "127.0.0.1:${DEV_MINIO_CONSOLE_PORT:-9001}:9001"
   rabbitmq:
     ports:
-      - "${DEV_AMQP_PORT:-5672}:5672"
-      - "${DEV_RABBITMQ_UI_PORT:-15672}:15672"
+      - "127.0.0.1:${DEV_AMQP_PORT:-5672}:5672"
+      - "127.0.0.1:${DEV_RABBITMQ_UI_PORT:-15672}:15672"
   api:
     ports: !override
-      - "${DEV_API_PORT:-5173}:5173"
+      - "127.0.0.1:${DEV_API_PORT:-5173}:5173"
   web:
     ports:
-      - "${DEV_WEB_PORT:-3000}:3000"
+      - "127.0.0.1:${DEV_WEB_PORT:-3000}:3000"
   caddy:
     ports: !override
-      - "${DEV_CADDY_PORT:-8080}:80"
+      - "127.0.0.1:${DEV_CADDY_PORT:-8080}:80"
     environment:
       SITE_ADDRESS: ":80"

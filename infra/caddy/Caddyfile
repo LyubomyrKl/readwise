@@ -5,6 +5,16 @@
 # ":80" is plain HTTP.
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
+	# Security headers, each only if the upstream did not send its own ("?"; one directive per
+	# header, since the "?" fields of one block are set only when none of them is present).
+	# Framing is refused; a full Content-Security-Policy would need the app's cooperation.
+	header ?X-Content-Type-Options nosniff
+	header ?Referrer-Policy strict-origin-when-cross-origin
+	header ?Content-Security-Policy "frame-ancestors 'none'"
+	header ?X-Frame-Options DENY
+	# HSTS means nothing over plain HTTP (browsers ignore it there), so only on HTTPS.
+	@https protocol https
+	header @https ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	handle /api/money/claude/* {
 		reverse_proxy api:5173
 	}
