@@ -17,14 +17,22 @@
 }
 
 # The paths Claude's cloud calls (published by Tailscale Funnel) answer only
-# Anthropic's outbound addresses and the tailnet: MONEY_CLAUDE_ALLOWED_IPS.
+# Anthropic's addresses (IPv4 outbound range and its IPv6 block) and the
+# tailnet: MONEY_CLAUDE_ALLOWED_IPS.
 (claude_only) {
-	@not_claude not client_ip {$MONEY_CLAUDE_ALLOWED_IPS:160.79.104.0/21 100.64.0.0/10 fd7a:115c:a1e0::/48}
+	@not_claude not client_ip {$MONEY_CLAUDE_ALLOWED_IPS:160.79.104.0/21 2607:6bc0::/48 100.64.0.0/10 fd7a:115c:a1e0::/48}
 	respond @not_claude "Forbidden" 403
 }
 
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
+	# Access log for the public (Funnel) paths only: who called, and what they got.
+	log {
+		output stderr
+		format json
+	}
+	@not_public not path /api/money/claude/* /.well-known/oauth-* /api/money/oauth/token /api/money/oauth/register
+	log_skip @not_public
 	# Security headers, each only if the upstream did not send its own ("?"; one directive per
 	# header, since the "?" fields of one block are set only when none of them is present).
 	# Framing is refused; a full Content-Security-Policy would need the app's cooperation.

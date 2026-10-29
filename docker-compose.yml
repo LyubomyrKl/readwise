@@ -253,7 +253,7 @@ services:
     environment:
       SITE_ADDRESS: ${SITE_ADDRESS:-:80}
       # who may call the paths Claude's cloud uses (Anthropic outbound + tailnet); add private_ranges to try them locally
-      MONEY_CLAUDE_ALLOWED_IPS: ${MONEY_CLAUDE_ALLOWED_IPS:-160.79.104.0/21 100.64.0.0/10 fd7a:115c:a1e0::/48}
+      MONEY_CLAUDE_ALLOWED_IPS: ${MONEY_CLAUDE_ALLOWED_IPS:-160.79.104.0/21 2607:6bc0::/48 100.64.0.0/10 fd7a:115c:a1e0::/48}
     ports:
       - "80:80"
       - "443:443"
