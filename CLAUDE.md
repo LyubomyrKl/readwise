@@ -5,6 +5,9 @@ code that touches the database), `apps/workers` (Python). Architecture:
 `docs/toolbox-architecture-plan.md`. Tools live in `src/tools/<id>` on both
 sides and own `prisma/schema/<id>.prisma` with `<id>_*` tables.
 
+Deploying or updating the server: `docs/deploy.md`. Its Rules come first (the host is
+shared with a Telegram bot that must stay untouched).
+
 Checks before pushing: `npm run lint && npm run typecheck && npm test && npm run test:e2e`,
 and for the money tool with a Postgres at `DATABASE_URL`: `npm run test:db --workspace apps/api`.
 

@@ -26,6 +26,9 @@ The architecture and the migration plan live in
 
 ## Run the whole stack (Docker)
 
+Production (the Hetzner host, shared with a Telegram bot that must stay untouched): follow
+[`docs/deploy.md`](docs/deploy.md), including its rules, for every deployment and update.
+
 ```bash
 cp .env.example .env          # set the secrets, SITE_ADDRESS and the Ollama host (see below)
 docker compose up -d --build  # db, minio (+buckets), rabbitmq, migrate, api, workers, web, caddy
