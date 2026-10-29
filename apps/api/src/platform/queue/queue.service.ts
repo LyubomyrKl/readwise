@@ -30,15 +30,41 @@ export interface ConsumedMessage {
 
 export type ConsumeHandler = (message: ConsumedMessage) => Promise<ConsumeOutcome>;
 
+interface Deferred {
+  promise: Promise<void>;
+  resolve: () => void;
+  reject: (error: unknown) => void;
+}
+
+function deferred(): Deferred {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  // a failed topology is reported by the setup that ran it; waiting setups see it too
+  promise.catch(() => undefined);
+  return { promise, resolve, reject };
+}
+
 /**
  * Thin wrapper over amqp-connection-manager: one connection, one confirm
  * channel, the topology asserted on every (re)connect, JSON in and out.
+ *
+ * The library runs every setup function of a (re)connect at the same time, so
+ * a bind or a consume requested before the first connect would reach the
+ * broker before the topology declared its queue (404, channel closed, again
+ * on every reconnect). Binds and consumes therefore wait for the topology of
+ * the channel they run on.
  */
 @Injectable()
 export class QueueService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(QueueService.name);
   private readonly connection: amqp.AmqpConnectionManager;
   private readonly channel: amqp.ChannelWrapper;
+  /** Per channel: settled once the topology was asserted on it. */
+  private readonly topology = new WeakMap<ConfirmChannel, Deferred>();
 
   constructor(config: ConfigService<EnvironmentVariables>) {
     const host = config.get('RABBITMQ_HOST', { infer: true })!;
@@ -53,7 +79,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
     });
     this.channel = this.connection.createChannel({
       json: true,
-      setup: (channel: ConfirmChannel) => this.assertTopology(channel),
+      setup: (channel: ConfirmChannel) => this.setupTopology(channel),
     });
   }
 
@@ -96,6 +122,7 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
    */
   async consume(queue: string, handler: ConsumeHandler, opts: { prefetch?: number } = {}): Promise<void> {
     await this.channel.addSetup(async (channel: ConfirmChannel) => {
+      await this.topologyOf(channel).promise;
       await channel.prefetch(opts.prefetch ?? 1);
       await channel.consume(
         queue,
@@ -112,8 +139,29 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
   /** Binds an extra routing key to a queue (used by the Node runner for registered handlers). */
   async bindQueue(queue: string, exchange: string, pattern: string): Promise<void> {
     await this.channel.addSetup(async (channel: ConfirmChannel) => {
+      await this.topologyOf(channel).promise;
       await channel.bindQueue(queue, exchange, pattern);
     });
+  }
+
+  private topologyOf(channel: ConfirmChannel): Deferred {
+    let state = this.topology.get(channel);
+    if (!state) {
+      state = deferred();
+      this.topology.set(channel, state);
+    }
+    return state;
+  }
+
+  private async setupTopology(channel: ConfirmChannel): Promise<void> {
+    const state = this.topologyOf(channel);
+    try {
+      await this.assertTopology(channel);
+      state.resolve();
+    } catch (error) {
+      state.reject(error);
+      throw error;
+    }
   }
 
   private async dispatch(channel: ConfirmChannel, raw: ConsumeMessage, handler: ConsumeHandler): Promise<void> {

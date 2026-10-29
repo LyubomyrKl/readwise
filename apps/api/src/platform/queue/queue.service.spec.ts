@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-argument */
 import { fakeConfig } from '../../../test/fakes/fake-prisma';
 
 const mockPublish = jest.fn();
@@ -107,7 +106,7 @@ describe('QueueService', () => {
     await service.consume('q.api.job-events', handler, { prefetch: 7 });
     const setup = mockAddSetup.mock.calls[0][0];
     const channel = fakeChannel();
-    await setup(channel);
+    await Promise.all([channelSetup!(channel), setup(channel)]);
     expect(channel.prefetch).toHaveBeenCalledWith(7);
     const onMessage = channel.consume.mock.calls[0][1];
     const raw = (content: string) => ({ content: Buffer.from(content), fields: { routingKey: 'job.progress' } });
@@ -120,5 +119,69 @@ describe('QueueService', () => {
     expect(channel.ack).toHaveBeenCalledTimes(1);
     expect(channel.nack).toHaveBeenCalledTimes(2);
     expect(channel.nack).toHaveBeenCalledWith(expect.anything(), false, false);
+  });
+
+  /** A broker double: binding or consuming a queue that was not declared yet fails like RabbitMQ (404). */
+  function brokerChannel(log: string[]) {
+    const declared = new Set<string>();
+    const later = () => new Promise<void>((r) => setImmediate(r));
+    return {
+      ...fakeChannel(),
+      assertExchange: jest.fn(async () => {
+        await later();
+        return {};
+      }),
+      assertQueue: jest.fn(async (queue: string) => {
+        await later();
+        declared.add(queue);
+        log.push(`assert ${queue}`);
+        return {};
+      }),
+      bindQueue: jest.fn(async (queue: string, _exchange: string, pattern: string) => {
+        if (!declared.has(queue)) throw new Error(`NOT_FOUND - no queue '${queue}' in vhost '/'`);
+        log.push(`bind ${queue} ${pattern}`);
+        return {};
+      }),
+      consume: jest.fn(async (queue: string) => {
+        if (!declared.has(queue)) throw new Error(`NOT_FOUND - no queue '${queue}' in vhost '/'`);
+        log.push(`consume ${queue}`);
+        return { consumerTag: 't' };
+      }),
+    };
+  }
+
+  it('binds and consumes requested before the first connect wait for the topology, which the library runs at the same time', async () => {
+    const log: string[] = [];
+    const channel = brokerChannel(log);
+    await service.bindQueue('q.node.default', EXCHANGES.jobs, 'jobs.money.rates');
+    await service.consume('q.node.default', jest.fn(), { prefetch: 1 });
+    await service.consume('q.api.job-events', jest.fn(), { prefetch: 10 });
+    const setups = mockAddSetup.mock.calls.map((call) => call[0]);
+
+    // amqp-connection-manager: Promise.all over every setup function, the topology among them
+    await Promise.all([channelSetup!(channel), ...setups.map((setup) => setup(channel))]);
+
+    expect(log.indexOf('bind q.node.default jobs.money.rates')).toBeGreaterThan(log.indexOf('assert q.node.default'));
+    expect(log.indexOf('consume q.node.default')).toBeGreaterThan(log.indexOf('assert q.node.default'));
+    expect(log.indexOf('consume q.api.job-events')).toBeGreaterThan(log.indexOf('assert q.api.job-events'));
+    expect(channel.consume).toHaveBeenCalledTimes(2);
+  });
+
+  it('a bind or consume added once connected runs at once, after the topology of that channel', async () => {
+    const log: string[] = [];
+    const channel = brokerChannel(log);
+    await channelSetup!(channel);
+    await service.bindQueue('q.node.default', EXCHANGES.jobs, 'jobs.money.prices');
+    await mockAddSetup.mock.calls[0][0](channel);
+    expect(log[log.length - 1]).toBe('bind q.node.default jobs.money.prices');
+  });
+
+  it('waiting setups fail with the topology instead of hanging', async () => {
+    const channel = { ...fakeChannel(), assertExchange: jest.fn().mockRejectedValue(new Error('ACCESS_REFUSED')) };
+    await service.consume('q.api.job-events', jest.fn(), { prefetch: 10 });
+    const setup = mockAddSetup.mock.calls[0][0];
+    const results = await Promise.allSettled([channelSetup!(channel), setup(channel)]);
+    expect(results.map((r) => r.status)).toEqual(['rejected', 'rejected']);
+    expect(channel.consume).not.toHaveBeenCalled();
   });
 });
