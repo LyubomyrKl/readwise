@@ -41,17 +41,16 @@ export class SentryExceptionFilter implements ExceptionFilter {
       });
     }
 
-    const message =
+    // an HTTP error keeps the body Nest gives it (clients read fields such as `code`: TOTP_REQUIRED)
+    const body: Record<string, unknown> =
       exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+        ? (() => {
+            const r = exception.getResponse();
+            return typeof r === 'string' ? { statusCode: status, message: r } : { statusCode: status, ...(r as Record<string, unknown>) };
+          })()
+        : { statusCode: status, message: 'Internal server error' };
 
-    response.status(status).json({
-      statusCode: status,
-      message: typeof message === 'string' ? message : (message as Record<string, unknown>).message || message,
-      timestamp: new Date().toISOString(),
-      path: request.url,
-    });
+    response.status(status).json({ ...body, timestamp: new Date().toISOString(), path: request.url });
   }
 
   private sanitizeBody(body: Record<string, unknown>): Record<string, unknown> {

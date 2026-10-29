@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBaseUrl } from "@platform/api/cookies";
+import { forwardedFor } from "@platform/api/proxy";
 
 /** Passkey sign-in options from the API (the browser never talks to the API directly). */
 export async function POST(req: NextRequest) {
@@ -7,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const upstream = await fetch(`${apiBaseUrl()}/api/auth/passkeys/login/options`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...forwardedFor(req.headers) },
       body: JSON.stringify(body ?? {}),
     });
     const data: unknown = await upstream.json().catch(() => ({}));

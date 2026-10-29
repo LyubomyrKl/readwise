@@ -307,6 +307,66 @@ describe('JobsService', () => {
     });
   });
 
+  describe('races', () => {
+    it('keeps a finished job finished when its earlier events are applied after the last one', async () => {
+      const job = await enqueueExtract();
+      // the events consumer runs deliveries concurrently: succeeded can land before started and progress
+      await service.applyEvent(event({ jobId: job.id, event: 'succeeded', result: { storageKey: 'x' } }));
+      await service.applyEvent(event({ jobId: job.id, event: 'started', attempt: 1 }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', progress: 50 }));
+      const row = (await prisma.job.findUnique({ where: { id: job.id } }))!;
+      expect([row.status, row.progress]).toEqual(['succeeded', 100]);
+      // and the worker that just started a duplicate run is told to stop
+      expect(queue.publishedTo(EXCHANGES.control).map((c) => c.message)).toEqual([{ v: 1, jobId: job.id, action: 'cancel' }]);
+    });
+
+    it('does not let a write based on a stale read overwrite a terminal state', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'started', attempt: 1 }));
+      // a progress event that read the row while it was running, applied after the cancel
+      const realFind = prisma.job.findUnique.bind(prisma.job);
+      const snapshot = await realFind({ where: { id: job.id } });
+      await service.cancel('user-1', job.id);
+      jest.spyOn(prisma.job, 'findUnique').mockResolvedValueOnce(snapshot);
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', progress: 80 }));
+      expect((await realFind({ where: { id: job.id } }))!.status).toBe('cancelled');
+    });
+
+    it('re-queues a stale job once, however many sweeps overlap', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'started', attempt: 1, at: '2026-10-25T10:00:00.000Z' }));
+      const before = queue.publishedTo(EXCHANGES.jobs).length;
+      const results = await Promise.all([1, 2, 3].map(() => service.sweep(new Date('2026-10-25T10:20:00.000Z'))));
+      expect(results.reduce((n, r) => n + r.requeued, 0)).toBe(1);
+      expect(queue.publishedTo(EXCHANGES.jobs).length - before).toBe(1);
+    });
+
+    it('publishes a quick job again when it stayed queued past the lease, once per lease', async () => {
+      service.registerQuickTypes(['money.rates']);
+      const job = await service.enqueue({ type: 'money.rates', toolId: 'money', userId: 'user-1', payload: {} });
+      await prisma.job.update({ where: { id: job.id }, data: {} });
+      const lost = prisma.job.rows.find((r) => r.id === job.id)!;
+      lost.updatedAt = new Date('2026-10-25T09:00:00.000Z');
+      const published = () => queue.publishedTo(EXCHANGES.jobs).filter((p) => (p.message as { jobId: string }).jobId === job.id).length;
+
+      expect(await service.sweep(new Date('2026-10-25T10:20:00.000Z'))).toEqual({ requeued: 1, failed: 0 });
+      expect(published()).toBe(2);
+      // touched: the next sweep within the lease leaves it be; a long summary in the queue is never touched
+      expect(await service.sweep(new Date())).toEqual({ requeued: 0, failed: 0 });
+      const summary = await service.enqueue({ type: 'reader.summarize', toolId: 'reader', userId: 'user-1', payload: {} });
+      prisma.job.rows.find((r) => r.id === summary.id)!.updatedAt = new Date('2026-10-25T09:00:00.000Z');
+      expect(await service.sweep(new Date('2026-10-25T10:20:00.000Z'))).toEqual({ requeued: 0, failed: 0 });
+    });
+
+    it('retries a job once when two retries arrive together', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'failed', retryable: false, error: 'x' }));
+      const before = queue.publishedTo(EXCHANGES.jobs).length;
+      await Promise.all([service.retry('user-1', job.id), service.retry('user-1', job.id)]);
+      expect(queue.publishedTo(EXCHANGES.jobs).length - before).toBe(1);
+    });
+  });
+
   describe('queries', () => {
     it('lists the caller\'s jobs newest first with filters', async () => {
       const a = await enqueueExtract();

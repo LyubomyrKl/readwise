@@ -47,6 +47,19 @@ describe('ReaderJobHooks', () => {
     expect((await prisma.job.findUnique({ where: { id: child.id } }))!.payload).toMatchObject({ extractionStorageKey: 'extraction/book-1_extraction.md' });
   });
 
+  it('extract succeeded after its child was cancelled: the child has the key when it is retried', async () => {
+    const { extract, child } = await extractWithChild();
+    await event(extract.id, 'started');
+    await jobs.cancel('u', child.id);
+
+    await event(extract.id, 'succeeded', { result: { extractionStorageKey: 'extraction/book-1_extraction.md' } });
+    expect(queue.publishedTo(EXCHANGES.jobs)).toHaveLength(0);
+
+    await jobs.retry('u', child.id);
+    const [published] = queue.publishedTo(EXCHANGES.jobs);
+    expect(published.message).toMatchObject({ jobId: child.id, payload: { extractionStorageKey: 'extraction/book-1_extraction.md' } });
+  });
+
   it('extract failed for good: cancels the waiting child', async () => {
     const { extract, child } = await extractWithChild();
     await event(extract.id, 'started', { attempt: 1 });

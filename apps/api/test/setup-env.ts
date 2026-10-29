@@ -22,6 +22,7 @@ const defaults: Record<string, string> = {
   RABBITMQ_HOST: 'localhost',
   RABBITMQ_USER: 'test',
   RABBITMQ_PASS: 'test',
+  REGISTRATION: 'open',
 };
 
 for (const [key, value] of Object.entries(defaults)) {

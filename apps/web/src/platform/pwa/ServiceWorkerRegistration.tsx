@@ -60,15 +60,6 @@ export function ServiceWorkerRegistration() {
         .catch((error) => {
           console.log("SW registration failed:", error);
         });
-
-      // Handle controller change (reload when new SW takes over)
-      let refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (!refreshing) {
-          refreshing = true;
-          window.location.reload();
-        }
-      });
     }
   }, []);
 

@@ -24,8 +24,10 @@ export class NonRetryableJobError extends Error {}
 /**
  * Runs job handlers that live in the API code base. Tool modules register
  * handlers in onModuleInit; the runner binds their routing keys to
- * q.node.default and consumes it. Same semantics as the Python workers:
- * acknowledge on claim, report through JobsService.applyEvent, one job at a time.
+ * q.node.default and consumes it, one job at a time (prefetch 1). A message is
+ * acknowledged once its job ran, so jobs waiting their turn stay in the queue
+ * and survive a restart; JobsService.applyEvent records every transition, and
+ * the sweep publishes again a job of these types that stayed queued.
  */
 @Injectable()
 export class NodeJobRunner implements OnApplicationBootstrap {
@@ -33,7 +35,6 @@ export class NodeJobRunner implements OnApplicationBootstrap {
   private readonly handlers = new Map<string, NodeJobHandler>();
   private readonly enabled: boolean;
   private readonly workerId = `api-${hostname()}-${process.pid}`;
-  private tail: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly queue: QueueService,
@@ -56,6 +57,7 @@ export class NodeJobRunner implements OnApplicationBootstrap {
 
   onApplicationBootstrap(): void {
     if (!this.enabled || this.handlers.size === 0) return;
+    this.jobs.registerQuickTypes(this.handlers.keys());
     void (async () => {
       for (const type of this.handlers.keys()) {
         await this.queue.bindQueue(QUEUES.nodeDefault, EXCHANGES.jobs, jobRoutingKey(type));
@@ -67,23 +69,26 @@ export class NodeJobRunner implements OnApplicationBootstrap {
     );
   }
 
-  /** Acknowledges immediately and runs the job after the previous one finished. */
-  claim(message: ConsumedMessage): Promise<ConsumeOutcome> {
+  /** Runs the job, then acknowledges. A failure to record it is logged; the row says what happened. */
+  async claim(message: ConsumedMessage): Promise<ConsumeOutcome> {
     const parsed = jobEnvelopeSchema.safeParse(message.body);
     if (!parsed.success) {
       this.logger.warn(`Dropping malformed job envelope: ${parsed.error.message}`);
-      return Promise.resolve('reject');
+      return 'reject';
     }
     const envelope = parsed.data;
     if (!this.handlers.has(envelope.type)) {
       this.logger.warn(`No handler for ${envelope.type} (job ${envelope.jobId})`);
-      return Promise.resolve('reject');
+      return 'reject';
     }
-    this.tail = this.tail.then(
-      () => this.run(envelope).then(() => undefined),
-      () => undefined,
-    );
-    return Promise.resolve('ack');
+    try {
+      await this.run(envelope);
+    } catch (error) {
+      // the database failed while recording a transition; a job left queued is published again by
+      // the sweep, one left running is re-queued once its lease runs out
+      this.logger.error(`Job ${envelope.jobId} (${envelope.type}): ${error instanceof Error ? error.message : String(error)}`);
+    }
+    return 'ack';
   }
 
   async run(envelope: JobEnvelope): Promise<Job | null> {

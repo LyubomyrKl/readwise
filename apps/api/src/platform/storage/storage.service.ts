@@ -52,6 +52,8 @@ export class StorageService {
       region,
       credentials: { accessKeyId, secretAccessKey },
       forcePathStyle: true,
+      // a storage host that does not answer fails a call instead of holding it forever
+      requestHandler: { connectionTimeout: 5_000 },
     });
   }
 

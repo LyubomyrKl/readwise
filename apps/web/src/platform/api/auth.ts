@@ -6,7 +6,7 @@
 
 import { ApiError } from "./http";
 import type { AuthenticationResponseJSON, PublicKeyCredentialRequestOptionsJSON } from "@simplewebauthn/browser";
-import type { AuthBundle, LoginDto, RegisterDto, SafeUser } from "./types";
+import type { LoginDto, RegisterDto, SafeUser } from "./types";
 
 async function post<T>(path: string, body?: unknown): Promise<T> {
   const response = await fetch(path, {
@@ -26,9 +26,9 @@ async function post<T>(path: string, body?: unknown): Promise<T> {
 }
 
 export const authApi = {
-  login: (dto: LoginDto) => post<AuthBundle>("/api/auth/login", dto),
+  login: (dto: LoginDto) => post<{ user: SafeUser }>("/api/auth/login", dto),
   register: (dto: RegisterDto) => post<SafeUser>("/api/auth/register", dto),
-  refresh: () => post<{ accessToken: string }>("/api/auth/refresh"),
+  refresh: () => post<{ ok: true }>("/api/auth/refresh"),
   logout: () => post<{ redirectTo: string }>("/api/auth/logout"),
   /** ends every session of the user, on every device */
   logoutAll: () => post<{ redirectTo: string }>("/api/auth/logout", { everywhere: true }),

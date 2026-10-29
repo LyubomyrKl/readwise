@@ -8,7 +8,7 @@ import { LogOut, User, ArrowLeft } from "lucide-react";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { toast } from "sonner";
 import { authApi } from "@platform/api/auth";
-import { useRouter } from "next/navigation";
+import { clearAppCaches } from "@platform/pwa/caches";
 import Link from "next/link";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
@@ -28,20 +28,23 @@ const container: Variants = {
 export default function AccountSettingsPage() {
   const [pending, start] = useTransition();
   const { enabled } = useMotion();
-  const router = useRouter();
 
   async function logout(everywhere = false) {
     start(async () => {
+      let failure: string | null = null;
       try {
         await (everywhere ? authApi.logoutAll() : authApi.logout());
-        toast.success(everywhere ? "Signed out on every device" : "Signed out successfully");
-        router.push(PLATFORM_ROUTES.auth.login);
-      } catch {
-        toast.error("Logout failed", {
-          description: "Please try again later.",
-          duration: 3000,
-        });
+      } catch (e) {
+        failure = e instanceof Error ? e.message : "Please try again later.";
       }
+      await clearAppCaches();
+      if (failure) {
+        // the cookies of this device are cleared either way; say what the server did not confirm
+        toast.error(everywhere ? "Not signed out everywhere" : "Logout not confirmed", { description: failure, duration: 8000 });
+        await new Promise((resolve) => setTimeout(resolve, 4000));
+      }
+      // a full load, so nothing of the session stays in memory
+      window.location.assign(PLATFORM_ROUTES.auth.login);
     });
   }
 

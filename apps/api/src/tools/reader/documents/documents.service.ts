@@ -2,6 +2,7 @@ import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  InternalServerErrorException,
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
@@ -20,7 +21,7 @@ import {
   UpdateLastAccessedResponse,
   UpdateReadingPositionDto,
 } from './document.models';
-import { BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.constants';
+import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.constants';
 import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse } from './document.helpers';
 
 /**
@@ -68,6 +69,10 @@ export class DocumentsService {
     if (!bookFile) {
       throw new BadRequestException('Book file is required');
     }
+    // a cover is served back as what it claims to be: only images
+    if (coverFile && (!BOOK_CONSTRAINTS.COVER_MIME_PATTERN.test(coverFile.mimetype) || coverFile.size > BOOK_CONSTRAINTS.MAX_COVER_SIZE)) {
+      throw new BadRequestException(BOOK_ERROR_MESSAGES.COVER_FORMAT_NOT_SUPPORTED);
+    }
 
     const bookStorageKey = this.storage.generateStorageKey(
       userId,
@@ -107,8 +112,16 @@ export class DocumentsService {
       this.logger.log(`Uploaded and created book ${book.id} for user ${userId}`);
       return { bookId: book.id, status: BOOK_STATUS.READY };
     } catch (error) {
-      this.logger.error(`Failed to upload book for user ${userId}`, error);
-      throw new BadRequestException(BOOK_ERROR_MESSAGES.BOOK_CREATION_FAILED);
+      // storage or database trouble is the server's, not the request's: a 500 (reported), with the
+      // reason in the log, and no stored files left behind without their row
+      this.logger.error(
+        `Failed to upload book for user ${userId}: ${error instanceof Error ? (error.stack ?? error.message) : String(error)}`,
+      );
+      await Promise.allSettled([
+        this.storage.deleteObject('books', bookStorageKey),
+        ...(coverStorageKey ? [this.storage.deleteObject('covers', coverStorageKey)] : []),
+      ]);
+      throw new InternalServerErrorException(BOOK_ERROR_MESSAGES.BOOK_CREATION_FAILED);
     }
   }
 

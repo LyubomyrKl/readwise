@@ -1,7 +1,9 @@
 /**
  * @jest-environment node
  */
-import { apiPath, proxyRequest, refreshTokens, tokenExpiry, RETRYABLE_BODY_BYTES, type ProxyDeps } from "@platform/api/proxy";
+import { apiPath, forgetRefreshes, proxyRequest, refreshTokens, tokenExpiry, RETRYABLE_BODY_BYTES, type ProxyDeps } from "@platform/api/proxy";
+
+beforeEach(() => forgetRefreshes());
 
 function jwt(exp: number): string {
   const b64 = (s: string) => Buffer.from(s).toString("base64url");
@@ -118,7 +120,7 @@ describe("proxyRequest", () => {
     expect(api.calls[1].init.headers.get("authorization")).toBe("Bearer renewed");
 
     const api2 = fakeApi();
-    await proxyRequest(new Request("http://web/api/gw/jobs"), ["jobs"], "", deps({ fetchImpl: api2.fetchImpl, accessToken: undefined }));
+    await proxyRequest(new Request("http://web/api/gw/jobs"), ["jobs"], "", deps({ fetchImpl: api2.fetchImpl, accessToken: undefined, refreshToken: "r1b" }));
     expect(api2.calls[0].url).toMatch(/auth\/refresh$/);
   });
 
@@ -172,6 +174,35 @@ describe("proxyRequest", () => {
     expect(await missing.json()).toEqual({ message: "Book not found" });
   });
 
+  it("never holds more than the replay limit of a body without a length; the rest streams through", async () => {
+    const api = fakeApi({ reject: live });
+    const size = RETRYABLE_BODY_BYTES * 3;
+    let pulled = 0;
+    const source = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        if (pulled >= size) return controller.close();
+        const chunk = new Uint8Array(64 * 1024).fill(7);
+        pulled += chunk.byteLength;
+        controller.enqueue(chunk);
+      },
+    });
+    const req = new Request("http://web/api/gw/x", { method: "POST", body: source, duplex: "half" } as RequestInit);
+    const res = await proxyRequest(req, ["x"], "", deps({ fetchImpl: api.fetchImpl }));
+    // read just past the limit before deciding to stream, then sent once (no replay after the 401)
+    expect(res.status).toBe(401);
+    expect(api.calls).toHaveLength(1);
+    const sent = api.calls[0].init.body as ReadableStream<Uint8Array>;
+    expect(typeof sent.getReader).toBe("function");
+    let total = 0;
+    const reader = sent.getReader();
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      total += value.byteLength;
+    }
+    expect(total).toBe(size);
+  });
+
   it("rejects a bad path without calling the API", async () => {
     const api = fakeApi();
     const res = await proxyRequest(new Request("http://web/x"), ["..", "etc"], "", deps({ fetchImpl: api.fetchImpl }));
@@ -199,5 +230,17 @@ describe("refresh single flight", () => {
     // the next refresh with a different token runs on its own
     await refreshTokens({ ...d, refreshToken: "other" }, api.fetchImpl);
     expect(api.calls.filter((call) => call.url.endsWith("/auth/refresh"))).toHaveLength(2);
+  });
+
+  it("hands a request that left with the old token the pair it was just exchanged for", async () => {
+    const api = fakeApi();
+    const first = deps({ fetchImpl: api.fetchImpl, refreshToken: "old", forwardedFor: "203.0.113.9" });
+    expect((await refreshTokens(first, api.fetchImpl))?.accessToken).toBe("renewed");
+    expect(api.calls[0].init.headers.get("x-forwarded-for")).toBe("203.0.113.9");
+    // a slow request sent before the new cookies reached the browser: same pair, no second exchange, no sign-out
+    const late = deps({ fetchImpl: api.fetchImpl, refreshToken: "old" });
+    expect((await refreshTokens(late, api.fetchImpl))?.refreshToken).toBe("r2");
+    expect(late.cleared).toBe(0);
+    expect(api.calls.filter((call) => call.url.endsWith("/auth/refresh"))).toHaveLength(1);
   });
 });

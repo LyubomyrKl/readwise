@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiBaseUrl, setTokensToCookies } from "@platform/api/cookies";
+import { forwardedFor } from "@platform/api/proxy";
 import type { AuthBundle } from "@platform/api/types";
 
 /** Verifies a passkey assertion against the API and stores the session in httpOnly cookies. */
@@ -13,7 +14,7 @@ export async function POST(req: NextRequest) {
   try {
     const upstream = await fetch(`${apiBaseUrl()}/api/auth/passkeys/login`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", ...forwardedFor(req.headers) },
       body: JSON.stringify(body),
     });
     const data: unknown = await upstream.json().catch(() => ({}));

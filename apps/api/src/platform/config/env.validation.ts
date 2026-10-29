@@ -169,6 +169,16 @@ export class EnvironmentVariables {
   @IsString()
   WEBAUTHN_RP_NAME?: string;
 
+  /**
+   * Who may create an account: "first-user" (the default) only while there is
+   * none yet, so a public server does not take strangers; "open" anyone;
+   * "closed" no one.
+   */
+  @IsOptional()
+  @IsIn(['first-user', 'open', 'closed'])
+  @Transform(({ value }: { value: string }) => value || 'first-user')
+  REGISTRATION: 'first-user' | 'open' | 'closed' = 'first-user';
+
   // ---- money tool (tools/money)
   /** time zone of the daily schedule (rates, prices, recurring movements, snapshots) */
   @IsOptional()

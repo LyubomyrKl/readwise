@@ -26,11 +26,40 @@ describe('JobEventsConsumer', () => {
     expect(jobs.applyEvent).not.toHaveBeenCalled();
   });
 
-  it('dead-letters an event whose transition throws', async () => {
-    jobs.applyEvent.mockRejectedValue(new Error('db down'));
-    const consumer = new JobEventsConsumer(new FakeQueue() as never, jobs, fakeConfig() as never);
+  it('tries a failing transition again, and dead-letters the event only when it keeps failing', async () => {
+    jest.useFakeTimers();
+    try {
+      const consumer = new JobEventsConsumer(new FakeQueue() as never, jobs, fakeConfig() as never);
+      jobs.applyEvent.mockRejectedValueOnce(new Error('db blinked')).mockResolvedValueOnce({ status: 'running' });
+      const recovered = consumer.handle(message(valid));
+      await jest.runAllTimersAsync();
+      await expect(recovered).resolves.toBe('ack');
 
-    await expect(consumer.handle(message(valid))).resolves.toBe('reject');
+      jobs.applyEvent.mockRejectedValue(new Error('db down'));
+      const lost = consumer.handle(message(valid));
+      await jest.runAllTimersAsync();
+      await expect(lost).resolves.toBe('reject');
+      expect(jobs.applyEvent).toHaveBeenCalledTimes(2 + 4);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('applies the events of one job in the order they came, other jobs alongside', async () => {
+    const applied: string[] = [];
+    jobs.applyEvent.mockImplementation(async (e: { jobId: string; event: string }) => {
+      // the first event of job-1 is slow; without ordering, succeeded would land first
+      if (e.jobId === 'job-1' && e.event === 'started') await new Promise((r) => setTimeout(r, 20));
+      applied.push(`${e.jobId}:${e.event}`);
+      return { status: 'running' };
+    });
+    const consumer = new JobEventsConsumer(new FakeQueue() as never, jobs, fakeConfig() as never);
+    await Promise.all([
+      consumer.handle(message({ ...valid, event: 'started' })),
+      consumer.handle(message({ ...valid, jobId: 'job-2' })),
+      consumer.handle(message({ ...valid, event: 'succeeded' })),
+    ]);
+    expect(applied).toEqual(['job-2:progress', 'job-1:started', 'job-1:succeeded']);
   });
 
   it('subscribes to the events queue unless APP_MODE=api', () => {

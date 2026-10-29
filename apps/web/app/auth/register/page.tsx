@@ -40,6 +40,7 @@ import { useSearchParams } from "next/navigation";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { authApi } from "@platform/api/auth";
 
+import { safeNext } from "@platform/auth/route-guard";
 import { PLATFORM_ROUTES } from "@platform/routes";
 const RegisterSchema = z
   .object({
@@ -99,8 +100,8 @@ function RegisterContent() {
   const searchParams = useSearchParams();
   const { enabled } = useMotion();
 
-  // Get the redirect URL from query params, default to the dashboard
-  const redirectTo = searchParams.get("next") || PLATFORM_ROUTES.home;
+  // where to go after signing in: a path on this site from ?next=, else the dashboard
+  const redirectTo = () => safeNext(searchParams.get("next"), window.location.origin);
 
   const form = useForm<RegisterValues>({
     resolver: zodResolver(RegisterSchema),
@@ -125,7 +126,7 @@ function RegisterContent() {
         }
 
         // Use hard navigation to ensure cookies are picked up properly (fixes PWA issues)
-        window.location.href = redirectTo;
+        window.location.href = redirectTo();
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Network error";
         setServerError(errorMessage);

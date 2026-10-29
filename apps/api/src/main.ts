@@ -54,14 +54,18 @@ async function bootstrap() {
       app.useGlobalFilters(new SentryExceptionFilter());
     }
 
-    const config = new DocumentBuilder()
-      .setTitle('Workbench API')
-      .setVersion('1.0')
-      .setDescription('HTTP API of the Workbench personal toolbox')
-      .addBearerAuth()
-      .build();
-    const document = SwaggerModule.createDocument(app, config);
-    SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
+    // the API description is for development; a production server shows it only with SWAGGER=on
+    const swagger = process.env.NODE_ENV !== 'production' || process.env.SWAGGER === 'on';
+    if (swagger) {
+      const config = new DocumentBuilder()
+        .setTitle('Workbench API')
+        .setVersion('1.0')
+        .setDescription('HTTP API of the Workbench personal toolbox')
+        .addBearerAuth()
+        .build();
+      const document = SwaggerModule.createDocument(app, config);
+      SwaggerModule.setup('docs', app, document, { useGlobalPrefix: true });
+    }
 
     app.enableShutdownHooks();
 
@@ -69,7 +73,7 @@ async function bootstrap() {
     await app.listen(port);
 
     logger.log(`Application is running on: ${await app.getUrl()}/api (APP_MODE=${process.env.APP_MODE || 'all'})`);
-    logger.log(`Swagger documentation available at: ${await app.getUrl()}/api/docs`);
+    if (swagger) logger.log(`Swagger documentation available at: ${await app.getUrl()}/api/docs`);
   } catch (error) {
     logger.error('Failed to start application', error);
     process.exit(1);

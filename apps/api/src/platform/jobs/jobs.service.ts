@@ -19,7 +19,7 @@ import {
   JobEventKind,
   jobEnvelopeSchema,
 } from './contracts';
-import { JobEventContext, JobHooks, isActive, isTerminal } from './job-hooks';
+import { ACTIVE_JOB_STATUSES, JobEventContext, JobHooks, TERMINAL_JOB_STATUSES, isActive, isTerminal } from './job-hooks';
 
 export interface EnqueueInput {
   /** "<toolId>.<name>", e.g. "reader.extract" */
@@ -83,6 +83,9 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
   private readonly defaultMaxAttempts: number;
   private readonly runsBackground: boolean;
   private sweepTimer?: NodeJS.Timeout;
+  private sweeping = false;
+  /** job types that run in seconds (the Node runner's): queued longer than the lease means lost */
+  private readonly quickTypes = new Set<string>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -93,6 +96,11 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
     this.sweepIntervalMs = (config.get('JOBS_SWEEP_INTERVAL_SECONDS', { infer: true }) ?? 60) * 1000;
     this.defaultMaxAttempts = config.get('JOBS_MAX_ATTEMPTS', { infer: true }) ?? 3;
     this.runsBackground = (config.get('APP_MODE', { infer: true }) ?? 'all') !== 'api';
+  }
+
+  /** The Node runner's types: the sweep publishes such a job again when it stayed queued past the lease. */
+  registerQuickTypes(types: Iterable<string>): void {
+    for (const type of types) this.quickTypes.add(type);
   }
 
   /** Called by tool modules in onModuleInit. */
@@ -222,9 +230,7 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
   async retry(userId: string, jobId: string): Promise<Job> {
     const job = await this.get(userId, jobId);
     if (isActive(job.status)) return job;
-    await this.prisma.job.update({
-      where: { id: jobId },
-      data: {
+    const queued = await this.transition(jobId, TERMINAL_JOB_STATUSES, {
         status: 'queued',
         attempts: 0,
         error: null,
@@ -237,8 +243,8 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         startedAt: null,
         finishedAt: null,
         timeline: Prisma.JsonNull,
-      },
     });
+    if (!queued) return this.get(userId, jobId); // retried meanwhile
     const published = await this.publish(jobId);
     this.notify(published);
     return published;
@@ -263,16 +269,14 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
 
   private async cancelJob(job: Job, reason: string): Promise<Job> {
     const now = new Date();
-    const updated = await this.prisma.job.update({
-      where: { id: job.id },
-      data: {
-        status: 'cancelled',
-        error: reason,
-        waitReason: null,
-        finishedAt: now,
-        timeline: nextTimeline(job, 'cancelled', undefined, now) as unknown as Prisma.InputJsonValue,
-      },
+    const updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+      status: 'cancelled',
+      error: reason,
+      waitReason: null,
+      finishedAt: now,
+      timeline: nextTimeline(job, 'cancelled', undefined, now) as unknown as Prisma.InputJsonValue,
     });
+    if (!updated) return this.prisma.job.findUniqueOrThrow({ where: { id: job.id } }); // finished meanwhile
     await this.publishControl({ v: 1, jobId: job.id, action: 'cancel' });
     await this.cancelChildren(job.id, `parent job ${job.id} cancelled`);
     await this.runHooks(updated, 'cancelled', { error: reason });
@@ -282,7 +286,11 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
 
   // ---- transitions driven by workers -------------------------------------------
 
-  /** Applies a worker event to the row and notifies the owning tool. Returns the row after the transition. */
+  /**
+   * Applies a worker event to the row and notifies the owning tool. Returns the row after the
+   * transition. Every write is a compare-and-set on the status, so events applied out of order
+   * (progress after succeeded) or twice never undo a decision another write made.
+   */
   async applyEvent(event: JobEvent): Promise<Job | null> {
     const job = await this.prisma.job.findUnique({ where: { id: event.jobId } });
     if (!job) {
@@ -291,64 +299,59 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
     }
     const at = new Date(event.at);
     const extra: HookExtra = { result: event.result, error: event.error, reason: event.reason };
-    let updated: Job;
+    let updated: Job | null = null;
 
     switch (event.event) {
       case 'started': {
-        if (job.status === 'cancelled') {
-          // the worker picked up a message of a job cancelled while queued; tell it to stop
+        if (isTerminal(job.status)) {
+          // a duplicate delivery, or a job cancelled while queued: tell the worker to stop
           await this.publishControl({ v: 1, jobId: job.id, action: 'cancel' });
           return job;
         }
-        if (isTerminal(job.status)) return job;
-        updated = await this.prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'running',
-            workerId: event.workerId,
-            attempts: event.attempt ?? job.attempts + 1,
-            startedAt: job.startedAt ?? at,
-            heartbeatAt: at,
-            stage: event.stage ?? job.stage,
-            progress: event.progress ?? job.progress,
-            waitReason: null,
-            error: null,
-            timeline: nextTimeline(job, 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
-          },
+        updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+          status: 'running',
+          workerId: event.workerId,
+          attempts: event.attempt ?? job.attempts + 1,
+          startedAt: job.startedAt ?? at,
+          heartbeatAt: at,
+          stage: event.stage ?? job.stage,
+          progress: event.progress ?? job.progress,
+          waitReason: null,
+          error: null,
+          timeline: nextTimeline(job, 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
         });
+        if (!updated) {
+          const current = await this.prisma.job.findUnique({ where: { id: job.id } });
+          if (current && isTerminal(current.status)) await this.publishControl({ v: 1, jobId: job.id, action: 'cancel' });
+          return current;
+        }
         break;
       }
       case 'progress':
       case 'waiting': {
         if (!isActive(job.status)) return job; // late event after a terminal transition
-        updated = await this.prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: event.event === 'waiting' ? 'waiting' : 'running',
-            workerId: event.workerId,
-            heartbeatAt: at,
-            stage: event.stage ?? job.stage,
-            progress: event.progress ?? job.progress,
-            waitReason: event.event === 'waiting' ? (event.reason ?? 'waiting') : null,
-            timeline: nextTimeline(job, event.event === 'waiting' ? 'waiting' : 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
-          },
+        updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+          status: event.event === 'waiting' ? 'waiting' : 'running',
+          workerId: event.workerId,
+          heartbeatAt: at,
+          stage: event.stage ?? job.stage,
+          progress: event.progress ?? job.progress,
+          waitReason: event.event === 'waiting' ? (event.reason ?? 'waiting') : null,
+          timeline: nextTimeline(job, event.event === 'waiting' ? 'waiting' : 'running', event.stage, at) as unknown as Prisma.InputJsonValue,
         });
         break;
       }
       case 'succeeded': {
         if (isTerminal(job.status)) return job;
-        updated = await this.prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'succeeded',
-            result: (event.result as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
-            progress: 100,
-            finishedAt: at,
-            heartbeatAt: at,
-            waitReason: null,
-            error: null,
-            timeline: nextTimeline(job, 'succeeded', event.stage, at) as unknown as Prisma.InputJsonValue,
-          },
+        updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+          status: 'succeeded',
+          result: (event.result as Prisma.InputJsonValue | undefined) ?? Prisma.JsonNull,
+          progress: 100,
+          finishedAt: at,
+          heartbeatAt: at,
+          waitReason: null,
+          error: null,
+          timeline: nextTimeline(job, 'succeeded', event.stage, at) as unknown as Prisma.InputJsonValue,
         });
         break;
       }
@@ -357,43 +360,38 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
         const error = event.error ?? 'failed without a message';
         const retryable = event.retryable !== false;
         if (retryable && job.attempts < job.maxAttempts) {
-          updated = await this.prisma.job.update({
-            where: { id: job.id },
-            data: { status: 'queued', error, workerId: null, heartbeatAt: null, waitReason: null },
-          });
-          this.logger.warn(`Job ${job.id} failed (attempt ${job.attempts}/${job.maxAttempts}), re-queued: ${error}`);
-          await this.publish(job.id);
+          updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, { status: 'queued', error, workerId: null, heartbeatAt: null, waitReason: null });
+          if (updated) {
+            this.logger.warn(`Job ${job.id} failed (attempt ${job.attempts}/${job.maxAttempts}), re-queued: ${error}`);
+            await this.publish(job.id);
+          }
         } else {
-          updated = await this.prisma.job.update({
-            where: { id: job.id },
-            data: {
-              status: 'failed',
-              error,
-              finishedAt: at,
-              waitReason: null,
-              timeline: nextTimeline(job, 'failed', event.stage, at) as unknown as Prisma.InputJsonValue,
-            },
+          updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+            status: 'failed',
+            error,
+            finishedAt: at,
+            waitReason: null,
+            timeline: nextTimeline(job, 'failed', event.stage, at) as unknown as Prisma.InputJsonValue,
           });
-          this.logger.error(`Job ${job.id} failed: ${error}`);
+          if (updated) this.logger.error(`Job ${job.id} failed: ${error}`);
         }
         break;
       }
       case 'cancelled': {
         if (isTerminal(job.status)) return job;
-        updated = await this.prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'cancelled',
-            error: event.error ?? 'cancelled by worker',
-            finishedAt: at,
-            waitReason: null,
-            timeline: nextTimeline(job, 'cancelled', event.stage, at) as unknown as Prisma.InputJsonValue,
-          },
+        updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+          status: 'cancelled',
+          error: event.error ?? 'cancelled by worker',
+          finishedAt: at,
+          waitReason: null,
+          timeline: nextTimeline(job, 'cancelled', event.stage, at) as unknown as Prisma.InputJsonValue,
         });
         break;
       }
     }
 
+    // another write got there first: nothing changed, nothing to tell
+    if (!updated) return this.prisma.job.findUnique({ where: { id: job.id } });
     await this.runHooks(updated, event.event, extra);
     this.notify(updated);
     return updated;
@@ -403,47 +401,71 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
    * Re-publishes running or waiting jobs whose heartbeat is older than the lease
    * (the worker died or lost its connection); marks them failed once the attempts
    * are used up. Handlers are idempotent and checkpointed, so a re-run resumes.
+   * Quick jobs (the Node runner's) still queued after the lease were lost before
+   * they started and are published again. One sweep at a time; each row changes
+   * only if it is still stale when written.
    */
   async sweep(now: Date = new Date()): Promise<SweepResult> {
-    const cutoff = new Date(now.getTime() - this.leaseMs);
-    const stale = await this.prisma.job.findMany({
-      where: {
-        status: { in: ['running', 'waiting'] },
-        OR: [{ heartbeatAt: { lt: cutoff } }, { heartbeatAt: null, startedAt: { lt: cutoff } }],
-      },
-    });
     const result: SweepResult = { requeued: 0, failed: 0 };
-    for (const job of stale) {
-      if (job.attempts < job.maxAttempts) {
-        await this.prisma.job.update({
-          where: { id: job.id },
-          data: {
-            status: 'queued',
-            error: 'worker lost (no heartbeat within the lease)',
-            workerId: null,
-            heartbeatAt: null,
-            waitReason: null,
-          },
-        });
-        this.notify(await this.publish(job.id));
-        result.requeued += 1;
-        this.logger.warn(`Sweep re-queued ${job.type} ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
-      } else {
-        const error = `worker lost after ${job.attempts} attempt(s)`;
-        const updated = await this.prisma.job.update({
-          where: { id: job.id },
-          data: { status: 'failed', error, finishedAt: now, waitReason: null },
-        });
-        result.failed += 1;
-        this.logger.error(`Sweep failed ${job.type} ${job.id}: ${error}`);
-        await this.runHooks(updated, 'failed', { error });
-        this.notify(updated);
+    if (this.sweeping) return result;
+    this.sweeping = true;
+    try {
+      const cutoff = new Date(now.getTime() - this.leaseMs);
+      const staleWhere: Prisma.JobWhereInput = { OR: [{ heartbeatAt: { lt: cutoff } }, { heartbeatAt: null, startedAt: { lt: cutoff } }] };
+      const stale = await this.prisma.job.findMany({ where: { status: { in: ['running', 'waiting'] }, ...staleWhere } });
+      for (const job of stale) {
+        if (job.attempts < job.maxAttempts) {
+          const requeued = await this.transition(
+            job.id,
+            ['running', 'waiting'],
+            { status: 'queued', error: 'worker lost (no heartbeat within the lease)', workerId: null, heartbeatAt: null, waitReason: null },
+            staleWhere,
+          );
+          if (!requeued) continue; // it reported meanwhile
+          this.notify(await this.publish(job.id));
+          result.requeued += 1;
+          this.logger.warn(`Sweep re-queued ${job.type} ${job.id} (attempt ${job.attempts}/${job.maxAttempts})`);
+        } else {
+          const error = `worker lost after ${job.attempts} attempt(s)`;
+          const updated = await this.transition(job.id, ['running', 'waiting'], { status: 'failed', error, finishedAt: now, waitReason: null }, staleWhere);
+          if (!updated) continue;
+          result.failed += 1;
+          this.logger.error(`Sweep failed ${job.type} ${job.id}: ${error}`);
+          await this.runHooks(updated, 'failed', { error });
+          this.notify(updated);
+        }
       }
+      if (this.quickTypes.size > 0) {
+        const lostWhere: Prisma.JobWhereInput = { type: { in: [...this.quickTypes] }, updatedAt: { lt: cutoff } };
+        for (const job of await this.prisma.job.findMany({ where: { status: 'queued', ...lostWhere } })) {
+          // touching the row starts its lease again, so the next sweep does not publish it twice
+          if (!(await this.transition(job.id, ['queued'], { updatedAt: now }, lostWhere))) continue;
+          await this.publish(job.id);
+          result.requeued += 1;
+          this.logger.warn(`Sweep published ${job.type} ${job.id} again: still queued after the lease`);
+        }
+      }
+      return result;
+    } finally {
+      this.sweeping = false;
     }
-    return result;
   }
 
   // ---- internals ---------------------------------------------------------------
+
+  /**
+   * Writes a transition only while the row is still in one of `from` (and matches `where`): a
+   * compare-and-set. Null when another write changed the row first.
+   */
+  private async transition(
+    id: string,
+    from: readonly JobStatus[],
+    data: Prisma.JobUpdateManyMutationInput,
+    where: Prisma.JobWhereInput = {},
+  ): Promise<Job | null> {
+    const { count } = await this.prisma.job.updateMany({ where: { ...where, id, status: { in: [...from] } }, data });
+    return count === 1 ? this.prisma.job.findUniqueOrThrow({ where: { id } }) : null;
+  }
 
   private notify(job: Job): void {
     this.changes.emit('job', job);

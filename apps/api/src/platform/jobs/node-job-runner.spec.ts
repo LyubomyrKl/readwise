@@ -10,6 +10,7 @@ describe('NodeJobRunner', () => {
       events.push(e);
       return { id: e.jobId, status: e.event === 'started' ? 'running' : e.event } as never;
     }),
+    registerQuickTypes: jest.fn(),
   } as unknown as JobsService;
   const envelope = {
     v: 1 as const,
@@ -69,13 +70,34 @@ describe('NodeJobRunner', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 
-  it('acknowledges on claim and rejects envelopes it cannot handle', async () => {
+  it('acknowledges once the job ran (jobs waiting their turn stay in the queue) and rejects envelopes it cannot handle', async () => {
     const runner = new NodeJobRunner(new FakeQueue() as never, jobs, fakeConfig() as never);
-    runner.registerHandler('demo.echo', async () => ({}));
+    let finished = false;
+    runner.registerHandler('demo.echo', async () => {
+      await new Promise((r) => setTimeout(r, 10));
+      finished = true;
+      return {};
+    });
 
     await expect(runner.claim({ body: envelope, routingKey: 'jobs.demo.echo', raw: {} as never })).resolves.toBe('ack');
+    expect(finished).toBe(true);
     await expect(runner.claim({ body: { ...envelope, type: 'demo.other' }, routingKey: '', raw: {} as never })).resolves.toBe('reject');
     await expect(runner.claim({ body: { nope: true }, routingKey: '', raw: {} as never })).resolves.toBe('reject');
+  });
+
+  it('still acknowledges when a transition cannot be recorded, and the next job runs', async () => {
+    const flaky = {
+      applyEvent: jest.fn(async (e: JobEvent) => {
+        if (e.jobId === 'job-1') throw new Error('db down');
+        events.push(e);
+        return { id: e.jobId, status: e.event === 'started' ? 'running' : e.event } as never;
+      }),
+    } as unknown as JobsService;
+    const runner = new NodeJobRunner(new FakeQueue() as never, flaky, fakeConfig() as never);
+    runner.registerHandler('demo.echo', async () => ({}));
+    await expect(runner.claim({ body: envelope, routingKey: '', raw: {} as never })).resolves.toBe('ack');
+    await expect(runner.claim({ body: { ...envelope, jobId: 'job-2' }, routingKey: '', raw: {} as never })).resolves.toBe('ack');
+    expect(events.map((e) => `${e.jobId}:${e.event}`)).toEqual(['job-2:started', 'job-2:succeeded']);
   });
 
   it('binds its routing keys and consumes the node queue on bootstrap, except in api mode', async () => {
@@ -86,6 +108,7 @@ describe('NodeJobRunner', () => {
     await new Promise((r) => setImmediate(r));
     expect(queue.bindings).toEqual([{ queue: 'q.node.default', exchange: 'workbench.jobs', pattern: 'jobs.demo.echo' }]);
     expect(queue.consume).toHaveBeenCalledWith('q.node.default', expect.any(Function), { prefetch: 1 });
+    expect(jobs.registerQuickTypes).toHaveBeenCalled();
 
     const apiQueue = new FakeQueue();
     const apiOnly = new NodeJobRunner(apiQueue as never, jobs, fakeConfig({ APP_MODE: 'api' }) as never);

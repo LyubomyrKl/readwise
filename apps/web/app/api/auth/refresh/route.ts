@@ -13,9 +13,11 @@ export async function POST(req: NextRequest) {
     refreshToken,
     setTokens: setTokensToCookies,
     clearTokens: deleteTokensFromCookies,
+    forwardedFor: req.headers.get("x-forwarded-for") ?? undefined,
   });
   if (!tokens) {
     return NextResponse.json({ message: "Session expired" }, { status: 401 });
   }
-  return NextResponse.json({ accessToken: tokens.accessToken }, { status: 200 });
+  // the new pair lives in the httpOnly cookies only
+  return NextResponse.json({ ok: true }, { status: 200 });
 }

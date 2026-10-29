@@ -122,7 +122,7 @@ export class SecondFactorService {
   }
 
   async registerPasskey(userId: string, response: RegistrationResponseJSON, name?: string) {
-    const challenge = await this.takeChallenge(clientChallenge(response.response.clientDataJSON), 'passkey-register');
+    const challenge = await this.takeChallenge(clientChallenge(response.response?.clientDataJSON), 'passkey-register');
     if (challenge.userId !== userId) throw new BadRequestException('Challenge does not belong to this session');
     let verification: VerifiedRegistrationResponse;
     try {
@@ -180,7 +180,7 @@ export class SecondFactorService {
   }
 
   async signInWithPasskey(response: AuthenticationResponseJSON): Promise<AuthBundle> {
-    const challenge = await this.takeChallenge(clientChallenge(response.response.clientDataJSON), 'passkey-login');
+    const challenge = await this.takeChallenge(clientChallenge(response.response?.clientDataJSON), 'passkey-login');
     const passkey = await this.prisma.passkeyCredential.findUnique({ where: { id: response.id }, include: { user: true } });
     if (!passkey || (challenge.userId && challenge.userId !== passkey.userId)) {
       throw new UnauthorizedException('Unknown passkey');
@@ -221,8 +221,9 @@ export class SecondFactorService {
   /** Single use: the challenge row is deleted whether or not the response verifies. */
   private async takeChallenge(challenge: string, purpose: string) {
     const row = await this.prisma.authChallenge.findUnique({ where: { challenge } });
-    if (row) await this.prisma.authChallenge.delete({ where: { id: row.id } });
-    if (!row || row.purpose !== purpose || row.expiresAt.getTime() < Date.now()) {
+    // spent once: of two requests with the same challenge, only the one that deletes it goes on
+    const taken = row ? (await this.prisma.authChallenge.deleteMany({ where: { id: row.id } })).count === 1 : false;
+    if (!row || !taken || row.purpose !== purpose || row.expiresAt.getTime() < Date.now()) {
       throw new UnauthorizedException('The sign-in request expired; try again');
     }
     return row;
@@ -230,7 +231,8 @@ export class SecondFactorService {
 }
 
 /** The challenge the browser signed, read from clientDataJSON (base64url JSON). */
-export function clientChallenge(clientDataJSON: string): string {
+export function clientChallenge(clientDataJSON: unknown): string {
+  if (typeof clientDataJSON !== 'string') throw new BadRequestException('Malformed passkey response');
   try {
     const data = JSON.parse(Buffer.from(clientDataJSON, 'base64url').toString('utf-8')) as { challenge?: unknown };
     if (typeof data.challenge === 'string') return data.challenge;

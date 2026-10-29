@@ -42,6 +42,7 @@ import { useMotion } from "@platform/providers/MotionProvider";
 import { authApi } from "@platform/api/auth";
 import { ApiError } from "@platform/api/http";
 
+import { safeNext } from "@platform/auth/route-guard";
 import { PLATFORM_ROUTES } from "@platform/routes";
 const LoginSchema = z.object({
   email: z.email("Invalid email"),
@@ -103,8 +104,8 @@ function LoginContent() {
   const searchParams = useSearchParams();
   const { enabled } = useMotion();
 
-  // Get the redirect URL from query params, default to the dashboard
-  const redirectTo = searchParams.get("next") || PLATFORM_ROUTES.home;
+  // where to go after signing in: a path on this site from ?next=, else the dashboard
+  const redirectTo = () => safeNext(searchParams.get("next"), window.location.origin);
 
   const form = useForm<LoginValues>({
     resolver: zodResolver(LoginSchema),
@@ -123,7 +124,7 @@ function LoginContent() {
       }
 
       // Use hard navigation to ensure cookies are picked up properly (fixes PWA issues)
-      window.location.href = redirectTo;
+      window.location.href = redirectTo();
     } catch (e) {
       const code = loginErrorCode(e);
       if (code === "TOTP_REQUIRED") {
@@ -143,7 +144,7 @@ function LoginContent() {
       const optionsJSON = await authApi.passkeyOptions(email || undefined);
       const response = await startAuthentication({ optionsJSON });
       await authApi.passkeyLogin(response);
-      window.location.href = redirectTo;
+      window.location.href = redirectTo();
     } catch (e) {
       const name = e instanceof Error ? e.name : "";
       setServerError(

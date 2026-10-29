@@ -1,4 +1,4 @@
-import { Controller, Get, ServiceUnavailableException } from '@nestjs/common';
+import { Controller, Get, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SkipThrottle } from '@nestjs/throttler';
 import { PrismaService } from '@platform/db/prisma.service';
@@ -25,6 +25,7 @@ interface ReadinessStatus extends HealthStatus {
 @Controller('health')
 @SkipThrottle()
 export class HealthController {
+  private readonly logger = new Logger(HealthController.name);
   private readonly startTime = Date.now();
 
   constructor(
@@ -52,8 +53,8 @@ export class HealthController {
   @ApiResponse({ status: 503, description: 'Service is not ready' })
   async ready(): Promise<ReadinessStatus> {
     const [database, storage] = await Promise.all([
-      this.timed(() => this.prisma.$queryRaw`SELECT 1`),
-      this.timed(() => this.storage.ping()),
+      this.timed('database', () => this.prisma.$queryRaw`SELECT 1`),
+      this.timed('storage', () => this.storage.ping()),
     ]);
     const messageQueue: Check = this.queue.isConnected()
       ? { status: 'ok' }
@@ -73,16 +74,15 @@ export class HealthController {
     return response;
   }
 
-  private async timed(probe: () => Promise<unknown>): Promise<Check> {
+  /** The reason of a failed check goes to the log: the endpoint is public, and messages carry hosts and names. */
+  private async timed(name: string, probe: () => Promise<unknown>): Promise<Check> {
     const start = Date.now();
     try {
       await probe();
       return { status: 'ok', latencyMs: Date.now() - start };
     } catch (error) {
-      return {
-        status: 'error',
-        error: error instanceof Error ? error.message : 'unknown error',
-      };
+      this.logger.warn(`readiness: ${name} failed: ${error instanceof Error ? error.message : String(error)}`);
+      return { status: 'error', error: `${name} unreachable` };
     }
   }
 }

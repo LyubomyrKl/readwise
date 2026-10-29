@@ -50,6 +50,10 @@ export class PinoLoggerService implements LoggerService {
     if (level === 'error' && rest.length > 0 && typeof rest[0] === 'string') {
       fields.trace = rest.shift();
     }
+    // an Error among the params goes under pino's `err`, which keeps its message and stack
+    // (as a plain param it would print as {})
+    const errorIndex = rest.findIndex((p) => p instanceof Error);
+    if (errorIndex >= 0) fields.err = rest.splice(errorIndex, 1)[0];
     if (rest.length > 0) fields.params = rest;
 
     if (message instanceof Error) {

@@ -17,6 +17,7 @@ async function handler(request: NextRequest, context: { params: Promise<{ path: 
     refreshToken,
     setTokens: setTokensToCookies,
     clearTokens: deleteTokensFromCookies,
+    forwardedFor: request.headers.get("x-forwarded-for") ?? undefined,
   });
 }
 

@@ -21,6 +21,8 @@ export interface ProxyDeps {
   /** seconds before expiry at which the access token is refreshed proactively */
   refreshSkewSeconds?: number;
   now?: () => number;
+  /** the browser's X-Forwarded-For (set by Caddy), passed on to the refresh call: the API rate-limits it by client */
+  forwardedFor?: string;
 }
 
 /** Bodies up to this size are buffered so a request can be retried after a token refresh. */
@@ -55,6 +57,16 @@ export function apiPath(segments: readonly string[]): string {
     }
   }
   return segments.map(encodeURIComponent).join("/");
+}
+
+/**
+ * The client address for a call the web app makes on the browser's behalf. The
+ * API keys its rate limits for anonymous calls by it; without it every visitor
+ * would share the web container's budget.
+ */
+export function forwardedFor(headers: Headers): Record<string, string> {
+  const value = headers.get("x-forwarded-for");
+  return value ? { "x-forwarded-for": value } : {};
 }
 
 /** `exp` (seconds since epoch) of a JWT, without verifying it; undefined when unreadable. */
@@ -105,19 +117,40 @@ function responseHeaders(upstream: Headers): Headers {
 type RefreshOutcome = { status: "ok"; tokens: Tokens } | { status: "rejected" } | { status: "failed" };
 const inflight = new Map<string, Promise<RefreshOutcome>>();
 
-function exchange(apiBase: string, token: string, fetchImpl: typeof fetch): Promise<RefreshOutcome> {
+/**
+ * Exchanges that finished within the last minute, by the refresh token they
+ * spent. A request that left the browser with the old token before the new
+ * pair arrived (a slow upload, a poller) gets that pair too, instead of a
+ * rejection that would sign the user out: the API revoked the old token.
+ */
+export const ROTATION_GRACE_MS = 60_000;
+const recent = new Map<string, { tokens: Tokens; at: number }>();
+
+/** Forgets the finished exchange of one refresh token (on logout), or all of them (tests). */
+export function forgetRefreshes(token?: string): void {
+  if (token === undefined) recent.clear();
+  else recent.delete(token);
+}
+
+function exchange(apiBase: string, token: string, fetchImpl: typeof fetch, forwarded?: string): Promise<RefreshOutcome> {
+  const done = recent.get(token);
+  if (done && Date.now() - done.at < ROTATION_GRACE_MS) return Promise.resolve({ status: "ok", tokens: done.tokens });
   const existing = inflight.get(token);
   if (existing) return existing;
   const run = (async (): Promise<RefreshOutcome> => {
     try {
       const response = await fetchImpl(`${apiBase}/api/auth/refresh`, {
         method: "POST",
-        headers: { "content-type": "application/json" },
+        headers: { "content-type": "application/json", ...(forwarded ? { "x-forwarded-for": forwarded } : {}) },
         body: JSON.stringify({ refreshToken: token }),
       });
       if (!response.ok) return { status: response.status === 401 ? "rejected" : "failed" };
       const tokens = (await response.json()) as Tokens;
-      return tokens?.accessToken ? { status: "ok", tokens } : { status: "failed" };
+      if (!tokens?.accessToken) return { status: "failed" };
+      const now = Date.now();
+      for (const [key, entry] of recent) if (now - entry.at >= ROTATION_GRACE_MS) recent.delete(key);
+      recent.set(token, { tokens, at: now });
+      return { status: "ok", tokens };
     } catch {
       return { status: "failed" };
     } finally {
@@ -132,7 +165,7 @@ function exchange(apiBase: string, token: string, fetchImpl: typeof fetch): Prom
 export async function refreshTokens(deps: ProxyDeps, fetchImpl: typeof fetch = fetch): Promise<Tokens | undefined> {
   const token = deps.refreshToken;
   if (!token) return undefined;
-  const outcome = await exchange(deps.apiBase, token, fetchImpl);
+  const outcome = await exchange(deps.apiBase, token, fetchImpl, deps.forwardedFor);
   if (outcome.status === "ok") {
     await deps.setTokens(outcome.tokens);
     return outcome.tokens;
@@ -143,6 +176,46 @@ export async function refreshTokens(deps: ProxyDeps, fetchImpl: typeof fetch = f
 
 async function refresh(deps: ProxyDeps, fetchImpl: typeof fetch): Promise<string | undefined> {
   return (await refreshTokens(deps, fetchImpl))?.accessToken;
+}
+
+/** The whole body when it fits in `limit` bytes; else a stream of what was read followed by the rest. */
+async function readUpTo(
+  source: ReadableStream<Uint8Array>,
+  limit: number,
+): Promise<{ buffered: Uint8Array<ArrayBuffer> } | { stream: ReadableStream<Uint8Array> }> {
+  const reader = source.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) {
+      const buffered = new Uint8Array(size);
+      let offset = 0;
+      for (const chunk of chunks) {
+        buffered.set(chunk, offset);
+        offset += chunk.byteLength;
+      }
+      return { buffered };
+    }
+    chunks.push(value);
+    size += value.byteLength;
+    if (size > limit) break;
+  }
+  return {
+    stream: new ReadableStream<Uint8Array>({
+      start(controller) {
+        for (const chunk of chunks) controller.enqueue(chunk);
+      },
+      async pull(controller) {
+        const { done, value } = await reader.read();
+        if (done) controller.close();
+        else controller.enqueue(value);
+      },
+      cancel(reason) {
+        return reader.cancel(reason);
+      },
+    }),
+  };
 }
 
 /**
@@ -165,18 +238,18 @@ export async function proxyRequest(
   const method = request.method.toUpperCase();
   const hasBody = !["GET", "HEAD"].includes(method) && request.body !== null;
 
-  // A small body is buffered so the request can be replayed after a refresh; a large one streams once.
+  // A small body is buffered so the request can be replayed after a refresh; a large one streams
+  // once. At most RETRYABLE_BODY_BYTES are ever held here, whatever Content-Length says (or not).
   let body: BodyInit | null = null;
   let replayable = true;
-  if (hasBody) {
-    const declared = Number(request.headers.get("content-length"));
-    if (Number.isFinite(declared) && declared > RETRYABLE_BODY_BYTES) {
-      body = request.body;
-      replayable = false;
+  if (hasBody && request.body) {
+    const declared = Number(request.headers.get("content-length") ?? NaN);
+    const read = Number.isFinite(declared) && declared > RETRYABLE_BODY_BYTES ? { stream: request.body } : await readUpTo(request.body, RETRYABLE_BODY_BYTES);
+    if ("buffered" in read) {
+      body = read.buffered;
     } else {
-      const buffer = await request.arrayBuffer();
-      body = buffer;
-      replayable = buffer.byteLength <= RETRYABLE_BODY_BYTES;
+      body = read.stream;
+      replayable = false;
     }
   }
 

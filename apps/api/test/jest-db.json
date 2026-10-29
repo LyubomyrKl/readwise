@@ -6,6 +6,9 @@
   ],
   "rootDir": "..",
   "testEnvironment": "node",
+  "setupFiles": [
+    "<rootDir>/test/setup-unit.ts"
+  ],
   "testRegex": ".db-spec.ts$",
   "transform": {
     "^.+\\.(t|j)s$": "ts-jest"

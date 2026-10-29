@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Injectable,
   UnauthorizedException,
   InternalServerErrorException,
@@ -9,6 +10,7 @@ import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'crypto';
 import { add } from 'date-fns';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
 import { LoginDto, RefreshDto, RegisterDto } from './auth.models';
 import { verifyTotp } from './totp';
@@ -49,6 +51,11 @@ export class AuthService {
 
   async register(body: RegisterDto): Promise<AuthBundle> {
     const { email, password, name } = body;
+    // the toolbox has one user: a public server takes the first sign-up only (REGISTRATION)
+    const policy = process.env.REGISTRATION || 'first-user';
+    if (policy === 'closed' || (policy === 'first-user' && (await this.prisma.user.count()) > 0)) {
+      throw new ForbiddenException('Registration is closed on this server');
+    }
 
     try {
       const existingUser = await this.prisma.user.findUnique({
@@ -72,6 +79,10 @@ export class AuthService {
     } catch (error) {
       if (error instanceof ConflictException) {
         throw error;
+      }
+      // the same email registered by a request that ran alongside this one
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        throw new ConflictException('User with this email already exists');
       }
       throw new InternalServerErrorException('Registration failed');
     }

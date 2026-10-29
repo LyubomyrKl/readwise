@@ -19,3 +19,18 @@ export function isAuthRoute(pathname: string): boolean {
     pathname === PLATFORM_ROUTES.auth.register
   );
 }
+
+/**
+ * Where to go after signing in: a path on this site, nothing else. Another
+ * host ("https://…", "//host", "/\host") or a script URL falls back, so a link
+ * to the login page cannot send a fresh session elsewhere or run code in it.
+ */
+export function safeNext(next: string | null | undefined, origin: string, fallback: string = PLATFORM_ROUTES.home): string {
+  if (!next || !next.startsWith("/") || next.startsWith("//") || next.startsWith("/\\")) return fallback;
+  try {
+    const url = new URL(next, origin);
+    return url.origin === origin ? `${url.pathname}${url.search}${url.hash}` : fallback;
+  } catch {
+    return fallback;
+  }
+}

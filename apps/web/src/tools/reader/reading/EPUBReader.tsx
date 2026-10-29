@@ -20,6 +20,7 @@ import { IBook } from "@tools/reader/types";
 import EPUBReaderMenu from "./EPUBReaderMenu";
 import HighlightPopover, { HIGHLIGHT_COLORS } from "./HighlightPopover";
 import NotesPanel from "./NotesPanel";
+import { sanitizeBookDocument } from "./sanitizeBook";
 import type {
   ReadingPosition,
   HighlightResponse,
@@ -232,6 +233,8 @@ export default function EPUBReader({
   const onRendition = useCallback(
     (rendition: any) => {
       renditionRef.current = rendition;
+      // before the first chapter loads (react-reader displays right after this): nothing in the book runs
+      rendition.book.spine.hooks.content.register((doc: Document) => sanitizeBookDocument(doc));
 
       try {
         rendition.themes.fontSize(`${fontSize}%`);

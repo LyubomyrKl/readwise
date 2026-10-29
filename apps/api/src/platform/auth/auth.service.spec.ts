@@ -1,4 +1,4 @@
-import { ConflictException, UnauthorizedException } from '@nestjs/common';
+import { ConflictException, ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { FakePrisma } from '../../../test/fakes/fake-prisma';
@@ -39,6 +39,19 @@ describe('AuthService sessions', () => {
     expect(row.revokedAt).toBeNull();
     expect(row.tokenHash).not.toContain(tokens.refreshToken);
     await expect(register()).rejects.toBeInstanceOf(ConflictException);
+  });
+
+  it('takes only the first sign-up by default, and none when registration is closed', async () => {
+    const previous = process.env.REGISTRATION;
+    try {
+      delete process.env.REGISTRATION;
+      await register();
+      await expect(service.register({ email: 'b@example.com', password: 'S3curePass1' })).rejects.toBeInstanceOf(ForbiddenException);
+      process.env.REGISTRATION = 'closed';
+      await expect(new AuthService(jwt, new FakePrisma() as never).register({ email: 'c@example.com', password: 'S3curePass1' })).rejects.toBeInstanceOf(ForbiddenException);
+    } finally {
+      process.env.REGISTRATION = previous;
+    }
   });
 
   it('login opens another session and keeps the first one valid (several devices)', async () => {

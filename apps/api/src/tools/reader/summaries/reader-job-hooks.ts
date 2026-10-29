@@ -36,10 +36,13 @@ export class ReaderJobHooks implements OnModuleInit, JobHooks {
           throw new Error(`reader.extract ${job.id} succeeded without extractionStorageKey`);
         }
         await this.documents.setExtraction(String(payload.bookId), key);
-        for (const child of await this.jobs.findChildren(job.id, 'queued')) {
+        for (const child of await this.jobs.findChildren(job.id)) {
+          if (child.status === 'succeeded') continue;
+          // every child that has not run yet gets the key: the waiting one is published now, and one
+          // cancelled or failed meanwhile has it when the user retries it
           const childPayload = child.payload as Record<string, unknown>;
           await this.jobs.updatePayload(child.id, { ...childPayload, extractionStorageKey: key });
-          await this.jobs.publish(child.id);
+          if (child.status === 'queued') await this.jobs.publish(child.id);
         }
         return;
       }
