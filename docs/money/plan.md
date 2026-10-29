@@ -196,3 +196,6 @@ entries of posted transactions cannot be updated or deleted.
   with their entries, nothing posted changes; refused across types, for a shared currency and
   for units (`test/db/money-merge-accounts.db-spec.ts`). Accounts as cards, an account's
   currencies as tiles, snapshots export to CSV.
+  Claude's custom connector: OAuth 2.1 with PKCE (`claude/oauth.*`, table `money_oauth_code`),
+  metadata and token public through Funnel, approval on the private `/apps/money/connect`; it
+  mints an ordinary read token (`test/db/money-oauth.db-spec.ts`).

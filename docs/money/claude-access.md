@@ -6,10 +6,28 @@ Claude reads the ledger through a token you create and can revoke at any time:
 | Scope | Claude can |
 |---|---|
 | Read | answer from live data: net worth, this month, any month, allocation, accounts, transactions, positions, drafts |
-| Read and propose | the same, and propose movements; each lands under **Drafts** and posts only when you approve it |
+| Read and propose | older tokens only: the same, and propose movements as drafts (the web no longer shows drafts; new tokens are read only) |
 
 Both the MCP server and the REST API sit at `/api/money/claude/*`, the only API path Caddy
 routes past the web app. Every write a token makes is in the audit log as `token:<id>`.
+
+## The Claude app (claude.ai, desktop, mobile): custom connector
+
+Claude's apps connect from Anthropic's cloud and sign in with OAuth, so a token
+is never pasted into a chat. Set `MONEY_CLAUDE_PUBLIC_URL` to the public base
+URL Tailscale Funnel serves (e.g. `https://<host>.ts.net:8443`) and publish only
+these paths there: `/api/money/claude`, `/.well-known/oauth-authorization-server`,
+`/.well-known/oauth-protected-resource`, `/api/money/oauth/token`,
+`/api/money/oauth/register`. Everything else, including the approval page
+(`/apps/money/connect`), stays on the private address.
+
+In claude.ai: Settings → Connectors → Add custom connector → the MCP URL shown
+under **Settings → Money → Claude** (`<public URL>/api/money/claude/mcp`). Claude
+registers itself, your browser opens the approval page in Workbench (you must be
+on the tailnet and signed in), and after **Allow** Claude holds a read token
+named "Claude connector", revocable in the same list. Codes are single use, live
+five minutes, need PKCE (S256) and Claude's callback
+(`https://claude.ai/api/mcp/auth_callback`); nothing else can register.
 
 ## MCP server
 

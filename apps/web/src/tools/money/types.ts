@@ -544,3 +544,26 @@ export interface CreatedApiToken extends ApiToken {
   /** shown once */
   token: string;
 }
+
+// ---- Claude connector (OAuth) --------------------------------------------------------
+
+/** What the connect page posts when the owner allows Claude's connector. */
+export interface OAuthAuthorizeInput {
+  clientId: string;
+  redirectUri: string;
+  codeChallenge: string;
+  codeChallengeMethod: string;
+  state?: string;
+  scope?: string;
+  resource?: string;
+}
+
+export interface OAuthAuthorizeResponse {
+  /** the redirect_uri with the authorization code (and state) attached */
+  redirect: string;
+}
+
+export interface OAuthInfo {
+  /** the public MCP URL to give claude.ai; null when this server has none set up */
+  mcpUrl: string | null;
+}

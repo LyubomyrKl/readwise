@@ -16,5 +16,7 @@ export const MONEY_ROUTES = Object.freeze({
   reports: `${BASE}/reports`,
   imports: `${BASE}/imports`,
   importBatch: (id: string) => `${BASE}/imports/${id}`,
+  /** OAuth approval for Claude's custom connector; not in the navigation */
+  connect: `${BASE}/connect`,
   settings: "/settings/money",
 } as const);

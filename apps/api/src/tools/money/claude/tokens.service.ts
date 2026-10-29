@@ -28,13 +28,13 @@ export class TokensService {
     private readonly audit: AuditService,
   ) {}
 
-  async create(userId: string, dto: CreateTokenDto): Promise<CreatedTokenResponse> {
+  async create(userId: string, dto: CreateTokenDto, actor = 'user'): Promise<CreatedTokenResponse> {
     const token = `${PREFIX}${randomBytes(32).toString('base64url')}`;
     const row = await this.prisma.$transaction(async (db) => {
       const created = await db.moneyApiToken.create({
         data: { userId, name: dto.name.trim(), scope: dto.scope, tokenHash: hashToken(token), prefix: token.slice(0, PREFIX.length + 6) },
       });
-      await this.audit.record(db, { userId, actor: 'user', action: 'token.create', subjectId: created.id, details: { name: created.name, scope: created.scope } });
+      await this.audit.record(db, { userId, actor, action: 'token.create', subjectId: created.id, details: { name: created.name, scope: created.scope } });
       return created;
     });
     return { ...present(row), token };

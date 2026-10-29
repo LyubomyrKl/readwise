@@ -6,6 +6,9 @@ import { apiFetch } from "@platform/api/http";
 import type {
   ApiToken,
   CreatedApiToken,
+  OAuthAuthorizeInput,
+  OAuthAuthorizeResponse,
+  OAuthInfo,
   TokenScope,
   AutomationJob,
   AutomationStatus,
@@ -192,6 +195,11 @@ export const moneyApi = {
     list: () => apiFetch<ApiToken[]>("/money/tokens"),
     create: (input: { name: string; scope: TokenScope }) => post<CreatedApiToken>("/money/tokens", input),
     revoke: (id: string) => apiFetch<ApiToken>(`/money/tokens/${enc(id)}`, { method: "DELETE" }),
+  },
+
+  oauth: {
+    info: () => apiFetch<OAuthInfo>("/money/oauth/info"),
+    authorize: (input: OAuthAuthorizeInput) => post<OAuthAuthorizeResponse>("/money/oauth/authorize", input),
   },
 
   automation: {

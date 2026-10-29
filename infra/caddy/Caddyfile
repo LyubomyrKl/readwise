@@ -1,7 +1,7 @@
 # Single public entry point. Everything goes to the web app; its server-side
 # routes talk to the api container internally (API_URL). The one exception is
-# Claude's access to the money tool (token-authenticated REST and MCP), which
-# goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
+# Claude's access to the money tool (token-authenticated REST and MCP, and the
+# OAuth endpoints of its connector), which goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
 # ":80" is plain HTTP.
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
@@ -16,6 +16,16 @@
 	@https protocol https
 	header @https ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	handle /api/money/claude/* {
+		reverse_proxy api:5173
+	}
+	# OAuth for Claude's custom connector: metadata, client registration and
+	# token come from Claude's cloud; approving is a page of the web app.
+	handle /.well-known/oauth-* {
+		rewrite * /api/money/oauth{uri}
+		reverse_proxy api:5173
+	}
+	@oauth path /api/money/oauth/token /api/money/oauth/register
+	handle @oauth {
 		reverse_proxy api:5173
 	}
 	handle {

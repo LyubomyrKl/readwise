@@ -1,7 +1,8 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, SetMetadata, UnauthorizedException } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import type { Request } from 'express';
+import type { Request, Response } from 'express';
 import type { TokenScope } from './claude.models';
+import { OAuthService } from './oauth.service';
 import { TokensService, type VerifiedToken } from './tokens.service';
 
 const SCOPE_KEY = 'money:token-scope';
@@ -17,14 +18,22 @@ export class MoneyTokenGuard implements CanActivate {
   constructor(
     private readonly tokens: TokensService,
     private readonly reflector: Reflector,
+    private readonly oauth: OAuthService,
   ) {}
+
+  /** A 401 that tells an OAuth client (Claude's connector) where to sign in. */
+  private unauthorized(context: ExecutionContext, message: string): UnauthorizedException {
+    const challenge = this.oauth.challenge();
+    if (challenge) context.switchToHttp().getResponse<Response>().setHeader('WWW-Authenticate', challenge);
+    return new UnauthorizedException(message);
+  }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest<TokenRequest>();
     const match = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '');
-    if (!match) throw new UnauthorizedException('a money API token is required: Authorization: Bearer mny_…');
+    if (!match) throw this.unauthorized(context, 'a money API token is required: Authorization: Bearer mny_…');
     const token = await this.tokens.verify(match[1]);
-    if (!token) throw new UnauthorizedException('unknown or revoked token');
+    if (!token) throw this.unauthorized(context, 'unknown or revoked token');
     const needed = this.reflector.getAllAndOverride<TokenScope | undefined>(SCOPE_KEY, [context.getHandler(), context.getClass()]) ?? 'read';
     if (needed === 'draft' && token.scope !== 'draft') throw new ForbiddenException('this token reads only; a draft token may propose movements');
     req.moneyToken = token;

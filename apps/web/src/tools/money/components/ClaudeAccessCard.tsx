@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { moneyApi } from "../api";
-import { useApiTokens, useMoneyMutation } from "../queries";
+import { useApiTokens, useMoneyMutation, useOAuthInfo } from "../queries";
 import type { CreatedApiToken } from "../types";
 import { Field } from "./Fields";
 
@@ -43,6 +43,7 @@ function CopyLine({ label, value }: { label: string; value: string }) {
 /** Read-only tokens that let Claude read the ledger. */
 export function ClaudeAccessCard() {
   const { data: tokens } = useApiTokens();
+  const { data: oauthInfo, isLoading: oauthLoading } = useOAuthInfo();
   const [name, setName] = useState("Claude");
   const [created, setCreated] = useState<CreatedApiToken | null>(null);
   const create = useMoneyMutation(() => moneyApi.tokens.create({ name: name.trim() || "Claude", scope: "read" }), { onSuccess: setCreated });
@@ -88,6 +89,19 @@ export function ClaudeAccessCard() {
             </div>
           </div>
         ) : null}
+
+        <section className="space-y-2 rounded-md border p-3 text-sm">
+          <h3 className="font-medium">Use in the Claude app</h3>
+          <p className="text-muted-foreground">
+            In claude.ai open Settings → Connectors → Add custom connector and enter the URL below. Sign in here when Claude asks;
+            the connection then shows up in this list as a token named &quot;Claude connector&quot;, and revoking it here cuts it off.
+          </p>
+          {oauthInfo?.mcpUrl ? (
+            <CopyLine label="Connector URL" value={oauthInfo.mcpUrl} />
+          ) : oauthLoading ? null : (
+            <p className="text-xs text-muted-foreground">The public connector URL is not set up on this server.</p>
+          )}
+        </section>
 
         {(tokens ?? []).length > 0 ? (
           <ul className="divide-y rounded-md border text-sm">

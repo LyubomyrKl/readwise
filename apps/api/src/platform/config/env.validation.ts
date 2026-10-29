@@ -160,6 +160,11 @@ export class EnvironmentVariables {
   @IsString()
   WEBAUTHN_RP_ID?: string;
 
+  /** public base URL of Claude's connector (Tailscale Funnel), e.g. https://host.ts.net:8443; unset: no connector */
+  @IsOptional()
+  @IsString()
+  MONEY_CLAUDE_PUBLIC_URL?: string;
+
   /** origin of the site, e.g. https://money.example.com (default: http://localhost:3000) */
   @IsOptional()
   @IsString()

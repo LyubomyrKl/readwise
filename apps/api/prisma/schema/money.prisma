@@ -626,6 +626,28 @@ model MoneyApiToken {
   @@map("money_api_token")
 }
 
+/// A one-time OAuth authorization code for Claude's custom connector: the owner
+/// approved in Workbench, Claude trades it (with the PKCE verifier) for a read token.
+model MoneyOauthCode {
+  id            String    @id @default(cuid())
+  userId        String
+  /// sha256 of the code; the code itself only travels in the redirect
+  codeHash      String    @unique
+  clientId      String
+  redirectUri   String
+  /// PKCE S256 challenge
+  codeChallenge String
+  scope         String    @default("read")
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("money_oauth_code")
+}
+
 model MoneyAuditLog {
   id        String   @id @default(cuid())
   userId    String

@@ -37,6 +37,7 @@ export const moneyKeys = {
   rates: (filter: string) => ["money", "rates", filter] as const,
   automation: ["money", "automation"] as const,
   tokens: ["money", "tokens"] as const,
+  oauthInfo: ["money", "oauth-info"] as const,
   snapshot: (id: string) => ["money", "snapshot", id] as const,
 };
 
@@ -243,4 +244,14 @@ export function useAutomation() {
 
 export function useApiTokens() {
   return useQuery({ queryKey: moneyKeys.tokens, queryFn: moneyApi.tokens.list });
+}
+
+/** The public MCP URL for Claude's custom connector (null when the server has none). */
+export function useOAuthInfo() {
+  return useQuery({ queryKey: moneyKeys.oauthInfo, queryFn: moneyApi.oauth.info, staleTime: Infinity });
+}
+
+/** Allow on the connect page; the page shows the error itself and then leaves for the redirect. */
+export function useOAuthAuthorize() {
+  return useMutation({ mutationFn: moneyApi.oauth.authorize });
 }
