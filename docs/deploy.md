@@ -7,16 +7,19 @@ doing so. Read **Rules** before touching the server.
 
 | | |
 |---|---|
-| Host | Hetzner VPS `46.225.5.84`, Ubuntu 24.04, 2 vCPU, 3.7 GB RAM, 38 GB disk (about 80% used before Workbench) |
+| Host | Hetzner VPS `46.225.5.84`, Ubuntu 24.04, **ARM64**, 2 vCPU, 3.7 GB RAM, 2 GB swap (`/swapfile`), 38 GB disk |
 | Login | `ssh -i ~/.ssh/hetzner root@46.225.5.84` (the key lives on the owner's Mac only) |
 | Firewall | ufw allows only 22 in. Docker-published ports bypass ufw, so a port published on `0.0.0.0` is public whatever ufw says |
 | Shared with | the owner's **Telegram bot**, compose project `paedavic` (see Rules) |
 | Workbench | `/opt/workbench`, compose project `workbench` (the name is fixed in `docker-compose.yml`, so its volumes are `workbench_*` whatever the directory) |
-| Access | Tailscale: the app is reachable only from the owner's tailnet; Claude's endpoint is public through Tailscale Funnel (see Access) |
+| Tailscale | machine `summarizer` on the owner's tailnet, so the app is `https://summarizer.<tailnet>.ts.net`. Runs with `--accept-dns=false`: with Tailscale's DNS every lookup on the host timed out (no image pulls, and the bot could not resolve Telegram) |
+| Access | the app only from the owner's tailnet (`tailscale serve`); a public Funnel for Claude's endpoint only with the owner's explicit yes (see Access) |
 | LLM | Ollama on the owner's own machine, reached over Tailscale (`OLLAMA_BASE_URL` = that machine's tailnet IP) |
 
 The previous deployment of this project (`/opt/app/summarizer-gateway`, `summarizer-workers`,
-`summarizer-infra`) was removed together with its data when Workbench was first deployed.
+`summarizer-infra`) was removed together with its data when Workbench was first deployed
+(2026-10-29, commit `2b0db39`). It had left a **public** Funnel on 443 pointing at `127.0.0.1:5173`,
+the port the new API uses; it was removed. Always check `tailscale funnel status` (Rule 6).
 
 ## Rules
 
@@ -43,9 +46,12 @@ The previous deployment of this project (`/opt/app/summarizer-gateway`, `summari
    If a configuration exists that is not Workbench's, leave it alone: `tailscale serve` on a port
    replaces whatever was there.
 7. **Keep the MinIO image.** `minio/minio:latest` runs from the copy cached on the host
-   (`pull_policy: missing`; MinIO stopped publishing images in 2025). Never `docker rmi` it, and
-   never `docker compose down --rmi all` a stack that uses it. Keep a spare copy off the server:
+   (`pull_policy: missing`; Docker Hub no longer serves MinIO). Never `docker rmi` it, and never
+   `docker compose down --rmi all` a stack that uses it (that is how the first deployment lost it).
+   The host runs the arm64 build of `RELEASE.2025-07-23T15-54-02Z`, loaded from the owner's Mac.
+   Keep a spare copy off the server:
    `ssh -i ~/.ssh/hetzner root@46.225.5.84 'docker save minio/minio:latest' | gzip > minio-image.tar.gz`.
+   Any other image must be arm64 too (the host is ARM64): a copy from an Intel machine will not run.
 8. **Secrets**: `.env` is `chmod 600`, secrets are hex (`openssl rand -hex …`, no characters
    that break a connection URL), and they are never printed, pasted or committed.
 
@@ -68,6 +74,11 @@ With no domain, Tailscale gives the server a name with a certificate:
 Prerequisites in the Tailscale admin console: MagicDNS and HTTPS certificates on, and the Funnel
 node attribute for the server. The first `tailscale serve`/`funnel` that needs one of them prints a
 link to switch it on.
+
+Who can use Claude's endpoint today: Claude Code (or any client) on a device that is on the
+tailnet, at `https://summarizer.<tailnet>.ts.net/api/money/claude/mcp`. A connector added in the
+Claude app or on claude.ai connects from Anthropic's servers, which cannot see the tailnet: that
+needs the Funnel line in First deployment, step 9, which is only run with the owner's explicit yes.
 
 Known limitation: behind `tailscale serve` every request reaches Caddy from the same local address,
 so the API's rate limits for signed-out calls (login, refresh) are shared by all clients. With
@@ -94,7 +105,9 @@ are shared with everyone using them; prefer DuckDNS or an own domain.
 
 Prerequisites on the host: Docker with Compose v2.24 or later (the override file uses `!override`),
 Tailscale logged in (`tailscale status`) and running with its `tailscale0` interface (containers reach
-the Ollama machine's `100.x` address through it; userspace networking would not route them).
+the Ollama machine's `100.x` address through it; userspace networking would not route them), and
+working DNS: `getent hosts registry-1.docker.io` must answer, else `tailscale set --accept-dns=false`
+(check afterwards that the bot still runs).
 
 1. **State of the bot** (Rule 1) and of the host: `docker ps`, `free -h`, `df -h /`, `swapon --show`.
 
@@ -182,6 +195,7 @@ the Ollama machine's `100.x` address through it; userspace networking would not 
    ```bash
    tailscale serve status; tailscale funnel status          # must be empty, or Workbench's own
    tailscale serve --bg --https=443 http://127.0.0.1:8080
+   # only with the owner's explicit yes: Claude's endpoint public (for connectors in the Claude app / claude.ai)
    tailscale funnel --bg --https=8443 --set-path=/api/money/claude http://127.0.0.1:8080/api/money/claude
    curl -s -o /dev/null -w '%{http_code}\n' https://$NAME/                                # 200 or a redirect
    curl -s -o /dev/null -w '%{http_code}\n' https://$NAME:8443/api/money/claude/summary   # 401: reached, wants a token
@@ -268,6 +282,8 @@ disk (Rule 3): dumps grow with the data.
 | Disk nearly full | Remove only Workbench's replaced images (`docker rmi <id>`), old dumps beyond retention, `/opt/workbench.prev` after a good update. Never a prune (Rule 2). |
 | `port is already allocated` | Something else holds 5173 or 8080 (`ss -ltnp`); do not stop it if it is the bot's. |
 | `minio` cannot start: image missing | Rule 7: load the spare copy. |
+| Builds fail with `lookup registry-1.docker.io ... i/o timeout` | Tailscale's DNS took over the host: `tailscale set --accept-dns=false`. |
+| `exec format error` | An amd64 image on this ARM64 host. Use the arm64 build. |
 
 ## Deploying with Claude
 
