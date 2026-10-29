@@ -28,7 +28,8 @@ export interface OpenLotInput {
 }
 
 interface SplitRecord {
-  lots: { id: string; units: string; remainingUnits: string }[];
+  /** each lot before the split, and after it */
+  lots: { id: string; units: string; remainingUnits: string; splitUnits: string; splitRemainingUnits: string }[];
 }
 
 /**
@@ -196,7 +197,23 @@ export class LotsService implements ReversalHook {
    * cost unchanged. Returns how many units each account gained (or lost).
    * The lots as they were are kept in the audit log for a reversal.
    */
-  async split(db: Db, userId: string, transactionId: string, assetId: string, from: bigint, to: bigint): Promise<Map<string, bigint>> {
+  async split(db: Db, userId: string, transactionId: string, assetId: string, from: bigint, to: bigint, date: Date): Promise<Map<string, bigint>> {
+    // the split rescales what was held on its day; a later trade was already in the new units
+    const later = await db.moneyLot.findFirst({
+      where: {
+        assetId,
+        reversedAt: null,
+        account: { userId },
+        OR: [
+          { acquiredAt: { gt: date } },
+          { transaction: { date: { gt: date } } },
+          { consumptions: { some: { reversedAt: null, transaction: { date: { gt: date } } } } },
+        ],
+      },
+    });
+    if (later) {
+      throw new BadRequestException('this asset was bought, sold or moved after the split date; date the split after those, or reverse them first');
+    }
     const lots = await db.moneyLot.findMany({
       where: { assetId, reversedAt: null, remainingUnits: { gt: 0 }, account: { userId } },
     });
@@ -207,7 +224,13 @@ export class LotsService implements ReversalHook {
       const remaining = quantityFromDb(lot.remainingUnits);
       const newUnits = splitUnits(units, from, to);
       const newRemaining = splitUnits(remaining, from, to);
-      record.lots.push({ id: lot.id, units: quantityToDb(units), remainingUnits: quantityToDb(remaining) });
+      record.lots.push({
+        id: lot.id,
+        units: quantityToDb(units),
+        remainingUnits: quantityToDb(remaining),
+        splitUnits: quantityToDb(newUnits),
+        splitRemainingUnits: quantityToDb(newRemaining),
+      });
       deltas.set(lot.accountId, (deltas.get(lot.accountId) ?? 0n) + newRemaining - remaining);
       await db.moneyLot.update({
         where: { id: lot.id },
@@ -221,6 +244,20 @@ export class LotsService implements ReversalHook {
   /** Undoes what a buy, sale, unit move or split did to the lots; called inside the reversal's transaction. */
   async reverse(db: Db, userId: string, original: PostedTransaction): Promise<void> {
     const now = new Date();
+    if (original.kind !== 'split' && original.assetId) {
+      // its units were rescaled since: what it took or opened is no longer in the units of the lots
+      const split = await db.moneyTransaction.findFirst({
+        where: {
+          userId,
+          kind: 'split',
+          status: 'posted',
+          assetId: original.assetId,
+          postedAt: { gt: original.postedAt ?? original.createdAt },
+          correctedBy: { none: { kind: 'correction' } },
+        },
+      });
+      if (split) throw new BadRequestException(`this asset was split since (${formatDate(split.date)}); reverse the split first`);
+    }
     if (original.kind === 'buy' || original.kind === 'unit_move') {
       const opened = await db.moneyLot.findMany({ where: { transactionId: original.id, reversedAt: null } });
       for (const lot of opened) {
@@ -249,6 +286,10 @@ export class LotsService implements ReversalHook {
       const record = log?.details as unknown as SplitRecord | null;
       if (!record) throw new BadRequestException('the lots before this split are not on record');
       for (const l of record.lots) {
+        const lot = await db.moneyLot.findUniqueOrThrow({ where: { id: l.id } });
+        if (lot.reversedAt || quantityFromDb(lot.units) !== quantityFromDb(l.splitUnits) || quantityFromDb(lot.remainingUnits) !== quantityFromDb(l.splitRemainingUnits)) {
+          throw new BadRequestException('units of this asset were sold, moved or reversed after the split; reverse those first');
+        }
         await db.moneyLot.update({ where: { id: l.id }, data: { units: l.units, remainingUnits: l.remainingUnits } });
       }
     }

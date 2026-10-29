@@ -61,10 +61,11 @@ export class SecondFactorService {
 
   // ---- authenticator app ----------------------------------------------------------
 
-  /** Starts (or restarts) setup: a new secret, not yet required at login. */
-  async startTotp(userId: string): Promise<{ secret: string; otpauthUrl: string; qrDataUrl: string }> {
+  /** Starts (or restarts) setup, with the password: a new secret, not yet required at login. */
+  async startTotp(userId: string, password: string): Promise<{ secret: string; otpauthUrl: string; qrDataUrl: string }> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     if (user.totpEnabledAt) throw new BadRequestException('The authenticator app is already on; turn it off first');
+    await this.auth.confirm(userId, password);
     const secret = generateTotpSecret();
     await this.prisma.user.update({ where: { id: userId }, data: { totpSecret: secret, totpLastStep: null } });
     const otpauthUrl = otpauthUri(secret, user.email, ISSUER);
@@ -99,7 +100,9 @@ export class SecondFactorService {
 
   // ---- passkeys -------------------------------------------------------------------
 
-  async registrationOptions(userId: string): Promise<PublicKeyCredentialCreationOptionsJSON> {
+  /** Options for a new passkey, once the password (and the app's code, when on) confirm who asks. */
+  async registrationOptions(userId: string, password: string, code?: string): Promise<PublicKeyCredentialCreationOptionsJSON> {
+    await this.auth.confirm(userId, password, code);
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId }, include: { passkeys: true } });
     const options = await generateRegistrationOptions({
       rpName: this.rpName,

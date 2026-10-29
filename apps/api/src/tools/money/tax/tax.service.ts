@@ -39,6 +39,7 @@ export class TaxService {
     const accountIds = accounts.map((a) => a.id);
     const nameOf = new Map(accounts.map((a) => [a.id, a.name]));
     const missing: string[] = [];
+    const plnDecimals = await this.commodities.decimalsOf(PLN);
 
     // ---- sales
     const consumptions = await this.prisma.moneyLotConsumption.findMany({
@@ -87,7 +88,7 @@ export class TaxService {
           acquiredAt: formatDate(lot.acquiredAt),
           units: unitsJson(quantityFromDb(c.units)),
           cost: amountJson(c.costAllocatedMinor, lot.costCurrencyId, lotDecimals),
-          costPln: share === null ? null : amountJson(share, PLN, 2),
+          costPln: share === null ? null : amountJson(share, PLN, plnDecimals),
           rate: lot.costPlnRate?.toFixed() ?? null,
           rateDate: lot.costPlnRateDate ? formatDate(lot.costPlnRateDate) : null,
         });
@@ -105,11 +106,11 @@ export class TaxService {
         assetName: asset.commodity.name,
         units: unitsJson(units),
         proceeds: amountJson(proceeds, currency, decimals),
-        proceedsPln: pln ? amountJson(pln.minor, PLN, 2) : null,
+        proceedsPln: pln ? amountJson(pln.minor, PLN, plnDecimals) : null,
         rate: pln?.rate ?? null,
         rateDate: pln ? formatDate(pln.rateDate) : null,
-        costPln: costPln === null ? null : amountJson(costPln, PLN, 2),
-        gainPln: complete ? amountJson(pln.minor - costPln!, PLN, 2) : null,
+        costPln: costPln === null ? null : amountJson(costPln, PLN, plnDecimals),
+        gainPln: complete ? amountJson(pln.minor - costPln!, PLN, plnDecimals) : null,
         lots,
       });
     }
@@ -163,18 +164,18 @@ export class TaxService {
         category: tx.category?.name ?? 'Income',
         gross: amountJson(gross, currency, decimals),
         withheld: amountJson(withheld, currency, decimals),
-        grossPln: grossPln === null ? null : amountJson(grossPln, PLN, 2),
-        withheldPln: withheldPln === null ? null : amountJson(withheldPln, PLN, 2),
+        grossPln: grossPln === null ? null : amountJson(grossPln, PLN, plnDecimals),
+        withheldPln: withheldPln === null ? null : amountJson(withheldPln, PLN, plnDecimals),
         rate: rate?.rate ?? null,
         rateDate: rate ? formatDate(rate.date) : null,
-        taxPln: t ? amountJson(t.tax, PLN, 2) : null,
-        creditPln: t ? amountJson(t.credit, PLN, 2) : null,
+        taxPln: t ? amountJson(t.tax, PLN, plnDecimals) : null,
+        creditPln: t ? amountJson(t.credit, PLN, plnDecimals) : null,
       });
     }
 
     const gains = gainsTax(revenue, costs);
     const incomeDue = incomeTaxTotal - incomeCredit;
-    const pln = (minor: bigint) => amountJson(minor, PLN, 2);
+    const pln = (minor: bigint) => amountJson(minor, PLN, plnDecimals);
     return {
       year,
       currency: PLN,

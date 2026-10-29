@@ -11,7 +11,7 @@ import {
   transferLines,
   type PostingLine,
 } from '../core/postings';
-import { asBadRequest, LedgerService, type PostedTransaction } from '../ledger/ledger.service';
+import { asBadRequest, jsonInput, LedgerService, type PostedTransaction } from '../ledger/ledger.service';
 import { CommoditiesService } from '../reference/commodities.service';
 import { TransactionsService } from '../transactions/transactions.service';
 import {
@@ -31,6 +31,8 @@ export interface PostContext {
   db?: Db;
   /** post this draft (its row becomes the transaction) */
   draftId?: string;
+  /** the movement as approved, kept on the posted draft in place of the proposal */
+  approved?: MovementDto;
   importRowId?: string;
   recurringRuleId?: string;
   correctsId?: string;
@@ -81,7 +83,10 @@ export class MovementsService {
     const handler = this.handler(movement.kind);
     const input = await validateInput(handler.dto, movement.input);
     await this.ledger.ensureSetup(userId);
-    const run = (db: Db) => handler.post(db, userId, input, ctx);
+    const run = async (db: Db) => {
+      await this.ledger.lock(db, userId);
+      return handler.post(db, userId, input, ctx.draftId ? { ...ctx, approved: movement } : ctx);
+    };
     return ctx.db ? run(ctx.db) : this.prisma.$transaction(run, WRITE_TX);
   }
 
@@ -91,6 +96,7 @@ export class MovementsService {
     const input = await validateInput(handler.dto, movement.input);
     await this.ledger.ensureSetup(userId);
     return this.prisma.$transaction(async (db) => {
+      await this.ledger.lock(db, userId);
       await this.transactions.reverseIn(db, userId, id, { note: 'Corrected' }, actor);
       return handler.post(db, userId, input, { actor, db, correctsId: id });
     }, WRITE_TX);
@@ -151,6 +157,7 @@ export class MovementsService {
       date: toDate(dto.date),
       note: dto.note,
       draftId: ctx.draftId,
+      proposal: ctx.draftId && ctx.approved ? jsonInput(ctx.approved) : undefined,
       importRowId: ctx.importRowId,
       recurringRuleId: ctx.recurringRuleId,
       correctsId: ctx.correctsId,

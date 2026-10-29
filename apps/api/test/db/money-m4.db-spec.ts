@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import type { TestingModule } from '@nestjs/testing';
 import type { PrismaService } from '@platform/db/prisma.service';
 import { AccountsService } from '@tools/money/accounts/accounts.service';
@@ -58,6 +59,14 @@ describe('M4 views', () => {
 
     const core = await assets.createClass(userId, { name: 'Core equity', targetPercent: '70' });
     const emergency = await assets.createClass(userId, { name: 'Emergency fund', targetPercent: '30' });
+    // over 100%, now or from a later day: refused, and nothing saved
+    await expect(assets.setTarget(userId, emergency.id, { percent: '40', validFrom: '2026-01-01' })).rejects.toThrow(/current targets add up to more than 100%/);
+    await expect(assets.setTarget(userId, core.id, { percent: '75', validFrom: '2099-01-01' })).rejects.toThrow(/targets from 2099-01-01 add up to more than 100%/);
+    await expect(assets.createClass(userId, { name: 'Gold', targetPercent: '5' })).rejects.toThrow(/more than 100%/);
+    expect((await assets.listClasses(userId)).map((c) => [c.name, c.targets.length])).toEqual([
+      ['Core equity', 1],
+      ['Emergency fund', 1],
+    ]);
     const bank = await accounts.createInstitution(userId, { name: 'mBank', kind: 'bank' });
     const zenInst = await accounts.createInstitution(userId, { name: 'ZEN', kind: 'bank' });
     const broker = await accounts.createInstitution(userId, { name: 'IBKR', kind: 'broker' });
@@ -154,6 +163,9 @@ describe('M4 views', () => {
       ['2027-02', '0.00', null],
       ['2027-03', '12000.00', '63.1'],
     ]);
+    // a month that does not exist is the caller's mistake
+    await expect(views.monthly(userId, { from: '2027-13' })).rejects.toThrow(BadRequestException);
+    await expect(views.month(userId, '2027-00')).rejects.toThrow(BadRequestException);
   });
 
   it('compares the allocation with the targets', async () => {

@@ -1,11 +1,13 @@
 import type { TestingModule } from '@nestjs/testing';
 import type { PrismaService } from '@platform/db/prisma.service';
 import { AccountsService } from '@tools/money/accounts/accounts.service';
+import { DraftsService } from '@tools/money/drafts/drafts.service';
 import { AssetsService } from '@tools/money/investments/assets.service';
 import { PositionsService } from '@tools/money/investments/positions.service';
 import { PricesService } from '@tools/money/investments/prices.service';
 import { MovementsService } from '@tools/money/movements/movements.service';
 import { TransactionsService } from '@tools/money/transactions/transactions.service';
+import { ViewsService } from '@tools/money/views/views.service';
 import { moneyHarness } from './money-harness';
 
 /** M3 done-when: VWCE shows 71 units on IBKR with the right cost; a test sale consumes the oldest lots first. */
@@ -173,6 +175,9 @@ describe('M3 investments', () => {
   it('values the holding at the latest price and shows the gain', async () => {
     await prices.record(userId, { assetId: vwce, date: '2026-09-30', price: '120.00' });
     await prices.record(userId, { assetId: vwce, date: '2026-10-27', price: '130.50' });
+    expect((await prices.list(userId, vwce)).map((p) => p.price)).toEqual(['130.5', '120']);
+    // without an asset there is no list (an empty filter would match every user's prices)
+    await expect(prices.list(userId, undefined)).rejects.toThrow('assetId: required');
     const p = (await position(ibkr, vwce))!;
     expect(p.price).toMatchObject({ price: '130.5', date: '2026-10-27' });
     expect(p.value?.value).toBe('4698.00');
@@ -211,6 +216,27 @@ describe('M3 investments', () => {
     expect((await position(ibkr, vwce))!.units).toBe('108');
     expect((await position(ibkr, vwce))!.cost[0].value).toBe('4476.00');
     expect((await position(xtb, vwce))!.units).toBe('45');
+    await transactions.reverse(userId, split.id, {});
+    expect((await position(ibkr, vwce))!.units).toBe('36');
+    expect((await position(xtb, vwce))!.units).toBe('15');
+  });
+
+  it('posts an approved split draft itself, and keeps a split and the trades around it in order', async () => {
+    const drafts = app.get(DraftsService);
+    const proposal = await drafts.create(userId, { kind: 'split', input: { date: '2026-10-11', assetId: vwce, ratioFrom: '1', ratioTo: '2' } }, { actor: 'user' });
+    const split = await drafts.approve(userId, proposal.id, undefined);
+    expect([split.id, split.status]).toEqual([proposal.id, 'posted']);
+    expect(await prisma.moneyTransaction.count({ where: { userId, status: 'draft' } })).toBe(0);
+    expect((await position(ibkr, vwce))!.units).toBe('72');
+
+    // a buy from before the split is in the old units
+    await expect(transactions.reverse(userId, buys[2], {})).rejects.toThrow(/split since \(2026-10-11\); reverse the split first/);
+    // a sale after it takes the new units: the split cannot be undone under it, nor dated before it
+    const sale = await post('sell', { date: '2026-10-12', accountId: ibkr, assetId: vwce, units: '2', proceeds: '100.00', currency: 'EUR' });
+    await expect(transactions.reverse(userId, split.id, {})).rejects.toThrow(/after the split; reverse those first/);
+    await expect(post('split', { date: '2026-10-11', assetId: vwce, ratioFrom: '2', ratioTo: '1' })).rejects.toThrow(/after the split date/);
+
+    await transactions.reverse(userId, sale.id, {});
     await transactions.reverse(userId, split.id, {});
     expect((await position(ibkr, vwce))!.units).toBe('36');
     expect((await position(xtb, vwce))!.units).toBe('15');
@@ -256,5 +282,20 @@ describe('M3 investments', () => {
     const after = await accounts.get(userId, mbank);
     expect(after.balances).toEqual(before.balances);
     expect((await position(bonds, edo))!.units).toBe('35');
+  });
+
+  it('shows a holding without a price at cost in each currency, with the units bought for each', async () => {
+    const gold = (await assets.create(userId, { code: 'GOLD', name: 'Gold coins', quoteCurrency: 'EUR' })).id;
+    await post('buy', { date: '2026-10-20', accountId: ibkr, assetId: gold, units: '2', total: '200.00', currency: 'EUR' });
+    await post('buy', { date: '2026-10-20', accountId: xtb, assetId: gold, units: '3', total: '1300.00', currency: 'PLN' });
+    await post('unit_move', { date: '2026-10-21', fromAccountId: xtb, toAccountId: ibkr, assetId: gold, units: '3' });
+    const nw = await app.get(ViewsService).netWorth(userId, { asOf: new Date('2026-10-21') });
+    // in the order of their value in the base currency, which depends on the stored rates
+    const items = nw.accounts.find((a) => a.accountId === ibkr)!.items.filter((i) => i.code === 'GOLD');
+    items.sort((a, b) => a.native!.currency.localeCompare(b.native!.currency));
+    expect(items.map((i) => [i.units, i.native?.value, i.native?.currency, i.valuedBy])).toEqual([
+      ['2', '200.00', 'EUR', 'cost'],
+      ['3', '1300.00', 'PLN', 'cost'],
+    ]);
   });
 });

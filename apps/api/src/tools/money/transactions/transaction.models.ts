@@ -50,7 +50,7 @@ export class TransactionResponse {
   @ApiProperty({ nullable: true, example: 'user' }) proposedBy!: string | null;
   @ApiProperty({ nullable: true, description: 'units of the received currency per unit sent (cross-currency transfers)' })
   impliedRate!: string | null;
-  @ApiProperty({ nullable: true, description: 'for drafts: { kind, input }' }) draft!: unknown;
+  @ApiProperty({ nullable: true, description: '{ kind, input }: what a draft proposes; on a posted draft, what was approved' }) draft!: unknown;
   @ApiProperty({ type: [EntryResponse] }) entries!: EntryResponse[];
   @ApiProperty() createdAt!: string;
   @ApiProperty({ nullable: true }) postedAt!: string | null;

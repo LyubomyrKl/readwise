@@ -52,16 +52,17 @@ export class MoneyScheduler implements OnApplicationBootstrap, OnModuleDestroy {
     if (this.timer) clearInterval(this.timer);
   }
 
-  /** The local day each task last started for a user. */
+  /** The local day each task last started on schedule for a user; a run by hand (Settings, "run now") does not count. */
   async lastRuns(userId: string): Promise<Partial<Record<MoneyTask, string>>> {
-    const jobs = await this.prisma.job.findMany({
-      where: { userId, type: { in: MONEY_TASKS.map(moneyJobType) } },
-      orderBy: { createdAt: 'desc' },
-      distinct: ['type'],
-      select: { type: true, createdAt: true },
-    });
     const out: Partial<Record<MoneyTask, string>> = {};
-    for (const j of jobs) out[j.type.slice('money.'.length) as MoneyTask] = formatDate(todayIn(this.timeZone, j.createdAt));
+    for (const task of MONEY_TASKS) {
+      const job = await this.prisma.job.findFirst({
+        where: { userId, type: moneyJobType(task), payload: { path: ['scheduled'], equals: 'true' } },
+        orderBy: { createdAt: 'desc' },
+        select: { createdAt: true },
+      });
+      if (job) out[task] = formatDate(todayIn(this.timeZone, job.createdAt));
+    }
     return out;
   }
 
@@ -84,7 +85,7 @@ export class MoneyScheduler implements OnApplicationBootstrap, OnModuleDestroy {
           hasPriceFeeds: (await this.priceFeed.feedAssets(userId)).length > 0,
         });
         for (const { task, payload } of due) {
-          await this.jobs.enqueue({ type: moneyJobType(task), toolId: 'money', userId, payload });
+          await this.jobs.enqueue({ type: moneyJobType(task), toolId: 'money', userId, payload: { ...payload, scheduled: 'true' } });
           enqueued.push({ userId, task });
         }
       }

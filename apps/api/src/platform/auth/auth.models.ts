@@ -68,6 +68,20 @@ export class TotpCodeDto {
   code!: string;
 }
 
+/** Who is changing how they sign in: the password again, and the app's code when it is on. */
+export class ConfirmIdentityDto {
+  @ApiProperty({ example: 'S3curePass1' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  password!: string;
+
+  @ApiProperty({ required: false, example: '123456', description: 'authenticator app code, when the second factor is on' })
+  @IsOptional()
+  @Matches(/^\s*\d{3}\s?\d{3}\s*$/)
+  code?: string;
+}
+
 export class TotpSetup {
   @ApiProperty({ description: 'base32 secret, for typing into the app' }) secret!: string;
   @ApiProperty({ example: 'otpauth://totp/Workbench:anna%40example.com?secret=...' }) otpauthUrl!: string;

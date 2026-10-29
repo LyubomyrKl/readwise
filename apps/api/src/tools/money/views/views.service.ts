@@ -7,7 +7,7 @@ import { BalancesService } from '../accounts/balances.service';
 import { amountJson, unitsJson } from '../common/amounts';
 import { toDate } from '../common/parse';
 import { bondValue, parseBondConfig, unitsValue } from '../core/bonds';
-import { addMonths, endOfMonth, formatDate, monthKey, monthsBetween, parseDate, startOfMonth, todayIn } from '../core/dates';
+import { addMonths, endOfMonth, formatDate, monthKey, monthsBetween, startOfMonth, todayIn } from '../core/dates';
 import { divRound, formatScaled, pow10, toFraction } from '../core/decimal';
 import { parseQuantity, quantityFromDb } from '../core/quantity';
 import type { RateBook } from '../core/rates';
@@ -122,9 +122,10 @@ export class ViewsService {
       if (v.value !== null) {
         items.push({ account, kind: 'asset', code: h.asset.commodity.code, currency: v.currency, native: v.value, units: h.units, valuedBy: v.valuedBy === 'none' ? 'none' : v.valuedBy, shares });
       } else {
-        // no price yet: at cost, in each currency it was paid in
+        // no price yet: at cost, in each currency it was paid in, with the units bought for it
         for (const [currency, cost] of h.cost) {
-          items.push({ account, kind: 'asset', code: h.asset.commodity.code, currency, native: cost, units: h.units, valuedBy: 'cost', shares });
+          const units = h.cost.size === 1 ? h.units : (h.costUnits.get(currency) ?? 0n);
+          items.push({ account, kind: 'asset', code: h.asset.commodity.code, currency, native: cost, units, valuedBy: 'cost', shares });
         }
       }
     }
@@ -331,8 +332,8 @@ export class ViewsService {
   /** `from: 'start'` begins at the month of the first posted transaction. */
   private async range(userId: string, q: { from?: string; to?: string }): Promise<{ months: Date[]; from: Date; to: Date }> {
     const today = this.today();
-    const toMonth = q.to ? parseDate(`${q.to}-01`) : startOfMonth(today);
-    let fromMonth = q.from && q.from !== 'start' ? parseDate(`${q.from}-01`) : addMonths(toMonth, -11, 1);
+    const toMonth = q.to ? toDate(`${q.to}-01`, 'to') : startOfMonth(today);
+    let fromMonth = q.from && q.from !== 'start' ? toDate(`${q.from}-01`, 'from') : addMonths(toMonth, -11, 1);
     if (q.from === 'start') {
       const first = await this.prisma.moneyTransaction.findFirst({ where: { userId, status: 'posted' }, orderBy: { date: 'asc' }, select: { date: true } });
       fromMonth = first && first.date < toMonth ? startOfMonth(first.date) : toMonth;

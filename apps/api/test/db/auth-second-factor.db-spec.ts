@@ -43,7 +43,8 @@ describe('second factor against Postgres', () => {
   });
 
   it('needs a code after the app is turned on, and accepts each code once', async () => {
-    const { secret, otpauthUrl, qrDataUrl } = await secondFactor.startTotp(userId);
+    await expect(secondFactor.startTotp(userId, 'not the password')).rejects.toThrow('That password does not match');
+    const { secret, otpauthUrl, qrDataUrl } = await secondFactor.startTotp(userId, password);
     expect(otpauthUrl).toContain(`secret=${secret}`);
     expect(qrDataUrl).toMatch(/^data:image\/png;base64,/);
 
@@ -60,6 +61,16 @@ describe('second factor against Postgres', () => {
     expect((await loginError(next)).code).toBe('TOTP_INVALID');
 
     await expect(secondFactor.disableTotp(userId, '000000')).rejects.toThrow(/does not match/);
+
+    // a minute later: a new passkey needs the password and, with the app on, a fresh code
+    const later = jest.spyOn(Date, 'now').mockReturnValue((now + 3) * 30_000 + 1_000);
+    try {
+      await expect(secondFactor.registrationOptions(userId, password)).rejects.toThrow('Enter the code from your authenticator app');
+      await expect(secondFactor.registrationOptions(userId, password, totpCode(secret, now + 3))).resolves.toMatchObject({ rp: { id: 'localhost' } });
+      await secondFactor.disableTotp(userId, totpCode(secret, now + 4));
+    } finally {
+      later.mockRestore();
+    }
   });
 
   it('refuses a passkey it does not know and spends the challenge', async () => {
@@ -79,8 +90,9 @@ describe('second factor against Postgres', () => {
     await expect(secondFactor.signInWithPasskey(response)).rejects.toThrow(/expired/);
   });
 
-  it('creates registration options that exclude nothing for a new user', async () => {
-    const options = await secondFactor.registrationOptions(userId);
+  it('creates registration options that exclude nothing for a new user, after the password', async () => {
+    await expect(secondFactor.registrationOptions(userId, 'not the password')).rejects.toThrow('That password does not match');
+    const options = await secondFactor.registrationOptions(userId, password);
     expect(options.rp.id).toBe('localhost');
     expect(options.excludeCredentials).toEqual([]);
     expect(options.authenticatorSelection?.userVerification).toBe('required');

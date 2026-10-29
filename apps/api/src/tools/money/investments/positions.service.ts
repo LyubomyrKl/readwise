@@ -1,4 +1,6 @@
 import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { EnvironmentVariables } from '@platform/config/env.validation';
 import { PrismaService } from '@platform/db/prisma.service';
 import { BalancesService } from '../accounts/balances.service';
 import { amountJson, unitsJson, type AmountJson } from '../common/amounts';
@@ -19,19 +21,26 @@ export interface Holding {
   units: bigint;
   /** cost of the units held, by the currency paid */
   cost: Map<string, bigint>;
+  /** units of the lots behind each of those costs */
+  costUnits: Map<string, bigint>;
   lots: { acquiredAt: Date; units: bigint }[];
 }
 
 /** Holdings: units from the ledger, cost from the lots, value from prices or the bond formula. */
 @Injectable()
 export class PositionsService {
+  private readonly timeZone: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly balances: BalancesService,
     private readonly lots: LotsService,
     private readonly valuation: ValuationService,
     private readonly commodities: CommoditiesService,
-  ) {}
+    config: ConfigService<EnvironmentVariables>,
+  ) {
+    this.timeZone = config.get('MONEY_TIMEZONE', { infer: true }) ?? 'Europe/Warsaw';
+  }
 
   /** Every (account, asset) with units at the end of `at`. */
   async holdings(userId: string, at: Date, accountId?: string): Promise<Holding[]> {
@@ -51,7 +60,11 @@ export class PositionsService {
       if (!asset || !account) continue;
       const mine = lots.filter((l) => l.lot.accountId === h.accountId && l.lot.assetId === h.commodityId && l.units > 0n);
       const cost = new Map<string, bigint>();
-      for (const l of mine) cost.set(l.lot.costCurrencyId, (cost.get(l.lot.costCurrencyId) ?? 0n) + l.cost);
+      const costUnits = new Map<string, bigint>();
+      for (const l of mine) {
+        cost.set(l.lot.costCurrencyId, (cost.get(l.lot.costCurrencyId) ?? 0n) + l.cost);
+        costUnits.set(l.lot.costCurrencyId, (costUnits.get(l.lot.costCurrencyId) ?? 0n) + l.units);
+      }
       out.push({
         accountId: account.id,
         accountName: account.name,
@@ -60,6 +73,7 @@ export class PositionsService {
         asset,
         units: h.units,
         cost,
+        costUnits,
         lots: mine.map((l) => ({ acquiredAt: l.lot.acquiredAt, units: l.units })),
       });
     }
@@ -67,7 +81,7 @@ export class PositionsService {
   }
 
   async positions(userId: string, opts: { accountId?: string; asOf?: Date } = {}): Promise<PositionResponse[]> {
-    const at = opts.asOf ?? todayIn('UTC');
+    const at = opts.asOf ?? todayIn(this.timeZone);
     const holdings = await this.holdings(userId, at, opts.accountId);
     const out: PositionResponse[] = [];
     for (const h of holdings) {
@@ -123,6 +137,7 @@ export class PositionsService {
       take: 2000,
     });
     const out: LotResponse[] = [];
+    const plnDecimals = await this.commodities.decimalsOf('PLN');
     for (const r of rows) {
       const decimals = await this.commodities.decimalsOf(r.costCurrencyId);
       out.push({
@@ -134,7 +149,7 @@ export class PositionsService {
         remainingUnits: unitsJson(quantityFromDb(r.remainingUnits)),
         cost: amountJson(r.costMinor, r.costCurrencyId, decimals),
         remainingCost: amountJson(r.remainingCostMinor, r.costCurrencyId, decimals),
-        costPln: r.costPlnMinor === null ? null : amountJson(r.costPlnMinor, 'PLN', 2),
+        costPln: r.costPlnMinor === null ? null : amountJson(r.costPlnMinor, 'PLN', plnDecimals),
         costPlnRate: r.costPlnRate?.toFixed() ?? null,
         costPlnRateDate: r.costPlnRateDate ? formatDate(r.costPlnRateDate) : null,
         tradeCost:

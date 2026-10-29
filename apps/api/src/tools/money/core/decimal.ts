@@ -40,6 +40,15 @@ export function formatScaled(value: bigint, scale: number): string {
   return `${negative ? '-' : ''}${whole}${scale > 0 ? `.${fraction}` : ''}`;
 }
 
+/** Exact sum of decimal strings, at the largest scale among them: addDecimals("1.5", "-0.25") is "1.25". */
+export function addDecimals(...values: string[]): string {
+  const scale = Math.max(0, ...values.map((v) => v.trim().split(/[.,]/)[1]?.length ?? 0));
+  return formatScaled(
+    values.reduce((sum, v) => sum + parseScaled(v, scale), 0n),
+    scale,
+  );
+}
+
 export type RoundingMode = 'half-up' | 'half-even';
 
 /**

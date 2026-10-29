@@ -6,6 +6,7 @@ import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 import {
   AuthBundle,
+  ConfirmIdentityDto,
   PasskeyLoginDto,
   PasskeyLoginOptionsDto,
   PasskeyRegisterDto,
@@ -37,9 +38,10 @@ export class SecondFactorController {
   }
 
   @Post('totp/setup')
-  @ApiEndpoint({ summary: 'Start authenticator app setup: a new secret and its QR code', response: TotpSetup })
-  startTotp(@Req() req: UserModel) {
-    return this.secondFactor.startTotp(req.user.userId);
+  @Throttle(CREDENTIAL_LIMITS)
+  @ApiEndpoint({ summary: 'Start authenticator app setup (needs the password): a new secret and its QR code', response: TotpSetup })
+  startTotp(@Req() req: UserModel, @Body() dto: ConfirmIdentityDto) {
+    return this.secondFactor.startTotp(req.user.userId, dto.password);
   }
 
   @Post('totp/enable')
@@ -57,9 +59,10 @@ export class SecondFactorController {
   }
 
   @Post('passkeys/register/options')
-  @ApiEndpoint({ summary: 'Options for creating a passkey', response: WebAuthnOptions })
-  registrationOptions(@Req() req: UserModel) {
-    return this.secondFactor.registrationOptions(req.user.userId);
+  @Throttle(CREDENTIAL_LIMITS)
+  @ApiEndpoint({ summary: 'Options for creating a passkey (needs the password, and the app code when it is on)', response: WebAuthnOptions })
+  registrationOptions(@Req() req: UserModel, @Body() dto: ConfirmIdentityDto) {
+    return this.secondFactor.registrationOptions(req.user.userId, dto.password, dto.code);
   }
 
   @Post('passkeys/register')

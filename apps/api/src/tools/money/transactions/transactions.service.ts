@@ -97,6 +97,7 @@ export class TransactionsService {
   }
 
   async reverseIn(db: Db, userId: string, id: string, opts: { date?: string; note?: string }, actor: string): Promise<PostedTransaction> {
+    await this.ledger.lock(db, userId);
     const original = await this.ledger.load(db, userId, id);
     if (original.status !== 'posted') throw new BadRequestException('a draft has nothing to reverse; drop it instead');
     if (original.kind === 'correction') {
@@ -149,17 +150,20 @@ export class TransactionsService {
         };
       });
 
-      // the rate a cross-currency movement implies, from its two conversion legs
+      // the rate a cross-currency movement implies, from its two conversion legs; a reversal
+      // shows the rate of the movement it reverses, not its inverse
       let rate: string | null = null;
       const conversion = row.entries.filter(
         (e) => e.subAccount.account.systemRole === 'conversion' && e.amountMinor !== null,
       );
-      const sent = conversion.find((e) => e.amountMinor! > 0n);
-      const received = conversion.find((e) => e.amountMinor! < 0n);
+      const reversal = row.kind === 'correction';
+      const sent = conversion.find((e) => (reversal ? e.amountMinor! < 0n : e.amountMinor! > 0n));
+      const received = conversion.find((e) => (reversal ? e.amountMinor! > 0n : e.amountMinor! < 0n));
       if (conversion.length === 2 && sent && received && row.kind !== 'buy' && row.kind !== 'sell') {
         const from = commodities.get(sent.subAccount.commodityId)!;
         const to = commodities.get(received.subAccount.commodityId)!;
-        rate = impliedRate(sent.amountMinor!, from.decimals, -received.amountMinor!, to.decimals);
+        const abs = (v: bigint) => (v < 0n ? -v : v);
+        rate = impliedRate(abs(sent.amountMinor!), from.decimals, abs(received.amountMinor!), to.decimals);
       }
 
       return {

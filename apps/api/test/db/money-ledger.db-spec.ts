@@ -190,6 +190,50 @@ describe('money ledger in Postgres', () => {
       ).rejects.toThrow(/immutable/);
     });
 
+    it('refuses new entries after a later update of the row, even one that changes nothing', async () => {
+      const tx = await post([
+        { subAccountId: sub.mbankPln, amountMinor: -400n },
+        { subAccountId: sub.zenPln, amountMinor: 400n },
+      ]);
+      const more = (db: Pick<PrismaClient, 'moneyEntry'>) =>
+        db.moneyEntry.createMany({
+          data: [
+            { transactionId: tx.id, subAccountId: sub.mbankPln, amountMinor: -1n },
+            { transactionId: tx.id, subAccountId: sub.zenPln, amountMinor: 1n },
+          ],
+        });
+      // the link columns may change (a deleted recurring rule sets them to NULL); that is no licence to add entries
+      await expect(
+        prisma.$transaction(async (db) => {
+          await db.moneyTransaction.update({ where: { id: tx.id }, data: { recurringRuleId: null } });
+          await more(db);
+        }),
+      ).rejects.toThrow(/immutable/);
+      // nor is writing the posting transaction's id by hand
+      await expect(
+        prisma.$transaction(async (db) => {
+          await db.$executeRaw`UPDATE "money_transaction" SET "postedXact" = pg_current_xact_id()::text::bigint WHERE "id" = ${tx.id}`;
+          await more(db);
+        }),
+      ).rejects.toThrow(/immutable/);
+      expect(await prisma.moneyEntry.count({ where: { transactionId: tx.id } })).toBe(2);
+    });
+
+    it('refuses zero entries', async () => {
+      await expect(
+        post([
+          { subAccountId: sub.mbankPln, amountMinor: 0n },
+          { subAccountId: sub.zenPln, amountMinor: 0n },
+        ]),
+      ).rejects.toThrow(/money_entry_nonzero/);
+      await expect(
+        post([
+          { subAccountId: sub.ibkrVwce, quantity: '0' },
+          { subAccountId: sub.ibkrVwce, quantity: '0' },
+        ]),
+      ).rejects.toThrow(/money_entry_nonzero/);
+    });
+
     it('lets a correction point at the original', async () => {
       const original = await post([
         { subAccountId: sub.mbankPln, amountMinor: -1000n },

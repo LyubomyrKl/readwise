@@ -145,19 +145,17 @@ export class TradesService implements OnModuleInit {
     const from = BigInt(dto.ratioFrom);
     const to = BigInt(dto.ratioTo);
     if (from === 0n || to === 0n || from === to) throw new BadRequestException('a split needs two different positive numbers');
-    // the lots are rescaled first; the entries then post exactly what they gained
-    const placeholder = await db.moneyTransaction.create({
-      data: {
-        userId,
-        date: this.movements.opts(dto, ctx).date,
-        kind: 'split',
-        status: 'draft',
-        draft: { kind: 'split', input: { ...dto } },
-        assetId: asset.commodityId,
-        proposedBy: ctx.actor,
-      },
-    });
-    const deltas = await this.lots.split(db, userId, placeholder.id, asset.commodityId, from, to);
+    // the lots are rescaled first; the entries then post exactly what they gained, on the
+    // draft being approved or on a placeholder draft
+    const date = this.movements.opts(dto, ctx).date;
+    const draftId =
+      ctx.draftId ??
+      (
+        await db.moneyTransaction.create({
+          data: { userId, date, kind: 'split', status: 'draft', draft: { kind: 'split', input: { ...dto } }, assetId: asset.commodityId, proposedBy: ctx.actor },
+        })
+      ).id;
+    const deltas = await this.lots.split(db, userId, draftId, asset.commodityId, from, to, date);
     const lines = this.movements.build(() =>
       splitLines(
         asset.commodityId,
@@ -168,7 +166,7 @@ export class TradesService implements OnModuleInit {
       ...this.movements.opts(dto, ctx),
       kind: 'split',
       assetId: asset.commodityId,
-      draftId: placeholder.id,
+      draftId,
       note: dto.note ?? `Split ${dto.ratioFrom}:${dto.ratioTo}`,
       allowArchived: true,
     });

@@ -142,3 +142,15 @@ entries of posted transactions cannot be updated or deleted.
   month, live; no token, an unknown or a revoked one get 401; a read token cannot propose; a
   Claude draft moves no money until it is approved). Connecting Claude:
   [`claude-access.md`](claude-access.md).
+- **Review** — fixes from a review of the whole app: the posting database transaction is recorded
+  on the row (`money_rules_hardening`), so no later one can add entries, not even after updating
+  the row; zero entries are refused; a transaction can be reversed once (unique index). Every
+  ledger write takes the user's lock first (`LedgerService.lock`), so sales of the same units,
+  two reversals or two approvals at once cannot both pass their checks. An approved split draft
+  posts itself; a split cannot be dated before later trades, undone under them, or skipped by
+  reversing an older buy or sale. A posted draft keeps what was approved; opening balances go
+  through `MovementsService`; targets over 100% (now or from a later day) are not saved; a run by
+  hand does not stand in for the scheduled one; today is the money time zone's; prices need an
+  asset; PLN places come from the currency table. Passkeys and the authenticator app need the
+  password again (and the code when it is on). Tests: `test/db/money-concurrency.db-spec.ts` and
+  additions to the ledger and milestone specs.

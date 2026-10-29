@@ -1,6 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { EnvironmentVariables } from '@platform/config/env.validation';
 import { PrismaService } from '@platform/db/prisma.service';
 import { WRITE_TX, type Db } from '../common/db';
 import { toDate } from '../common/parse';
@@ -19,13 +21,18 @@ import { TransactionsService } from '../transactions/transactions.service';
  */
 @Injectable()
 export class DraftsService {
+  private readonly timeZone: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ledger: LedgerService,
     private readonly movements: MovementsService,
     private readonly transactions: TransactionsService,
     private readonly audit: AuditService,
-  ) {}
+    config: ConfigService<EnvironmentVariables>,
+  ) {
+    this.timeZone = config.get('MONEY_TIMEZONE', { infer: true }) ?? 'Europe/Warsaw';
+  }
 
   list(userId: string): Promise<TransactionPage> {
     return this.transactions.list(userId, { limit: '500' }, 'draft');
@@ -64,7 +71,7 @@ export class DraftsService {
     opts: { actor: string; note?: string; recurringRuleId?: string; date?: Date },
   ): Promise<{ id: string }> {
     const rawDate = (movement.input as { date?: unknown }).date;
-    const date = opts.date ?? (typeof rawDate === 'string' ? toDate(rawDate) : todayIn('UTC'));
+    const date = opts.date ?? (typeof rawDate === 'string' ? toDate(rawDate) : todayIn(this.timeZone));
     const note = opts.note ?? (typeof movement.input.note === 'string' ? movement.input.note : null);
     const draft = await db.moneyTransaction.create({
       data: {

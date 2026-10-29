@@ -89,6 +89,11 @@ describe('M1 accounts and movements', () => {
     expect(shown.impliedRate).toBe('0.230912'); // 230.45 EUR for 998.00 PLN
     expect(shown.category?.name).toBe('Fees');
     expect(await balance(zen, 'EUR')).toBe('230.45');
+    // its reversal shows the same rate, not the inverse
+    const reversal = await transactions.reverse(userId, tx.id, { date: '2026-10-02' });
+    expect(reversal.impliedRate).toBe('0.230912');
+    expect(await balance(zen, 'EUR')).toBe('0.00');
+    await post('transfer', { date: '2026-10-02', fromAccountId: mbank, fromCurrency: 'PLN', amountOut: '1000.00', toAccountId: zen, toCurrency: 'EUR', amountIn: '230.45', fee: '2.00' });
   });
 
   it('keeps every balance to the cent through income, expenses and transfers', async () => {
@@ -207,7 +212,13 @@ describe('M1 accounts and movements', () => {
 
     const other = await drafts.create(userId, { kind: 'expense', input: { date: '2026-10-25', accountId: mbank } }, { actor: 'user' });
     await expect(drafts.approve(userId, other.id, undefined)).rejects.toThrow();
-    await drafts.reject(userId, other.id);
+    // completed on approval: the posted draft keeps what was approved, not the proposal
+    const completed = { date: '2026-10-25', accountId: mbank, currency: 'PLN', amount: '12.00', note: 'Completed' };
+    const fixed = await drafts.approve(userId, other.id, completed);
+    expect(fixed.draft).toEqual({ kind: 'expense', input: completed });
+    await transactions.reverse(userId, fixed.id, {});
+    const third = await drafts.create(userId, { kind: 'expense', input: { date: '2026-10-25', accountId: mbank } }, { actor: 'user' });
+    await drafts.reject(userId, third.id);
     expect((await drafts.list(userId)).items).toEqual([]);
   });
 });

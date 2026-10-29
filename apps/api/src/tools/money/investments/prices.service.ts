@@ -14,7 +14,7 @@ export class PricesService {
     private readonly audit: AuditService,
   ) {}
 
-  async list(userId: string, assetId: string, limit = 200): Promise<PriceResponse[]> {
+  async list(userId: string, assetId: string | undefined, limit = 200): Promise<PriceResponse[]> {
     await this.assetOf(userId, assetId);
     const rows = await this.prisma.moneyPrice.findMany({
       where: { assetId },
@@ -59,7 +59,9 @@ export class PricesService {
     return { removed: true };
   }
 
-  private async assetOf(userId: string, assetId: string) {
+  private async assetOf(userId: string, assetId: string | undefined) {
+    // an undefined id would match every asset (and list the prices of all of them)
+    if (!assetId) throw new BadRequestException('assetId: required');
     const asset = await this.prisma.moneyAsset.findFirst({ where: { commodityId: assetId, commodity: { userId } } });
     if (!asset) throw new NotFoundException('asset not found');
     return asset;

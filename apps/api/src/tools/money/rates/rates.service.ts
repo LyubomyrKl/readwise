@@ -5,6 +5,7 @@ import type { Db } from '../common/db';
 import { addDays, formatDate } from '../core/dates';
 import { convertMinor } from '../core/money';
 import { RateBook, type RateRow } from '../core/rates';
+import { CommoditiesService } from '../reference/commodities.service';
 
 /** Calendar days back a tax rate may be looked for. */
 export const NBP_MAX_GAP_DAYS = 7;
@@ -22,7 +23,10 @@ export interface TaxRate {
  */
 @Injectable()
 export class RatesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly commodities: CommoditiesService,
+  ) {}
 
   /**
    * The Polish tax rule: the NBP average rate of the last business day before
@@ -49,7 +53,8 @@ export class RatesService {
   ): Promise<{ minor: bigint; rate: string; rateDate: Date } | null> {
     const found = await this.nbpBefore(db, currency, date);
     if (!found) return null;
-    return { minor: convertMinor(minor, currencyDecimals, found.rate, 2), rate: found.rate, rateDate: found.date };
+    const plnDecimals = await this.commodities.decimalsOf('PLN');
+    return { minor: convertMinor(minor, currencyDecimals, found.rate, plnDecimals), rate: found.rate, rateDate: found.date };
   }
 
   // ---- rate books for display (core/rates.ts) -------------------------------------------------

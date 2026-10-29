@@ -5,9 +5,10 @@ import { PrismaService } from '@platform/db/prisma.service';
 import { amountJson, unitsJson } from '../common/amounts';
 import { WRITE_TX } from '../common/db';
 import { toDate, toMinor } from '../common/parse';
-import { openingBalanceLines } from '../core/postings';
-import { asBadRequest, LedgerService } from '../ledger/ledger.service';
+import { formatDate } from '../core/dates';
+import { LedgerService } from '../ledger/ledger.service';
 import { AuditService } from '../ledger/audit.service';
+import { MovementsService } from '../movements/movements.service';
 import { CommoditiesService } from '../reference/commodities.service';
 import {
   AccountResponse,
@@ -30,6 +31,7 @@ export class AccountsService {
     private readonly balances: BalancesService,
     private readonly commodities: CommoditiesService,
     private readonly audit: AuditService,
+    private readonly movements: MovementsService,
   ) {}
 
   // ---- institutions -------------------------------------------------------------------
@@ -96,13 +98,14 @@ export class AccountsService {
     if (dto.cashClassId) await this.classOf(userId, dto.cashClassId);
     const currencies = [...new Set(dto.currencies.map((c) => c.toUpperCase()))];
     for (const code of currencies) await this.commodities.currency(code);
-    const openings: { currency: string; amount: bigint; date: Date }[] = [];
+    const openings: { currency: string; amount: bigint; value: string; date: Date }[] = [];
     for (const ob of dto.openingBalances ?? []) {
       const currency = await this.commodities.currency(ob.currency);
       if (!currencies.includes(currency.id)) currencies.push(currency.id);
       openings.push({
         currency: currency.id,
         amount: toMinor(ob.amount, currency.decimals, 'openingBalances.amount'),
+        value: ob.amount,
         date: toDate(ob.date, 'openingBalances.date'),
       });
     }
@@ -111,6 +114,7 @@ export class AccountsService {
     }
 
     const id = await this.prisma.$transaction(async (db) => {
+      if (openings.length > 0) await this.ledger.lock(db, userId);
       const account = await db.moneyAccount.create({
         data: {
           userId,
@@ -136,16 +140,11 @@ export class AccountsService {
       });
       for (const ob of openings) {
         if (ob.amount === 0n) continue;
-        try {
-          await this.ledger.post(db, userId, openingBalanceLines({ accountId: account.id, currency: ob.currency, amount: ob.amount }), {
-            actor,
-            kind: 'opening_balance',
-            date: ob.date,
-            note: 'Opening balance',
-          });
-        } catch (error) {
-          throw asBadRequest(error);
-        }
+        await this.movements.post(
+          userId,
+          { kind: 'opening_balance', input: { date: formatDate(ob.date), accountId: account.id, currency: ob.currency, amount: ob.value, note: 'Opening balance' } },
+          { actor, db },
+        );
       }
       return account.id;
     }, WRITE_TX);

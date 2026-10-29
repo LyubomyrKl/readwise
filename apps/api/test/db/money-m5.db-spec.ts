@@ -171,7 +171,7 @@ describe('M5 automation', () => {
     // the first tick of a new user runs everything that never ran
     expect(await tick('2027-06-08T09:00')).toEqual(['recurring', 'rates', 'prices']);
     const job = await prisma.job.findFirstOrThrow({ where: { userId, type: 'money.rates' }, orderBy: { createdAt: 'desc' } });
-    expect(job.payload).toEqual({ date: '2027-06-08' });
+    expect(job.payload).toEqual({ date: '2027-06-08', scheduled: 'true' });
     const first = await jobs.rates(userId, job.payload as Record<string, unknown>);
     expect(first).toMatchObject({ ecb: { latest: '2027-06-08' }, nbp: { latest: '2027-06-08' } });
     const filled = await prisma.moneyLot.findUniqueOrThrow({ where: { id: lot.id } });
@@ -180,6 +180,8 @@ describe('M5 automation', () => {
 
     // the same day: nothing new; the next evening: rates again, and nothing is stored twice
     expect(await tick('2027-06-08T20:00')).toEqual([]);
+    // a run by hand in the morning does not stand in for the evening run
+    await prisma.job.create({ data: { type: 'money.rates', toolId: 'money', userId, payload: { date: '2027-06-09' }, createdAt: new Date('2027-06-09T10:00:00+02:00') } });
     expect(await tick('2027-06-09T16:00')).toEqual(['recurring']);
     expect(await tick('2027-06-09T17:20')).toEqual(['rates']);
     const again = await jobs.rates(userId, { date: '2027-06-08' });

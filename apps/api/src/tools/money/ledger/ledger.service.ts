@@ -48,6 +48,8 @@ export interface PostOptions {
   importRowId?: string | null;
   /** post this draft: its row becomes the transaction */
   draftId?: string | null;
+  /** with draftId: the movement as approved, replacing the proposal the draft carried */
+  proposal?: Prisma.InputJsonValue;
   /** corrections may touch archived accounts; new movements may not */
   allowArchived?: boolean;
 }
@@ -67,6 +69,7 @@ interface WriteCache {
   categories: Map<string, { id: string; kind: 'income' | 'expense'; name: string }>;
   systemAccounts?: MoneyAccount[];
   subAccounts: Map<string, string>;
+  locked?: boolean;
 }
 
 @Injectable()
@@ -122,7 +125,22 @@ export class LedgerService {
     return (await db.moneyCategory.create({ data: { userId, name: fallback.name, kind: fallback.kind, key } })).id;
   }
 
+  /**
+   * Takes the user's money write lock until the database transaction ends. A
+   * write that checks the ledger or the lots before writing (a later sale, an
+   * earlier reversal, the units left in a lot, a draft not yet posted) takes it
+   * first, so two such writes run one after the other and the second sees what
+   * the first committed.
+   */
+  async lock(db: Db, userId: string): Promise<void> {
+    const cache = this.cacheOf(db);
+    if (cache.locked) return;
+    await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`money:${userId}`}))`;
+    cache.locked = true;
+  }
+
   async post(db: Db, userId: string, lines: PostingLine[], opts: PostOptions): Promise<PostedTransaction> {
+    await this.lock(db, userId);
     try {
       assertBalanced(
         lines.map((l) => ({
@@ -209,7 +227,7 @@ export class LedgerService {
     if (opts.draftId) {
       const draft = await db.moneyTransaction.findFirst({ where: { id: opts.draftId, userId, status: 'draft' } });
       if (!draft) throw new NotFoundException('draft not found or already posted');
-      await db.moneyTransaction.update({ where: { id: draft.id }, data: header });
+      await db.moneyTransaction.update({ where: { id: draft.id }, data: { ...header, ...(opts.proposal ? { draft: opts.proposal } : {}) } });
       transactionId = draft.id;
     } else {
       transactionId = (await db.moneyTransaction.create({ data: { userId, proposedBy: opts.actor, ...header } })).id;

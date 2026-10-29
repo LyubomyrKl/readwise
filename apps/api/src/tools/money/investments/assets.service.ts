@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type MoneyAsset, type MoneyAssetClass, type MoneyAllocationTarget, type MoneyAssetClassSplit, type MoneyCommodity } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
+import type { Db } from '../common/db';
 import { toDate } from '../common/parse';
 import { BondConfigError, parseBondConfig } from '../core/bonds';
 import { formatDate } from '../core/dates';
@@ -151,9 +152,9 @@ export class AssetsService {
           });
         }
         await this.audit.record(db, { userId, actor, action: 'class.create', subjectId: created.id, details: { name: created.name } });
+        await this.checkTargetsTotal(db, userId);
         return created;
       });
-      await this.checkTargetsTotal(userId);
       return (await this.listClasses(userId)).find((c) => c.id === row.id)!;
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
@@ -185,8 +186,8 @@ export class AssetsService {
         update: { percent },
       });
       await this.audit.record(db, { userId, actor, action: 'class.target', subjectId: id, details: { ...dto } });
+      await this.checkTargetsTotal(db, userId);
     });
-    await this.checkTargetsTotal(userId);
     return (await this.listClasses(userId)).find((c) => c.id === id)!;
   }
 
@@ -236,11 +237,20 @@ export class AssetsService {
   }
 
   /** Current targets may not exceed 100% together. */
-  private async checkTargetsTotal(userId: string): Promise<void> {
-    const classes = await this.listClasses(userId);
-    const total = classes.reduce((sum, c) => sum + (c.targetPercent ? percentUnits(c.targetPercent) : 0n), 0n);
-    if (total > 1_000_000n) {
-      throw new BadRequestException('the current targets add up to more than 100%; lower another class first');
+  /** Inside the write, so a refused target is not saved: at most 100% today and on every day a target starts. */
+  private async checkTargetsTotal(db: Db, userId: string): Promise<void> {
+    const rows = await db.moneyAssetClass.findMany({ where: { userId }, include: { targets: true } });
+    const now = new Date();
+    const days = [now, ...rows.flatMap((r) => r.targets.map((t) => t.validFrom)).filter((d) => d > now)];
+    for (const at of days) {
+      const total = rows.reduce((sum, r) => {
+        const target = presentClass(r, at).targetPercent;
+        return sum + (target ? percentUnits(target) : 0n);
+      }, 0n);
+      if (total > 1_000_000n) {
+        const when = at === now ? 'the current targets' : `the targets from ${formatDate(at)}`;
+        throw new BadRequestException(`${when} add up to more than 100%; lower another class first`);
+      }
     }
   }
 

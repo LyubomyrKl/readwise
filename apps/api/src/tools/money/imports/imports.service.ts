@@ -1,6 +1,8 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import type { MoneyImportBatch, MoneyImportRowStatus, Prisma } from '@prisma/client';
+import { ConfigService } from '@nestjs/config';
+import { Prisma, type MoneyImportBatch, type MoneyImportRowStatus } from '@prisma/client';
 import { createHash } from 'crypto';
+import { EnvironmentVariables } from '@platform/config/env.validation';
 import { PrismaService } from '@platform/db/prisma.service';
 import { BalancesService } from '../accounts/balances.service';
 import { AccountsService } from '../accounts/accounts.service';
@@ -8,12 +10,12 @@ import { amountJson } from '../common/amounts';
 import { BULK_TX, type Db } from '../common/db';
 import { decodeBytes, parseCsv } from '../core/csv';
 import { addDays, daysBetween, formatDate, parseDate, todayIn } from '../core/dates';
+import { addDecimals } from '../core/decimal';
 import { guessColumns } from '../core/import-parse';
 import { parseMinor } from '../core/money';
 import { DEFAULT_TYPE_VALUES, distinctValues, type MoneyManagerMapping } from '../core/money-manager';
-import { openingBalanceLines } from '../core/postings';
 import { AuditService } from '../ledger/audit.service';
-import { asBadRequest, jsonInput, LedgerService } from '../ledger/ledger.service';
+import { jsonInput, LedgerService } from '../ledger/ledger.service';
 import { MovementsService } from '../movements/movements.service';
 import { CommoditiesService } from '../reference/commodities.service';
 import {
@@ -62,6 +64,7 @@ interface BatchOptions {
 @Injectable()
 export class ImportsService {
   private readonly profiles = new Map<string, ImportProfile>();
+  private readonly timeZone: string;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -71,7 +74,9 @@ export class ImportsService {
     private readonly balances: BalancesService,
     private readonly accounts: AccountsService,
     private readonly audit: AuditService,
+    config: ConfigService<EnvironmentVariables>,
   ) {
+    this.timeZone = config.get('MONEY_TIMEZONE', { infer: true }) ?? 'Europe/Warsaw';
     for (const profile of [MONEY_MANAGER_PROFILE, MBANK_PROFILE, PKO_PROFILE, ZEN_PROFILE, IBKR_PROFILE]) this.register(profile);
   }
 
@@ -237,7 +242,7 @@ export class ImportsService {
     const accounts = await db.moneyAccount.findMany({ where: { id: { in: accountIds }, userId } });
     const totals = await this.balances.subAccountTotals(userId, { accountIds }, db);
     const firstEntries = await this.firstEntryDates(db, userId, accountIds);
-    const today = formatDate(todayIn('UTC'));
+    const today = formatDate(todayIn(this.timeZone));
 
     const out: BalancePreview[] = [];
     for (const { accountId, currency } of keys.values()) {
@@ -318,6 +323,9 @@ export class ImportsService {
     await this.ledger.ensureSetup(userId);
     const actor = `import:${id}`;
     return this.prisma.$transaction(async (db) => {
+      await this.ledger.lock(db, userId);
+      // committed meanwhile by another request?
+      this.assertOpen(await db.moneyImportBatch.findUniqueOrThrow({ where: { id } }));
       // opening balances from the ledger as it is before this import
       const previews = (await this.balancePreview(userId, id, db)).filter((p) => p.openingBalance && p.openingBalance.minor !== '0');
 
@@ -393,16 +401,8 @@ export class ImportsService {
       }
 
       for (const p of previews) {
-        try {
-          await this.ledger.post(
-            db,
-            userId,
-            openingBalanceLines({ accountId: p.accountId, currency: p.currency, amount: BigInt(p.openingBalance!.minor) }),
-            { actor, kind: 'opening_balance', date: parseDate(p.openingDate!), note: `Opening balance (import of ${batch.fileName})` },
-          );
-        } catch (error) {
-          throw asBadRequest(error);
-        }
+        const input = { date: p.openingDate!, accountId: p.accountId, currency: p.currency, amount: p.openingBalance!.value, note: `Opening balance (import of ${batch.fileName})` };
+        await this.movements.post(userId, { kind: 'opening_balance', input }, { actor, db });
       }
 
       await db.moneyImportBatch.update({ where: { id }, data: { status: 'committed', committedAt: new Date() } });
@@ -574,16 +574,18 @@ export class ImportsService {
     return out;
   }
 
+  /** The day of the first posted entry of each account and currency (Postgres finds it; Prisma's distinct would read every entry). */
   private async firstEntryDates(db: Db | PrismaService, userId: string, accountIds: string[]): Promise<Map<string, string[]>> {
-    const rows = await db.moneyEntry.findMany({
-      where: { subAccount: { accountId: { in: accountIds } }, transaction: { userId, status: 'posted' } },
-      select: { subAccount: { select: { accountId: true, commodityId: true } }, transaction: { select: { date: true } } },
-      orderBy: { transaction: { date: 'asc' } },
-      distinct: ['subAccountId'],
-    });
-    const out = new Map<string, string[]>();
-    for (const r of rows) out.set(`${r.subAccount.accountId}/${r.subAccount.commodityId}`, [formatDate(r.transaction.date)]);
-    return out;
+    if (accountIds.length === 0) return new Map();
+    const rows = await db.$queryRaw<{ accountId: string; commodityId: string; first: string }[]>(Prisma.sql`
+      SELECT s."accountId", s."commodityId", MIN(t."date")::text AS first
+        FROM "money_entry" e
+        JOIN "money_sub_account" s ON s."id" = e."subAccountId"
+        JOIN "money_transaction" t ON t."id" = e."transactionId"
+       WHERE t."userId" = ${userId} AND t."status" = 'posted' AND s."accountId" IN (${Prisma.join(accountIds)})
+       GROUP BY s."accountId", s."commodityId"
+    `);
+    return new Map(rows.map((r) => [`${r.accountId}/${r.commodityId}`, [r.first]]));
   }
 
   private minor(value: string, decimals: number, field: string): bigint {
@@ -685,7 +687,7 @@ export function proposalEffects(p: ImportProposal): LegAmount[] {
       const out = signed(i.fromAccountId, i.fromCurrency, i.amountOut, false);
       const toCurrency = i.toCurrency ?? i.fromCurrency;
       if (toCurrency !== i.fromCurrency) return [out, signed(i.toAccountId, toCurrency, i.amountIn, true)];
-      const received = i.fee ? subtract(i.amountOut, i.fee) : i.amountOut;
+      const received = i.fee ? addDecimals(i.amountOut, `-${i.fee}`) : i.amountOut;
       return [out, signed(i.toAccountId, toCurrency, received, true)];
     }
     case 'buy':
@@ -708,12 +710,4 @@ function mainLeg(p: ImportProposal): { accountId: string; currency: string; amou
   return { accountId: leg.accountId, currency: leg.currency, amount: leg.amount, sign: leg.sign < 0n ? '-' : '+', date: p.input.date };
 }
 
-function subtract(a: string, b: string): string {
-  const scale = Math.max(a.split('.')[1]?.length ?? 0, b.split('.')[1]?.length ?? 0);
-  const toInt = (v: string) => BigInt(v.replace('.', '') + '0'.repeat(scale - (v.split('.')[1]?.length ?? 0)));
-  const diff = toInt(a) - toInt(b);
-  const digits = (diff < 0n ? -diff : diff).toString().padStart(scale + 1, '0');
-  const out = scale > 0 ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits;
-  return diff < 0n ? `-${out}` : out;
-}
 

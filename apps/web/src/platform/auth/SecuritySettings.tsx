@@ -17,11 +17,11 @@ const KEY = ["platform", "second-factor"] as const;
 
 const securityApi = {
   status: () => apiFetch<SecondFactorStatus>("/auth/second-factor"),
-  startTotp: () => apiFetch<TotpSetup>("/auth/totp/setup", { method: "POST" }),
+  startTotp: (password: string) => apiFetch<TotpSetup>("/auth/totp/setup", { method: "POST", json: { password } }),
   enableTotp: (code: string) => apiFetch("/auth/totp/enable", { method: "POST", json: { code } }),
   disableTotp: (code: string) => apiFetch("/auth/totp/disable", { method: "POST", json: { code } }),
-  passkeyOptions: () =>
-    apiFetch<PublicKeyCredentialCreationOptionsJSON>("/auth/passkeys/register/options", { method: "POST" }),
+  passkeyOptions: (password: string, code?: string) =>
+    apiFetch<PublicKeyCredentialCreationOptionsJSON>("/auth/passkeys/register/options", { method: "POST", json: { password, code } }),
   savePasskey: (response: unknown, name?: string) =>
     apiFetch("/auth/passkeys/register", { method: "POST", json: { response, name } }),
   removePasskey: (id: string) => apiFetch(`/auth/passkeys/${encodeURIComponent(id)}`, { method: "DELETE" }),
@@ -37,11 +37,18 @@ export function SecuritySettings() {
   const [code, setCode] = useState("");
   const [disableCode, setDisableCode] = useState("");
   const [passkeyName, setPasskeyName] = useState("");
+  // a new way to sign in needs the password again (and the app's code when it is on)
+  const [setupPassword, setSetupPassword] = useState("");
+  const [passkeyPassword, setPasskeyPassword] = useState("");
+  const [passkeyCode, setPasskeyCode] = useState("");
   const refresh = () => qc.invalidateQueries({ queryKey: KEY });
 
   const start = useMutation({
-    mutationFn: securityApi.startTotp,
-    onSuccess: (data) => setSetup(data),
+    mutationFn: () => securityApi.startTotp(setupPassword),
+    onSuccess: (data) => {
+      setSetup(data);
+      setSetupPassword("");
+    },
     onError: (e) => toast.error(errorText(e)),
   });
   const enable = useMutation({
@@ -65,7 +72,9 @@ export function SecuritySettings() {
   });
   const addPasskey = useMutation({
     mutationFn: async () => {
-      const optionsJSON = await securityApi.passkeyOptions();
+      const optionsJSON = await securityApi.passkeyOptions(passkeyPassword, status?.totpEnabled ? passkeyCode : undefined);
+      setPasskeyPassword("");
+      setPasskeyCode("");
       const response = await startRegistration({ optionsJSON });
       return securityApi.savePasskey(response, passkeyName || undefined);
     },
@@ -95,6 +104,7 @@ export function SecuritySettings() {
         </CardTitle>
         <CardDescription>
           A passkey signs you in on its own. With the authenticator app on, a password also needs a six-digit code.
+          Adding either asks for your password first.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-8">
@@ -160,9 +170,21 @@ export function SecuritySettings() {
               </div>
             </div>
           ) : (
-            <Button variant="outline" onClick={() => start.mutate()} disabled={start.isPending}>
-              Set up the authenticator app
-            </Button>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+              <div className="flex-1 space-y-1">
+                <Label htmlFor="totp-password">Your password</Label>
+                <Input
+                  id="totp-password"
+                  type="password"
+                  autoComplete="current-password"
+                  value={setupPassword}
+                  onChange={(e) => setSetupPassword(e.target.value)}
+                />
+              </div>
+              <Button variant="outline" onClick={() => start.mutate()} disabled={start.isPending || !setupPassword}>
+                Set up the authenticator app
+              </Button>
+            </div>
           )}
         </section>
 
@@ -197,8 +219,8 @@ export function SecuritySettings() {
           ) : (
             <p className="text-sm text-muted-foreground">No passkeys yet.</p>
           )}
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
-            <div className="flex-1 space-y-1">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div className="space-y-1">
               <Label htmlFor="passkey-name">Name (optional)</Label>
               <Input
                 id="passkey-name"
@@ -207,9 +229,38 @@ export function SecuritySettings() {
                 onChange={(e) => setPasskeyName(e.target.value)}
               />
             </div>
-            <Button variant="outline" onClick={() => addPasskey.mutate()} disabled={addPasskey.isPending}>
-              Add a passkey
-            </Button>
+            <div className="space-y-1">
+              <Label htmlFor="passkey-password">Your password</Label>
+              <Input
+                id="passkey-password"
+                type="password"
+                autoComplete="current-password"
+                value={passkeyPassword}
+                onChange={(e) => setPasskeyPassword(e.target.value)}
+              />
+            </div>
+            {status?.totpEnabled ? (
+              <div className="space-y-1">
+                <Label htmlFor="passkey-code">Code from the app</Label>
+                <Input
+                  id="passkey-code"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  placeholder="123 456"
+                  value={passkeyCode}
+                  onChange={(e) => setPasskeyCode(e.target.value)}
+                />
+              </div>
+            ) : null}
+            <div className="flex items-end">
+              <Button
+                variant="outline"
+                onClick={() => addPasskey.mutate()}
+                disabled={addPasskey.isPending || !passkeyPassword || (!!status?.totpEnabled && !passkeyCode)}
+              >
+                Add a passkey
+              </Button>
+            </div>
           </div>
         </section>
       </CardContent>

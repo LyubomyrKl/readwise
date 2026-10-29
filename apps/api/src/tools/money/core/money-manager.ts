@@ -1,3 +1,4 @@
+import { addDecimals } from './decimal';
 import {
   detectDateFormat,
   fingerprint,
@@ -216,8 +217,8 @@ export function mapMoneyManagerRows(rows: string[][], mapping: MoneyManagerMappi
         }
         input.amountIn = abs(toAmount);
       } else if (toAmount && abs(toAmount) !== abs(amount)) {
-        const fee = subtractDecimal(abs(amount), abs(toAmount));
-        if (fee === null || fee.startsWith('-')) {
+        const fee = addDecimals(abs(amount), `-${abs(toAmount)}`);
+        if (fee.startsWith('-')) {
           fail('more arrived than was sent');
           continue;
         }
@@ -300,12 +301,3 @@ function pairTransfers(halves: Half[], results: MappedRow[]): void {
   }
 }
 
-function subtractDecimal(a: string, b: string): string | null {
-  const scale = Math.max(a.split('.')[1]?.length ?? 0, b.split('.')[1]?.length ?? 0);
-  const toInt = (v: string) => BigInt(v.replace('.', '') + '0'.repeat(scale - (v.split('.')[1]?.length ?? 0)));
-  const diff = toInt(a) - toInt(b);
-  const negative = diff < 0n;
-  const digits = (negative ? -diff : diff).toString().padStart(scale + 1, '0');
-  const out = scale > 0 ? `${digits.slice(0, -scale)}.${digits.slice(-scale)}` : digits;
-  return negative ? `-${out}` : out;
-}

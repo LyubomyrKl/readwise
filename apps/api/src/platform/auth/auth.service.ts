@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   UnauthorizedException,
   InternalServerErrorException,
@@ -170,6 +171,23 @@ export class AuthService {
       data: { revokedAt: new Date() },
     });
     return this.openSession(payload.sub, payload.email);
+  }
+
+  /**
+   * Before a change to how one signs in (a new passkey, the authenticator app):
+   * the password again, and the app's code when it is on, so a stolen session
+   * cannot add a way in of its own. 400 rather than 401: the session is fine.
+   */
+  async confirm(userId: string, password: string, code?: string): Promise<void> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const valid = await argon2.verify(user.passwordHash, password).catch(() => false);
+    if (!valid) throw new BadRequestException('That password does not match');
+    if (user.totpEnabledAt && user.totpSecret) {
+      if (!code) throw new BadRequestException('Enter the code from your authenticator app');
+      const step = verifyTotp(user.totpSecret, code, Date.now(), user.totpLastStep);
+      if (step === null) throw new BadRequestException('That code does not match');
+      await this.prisma.user.update({ where: { id: userId }, data: { totpLastStep: step } });
+    }
   }
 
   async me(userId: string): Promise<{ userId: string; email: string }> {

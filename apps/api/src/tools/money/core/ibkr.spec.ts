@@ -23,6 +23,17 @@ describe('IBKR activity statement', () => {
     const fx = ready.find((r) => r.proposal?.kind === 'transfer')!.proposal!;
     // sold 100 EUR for 112 USD; the 2 EUR commission came off the euros as well
     expect(fx.input).toMatchObject({ fromAccountId: 'ibkr', toAccountId: 'ibkr', fromCurrency: 'EUR', amountOut: '102.00', toCurrency: 'USD', amountIn: '112.00' });
+    expect(fx.input.note).toBe('Conversion EUR.USD, commission 2 EUR included');
+  });
+
+  it('says so when the commission of a conversion is in a third currency', () => {
+    const csv = [
+      'Trades,Header,DataDiscriminator,Asset Category,Currency,Symbol,Date/Time,Quantity,T. Price,C. Price,Proceeds,Comm in EUR,MTM in EUR,Code',
+      'Trades,Data,Order,Forex,PLN,USD.PLN,"2027-07-08, 11:00:00",100,4.01,4.01,-401,-1.7,0,',
+    ].join('\n');
+    const [row] = mapIbkrStatement({ rows: parseCsv(csv), accountId: 'ibkr', decimalsOf });
+    expect(row.proposal!.input).toMatchObject({ fromCurrency: 'PLN', amountOut: '401.00', toCurrency: 'USD', amountIn: '100.00', note: 'Conversion USD.PLN' });
+    expect(row.message).toBe('the 1.7 EUR commission is in neither currency of USD.PLN and is not part of this conversion; record it as a fee');
   });
 
   it('puts the tax withheld beside its dividend, and keeps a later adjustment apart', () => {

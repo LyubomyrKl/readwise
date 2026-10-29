@@ -369,6 +369,8 @@ model MoneyTransaction {
   /// who proposed a draft or posted it: "user", "token:<id>", "recurring:<id>", "import:<batch>"
   proposedBy      String?
   postedAt        DateTime?
+  /// set by the database: the database transaction that posted it, the only one that may add its entries (rule 4)
+  postedXact      BigInt?
   createdAt       DateTime               @default(now())
 
   user          User                  @relation(fields: [userId], references: [id], onDelete: Cascade)

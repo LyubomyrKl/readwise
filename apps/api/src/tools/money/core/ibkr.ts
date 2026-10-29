@@ -1,4 +1,4 @@
-import { divRound, formatScaled, parseScaled } from './decimal';
+import { addDecimals, divRound, formatScaled, parseScaled } from './decimal';
 import { fingerprint, parseAmountCell, withOrdinals } from './import-parse';
 
 /**
@@ -9,6 +9,7 @@ import { fingerprint, parseAmountCell, withOrdinals } from './import-parse';
  *
  *  Trades (stocks, ETFs, bonds)  buy or sell; the commission is part of the cost or comes off the proceeds
  *  Trades (forex)                a conversion between the account's currencies; the commission comes off what was received
+ *                                (one in a third currency is left for the user to record as a fee)
  *  Dividends + Withholding Tax   one investment income per payment: what arrived, and the tax withheld beside it
  *  Interest                      investment income (paid) or a fee (charged)
  *  Fees                          a fee
@@ -39,15 +40,6 @@ interface Line {
 }
 
 const scaleOf = (v: string) => (v.split('.')[1] ?? '').length;
-
-/** Exact sum of decimal strings. */
-function add(...values: string[]): string {
-  const scale = Math.max(...values.map(scaleOf));
-  return formatScaled(
-    values.reduce((s, v) => s + parseScaled(v, scale), 0n),
-    scale,
-  );
-}
 
 function negate(v: string): string {
   return v.startsWith('-') ? v.slice(1) : `-${v}`;
@@ -169,9 +161,17 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
           const toCurrency = buyBase ? base : quote;
           let amountOut = buyBase ? negate(proceeds) : negate(quantity);
           let amountIn = buyBase ? quantity : proceeds;
+          const paid = commission.replace(/^-/, '');
+          let commissionNote = isZero(commission) ? '' : `, commission ${paid} ${commCurrency} included`;
+          let message: string | undefined;
           if (!isZero(commission)) {
-            if (commCurrency === toCurrency) amountIn = add(amountIn, commission);
-            else if (commCurrency === fromCurrency) amountOut = add(amountOut, negate(commission));
+            if (commCurrency === toCurrency) amountIn = addDecimals(amountIn, commission);
+            else if (commCurrency === fromCurrency) amountOut = addDecimals(amountOut, negate(commission));
+            else {
+              // one transfer cannot take it from a third currency
+              commissionNote = '';
+              message = `the ${paid} ${commCurrency} commission is in neither currency of ${symbol} and is not part of this conversion; record it as a fee`;
+            }
           }
           const outPlaces = places(fromCurrency);
           const inPlaces = places(toCurrency);
@@ -183,6 +183,7 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
             {
               rowNumber: l.rowNumber,
               status: 'ready',
+              ...(message ? { message } : {}),
               proposal: {
                 kind: 'transfer',
                 input: {
@@ -193,7 +194,7 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
                   toAccountId: accountId,
                   toCurrency,
                   amountIn: toPlaces(amountIn, inPlaces),
-                  note: `Conversion ${symbol}${isZero(commission) ? '' : `, commission ${commission.replace(/^-/, '')} ${commCurrency} included`}`,
+                  note: `Conversion ${symbol}${commissionNote}`,
                 },
               },
             },
@@ -214,7 +215,7 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
               status: 'ready',
               proposal: {
                 kind: 'buy',
-                input: { date, accountId, units: quantity, total: toPlaces(negate(add(proceeds, commission)), dp), currency, note },
+                input: { date, accountId, units: quantity, total: toPlaces(negate(addDecimals(proceeds, commission)), dp), currency, note },
                 asset: assetRef(symbol, currency),
               },
             },
@@ -227,7 +228,7 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
               status: 'ready',
               proposal: {
                 kind: 'sell',
-                input: { date, accountId, units: negate(quantity), proceeds: toPlaces(add(proceeds, commission), dp), currency, note },
+                input: { date, accountId, units: negate(quantity), proceeds: toPlaces(addDecimals(proceeds, commission), dp), currency, note },
                 asset: assetRef(symbol, currency),
               },
             },
@@ -279,7 +280,7 @@ export function mapIbkrStatement({ rows, accountId, decimalsOf }: IbkrInput): Br
                 accountId,
                 currency,
                 // what arrived: the gross dividend less the tax withheld
-                amount: toPlaces(withheld ? add(amount, negate(withheld)) : amount, dp),
+                amount: toPlaces(withheld ? addDecimals(amount, negate(withheld)) : amount, dp),
                 ...(withheld ? { withholding: withheld } : {}),
                 incomeType: 'dividend',
                 note: description.slice(0, 200),

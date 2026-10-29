@@ -106,9 +106,9 @@ export class InvestmentsController {
   // ---- prices ------------------------------------------------------------------------------
 
   @Get('prices')
-  @ApiQuery({ name: 'assetId' })
+  @ApiQuery({ name: 'assetId', required: true })
   @ApiEndpoint({ summary: 'Prices of an asset, newest first', response: [PriceResponse] })
-  listPrices(@Req() req: UserModel, @Query('assetId') assetId: string) {
+  listPrices(@Req() req: UserModel, @Query('assetId') assetId?: string) {
     return this.prices.list(req.user.userId, assetId);
   }
 
