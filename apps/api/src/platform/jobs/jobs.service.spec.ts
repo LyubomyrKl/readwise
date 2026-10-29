@@ -292,7 +292,8 @@ describe('JobsService', () => {
       const fresh = await enqueueExtract();
       await service.applyEvent(event({ jobId: fresh.id, event: 'started', attempt: 1, at: '2026-10-25T10:15:00.000Z' }));
       const stale = await enqueueExtract();
-      await service.applyEvent(event({ jobId: stale.id, event: 'waiting', attempt: 3, at: '2026-10-25T09:00:00.000Z' }));
+      await service.applyEvent(event({ jobId: stale.id, event: 'started', attempt: 3, at: '2026-10-25T08:59:00.000Z' }));
+      await service.applyEvent(event({ jobId: stale.id, event: 'waiting', at: '2026-10-25T09:00:00.000Z' }));
       await prisma.job.update({ where: { id: stale.id }, data: { attempts: 3 } });
       hookCalls = [];
 
@@ -356,6 +357,14 @@ describe('JobsService', () => {
       const summary = await service.enqueue({ type: 'reader.summarize', toolId: 'reader', userId: 'user-1', payload: {} });
       prisma.job.rows.find((r) => r.id === summary.id)!.updatedAt = new Date('2026-10-25T09:00:00.000Z');
       expect(await service.sweep(new Date('2026-10-25T10:20:00.000Z'))).toEqual({ requeued: 0, failed: 0 });
+    });
+
+    it('ignores a heartbeat of the run that failed after the job was re-queued', async () => {
+      const job = await enqueueExtract();
+      await service.applyEvent(event({ jobId: job.id, event: 'started', attempt: 1 }));
+      await service.applyEvent(event({ jobId: job.id, event: 'failed', error: 'transient' }));
+      await service.applyEvent(event({ jobId: job.id, event: 'progress', progress: 40 }));
+      expect((await prisma.job.findUnique({ where: { id: job.id } }))!.status).toBe('queued');
     });
 
     it('retries a job once when two retries arrive together', async () => {

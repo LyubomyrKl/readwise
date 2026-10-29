@@ -329,8 +329,10 @@ export class JobsService implements OnApplicationBootstrap, OnModuleDestroy {
       }
       case 'progress':
       case 'waiting': {
-        if (!isActive(job.status)) return job; // late event after a terminal transition
-        updated = await this.transition(job.id, ACTIVE_JOB_STATUSES, {
+        // only a started run reports progress: a job's events apply in order (JobEventsConsumer), so
+        // progress for a queued job is a late heartbeat of a run that failed and was re-queued
+        if (job.status !== 'running' && job.status !== 'waiting') return job;
+        updated = await this.transition(job.id, ['running', 'waiting'], {
           status: event.event === 'waiting' ? 'waiting' : 'running',
           workerId: event.workerId,
           heartbeatAt: at,
