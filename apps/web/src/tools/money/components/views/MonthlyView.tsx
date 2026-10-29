@@ -1,11 +1,15 @@
 "use client";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import type { ReactNode } from "react";
+import { X } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { monthBounds, shortMonth } from "../../lib/chart";
-import { formatAmount, formatMonth, percent } from "../../lib/format";
-import { useMonth, useMonthly } from "../../queries";
+import { formatAmount, formatMonth, formatMonthSpan, percent } from "../../lib/format";
+import { RANGE_TITLES, type RangeKey } from "../../lib/views";
+import { useMonth, useMonthly, usePeriod } from "../../queries";
 import { MONEY_ROUTES } from "../../routes";
 import type { CategoryValue, MonthDetail, MonthFlow } from "../../types";
 import { Amount } from "../Amount";
@@ -37,11 +41,28 @@ function flowRows(m: MonthFlow) {
   ];
 }
 
-export function MonthlyView({ base, from, month, onMonth }: { base?: string; from: string; month: string; onMonth: (month: string) => void }) {
+/** The figures a detail card shows, for one month or a span of them. */
+export type FlowDetail = Omit<MonthDetail, "month">;
+
+export function MonthlyView({
+  base,
+  from,
+  range,
+  month,
+  onMonth,
+}: {
+  base?: string;
+  from: string;
+  range: RangeKey;
+  month: string;
+  onMonth: (month: string) => void;
+}) {
   const monthly = useMonthly(base, from);
   const months = monthly.data?.months ?? [];
-  const selected = month && months.some((m) => m.month === month) ? month : months[months.length - 1]?.month;
+  // no month picked: the card shows the whole range
+  const selected = month && months.some((m) => m.month === month) ? month : undefined;
   const detail = useMonth(selected, base);
+  const period = usePeriod(base, from, undefined, !selected);
 
   if (monthly.isLoading || !monthly.data) return <Skeleton className="h-96" />;
   const index = months.findIndex((m) => m.month === selected);
@@ -53,7 +74,7 @@ export function MonthlyView({ base, from, month, onMonth }: { base?: string; fro
           <MissingRates currencies={monthly.data.missingRates} base={monthly.data.base} />
           <ChartFrame
             title={`Income, expenses and money invested per month, ${monthly.data.base}`}
-            description="Invested is what moved from bank and debt accounts into investments, at cost. Pick a month for its categories."
+            description="Invested is what moved from bank and debt accounts into investments, at cost. Pick a month to see it alone."
             legend={FLOW_SERIES.map((s) => ({ name: s.name, color: s.color }))}
             dimmed={monthly.isPlaceholderData}
             table={
@@ -79,7 +100,7 @@ export function MonthlyView({ base, from, month, onMonth }: { base?: string; fro
               series={FLOW_SERIES.map((s) => ({ ...s }))}
               values={[months.map((m) => Number(m.income.value)), months.map((m) => Number(m.expenses.value)), months.map((m) => Number(m.invested.value))]}
               selected={index < 0 ? null : index}
-              onSelect={(i) => onMonth(months[i].month)}
+              onSelect={(i) => onMonth(months[i].month === selected ? "" : months[i].month)}
               tooltip={(i) => <TooltipRows title={formatMonth(months[i].month)} rows={flowRows(months[i])} />}
             />
           </ChartFrame>
@@ -115,25 +136,69 @@ export function MonthlyView({ base, from, month, onMonth }: { base?: string; fro
         </CardContent>
       </Card>
 
-      {selected ? <MonthCard detail={detail.data} loading={detail.isLoading} dimmed={detail.isPlaceholderData} /> : null}
+      {selected ? (
+        <MonthCard
+          title={formatMonth(selected)}
+          detail={detail.data}
+          span={{ from: selected, to: selected }}
+          loading={detail.isLoading}
+          dimmed={detail.isPlaceholderData}
+          action={
+            <Button variant="ghost" size="sm" onClick={() => onMonth("")}>
+              <X className="mr-1 h-4 w-4" /> Show whole period
+            </Button>
+          }
+        />
+      ) : (
+        <MonthCard
+          title={RANGE_TITLES[range]}
+          description={period.data ? formatMonthSpan(period.data.from, period.data.to) : undefined}
+          detail={period.data}
+          span={period.data}
+          loading={period.isLoading}
+          dimmed={period.isPlaceholderData}
+        />
+      )}
     </div>
   );
 }
 
-/** One month: the four numbers and where the money went, by category. */
-export function MonthCard({ detail, loading, dimmed, top }: { detail?: MonthDetail; loading?: boolean; dimmed?: boolean; top?: number }) {
-  if (loading || !detail) return <Skeleton className="h-64" />;
+/** One month or a span of months (YYYY-MM to YYYY-MM): the four numbers and where the money went, by category. */
+export function MonthCard({
+  title,
+  description,
+  detail,
+  span,
+  action,
+  loading,
+  dimmed,
+  top,
+}: {
+  title: ReactNode;
+  description?: ReactNode;
+  detail?: FlowDetail;
+  span?: { from: string; to: string };
+  action?: ReactNode;
+  loading?: boolean;
+  dimmed?: boolean;
+  top?: number;
+}) {
+  if (loading || !detail || !span) return <Skeleton className="h-64" />;
   return (
     <Card className={cn("transition-opacity", dimmed && "opacity-60")}>
-      <CardHeader className="pb-2">
-        <CardTitle className="text-base">{formatMonth(detail.month)}</CardTitle>
+      <CardHeader className="flex flex-row items-start justify-between gap-2 space-y-0 pb-2">
+        <div className="space-y-1">
+          <CardTitle className="text-base">{title}</CardTitle>
+          {description ? <CardDescription>{description}</CardDescription> : null}
+        </div>
+        {action}
       </CardHeader>
       <CardContent className="space-y-6">
         <MonthFigures month={detail} />
         <MissingRates currencies={detail.missingRates} base={detail.base} />
         <div className="grid gap-6 md:grid-cols-2">
-          <CategoryBreakdown title="Expenses by category" items={detail.expensesByCategory} month={detail.month} color={FLOW_SERIES[1].color} top={top} />
-          <CategoryBreakdown title="Income by category" items={detail.incomeByCategory} month={detail.month} color={FLOW_SERIES[0].color} top={top} />
+          <CategoryBreakdown title="Expenses by category" items={detail.expensesByCategory} span={span} color={FLOW_SERIES[1].color} top={top} />
+          <CategoryBreakdown title="Income by category" items={detail.incomeByCategory} span={span} color={FLOW_SERIES[0].color} top={top} />
         </div>
       </CardContent>
     </Card>
@@ -141,7 +206,7 @@ export function MonthCard({ detail, loading, dimmed, top }: { detail?: MonthDeta
 }
 
 /** Income, expenses, invested, savings rate: the figures, each beside its series swatch. */
-export function MonthFigures({ month }: { month: MonthFlow }) {
+export function MonthFigures({ month }: { month: Omit<MonthFlow, "month"> }) {
   const figures = [
     { label: "Income", value: formatAmount(month.income), color: FLOW_SERIES[0].color },
     { label: "Expenses", value: formatAmount(month.expenses), color: FLOW_SERIES[1].color },
@@ -167,23 +232,25 @@ export function MonthFigures({ month }: { month: MonthFlow }) {
 export function CategoryBreakdown({
   title,
   items,
-  month,
+  span,
   color,
   top,
 }: {
   title: string;
   items: CategoryValue[];
-  month: string;
+  /** the months the items cover, YYYY-MM; the category links open their transactions */
+  span: { from: string; to: string };
   color: string;
   top?: number;
 }) {
-  const { from, to } = monthBounds(month);
+  const from = monthBounds(span.from).from;
+  const to = monthBounds(span.to).to;
   const shown = top ? items.slice(0, top) : items;
   return (
     <section className="space-y-3">
       <h3 className="text-sm font-medium">{title}</h3>
       {items.length === 0 ? (
-        <p className="text-sm text-muted-foreground">Nothing this month.</p>
+        <p className="text-sm text-muted-foreground">{span.from === span.to ? "Nothing this month." : "Nothing in this period."}</p>
       ) : (
         <BarList
           color={color}

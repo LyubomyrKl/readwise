@@ -56,7 +56,17 @@ export class CashMovementDto extends MovementBaseDto {
 }
 
 export class IncomeDto extends CashMovementDto {}
-export class ExpenseDto extends CashMovementDto {}
+export class ExpenseDto extends CashMovementDto {
+  @ApiProperty({ required: false, example: '4.50', description: 'charged on top, in the same currency, booked under Fees (e.g. a card currency fee)' })
+  @IsOptional()
+  @Matches(AMOUNT_PATTERN, { message: `fee must be ${AMOUNT_MESSAGE}` })
+  fee?: string;
+
+  @ApiProperty({ required: false, description: 'default: Fees' })
+  @IsOptional()
+  @IsString()
+  feeCategoryId?: string;
+}
 export class FeeDto extends CashMovementDto {}
 
 export class OpeningBalanceDto extends MovementBaseDto {

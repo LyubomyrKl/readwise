@@ -8,7 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { moneyApi } from "../api";
 import { useState } from "react";
 import { Segmented } from "../components/Fields";
-import { CASH_KINDS, MovementForm, type CashKind } from "../components/MovementForm";
+import { CASH_TABS, MovementForm, type CashKind } from "../components/MovementForm";
 import { TradeForm, TRADE_KINDS, type TradeKind } from "../components/TradeForm";
 import { MoneyPage, PageHeader } from "../components/PageHeader";
 import { movementFromTransaction } from "../lib/movement";
@@ -82,7 +82,7 @@ export default function NewMovementPage() {
               ) : (
                 <MovementForm
                   initial={initial}
-                  initialKind={(CASH_KINDS.some((k) => k.value === kind) ? kind : "expense") as CashKind}
+                  initialKind={(CASH_TABS.some((k) => k.value === kind) ? kind : "expense") as CashKind}
                   accountId={accountId}
                   lockKind={!!correctId}
                   submitLabel={correctId ? "Correct" : "Save"}

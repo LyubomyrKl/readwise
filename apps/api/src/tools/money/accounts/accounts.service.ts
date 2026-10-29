@@ -21,7 +21,8 @@ import {
 } from './account.models';
 import { BalancesService, type SubAccountTotal } from './balances.service';
 
-type AccountRow = MoneyAccount & { institution: MoneyInstitution | null };
+type AccountRow = MoneyAccount & { institution: MoneyInstitution | null; subAccounts: { id: string; number: string | null }[] };
+const ROW_INCLUDE = { institution: true, subAccounts: { select: { id: true, number: true } } } as const;
 
 @Injectable()
 export class AccountsService {
@@ -75,7 +76,7 @@ export class AccountsService {
     await this.ledger.ensureSetup(userId);
     const accounts = await this.prisma.moneyAccount.findMany({
       where: { userId, type: { not: 'system' }, ...(opts.includeArchived ? {} : { archivedAt: null }) },
-      include: { institution: true },
+      include: ROW_INCLUDE,
       orderBy: [{ archivedAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
     });
     const totals = await this.balances.subAccountTotals(userId, { asOf: opts.asOf });
@@ -85,7 +86,7 @@ export class AccountsService {
   async get(userId: string, id: string, asOf?: Date): Promise<AccountResponse> {
     const account = await this.prisma.moneyAccount.findFirst({
       where: { id, userId, type: { not: 'system' } },
-      include: { institution: true },
+      include: ROW_INCLUDE,
     });
     if (!account) throw new NotFoundException('account not found');
     const totals = await this.balances.subAccountTotals(userId, { asOf, accountIds: [id] });
@@ -94,7 +95,7 @@ export class AccountsService {
 
   async create(userId: string, dto: CreateAccountDto, actor = 'user'): Promise<AccountResponse> {
     await this.ledger.ensureSetup(userId);
-    await this.institutionOf(userId, dto.institutionId);
+    if (dto.institutionId) await this.institutionOf(userId, dto.institutionId);
     if (dto.cashClassId) await this.classOf(userId, dto.cashClassId);
     const currencies = [...new Set(dto.currencies.map((c) => c.toUpperCase()))];
     for (const code of currencies) await this.commodities.currency(code);
@@ -109,6 +110,12 @@ export class AccountsService {
         date: toDate(ob.date, 'openingBalances.date'),
       });
     }
+    const numbers = new Map<string, string>();
+    for (const n of dto.numbers ?? []) {
+      const code = n.currency.toUpperCase();
+      if (!currencies.includes(code)) throw new BadRequestException(`numbers: ${code} is not one of the account's currencies`);
+      if (n.number.trim()) numbers.set(code, n.number.trim());
+    }
     if (dto.type === 'debt' && openings.some((o) => o.amount > 0n)) {
       throw new BadRequestException('a debt opens with a negative balance (the amount owed, with a minus)');
     }
@@ -118,18 +125,18 @@ export class AccountsService {
       const account = await db.moneyAccount.create({
         data: {
           userId,
-          institutionId: dto.institutionId,
+          institutionId: dto.institutionId ?? null,
           name: dto.name.trim(),
           type: dto.type,
           taxWrapper: dto.taxWrapper ?? 'taxable',
           costBasisMethod: dto.costBasisMethod ?? null,
           cashClassId: dto.cashClassId ?? null,
-          number: dto.number?.trim() || null,
           importProfile: dto.importProfile ?? null,
         },
       });
       for (const commodityId of currencies) {
-        await db.moneySubAccount.create({ data: { accountId: account.id, commodityId } });
+        const number = numbers.get(commodityId) ?? null;
+        await db.moneySubAccount.create({ data: { accountId: account.id, commodityId, number } });
       }
       await this.audit.record(db, {
         userId,
@@ -167,7 +174,6 @@ export class AccountsService {
           type: dto.type,
           taxWrapper: dto.taxWrapper,
           costBasisMethod: dto.costBasisMethod,
-          number: dto.number === undefined ? undefined : dto.number?.trim() || null,
           cashClassId: dto.cashClassId,
           importProfile: dto.importProfile,
         },
@@ -198,6 +204,56 @@ export class AccountsService {
         update: {},
       });
       await this.audit.record(db, { userId, actor, action: 'account.add_currency', subjectId: id, details: { currency: currency.id } });
+    });
+    return this.get(userId, id);
+  }
+
+  /**
+   * Merges `sourceId` into `intoId` (mBank USD becomes the USD of mBank): the
+   * source's currencies move over with every entry, the emptied source goes.
+   * No posted transaction changes; only which account a currency belongs to.
+   * Refused across types, for a currency both hold, and for accounts holding units.
+   */
+  async merge(userId: string, sourceId: string, intoId: string, opts: { name?: string }, actor = 'user'): Promise<AccountResponse> {
+    if (sourceId === intoId) throw new BadRequestException('an account cannot be merged into itself');
+    await this.ledger.ensureSetup(userId);
+    await this.prisma.$transaction(async (db) => {
+      await this.ledger.lock(db, userId);
+      const load = (id: string) =>
+        db.moneyAccount.findFirst({ where: { id, userId, type: { not: 'system' } }, include: { subAccounts: { include: { commodity: true } } } });
+      const [source, into] = [await load(sourceId), await load(intoId)];
+      if (!source || !into) throw new NotFoundException('account not found');
+      if (source.type !== into.type) throw new BadRequestException(`${source.name} is ${source.type} and ${into.name} is ${into.type}; only accounts of the same type merge`);
+      const shared = source.subAccounts.filter((s) => into.subAccounts.some((t) => t.commodityId === s.commodityId));
+      if (shared.length > 0) throw new BadRequestException(`${source.name} and ${into.name} both hold ${shared.map((s) => s.commodity.code).join(', ')}`);
+      if (source.subAccounts.some((s) => s.commodity.kind === 'asset') || (await db.moneyLot.count({ where: { accountId: sourceId } })) > 0) {
+        throw new BadRequestException(`${source.name} holds units; move them with a unit move first`);
+      }
+      await db.moneySubAccount.updateMany({ where: { accountId: sourceId }, data: { accountId: intoId } });
+      await db.moneyImportBatch.updateMany({ where: { accountId: sourceId }, data: { accountId: intoId } });
+      if (opts.name?.trim()) await db.moneyAccount.update({ where: { id: intoId }, data: { name: opts.name.trim() } });
+      await db.moneyAccount.delete({ where: { id: sourceId } });
+      await this.audit.record(db, {
+        userId,
+        actor,
+        action: 'account.merge',
+        subjectId: intoId,
+        details: { from: sourceId, fromName: source.name, currencies: source.subAccounts.map((s) => s.commodity.code), name: opts.name?.trim() || into.name },
+      });
+    }, WRITE_TX);
+    return this.get(userId, intoId);
+  }
+
+  /** The IBAN or account number of one currency of the account. */
+  async setNumber(userId: string, id: string, code: string, number: string | null | undefined, actor = 'user'): Promise<AccountResponse> {
+    await this.accountOf(userId, id);
+    const currency = await this.commodities.currency(code);
+    const sub = await this.prisma.moneySubAccount.findUnique({ where: { accountId_commodityId: { accountId: id, commodityId: currency.id } } });
+    if (!sub) throw new NotFoundException(`the account has no ${currency.id} sub-account`);
+    const value = number?.trim() || null;
+    await this.prisma.$transaction(async (db) => {
+      await db.moneySubAccount.update({ where: { id: sub.id }, data: { number: value } });
+      await this.audit.record(db, { userId, actor, action: 'account.set_number', subjectId: id, details: { currency: currency.id, number: value } });
     });
     return this.get(userId, id);
   }
@@ -233,6 +289,7 @@ export class AccountsService {
           kind: c.kind,
           balance: c.kind === 'currency' ? amountJson(t.minor, c.id, c.decimals) : null,
           units: c.kind === 'asset' ? unitsJson(t.units) : null,
+          number: account.subAccounts.find((s) => s.id === t.subAccountId)?.number ?? null,
         };
       })
       .sort((a, b) => (a.kind === b.kind ? a.code.localeCompare(b.code) : a.kind === 'currency' ? -1 : 1));
@@ -244,7 +301,6 @@ export class AccountsService {
       taxWrapper: account.taxWrapper,
       costBasisMethod: account.costBasisMethod,
       cashClassId: account.cashClassId,
-      number: account.number,
       importProfile: account.importProfile,
       archivedAt: account.archivedAt?.toISOString() ?? null,
       balances,

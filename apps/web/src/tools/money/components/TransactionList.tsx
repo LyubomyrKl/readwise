@@ -72,7 +72,6 @@ function TransactionRow({ tx, highlightAccountId }: { tx: TransactionResponse; h
                 ))}
               </span>
             ) : null}
-            {tx.status === "draft" ? <Badge variant="outline">Draft</Badge> : null}
             {reversed ? (
               <Badge variant="secondary" className="gap-1">
                 <Undo2 className="h-3 w-3" /> Reversed

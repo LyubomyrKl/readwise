@@ -334,7 +334,7 @@ function AccountsCard({ batch }: { batch: ImportBatch }) {
         <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           {unmapped.length > 0 ? (
             <div className="flex flex-1 flex-col gap-2 sm:flex-row sm:items-end">
-              <Field label="Institution for new accounts" className="sm:w-56">
+              <Field label="Group for new accounts" className="sm:w-56">
                 <Input value={institutionName} onChange={(e) => setInstitutionName(e.target.value)} />
               </Field>
               <Button variant="outline" onClick={() => create.mutate(undefined)} disabled={create.isPending}>

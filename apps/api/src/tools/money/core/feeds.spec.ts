@@ -1,4 +1,4 @@
-import { dateChunks, monthEndPrices, parseEcbXml, parseNbpTables, parseStooqHistory, parseStooqQuote } from './feeds';
+import { dateChunks, monthEndPrices, parseEcbXml, parseNbpTables, parseYahooChart, roundDecimalText } from './feeds';
 
 const ECB = `<?xml version="1.0" encoding="UTF-8"?>
 <gesmes:Envelope xmlns:gesmes="http://www.gesmes.org/xml/2002-08-01" xmlns="http://www.ecb.int/vocabulary/2002-08-01/eurofxref">
@@ -51,24 +51,34 @@ describe('rate feeds', () => {
 });
 
 describe('price feed', () => {
-  it('reads the latest Stooq close and ignores unknown symbols', () => {
-    expect(parseStooqQuote('Symbol,Date,Time,Open,High,Low,Close,Volume\r\nVWCE.DE,2026-10-27,17:36:22,129.5,130.1,129.2,129.88,152345\r\n')).toEqual({
-      date: '2026-10-27',
-      price: '129.88',
+  // the shape Yahoo answers for VWCE.DE (trimmed): bars open at 08:00 Berlin, closes as float text
+  const chart = (stamps: string, closes: string) =>
+    `{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"VWCE.DE","gmtoffset":3600,"priceHint":2,` +
+    `"currentTradingPeriod":{"pre":{"gmtoffset":3600}}},"timestamp":[${stamps}],"indicators":{"quote":[{"high":[1,1,1,1],` +
+    `"close":[${closes}],"low":[1,1,1,1]}],"adjclose":[{"adjclose":[9,9,9,9]}]}}],"error":null}}`;
+
+  it('reads Yahoo closes exactly: dated in the exchange zone, rounded to its precision, no float', () => {
+    // 2026-09-29, 2026-09-30, 2026-10-01 and 2026-10-27, each at 07:00 UTC (08:00 CET)
+    const parsed = parseYahooChart(chart('1790665200,1790751600,1790838000,1793084400', '126.0999984741211,126.40499877929688,null,169.3000030517578'));
+    expect(parsed).toEqual({
+      currency: 'EUR',
+      prices: [
+        { date: '2026-09-29', price: '126.10' },
+        { date: '2026-09-30', price: '126.40' },
+        { date: '2026-10-27', price: '169.30' },
+      ],
     });
-    expect(parseStooqQuote('Symbol,Date,Time,Open,High,Low,Close,Volume\nXXX.DE,N/D,N/D,N/D,N/D,N/D,N/D,N/D')).toBeNull();
-    expect(parseStooqQuote('Przekroczony dzienny limit wywolan')).toBeNull();
+    expect(monthEndPrices(parsed!.prices)).toEqual([
+      { date: '2026-09-30', price: '126.40' },
+      { date: '2026-10-27', price: '169.30' },
+    ]);
   });
 
-  it('reads a Stooq history and keeps the last close of each month', () => {
-    const history = parseStooqHistory(
-      'Date,Open,High,Low,Close,Volume\n2026-09-29,1,1,1,126.10,10\n2026-09-30,1,1,1,126.40,10\n2026-10-01,1,1,1,127.02,10\n2026-10-27,1,1,1,129.88,10\n',
-    );
-    expect(history).toHaveLength(4);
-    expect(monthEndPrices(history)).toEqual([
-      { date: '2026-09-30', price: '126.40' },
-      { date: '2026-10-27', price: '129.88' },
-    ]);
-    expect(parseStooqHistory('Brak danych')).toEqual([]);
+  it('rounds half up in decimal text and refuses an unknown symbol', () => {
+    expect(roundDecimalText('126.40499877929688', 2)).toBe('126.40');
+    expect(roundDecimalText('126.405', 2)).toBe('126.41');
+    expect(roundDecimalText('0.999996', 4)).toBe('1.0000');
+    expect(roundDecimalText('0.00001', 2)).toBeNull();
+    expect(parseYahooChart('{"chart":{"result":null,"error":{"code":"Not Found","description":"No data found, symbol may be delisted"}}}')).toBeNull();
   });
 });

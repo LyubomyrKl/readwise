@@ -72,11 +72,15 @@ export function incomeLines(p: CashParams): PostingLine[] {
 }
 
 /** An expense, or a fee (same lines, the fees category). */
-export function expenseLines(p: CashParams): PostingLine[] {
+/** An expense; a fee on top leaves the same account and is booked under its own category. */
+export function expenseLines(p: CashParams & { fee?: bigint; feeCategoryId?: string | null }): PostingLine[] {
   positive(p.amount, 'amount');
+  const fee = p.fee ?? 0n;
+  if (fee < 0n) throw new PostingError('the fee cannot be negative');
   return balanced([
-    { account: own(p.accountId), commodityId: p.currency, amountMinor: -p.amount },
+    { account: own(p.accountId), commodityId: p.currency, amountMinor: -(p.amount + fee) },
     { account: system('expense'), commodityId: p.currency, amountMinor: p.amount, categoryId: p.categoryId },
+    ...(fee > 0n ? [{ account: system('expense'), commodityId: p.currency, amountMinor: fee, categoryId: p.feeCategoryId }] : []),
   ]);
 }
 

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { divide, subtract } from "../lib/decimal";
+import { add, divide, isPositiveDecimal, subtract } from "../lib/decimal";
 import { normalizeAmountInput, today } from "../lib/format";
 import { errorMessage, useAccounts, useMoneySettings } from "../queries";
 import type { Movement, MovementKind, TransactionResponse } from "../types";
@@ -21,6 +21,7 @@ import {
 
 export type CashKind = "expense" | "income" | "transfer" | "opening_balance" | "fee";
 
+/** Every kind this form can show (corrections of older fees and opening balances included). */
 export const CASH_KINDS: { value: CashKind; label: string }[] = [
   { value: "expense", label: "Expense" },
   { value: "income", label: "Income" },
@@ -28,6 +29,14 @@ export const CASH_KINDS: { value: CashKind; label: string }[] = [
   { value: "fee", label: "Fee" },
   { value: "opening_balance", label: "Opening balance" },
 ];
+
+/**
+ * The tabs of a new movement. A fee is an expense in the "Fees" category; an
+ * opening balance is set on the account page.
+ */
+export const CASH_TABS: { value: CashKind; label: string }[] = CASH_KINDS.filter(
+  (k) => k.value !== "fee" && k.value !== "opening_balance"
+);
 
 const AMOUNT_RE = /^\d+(\.\d+)?$/;
 const SIGNED_RE = /^[+-]?\d+(\.\d+)?$/;
@@ -46,6 +55,7 @@ interface State {
   toCurrency: string;
   amountIn: string;
   fee: string;
+  feeCategoryId: string;
 }
 
 const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -66,6 +76,7 @@ function initialState(movement?: Movement, accountId?: string): State {
     toCurrency: str(i.toCurrency),
     amountIn: str(i.amountIn),
     fee: str(i.fee),
+    feeCategoryId: str(i.feeCategoryId),
   };
 }
 
@@ -78,8 +89,7 @@ export function MovementForm<T = TransactionResponse>({
   initialKind = "expense",
   accountId,
   lockKind = false,
-  template = false,
-  kinds = CASH_KINDS,
+  kinds = CASH_TABS,
   submitLabel = "Save",
   onSubmit,
   onDone,
@@ -89,8 +99,6 @@ export function MovementForm<T = TransactionResponse>({
   /** preselect this account (an account page) */
   accountId?: string;
   lockKind?: boolean;
-  /** a recurring movement: no date, each run brings its own */
-  template?: boolean;
   kinds?: { value: CashKind; label: string }[];
   submitLabel?: string;
   onSubmit: (movement: Movement) => Promise<T>;
@@ -133,11 +141,14 @@ export function MovementForm<T = TransactionResponse>({
   const out = normalizeAmountInput(s.amountOut);
   const fee = normalizeAmountInput(s.fee) || "0";
   const sentNet = useMemo(() => (out ? subtract(out, fee) : null), [out, fee]);
+  const amount = normalizeAmountInput(s.amount);
+  /** an expense's fee comes on top of the amount */
+  const expenseTotal = kind === "expense" && s.fee && amount ? add(amount, fee) : null;
   const rate = crossCurrency && sentNet && s.amountIn ? divide(normalizeAmountInput(s.amountIn), sentNet, 6) : null;
 
   function build(): Movement | string {
-    const base = { ...(template ? {} : { date: s.date }), ...(s.note.trim() ? { note: s.note.trim() } : {}) };
-    if (!template && !s.date) return "Pick a date";
+    const base = { date: s.date, ...(s.note.trim() ? { note: s.note.trim() } : {}) };
+    if (!s.date) return "Pick a date";
     if (kind === "transfer") {
       if (!s.fromAccountId || !s.toAccountId) return "Pick both accounts";
       if (!AMOUNT_RE.test(out)) return "Enter the amount sent";
@@ -151,6 +162,8 @@ export function MovementForm<T = TransactionResponse>({
         toCurrency: s.toCurrency || s.fromCurrency,
       };
       if (s.fee && fee !== "0") input.fee = fee;
+      if (input.fee && s.feeCategoryId) input.feeCategoryId = s.feeCategoryId;
+      if (sentNet && !isPositiveDecimal(sentNet)) return "The fee must be less than the amount sent";
       if (crossCurrency) {
         const received = normalizeAmountInput(s.amountIn);
         if (!AMOUNT_RE.test(received)) return "Enter the amount received";
@@ -160,10 +173,16 @@ export function MovementForm<T = TransactionResponse>({
     }
     if (!s.accountId) return "Pick an account";
     if (!s.currency) return "Pick a currency";
-    const amount = normalizeAmountInput(s.amount);
     if (!(kind === "opening_balance" ? SIGNED_RE : AMOUNT_RE).test(amount)) return "Enter an amount";
     const input: Record<string, unknown> = { ...base, accountId: s.accountId, currency: s.currency, amount };
     if (kind !== "opening_balance" && s.categoryId) input.categoryId = s.categoryId;
+    if (kind === "expense" && s.fee) {
+      if (!AMOUNT_RE.test(fee)) return "The fee is not an amount";
+      if (fee !== "0" && isPositiveDecimal(fee)) {
+        input.fee = fee;
+        if (s.feeCategoryId) input.feeCategoryId = s.feeCategoryId;
+      }
+    }
     return { kind: kind as MovementKind, input };
   }
 
@@ -193,14 +212,22 @@ export function MovementForm<T = TransactionResponse>({
         void submit();
       }}
     >
-      {lockKind ? null : <Segmented value={kind} onChange={setKind} options={kinds} />}
+      {lockKind ? null : (
+        <Segmented
+          value={kind}
+          onChange={(next) => {
+            // a transfer's fee comes out of the amount, an expense's on top: not carried across
+            if (next !== kind) setS((prev) => ({ ...prev, fee: "", feeCategoryId: "" }));
+            setKind(next);
+          }}
+          options={kinds}
+        />
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        {template ? null : (
-          <Field label="Date" htmlFor="mv-date">
-            <DateInput id="mv-date" value={s.date} onChange={(v) => set("date", v)} />
-          </Field>
-        )}
+        <Field label="Date" htmlFor="mv-date">
+          <DateInput id="mv-date" value={s.date} onChange={(v) => set("date", v)} />
+        </Field>
 
         {kind === "transfer" ? null : (
           <Field label="Account" htmlFor="mv-account">
@@ -218,7 +245,7 @@ export function MovementForm<T = TransactionResponse>({
             <Field label="Currency">
               <CurrencySelect value={s.fromCurrency} onChange={(v) => set("fromCurrency", v)} only={accountCurrencies(from)} />
             </Field>
-            <Field label="Amount sent" htmlFor="mv-out" hint="Everything that left the account, fee included">
+            <Field label="Amount sent" htmlFor="mv-out" hint="Everything that left the account, the fee included">
               <AmountInput id="mv-out" value={s.amountOut} onChange={(v) => set("amountOut", v)} />
             </Field>
           </div>
@@ -238,13 +265,13 @@ export function MovementForm<T = TransactionResponse>({
                 <AmountInput id="mv-in" value={s.amountIn} onChange={(v) => set("amountIn", v)} />
               </Field>
             ) : (
-              <Field label="Arrives" hint="The amount sent less the fee">
+              <Field label="Arrives" hint="The amount sent minus the fee">
                 <Input value={sentNet ?? ""} disabled className="tabular-nums" />
               </Field>
             )}
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label={`Fee${s.fromCurrency ? ` (${s.fromCurrency})` : ""}`} htmlFor="mv-fee" hint="Optional; booked as an expense">
+            <Field label={`Fee${s.fromCurrency ? ` (${s.fromCurrency})` : ""}`} htmlFor="mv-fee" hint="Optional; taken from the amount sent">
               <AmountInput id="mv-fee" value={s.fee} onChange={(v) => set("fee", v)} placeholder="0.00" />
             </Field>
           </div>
@@ -277,6 +304,22 @@ export function MovementForm<T = TransactionResponse>({
           )}
         </div>
       )}
+
+      {kind === "expense" ? (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field
+            label={`Fee${s.currency ? ` (${s.currency})` : ""}`}
+            htmlFor="mv-expense-fee"
+            hint={
+              expenseTotal
+                ? `Charged on top; booked under Fees. Total paid: ${expenseTotal}`
+                : "Optional; charged on top, e.g. a card currency fee; booked under Fees"
+            }
+          >
+            <AmountInput id="mv-expense-fee" value={s.fee} onChange={(v) => set("fee", v)} placeholder="0.00" />
+          </Field>
+        </div>
+      ) : null}
 
       <Field label="Note" htmlFor="mv-note">
         <Textarea id="mv-note" rows={2} value={s.note} onChange={(e) => set("note", e.target.value)} />

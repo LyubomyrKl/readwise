@@ -40,6 +40,7 @@ export class TradesService implements OnModuleInit {
   }
 
   async buy(db: Db, userId: string, dto: BuyDto, ctx: PostContext): Promise<PostedTransaction> {
+    await this.assertHolding(db, userId, dto.accountId);
     const asset = await this.assetOf(db, userId, dto.assetId);
     const currency = await this.commodities.currency(dto.currency);
     const units = toUnits(dto.units);
@@ -87,6 +88,7 @@ export class TradesService implements OnModuleInit {
   }
 
   async sell(db: Db, userId: string, dto: SellDto, ctx: PostContext): Promise<PostedTransaction> {
+    await this.assertHolding(db, userId, dto.accountId);
     const asset = await this.assetOf(db, userId, dto.assetId);
     const currency = await this.commodities.currency(dto.currency);
     const units = toUnits(dto.units);
@@ -105,6 +107,7 @@ export class TradesService implements OnModuleInit {
   }
 
   async investmentIncome(db: Db, userId: string, dto: InvestmentIncomeDto, ctx: PostContext): Promise<PostedTransaction> {
+    await this.assertHolding(db, userId, dto.accountId);
     const currency = await this.commodities.currency(dto.currency);
     const assetId = dto.assetId ? (await this.assetOf(db, userId, dto.assetId)).commodityId : null;
     const key = dto.incomeType === 'interest' ? 'interest' : dto.incomeType === 'other' ? 'other_income' : 'dividends';
@@ -130,6 +133,7 @@ export class TradesService implements OnModuleInit {
   }
 
   async unitMove(db: Db, userId: string, dto: UnitMoveDto, ctx: PostContext): Promise<PostedTransaction> {
+    await this.assertHolding(db, userId, dto.fromAccountId, dto.toAccountId);
     const asset = await this.assetOf(db, userId, dto.assetId);
     const units = toUnits(dto.units);
     const lines = this.movements.build(() =>
@@ -176,6 +180,17 @@ export class TradesService implements OnModuleInit {
     const asset = await db.moneyAsset.findFirst({ where: { commodityId: assetId, commodity: { userId } }, include: { commodity: true } });
     if (!asset) throw new NotFoundException('asset not found');
     return asset;
+  }
+
+  /** Units, and the dividends and interest they pay, live only in investment or bonds accounts; the money for a trade may come from any account. */
+  private async assertHolding(db: Db, userId: string, ...accountIds: string[]): Promise<void> {
+    for (const accountId of accountIds) {
+      const account = await db.moneyAccount.findFirst({ where: { id: accountId, userId } });
+      if (!account) throw new NotFoundException('account not found');
+      if (account.type !== 'investment' && account.type !== 'bonds') {
+        throw new BadRequestException(`${account.name} is a ${account.type} account; units can only be held in an investment or bonds account`);
+      }
+    }
   }
 
   private async methodOf(db: Db, userId: string, accountId: string): Promise<CostBasisMethod> {

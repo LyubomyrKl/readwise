@@ -120,6 +120,21 @@ export class MonthDetail extends MonthFlow {
   @ApiProperty({ type: [String] }) missingRates!: string[];
 }
 
+/** A whole period (several months) the way MonthDetail shows one month. */
+export class PeriodDetail {
+  @ApiProperty({ example: '2025-11' }) from!: string;
+  @ApiProperty({ example: '2026-10' }) to!: string;
+  @ApiProperty() base!: string;
+  @ApiProperty({ type: AmountJson }) income!: AmountJson;
+  @ApiProperty({ type: AmountJson }) expenses!: AmountJson;
+  @ApiProperty({ type: AmountJson }) invested!: AmountJson;
+  @ApiProperty({ type: AmountJson }) savings!: AmountJson;
+  @ApiProperty({ nullable: true, example: '48.1' }) savingsRate!: string | null;
+  @ApiProperty({ type: [CategoryValue] }) expensesByCategory!: CategoryValue[];
+  @ApiProperty({ type: [CategoryValue] }) incomeByCategory!: CategoryValue[];
+  @ApiProperty({ type: [String] }) missingRates!: string[];
+}
+
 export class HistoryPoint {
   @ApiProperty({ example: '2026-09-30' }) date!: string;
   @ApiProperty({ type: AmountJson }) total!: AmountJson;

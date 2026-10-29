@@ -30,6 +30,16 @@ export function formatScaled(value: bigint, scale: number): string {
   return `${negative ? "-" : ""}${whole}${scale > 0 ? `.${fraction}` : ""}`;
 }
 
+/** a + b exactly, at the larger of their scales; null when either is not a number. */
+export function add(a: string, b: string): string | null {
+  const x = parseDecimal(a);
+  const y = parseDecimal(b);
+  if (!x || !y) return null;
+  const scale = Math.max(x.scale, y.scale);
+  return formatScaled(rescale(x, scale) + rescale(y, scale), scale);
+}
+
+/** a - b exactly, at the larger of their scales; null when either is not a number. */
 export function subtract(a: string, b: string): string | null {
   const x = parseDecimal(a);
   const y = parseDecimal(b);

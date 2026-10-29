@@ -35,6 +35,8 @@ export interface SubAccountBalance {
   kind: "currency" | "asset";
   balance: AmountJson | null;
   units: string | null;
+  /** IBAN or account number of this currency, as statements print it */
+  number: string | null;
 }
 
 export interface AccountResponse {
@@ -45,29 +47,31 @@ export interface AccountResponse {
   taxWrapper: TaxWrapper;
   costBasisMethod: CostBasisMethod | null;
   cashClassId: string | null;
-  number: string | null;
   importProfile: string | null;
   archivedAt: string | null;
   balances: SubAccountBalance[];
 }
 
 export interface CreateAccountInput {
-  institutionId: string;
+  /** the group (an institution on the API); none leaves the account under "Other" */
+  institutionId?: string;
   name: string;
   type: AccountType;
   taxWrapper?: TaxWrapper;
   costBasisMethod?: CostBasisMethod | null;
   currencies: string[];
   openingBalances?: { currency: string; amount: string; date: string }[];
-  number?: string;
+  /** IBAN or account number per currency; each currency must be one of `currencies` */
+  numbers?: { currency: string; number: string }[];
   cashClassId?: string;
   importProfile?: string;
 }
 
 export type UpdateAccountInput = Partial<
-  Omit<CreateAccountInput, "currencies" | "openingBalances" | "number" | "cashClassId" | "importProfile">
+  Omit<CreateAccountInput, "institutionId" | "currencies" | "openingBalances" | "numbers" | "cashClassId" | "importProfile">
 > & {
-  number?: string | null;
+  /** null takes the account out of its group */
+  institutionId?: string | null;
   cashClassId?: string | null;
   importProfile?: string | null;
 };
@@ -447,6 +451,12 @@ export interface MonthDetail extends MonthFlow {
   missingRates: string[];
 }
 
+/** The same figures over a span of months (GET /money/views/period), `from` and `to` as YYYY-MM. */
+export interface PeriodDetail extends Omit<MonthDetail, "month"> {
+  from: string;
+  to: string;
+}
+
 export interface HistoryPoint {
   date: string;
   total: AmountJson;
@@ -465,7 +475,6 @@ export interface HomeResponse {
   netWorth: NetWorthResponse;
   month: MonthDetail;
   allocation: AllocationResponse;
-  drafts: number;
 }
 
 export interface SnapshotResponse {
@@ -476,111 +485,6 @@ export interface SnapshotResponse {
   /** what the snapshot froze; null in lists */
   data: { netWorth: NetWorthResponse; allocation: AllocationResponse; positions: PositionResponse[] } | null;
   createdAt: string;
-}
-
-// ---- recurring -----------------------------------------------------------------------
-
-export type RecurringKind = "income" | "expense" | "fee" | "transfer" | "buy" | "sell" | "investment_income";
-
-export interface RecurringRule {
-  id: string;
-  name: string;
-  kind: RecurringKind;
-  /** the movement without its date */
-  template: Record<string, unknown>;
-  /** FREQ=MONTHLY;BYMONTHDAY=10 and the like */
-  schedule: string;
-  startDate: string;
-  endDate: string | null;
-  nextRunAt: string;
-  upcoming: string[];
-  autoPost: boolean;
-  paused: boolean;
-  finished: boolean;
-  lastRunAt: string | null;
-  runs: number;
-  createdAt: string;
-}
-
-export interface CreateRecurringInput {
-  name: string;
-  kind: RecurringKind;
-  template: Record<string, unknown>;
-  schedule: string;
-  startDate: string;
-  endDate?: string | null;
-  autoPost?: boolean;
-}
-
-export interface RecurringRunResult {
-  posted: number;
-  drafted: number;
-  errors: { ruleId: string; name: string; date: string; error: string }[];
-}
-
-// ---- tax -----------------------------------------------------------------------------
-
-export interface TaxLotLine {
-  lotId: string;
-  acquiredAt: string;
-  units: string;
-  cost: AmountJson;
-  costPln: AmountJson | null;
-  rate: string | null;
-  rateDate: string | null;
-}
-
-export interface TaxSale {
-  transactionId: string;
-  date: string;
-  accountName: string;
-  assetCode: string;
-  assetName: string;
-  units: string;
-  proceeds: AmountJson;
-  proceedsPln: AmountJson | null;
-  rate: string | null;
-  rateDate: string | null;
-  costPln: AmountJson | null;
-  gainPln: AmountJson | null;
-  lots: TaxLotLine[];
-}
-
-export interface TaxIncome {
-  transactionId: string;
-  date: string;
-  accountName: string;
-  assetCode: string | null;
-  category: string;
-  gross: AmountJson;
-  withheld: AmountJson;
-  grossPln: AmountJson | null;
-  withheldPln: AmountJson | null;
-  rate: string | null;
-  rateDate: string | null;
-  taxPln: AmountJson | null;
-  creditPln: AmountJson | null;
-}
-
-export interface TaxReport {
-  year: number;
-  currency: string;
-  accounts: { id: string; name: string }[];
-  sales: TaxSale[];
-  income: TaxIncome[];
-  totals: {
-    revenue: AmountJson;
-    costs: AmountJson;
-    income: AmountJson;
-    base: AmountJson;
-    tax: AmountJson;
-    incomeGross: AmountJson;
-    incomeTax: AmountJson;
-    incomeCredit: AmountJson;
-    incomeDue: AmountJson;
-  };
-  complete: boolean;
-  missing: string[];
 }
 
 // ---- rates and automation ------------------------------------------------------------
@@ -601,7 +505,8 @@ export interface RateSourceStatus {
   count: number;
 }
 
-export type MoneyTask = "recurring" | "snapshot" | "rates" | "prices";
+/** the tasks the UI shows; the API also lists "recurring", which the UI leaves out */
+export type MoneyTask = "snapshot" | "rates" | "prices";
 
 export interface AutomationJob {
   id: string;
@@ -616,10 +521,9 @@ export interface AutomationJob {
 export interface AutomationStatus {
   timeZone: string;
   scheduler: boolean;
-  tasks: { task: MoneyTask; startsAt: string; lastJob: AutomationJob | null }[];
+  tasks: { task: MoneyTask | "recurring"; startsAt: string; lastJob: AutomationJob | null }[];
   rates: RateSourceStatus[];
   priceFeeds: { assetId: string; code: string; symbol: string; latest: { date: string; price: string; currency: string } | null }[];
-  recurring: { active: number; nextRunAt: string | null };
 }
 
 // ---- Claude access -------------------------------------------------------------------

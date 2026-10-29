@@ -10,6 +10,7 @@ import {
   HistoryResponse,
   HomeResponse,
   MonthDetail,
+  PeriodDetail,
   MonthlyResponse,
   NetWorthResponse,
   RangeQuery,
@@ -57,6 +58,12 @@ export class ViewsController {
   @ApiEndpoint({ summary: 'One month with income and expenses by category', response: MonthDetail })
   month(@Req() req: UserModel, @Param('month') month: string, @Query('base') base?: string) {
     return this.views.month(req.user.userId, month, base);
+  }
+
+  @Get('views/period')
+  @ApiEndpoint({ summary: 'A whole range of months: income, expenses, invested and both by category', response: PeriodDetail })
+  period(@Req() req: UserModel, @Query() q: RangeQuery) {
+    return this.views.period(req.user.userId, q);
   }
 
   @Get('views/history')

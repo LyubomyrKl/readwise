@@ -4,7 +4,7 @@ const abs = (value: string) => value.replace(/^-/, "");
 
 /**
  * The movement a posted transaction came from, for the correction form: the
- * proposal of an approved draft, or rebuilt from the entries. Undefined when the
+ * input it was approved from (a former draft), or rebuilt from the entries. Undefined when the
  * transaction is not something a form can produce (a reversal, a split).
  */
 export function movementFromTransaction(tx: TransactionResponse): Movement | undefined {

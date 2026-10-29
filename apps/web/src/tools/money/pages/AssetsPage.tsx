@@ -12,8 +12,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { moneyApi } from "../api";
 import { accountLabel, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
-import { formatDate, formatValue, percent, today } from "../lib/format";
-import { useAccounts, useAssetClasses, useAssets, useMoneyMutation } from "../queries";
+import { formatDate, formatValue, normalizePercentInput, percent, today } from "../lib/format";
+import { errorMessage, useAccounts, useAssetClasses, useAssets, useMoneyMutation } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { AssetResponse, Valuation } from "../types";
 
@@ -138,7 +138,7 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
   const [error, setError] = useState<string | null>(null);
 
   function valuationConfig(): Record<string, unknown> | undefined {
-    if (valuation === "price_feed") return { provider: "stooq", symbol: feedSymbol.trim() };
+    if (valuation === "price_feed") return { provider: "yahoo", symbol: feedSymbol.trim() };
     if (valuation === "bond_formula") {
       const inflation: Record<string, string> = {};
       for (const line of bond.inflation.split("\n")) {
@@ -158,6 +158,9 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
   const save = useMoneyMutation(
     async () => {
       const config = valuationConfig();
+      const classes = shares
+        .map((s) => ({ classId: s.classId, percent: normalizePercentInput(s.percent) }))
+        .filter((s) => s.classId && s.percent);
       if (asset) {
         await moneyApi.assets.update(asset.id, {
           code,
@@ -168,7 +171,7 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
           valuation,
           valuationConfig: config,
         });
-        return moneyApi.assets.setClasses(asset.id, shares.filter((s) => s.classId && s.percent));
+        return moneyApi.assets.setClasses(asset.id, classes);
       }
       return moneyApi.assets.create({
         code,
@@ -179,7 +182,7 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
         isin: isin.trim() || undefined,
         valuation,
         valuationConfig: config,
-        classes: shares.filter((s) => s.classId && s.percent),
+        classes,
       });
     },
     { success: "Saved", onSuccess: onDone }
@@ -226,7 +229,7 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
         />
       </Field>
       {valuation === "price_feed" ? (
-        <Field label="Feed symbol" hint="Stooq symbol, e.g. vwce.de; fetched every evening">
+        <Field label="Feed symbol" hint="Yahoo Finance symbol, e.g. VWCE.DE; fetched every evening">
           <Input value={feedSymbol} onChange={(e) => setFeedSymbol(e.target.value)} placeholder="vwce.de" />
         </Field>
       ) : null}
@@ -325,13 +328,17 @@ function ClassesCard() {
   const { data: classes } = useAssetClasses();
   const [name, setName] = useState("");
   const [target, setTarget] = useState("");
-  const create = useMoneyMutation(() => moneyApi.classes.create({ name: name.trim(), targetPercent: target.trim() || undefined }), {
-    success: "Class added",
-    onSuccess: () => {
-      setName("");
-      setTarget("");
-    },
-  });
+  const [error, setError] = useState<string | null>(null);
+  const create = useMoneyMutation(
+    () => moneyApi.classes.create({ name: name.trim(), targetPercent: normalizePercentInput(target) || undefined }),
+    {
+      success: "Class added",
+      onSuccess: () => {
+        setName("");
+        setTarget("");
+      },
+    }
+  );
   const total = (classes ?? []).reduce((sum, c) => sum + (c.targetPercent ? Number(c.targetPercent) : 0), 0);
   return (
     <Card>
@@ -350,7 +357,8 @@ function ClassesCard() {
           className="grid gap-2 sm:grid-cols-[1fr_7rem_auto] sm:items-end"
           onSubmit={(e) => {
             e.preventDefault();
-            if (name.trim()) create.mutate(undefined);
+            setError(null);
+            if (name.trim()) create.mutate(undefined, { onError: (err) => setError(errorMessage(err)) });
           }}
         >
           <Field label="New class">
@@ -363,6 +371,7 @@ function ClassesCard() {
             Add
           </Button>
         </form>
+        {error ? <FormError message={error} /> : null}
       </CardContent>
     </Card>
   );
@@ -383,7 +392,11 @@ function ClassRow({
 }) {
   const [value, setValue] = useState(targetPercent ?? "");
   const [from, setFrom] = useState(today());
-  const save = useMoneyMutation(() => moneyApi.classes.setTarget(classId, value.replace(",", "."), from), { success: "Target saved" });
+  const [error, setError] = useState<string | null>(null);
+  const save = useMoneyMutation(() => moneyApi.classes.setTarget(classId, normalizePercentInput(value), from), {
+    success: "Target saved",
+    onSuccess: () => setError(null),
+  });
   return (
     <div className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_6rem_10rem_auto] sm:items-end">
       <div className="text-sm">
@@ -395,11 +408,24 @@ function ClassRow({
       </div>
       <Input value={value} onChange={(e) => setValue(e.target.value)} placeholder="%" aria-label={`${name} target percent`} />
       <DateInput value={from} onChange={setFrom} />
-      <Button variant="outline" onClick={() => save.mutate(undefined)} disabled={!value || save.isPending}>
+      <Button
+        variant="outline"
+        onClick={() => save.mutate(undefined, { onError: (err) => setError(errorMessage(err)) })}
+        disabled={!normalizePercentInput(value) || save.isPending}
+      >
         Set target
       </Button>
+      {error ? (
+        <div className="sm:col-span-4">
+          <FormError message={error} />
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function FormError({ message }: { message: string }) {
+  return <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{message}</div>;
 }
 
 function CashClassesCard() {

@@ -117,8 +117,11 @@ export class MovementsService {
     const currency = await this.commodities.currency(dto.currency);
     const categoryId =
       dto.categoryId ?? (await this.ledger.categoryByKey(db, userId, kind === 'fee' ? 'fees' : 'other_expense'));
+    const feeInput = dto.fee;
+    const fee = feeInput ? toMinor(feeInput, currency.decimals, 'fee') : 0n;
+    const feeCategoryId = fee > 0n ? (dto.feeCategoryId ?? (await this.ledger.categoryByKey(db, userId, 'fees'))) : null;
     const lines = this.build(() =>
-      expenseLines({ accountId: dto.accountId, currency: currency.id, amount: toMinor(dto.amount, currency.decimals), categoryId }),
+      expenseLines({ accountId: dto.accountId, currency: currency.id, amount: toMinor(dto.amount, currency.decimals), categoryId, fee, feeCategoryId }),
     );
     return this.ledger.post(db, userId, lines, { ...this.opts(dto, ctx), kind, categoryId });
   }

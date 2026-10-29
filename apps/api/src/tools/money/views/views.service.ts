@@ -24,6 +24,7 @@ import {
   HistoryResponse,
   HomeResponse,
   MonthDetail,
+  PeriodDetail,
   MonthFlow,
   MonthlyResponse,
   NamedValue,
@@ -372,6 +373,28 @@ export class ViewsService {
     const { byMonth, missing } = await this.flows(userId, base, start, endOfMonth(start));
     const t = monthTotals(byMonth.get(month) ?? []);
     const dec = await this.commodities.decimalsOf(base);
+    return { ...this.flowJson(month, t, base, dec), base, ...(await this.byCategory(userId, t, base, dec)), missingRates: missing };
+  }
+
+  /** Income, expenses and their categories summed over a whole range of months (same range rules as `monthly`). */
+  async period(userId: string, q: { base?: string; from?: string; to?: string } = {}): Promise<PeriodDetail> {
+    const base = await this.baseOf(userId, q.base);
+    const { months, from, to } = await this.range(userId, q);
+    const { byMonth, missing } = await this.flows(userId, base, from, endOfMonth(months[months.length - 1] ?? to));
+    const t = monthTotals([...byMonth.values()].flat());
+    const dec = await this.commodities.decimalsOf(base);
+    const { month: _month, ...flow } = this.flowJson('', t, base, dec);
+    return {
+      from: monthKey(months[0] ?? from),
+      to: monthKey(months[months.length - 1] ?? to),
+      ...flow,
+      base,
+      ...(await this.byCategory(userId, t, base, dec)),
+      missingRates: missing,
+    };
+  }
+
+  private async byCategory(userId: string, t: MonthTotals, base: string, dec: number): Promise<{ expensesByCategory: CategoryValue[]; incomeByCategory: CategoryValue[] }> {
     const categories = await this.prisma.moneyCategory.findMany({ where: { userId } });
     const name = (id: string | null, fallback: string) => {
       const c = categories.find((k) => k.id === id);
@@ -385,11 +408,8 @@ export class ViewsService {
         .sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0))
         .map(([categoryId, v]) => ({ categoryId, name: name(categoryId, fallback), value: amountJson(v, base, dec), percent: percentOf(v, whole) }));
     return {
-      ...this.flowJson(month, t, base, dec),
-      base,
       expensesByCategory: list(t.expensesByCategory, t.expenses, 'Uncategorised'),
       incomeByCategory: list(t.incomeByCategory, t.income, 'Uncategorised'),
-      missingRates: missing,
     };
   }
 

@@ -11,13 +11,10 @@ export const MONEY_ROUTES = Object.freeze({
   transactions: `${BASE}/transactions`,
   newMovement: (kind?: string) => `${BASE}/transactions/new${kind ? `?kind=${kind}` : ""}`,
   transaction: (id: string) => `${BASE}/transactions/${id}`,
-  drafts: `${BASE}/drafts`,
   investments: `${BASE}/investments`,
   assets: `${BASE}/investments/assets`,
   reports: `${BASE}/reports`,
   imports: `${BASE}/imports`,
   importBatch: (id: string) => `${BASE}/imports/${id}`,
-  recurring: `${BASE}/recurring`,
-  tax: `${BASE}/tax`,
   settings: "/settings/money",
 } as const);

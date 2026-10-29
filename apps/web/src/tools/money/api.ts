@@ -9,18 +9,15 @@ import type {
   TokenScope,
   AutomationJob,
   AutomationStatus,
-  CreateRecurringInput,
   MoneyTask,
   RateRow,
-  RecurringRule,
-  RecurringRunResult,
-  TaxReport,
   AccountResponse,
   AllocationResponse,
   HistoryResponse,
   HomeResponse,
   MonthDetail,
   MonthlyResponse,
+  PeriodDetail,
   NetWorthResponse,
   SnapshotResponse,
   AssetClassResponse,
@@ -75,8 +72,14 @@ export const moneyApi = {
     update: (id: string, input: UpdateAccountInput) => patch<AccountResponse>(`/money/accounts/${enc(id)}`, input),
     archive: (id: string) => post<AccountResponse>(`/money/accounts/${enc(id)}/archive`),
     unarchive: (id: string) => post<AccountResponse>(`/money/accounts/${enc(id)}/unarchive`),
+    /** `id` goes away: its currencies move into `intoAccountId` with their whole history; returns the merged account */
+    merge: (id: string, input: { intoAccountId: string; name?: string }) =>
+      post<AccountResponse>(`/money/accounts/${enc(id)}/merge`, input),
     addCurrency: (id: string, currency: string) =>
       post<AccountResponse>(`/money/accounts/${enc(id)}/currencies`, { currency }),
+    /** the IBAN or account number of one currency; null or empty clears it */
+    setNumber: (id: string, currency: string, number: string | null) =>
+      patch<AccountResponse>(`/money/accounts/${enc(id)}/currencies/${enc(currency)}`, { number }),
   },
 
   categories: {
@@ -167,6 +170,8 @@ export const moneyApi = {
     monthly: (query: { base?: string; from?: string; to?: string } = {}) =>
       apiFetch<MonthlyResponse>("/money/views/monthly", { query }),
     month: (month: string, base?: string) => apiFetch<MonthDetail>(`/money/views/month/${enc(month)}`, { query: { base } }),
+    /** Totals and categories over a span; `from` is YYYY-MM or "start", the default the last 12 months. */
+    period: (query: { base?: string; from?: string; to?: string } = {}) => apiFetch<PeriodDetail>("/money/views/period", { query }),
     history: (query: { base?: string; from?: string; to?: string } = {}) =>
       apiFetch<HistoryResponse>("/money/views/history", { query }),
   },
@@ -176,17 +181,6 @@ export const moneyApi = {
     get: (id: string) => apiFetch<SnapshotResponse>(`/money/snapshots/${enc(id)}`),
     take: (input: { date?: string; label?: string }) => post<SnapshotResponse>("/money/snapshots", input),
   },
-
-  recurring: {
-    list: () => apiFetch<RecurringRule[]>("/money/recurring"),
-    create: (input: CreateRecurringInput) => post<RecurringRule>("/money/recurring", input),
-    update: (id: string, input: Partial<Omit<CreateRecurringInput, "kind" | "startDate">> & { paused?: boolean }) =>
-      patch<RecurringRule>(`/money/recurring/${enc(id)}`, input),
-    remove: (id: string) => apiFetch<{ removed: true }>(`/money/recurring/${enc(id)}`, { method: "DELETE" }),
-    run: () => post<RecurringRunResult>("/money/recurring/run"),
-  },
-
-  tax: (year: number) => apiFetch<TaxReport>(`/money/tax/${year}`),
 
   rates: {
     list: (query: { from?: string; to?: string; source?: string } = {}) => apiFetch<RateRow[]>("/money/rates", { query }),
@@ -203,13 +197,5 @@ export const moneyApi = {
   automation: {
     status: () => apiFetch<AutomationStatus>("/money/automation"),
     run: (task: MoneyTask) => post<AutomationJob>(`/money/automation/${task}`),
-  },
-
-  drafts: {
-    list: () => apiFetch<TransactionPage>("/money/drafts"),
-    create: (movement: Movement) => post<TransactionResponse>("/money/drafts", movement),
-    approve: (id: string, input?: Record<string, unknown>) =>
-      post<TransactionResponse>(`/money/drafts/${enc(id)}/approve`, input ? { input } : {}),
-    reject: (id: string) => apiFetch<{ removed: true }>(`/money/drafts/${enc(id)}`, { method: "DELETE" }),
   },
 };

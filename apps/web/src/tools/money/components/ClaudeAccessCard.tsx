@@ -8,8 +8,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { moneyApi } from "../api";
 import { useApiTokens, useMoneyMutation } from "../queries";
-import type { CreatedApiToken, TokenScope } from "../types";
-import { Field, Segmented } from "./Fields";
+import type { CreatedApiToken } from "../types";
+import { Field } from "./Fields";
 
 function when(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "never";
@@ -40,13 +40,12 @@ function CopyLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Tokens that let Claude read the ledger (and, with the draft scope, propose movements for approval). */
+/** Read-only tokens that let Claude read the ledger. */
 export function ClaudeAccessCard() {
   const { data: tokens } = useApiTokens();
   const [name, setName] = useState("Claude");
-  const [scope, setScope] = useState<TokenScope>("read");
   const [created, setCreated] = useState<CreatedApiToken | null>(null);
-  const create = useMoneyMutation(() => moneyApi.tokens.create({ name: name.trim() || "Claude", scope }), { onSuccess: setCreated });
+  const create = useMoneyMutation(() => moneyApi.tokens.create({ name: name.trim() || "Claude", scope: "read" }), { onSuccess: setCreated });
   const revoke = useMoneyMutation((id: string) => moneyApi.tokens.revoke(id), { success: "Revoked; it stops working at once" });
   const mcpUrl = typeof window === "undefined" ? "/api/money/claude/mcp" : `${window.location.origin}/api/money/claude/mcp`;
 
@@ -55,13 +54,12 @@ export function ClaudeAccessCard() {
       <CardHeader>
         <CardTitle>Claude</CardTitle>
         <CardDescription>
-          Let Claude answer from your live data through its MCP connector: read only, or able to propose movements that post only when you approve them under
-          Drafts. Revoke a token and it stops working at once.
+          Let Claude answer from your live data through its MCP connector, read only. Revoke a token and it stops working at once.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <form
-          className="grid items-end gap-3 sm:grid-cols-[1fr_auto_auto]"
+          className="grid items-end gap-3 sm:grid-cols-[1fr_auto]"
           onSubmit={(e) => {
             e.preventDefault();
             create.mutate(undefined);
@@ -69,16 +67,6 @@ export function ClaudeAccessCard() {
         >
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
-          </Field>
-          <Field label="Can">
-            <Segmented
-              value={scope}
-              onChange={setScope}
-              options={[
-                { value: "read", label: "Read" },
-                { value: "draft", label: "Read and propose" },
-              ]}
-            />
           </Field>
           <Button type="submit" disabled={create.isPending}>
             <KeyRound className="mr-1 h-4 w-4" /> Create token

@@ -204,8 +204,8 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }: { value: string }) => value || 'https://stooq.com')
-  MONEY_STOOQ_BASE_URL = 'https://stooq.com';
+  @Transform(({ value }: { value: string }) => value || 'https://query1.finance.yahoo.com')
+  MONEY_PRICE_FEED_BASE_URL = 'https://query1.finance.yahoo.com';
 }
 
 export function validate(config: Record<string, unknown>) {

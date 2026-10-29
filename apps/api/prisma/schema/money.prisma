@@ -292,8 +292,6 @@ model MoneyAccount {
   costBasisMethod MoneyCostBasisMethod?
   /// the asset class this account's cash counts in (e.g. the emergency fund)
   cashClassId     String?
-  /// IBAN or account number as printed on statements; recognizes transfers between own accounts
-  number          String?
   /// default statement profile for imports into this account ("mbank", "pko", "zen", "ibkr")
   importProfile   String?
   archivedAt      DateTime?
@@ -316,6 +314,8 @@ model MoneySubAccount {
   id          String   @id @default(cuid())
   accountId   String
   commodityId String
+  /// IBAN or account number of this currency as printed on statements; recognizes transfers between own accounts
+  number      String?
   createdAt   DateTime @default(now())
 
   account   MoneyAccount   @relation(fields: [accountId], references: [id], onDelete: Cascade)

@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { groupAccounts } from "../lib/accounts";
 import { useAccounts, useCategories, useCurrencies } from "../queries";
 import type { AccountResponse, CategoryResponse } from "../types";
 
@@ -85,6 +86,7 @@ export function CurrencySelect({
   value,
   onChange,
   only,
+  exclude,
   placeholder = "Currency",
 }: {
   id?: string;
@@ -92,10 +94,12 @@ export function CurrencySelect({
   onChange: (value: string) => void;
   /** restrict to these codes (e.g. the account's sub-accounts) */
   only?: string[];
+  /** leave these codes out (e.g. the ones already added) */
+  exclude?: string[];
   placeholder?: string;
 }) {
   const { data: currencies } = useCurrencies();
-  const list = (currencies ?? []).filter((c) => !only || only.includes(c.code));
+  const list = (currencies ?? []).filter((c) => (!only || only.includes(c.code)) && !exclude?.includes(c.code));
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger id={id} className="w-full">
@@ -131,20 +135,16 @@ export function AccountSelect({
 }) {
   const { data: accounts } = useAccounts();
   const list = (accounts ?? []).filter((a) => !filter || filter(a));
-  const groups = new Map<string, AccountResponse[]>();
-  for (const a of list) {
-    const key = a.institution?.name ?? "Other";
-    groups.set(key, [...(groups.get(key) ?? []), a]);
-  }
+  const groups = groupAccounts(list);
   return (
     <Select value={value} onValueChange={onChange}>
       <SelectTrigger id={id} className="w-full">
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-80">
-        {[...groups.entries()].map(([institution, items]) => (
-          <SelectGroup key={institution}>
-            <SelectLabel>{institution}</SelectLabel>
+        {groups.map(([group, items]) => (
+          <SelectGroup key={group}>
+            <SelectLabel>{group}</SelectLabel>
             {items.map((a) => (
               <SelectItem key={a.id} value={a.id}>
                 {a.name}

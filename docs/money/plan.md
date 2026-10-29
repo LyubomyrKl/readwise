@@ -165,3 +165,34 @@ entries of posted transactions cannot be updated or deleted.
   today's screenshots), the M3 review (positions against Investments.md), the open questions
   in [`requirements.md`](requirements.md), and the latency target (any view under 1 second
   with 20 years of data), which has no test yet.
+- **Real data, Oct 29** — the history from the old money app went in through the importer, and
+  EDO and VWCE as buys (one-off scripts, outside the repo). What using it showed got fixed: units
+  are held only in investment or bonds accounts (buy, sell and both sides of a unit move; the
+  money may still come from any account), test `test/db/money-holding-accounts.db-spec.ts`. The
+  price feed moved from Stooq, which closed its CSV address, to the Yahoo Finance chart API
+  (`MONEY_PRICE_FEED_BASE_URL`); closes are read from the text and rounded to the exchange's
+  precision, so none passes through a float (`core/feeds.spec.ts`, the M5 spec). On the web:
+  accounts as a compact table by institution, investments in two columns, a currency picked in
+  the account form is added at once, the institution kind left the form (it was never used),
+  institutions with only archived accounts are not offered, the Fee and Opening balance tabs
+  left New movement (a fee is an expense in Fees; an opening balance is set per currency on the
+  account's page), and the trade forms offer only investment and bonds accounts to hold units.
+  Second round: an account number belongs to each currency (`money_sub_account.number`,
+  migration `sub_account_number` copies the old ones over), set per currency on the account's
+  page; an account's group (institution) is optional, "Other" in the lists; an expense takes a
+  fee on top, booked under Fees; dividends and interest only into investment or bonds accounts.
+  Test: `test/db/money-accounts-fees.db-spec.ts`. On the web: "Group" instead of
+  "Institution", whole rows open the account, the currencies of an account as rows with a menu,
+  tax and cost basis only for investment accounts (cost basis under Advanced), a fee on buy,
+  sell, transfer and expense, Split last.
+  Third round: a whole range of months by category (`views/period`, test in the same spec),
+  shown under Reports for the chosen range, a clicked month in its place. The Tax page and the
+  tax and cost-basis fields left the web (EDO is taxed at source, IBKR is filed by hand; the API
+  and its defaults, taxable and first in first out, stay); "Split" reads "Unit count change";
+  percent fields accept "80%".
+  Snapshots list every account and currency they hold. Drafts and recurring movements left the
+  web (the API keeps them); Claude's new tokens are read only.
+  Accounts merge (`POST accounts/:id/merge`): the source's currencies move to the other account
+  with their entries, nothing posted changes; refused across types, for a shared currency and
+  for units (`test/db/money-merge-accounts.db-spec.ts`). Accounts as cards, an account's
+  currencies as tiles, snapshots export to CSV.

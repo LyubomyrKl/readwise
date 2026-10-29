@@ -16,7 +16,6 @@ export const moneyKeys = {
   categories: (archived: boolean) => ["money", "categories", archived] as const,
   transactions: (filters: TransactionFilters) => ["money", "transactions", filters] as const,
   transaction: (id: string) => ["money", "transaction", id] as const,
-  drafts: ["money", "drafts"] as const,
   importProfiles: ["money", "import-profiles"] as const,
   imports: ["money", "imports"] as const,
   importBatch: (id: string) => ["money", "import", id] as const,
@@ -32,10 +31,9 @@ export const moneyKeys = {
   allocation: (base: string, asOf: string) => ["money", "views", "allocation", base, asOf] as const,
   monthly: (base: string, from: string) => ["money", "views", "monthly", base, from] as const,
   month: (month: string, base: string) => ["money", "views", "month", month, base] as const,
+  period: (base: string, from: string, to: string) => ["money", "views", "period", base, from, to] as const,
   history: (base: string, from: string) => ["money", "views", "history", base, from] as const,
   snapshots: ["money", "snapshots"] as const,
-  recurring: ["money", "recurring"] as const,
-  tax: (year: number) => ["money", "tax", year] as const,
   rates: (filter: string) => ["money", "rates", filter] as const,
   automation: ["money", "automation"] as const,
   tokens: ["money", "tokens"] as const,
@@ -107,10 +105,6 @@ export function useTransactions(filters: TransactionFilters) {
     initialPageParam: undefined as string | undefined,
     getNextPageParam: (last) => last.nextCursor ?? undefined,
   });
-}
-
-export function useDrafts() {
-  return useQuery({ queryKey: moneyKeys.drafts, queryFn: moneyApi.drafts.list });
 }
 
 export function usePostMovement(onSuccess?: () => void) {
@@ -207,6 +201,16 @@ export function useMonth(month: string | undefined, base?: string) {
   });
 }
 
+/** Totals and categories from `from` (YYYY-MM or "start") to `to` (default this month); off while `enabled` is false. */
+export function usePeriod(base: string | undefined, from: string, to?: string, enabled = true) {
+  return useQuery({
+    queryKey: moneyKeys.period(base ?? "", from, to ?? ""),
+    queryFn: () => moneyApi.views.period({ base, from, to }),
+    enabled,
+    placeholderData: keepPreviousData,
+  });
+}
+
 /** Net worth at each month end from `from` (YYYY-MM or "start") to today. */
 export function useHistory(base: string | undefined, from: string) {
   return useQuery({
@@ -222,14 +226,6 @@ export function useSnapshots() {
 
 export function useSnapshot(id: string | undefined) {
   return useQuery({ queryKey: moneyKeys.snapshot(id ?? ""), queryFn: () => moneyApi.snapshots.get(id!), enabled: !!id });
-}
-
-export function useRecurring() {
-  return useQuery({ queryKey: moneyKeys.recurring, queryFn: moneyApi.recurring.list });
-}
-
-export function useTaxReport(year: number) {
-  return useQuery({ queryKey: moneyKeys.tax(year), queryFn: () => moneyApi.tax(year), placeholderData: keepPreviousData });
 }
 
 export function useRates(query: { from?: string; to?: string; source?: string }) {
