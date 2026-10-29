@@ -42,3 +42,6 @@
 .vscode/
 .DS_Store
 **/.DS_Store
+
+# worktrees of agents working alongside a session
+.claude/worktrees/
