@@ -617,8 +617,17 @@ model MoneyApiToken {
   /// first characters, to recognize the token in the list
   prefix     String
   lastUsedAt DateTime?
+  /// the address the token was last used from (as Caddy saw it)
+  lastUsedIp String?
   revokedAt  DateTime?
   createdAt  DateTime        @default(now())
+  /// null: does not expire (tokens made by hand); Claude's connector tokens live a day
+  expiresAt  DateTime?
+  /// connector tokens: sha256 of the refresh token that renews them, and until when it may
+  refreshTokenHash String?   @unique
+  refreshExpiresAt DateTime?
+  /// connector tokens: the OAuth client they were issued to
+  oauthClientId    String?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 

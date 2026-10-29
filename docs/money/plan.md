@@ -198,4 +198,6 @@ entries of posted transactions cannot be updated or deleted.
   currencies as tiles, snapshots export to CSV.
   Claude's custom connector: OAuth 2.1 with PKCE (`claude/oauth.*`, table `money_oauth_code`),
   metadata and token public through Funnel, approval on the private `/apps/money/connect`; it
-  mints an ordinary read token (`test/db/money-oauth.db-spec.ts`).
+  mints an ordinary read token (`test/db/money-oauth.db-spec.ts`). Hardened: the public paths
+  answer only Anthropic's outbound range and the tailnet (Caddy, strict client address),
+  connector tokens live a day and renew by a rotating refresh token, the last address is kept.

@@ -3,6 +3,26 @@
 # Claude's access to the money tool (token-authenticated REST and MCP, and the
 # OAuth endpoints of its connector), which goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
 # ":80" is plain HTTP.
+#
+# Tailscale (serve and Funnel) and Docker reach Caddy from private addresses and
+# say in X-Forwarded-For who the client was; the client is the right-most address
+# that is not one of them (strict, so a client cannot claim one by sending the
+# header itself). Caddy hands only that address on, in X-Forwarded-For.
+{
+	servers {
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+# The paths Claude's cloud calls (published by Tailscale Funnel) answer only
+# Anthropic's outbound addresses and the tailnet: MONEY_CLAUDE_ALLOWED_IPS.
+(claude_only) {
+	@not_claude not client_ip {$MONEY_CLAUDE_ALLOWED_IPS:160.79.104.0/21 100.64.0.0/10 fd7a:115c:a1e0::/48}
+	respond @not_claude "Forbidden" 403
+}
+
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
 	# Security headers, each only if the upstream did not send its own ("?"; one directive per
@@ -16,19 +36,30 @@
 	@https protocol https
 	header @https ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	handle /api/money/claude/* {
-		reverse_proxy api:5173
+		import claude_only
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 	# OAuth for Claude's custom connector: metadata, client registration and
 	# token come from Claude's cloud; approving is a page of the web app.
 	handle /.well-known/oauth-* {
+		import claude_only
 		rewrite * /api/money/oauth{uri}
-		reverse_proxy api:5173
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 	@oauth path /api/money/oauth/token /api/money/oauth/register
 	handle @oauth {
-		reverse_proxy api:5173
+		import claude_only
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 }

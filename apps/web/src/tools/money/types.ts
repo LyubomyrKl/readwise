@@ -536,6 +536,12 @@ export interface ApiToken {
   scope: TokenScope;
   prefix: string;
   lastUsedAt: string | null;
+  /** the address it was last used from */
+  lastUsedIp: string | null;
+  /** null: does not expire */
+  expiresAt: string | null;
+  /** Claude's connector: renewed automatically until then, unless used again */
+  renewsUntil: string | null;
   revokedAt: string | null;
   createdAt: string;
 }

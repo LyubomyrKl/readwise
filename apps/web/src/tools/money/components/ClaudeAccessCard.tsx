@@ -115,7 +115,13 @@ export function ClaudeAccessCard() {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     <code>{t.prefix}…</code> · created {when(t.createdAt)} · last used {when(t.lastUsedAt)}
+                    {t.lastUsedIp ? <> from <code>{t.lastUsedIp}</code></> : null}
                   </div>
+                  {t.renewsUntil && !t.revokedAt ? (
+                    <div className="text-xs text-muted-foreground">
+                      Renews itself daily; ends {when(t.renewsUntil)} if Claude stops using it
+                    </div>
+                  ) : null}
                 </div>
                 {t.revokedAt ? null : (
                   <Button size="sm" variant="outline" onClick={() => revoke.mutate(t.id)} disabled={revoke.isPending}>

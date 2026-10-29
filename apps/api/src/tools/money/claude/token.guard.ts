@@ -32,11 +32,18 @@ export class MoneyTokenGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<TokenRequest>();
     const match = /^Bearer\s+(\S+)$/i.exec(req.headers.authorization ?? '');
     if (!match) throw this.unauthorized(context, 'a money API token is required: Authorization: Bearer mny_…');
-    const token = await this.tokens.verify(match[1]);
+    const token = await this.tokens.verify(match[1], clientIp(req));
     if (!token) throw this.unauthorized(context, 'unknown or revoked token');
     const needed = this.reflector.getAllAndOverride<TokenScope | undefined>(SCOPE_KEY, [context.getHandler(), context.getClass()]) ?? 'read';
     if (needed === 'draft' && token.scope !== 'draft') throw new ForbiddenException('this token reads only; a draft token may propose movements');
     req.moneyToken = token;
     return true;
   }
+}
+
+/** The caller's address: Caddy sets X-Forwarded-For to the one client address it worked out. */
+export function clientIp(req: Request): string | undefined {
+  const forwarded = req.headers['x-forwarded-for'];
+  const first = (Array.isArray(forwarded) ? forwarded[0] : forwarded)?.split(',')[0]?.trim();
+  return first || req.ip || undefined;
 }

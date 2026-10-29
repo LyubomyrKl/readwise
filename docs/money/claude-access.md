@@ -29,6 +29,13 @@ named "Claude connector", revocable in the same list. Codes are single use, live
 five minutes, need PKCE (S256) and Claude's callback
 (`https://claude.ai/api/mcp/auth_callback`); nothing else can register.
 
+Hardening: Caddy answers those public paths only for `MONEY_CLAUDE_ALLOWED_IPS`
+(default: Anthropic's outbound range `160.79.104.0/21` and the tailnet), working
+out the client strictly from what Tailscale forwards. A connector token lives a
+day and Claude renews it with a refresh token (rotated each time, 30 days from the
+last renewal); revoking ends both. The list shows when and from where each token
+was last used.
+
 ## MCP server
 
 `POST https://<your site>/api/money/claude/mcp`, Streamable HTTP, stateless, JSON responses,

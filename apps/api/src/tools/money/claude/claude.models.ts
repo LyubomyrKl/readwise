@@ -27,6 +27,10 @@ export class TokenResponse {
   @ApiProperty({ enum: TOKEN_SCOPES }) scope!: string;
   @ApiProperty({ example: 'mny_Ab3dEf', description: 'the start of the token, to tell tokens apart' }) prefix!: string;
   @ApiProperty({ nullable: true }) lastUsedAt!: string | null;
+  @ApiProperty({ nullable: true, description: 'the address it was last used from' }) lastUsedIp!: string | null;
+  @ApiProperty({ nullable: true, description: 'null: does not expire' }) expiresAt!: string | null;
+  @ApiProperty({ nullable: true, description: "Claude's connector: renewed automatically until this time unless used again" })
+  renewsUntil!: string | null;
   @ApiProperty({ nullable: true }) revokedAt!: string | null;
   @ApiProperty() createdAt!: string;
 }

@@ -73,7 +73,7 @@ export class OAuthService {
       token_endpoint: `${base}/api/money/oauth/token`,
       registration_endpoint: `${base}/api/money/oauth/register`,
       response_types_supported: ['code'],
-      grant_types_supported: ['authorization_code'],
+      grant_types_supported: ['authorization_code', 'refresh_token'],
       code_challenge_methods_supported: ['S256'],
       token_endpoint_auth_methods_supported: ['none'],
       scopes_supported: ['read'],
@@ -92,7 +92,7 @@ export class OAuthService {
       client_id_issued_at: Math.floor(Date.now() / 1000),
       client_name: typeof body.client_name === 'string' ? body.client_name.slice(0, 100) : 'Claude',
       redirect_uris: uris,
-      grant_types: ['authorization_code'],
+      grant_types: ['authorization_code', 'refresh_token'],
       response_types: ['code'],
       token_endpoint_auth_method: 'none',
     };
@@ -130,14 +130,19 @@ export class OAuthService {
     return { redirect: url.toString() };
   }
 
-  /** The token endpoint: a code and its PKCE verifier for a read token. */
+  /** The token endpoint: a code and its PKCE verifier, or a refresh token, for a read token that lives a day. */
   async token(body: Record<string, unknown>) {
     this.base();
     const field = (k: string): string => {
       const v = body[k];
       return typeof v === 'string' ? v : '';
     };
-    if (field('grant_type') !== 'authorization_code') throw new OAuthError('unsupported_grant_type', 'only authorization_code');
+    if (field('grant_type') === 'refresh_token') {
+      const renewed = await this.tokens.refreshConnector(field('refresh_token'), field('client_id') || undefined);
+      if (!renewed) throw new OAuthError('invalid_grant', 'the refresh token is unknown, revoked or expired; connect again');
+      return { ...renewed, token_type: 'Bearer', scope: 'read' };
+    }
+    if (field('grant_type') !== 'authorization_code') throw new OAuthError('unsupported_grant_type', 'authorization_code or refresh_token');
     const code = field('code');
     const verifier = field('code_verifier');
     if (!code || !verifier) throw new OAuthError('invalid_request', 'code and code_verifier are required');
@@ -150,7 +155,7 @@ export class OAuthService {
     // single use, even when two requests race
     const claimed = await this.prisma.moneyOauthCode.updateMany({ where: { id: row.id, usedAt: null }, data: { usedAt: new Date() } });
     if (claimed.count !== 1) throw invalid();
-    const created = await this.tokens.create(row.userId, { name: 'Claude connector', scope: 'read' }, 'claude-connector');
-    return { access_token: created.token, token_type: 'Bearer', scope: 'read' };
+    const grant = await this.tokens.createForConnector(row.userId, row.clientId);
+    return { ...grant, token_type: 'Bearer', scope: 'read' };
   }
 }

@@ -81,10 +81,39 @@ describe("Claude's connector (OAuth)", () => {
 
     await expect(trade(code, 'a-wrong-verifier-that-is-long-enough-to-pass-length')).rejects.toThrow();
     const granted = await trade(code);
-    expect(granted).toMatchObject({ token_type: 'Bearer', scope: 'read' });
+    expect(granted).toMatchObject({ token_type: 'Bearer', scope: 'read', expires_in: 86400 });
+    expect(granted.refresh_token).toMatch(/^mnr_/);
     expect(await tokens.verify(granted.access_token)).toMatchObject({ userId, scope: 'read', name: 'Claude connector' });
     // the code is spent
     await expect(trade(code)).rejects.toThrow();
+  });
+
+  it('renews with the refresh token, once, and remembers where the token was used', async () => {
+    const first = await trade(codeOf((await approve()).redirect));
+    expect(await tokens.verify(first.access_token, '160.79.104.10')).toMatchObject({ name: 'Claude connector' });
+    const renewed = await oauth.token({ grant_type: 'refresh_token', refresh_token: first.refresh_token, client_id: 'claude-abc' });
+    expect(renewed).toMatchObject({ token_type: 'Bearer', expires_in: 86400 });
+    // the old pair stops working at once; the new access token works
+    expect(await tokens.verify(first.access_token)).toBeNull();
+    await expect(oauth.token({ grant_type: 'refresh_token', refresh_token: first.refresh_token })).rejects.toThrow();
+    await expect(oauth.token({ grant_type: 'refresh_token', refresh_token: renewed.refresh_token, client_id: 'someone-else' })).rejects.toThrow();
+    expect(await tokens.verify(renewed.access_token, '160.79.104.11')).not.toBeNull();
+    const row = (await tokens.list(userId)).find((t) => t.name === 'Claude connector' && !t.revokedAt && t.lastUsedIp === '160.79.104.11');
+    expect(row?.expiresAt).not.toBeNull();
+    expect(row?.renewsUntil).not.toBeNull();
+    // revoking ends the connection: neither token works any more
+    await tokens.revoke(userId, row!.id);
+    expect(await tokens.verify(renewed.access_token)).toBeNull();
+    await expect(oauth.token({ grant_type: 'refresh_token', refresh_token: renewed.refresh_token })).rejects.toThrow();
+  });
+
+  it('refuses an access token after a day', async () => {
+    const granted = await trade(codeOf((await approve()).redirect));
+    await prisma.moneyApiToken.updateMany({ where: { userId, revokedAt: null, expiresAt: { not: null } }, data: { expiresAt: new Date(Date.now() - 1000) } });
+    expect(await tokens.verify(granted.access_token)).toBeNull();
+    // the refresh token still renews it
+    const renewed = await oauth.token({ grant_type: 'refresh_token', refresh_token: granted.refresh_token });
+    expect(await tokens.verify(renewed.access_token)).not.toBeNull();
   });
 
   it('refuses an expired code, and a code for another callback', async () => {
