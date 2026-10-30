@@ -211,7 +211,7 @@ export class EditionsService {
       level: unit.level,
       divider: unit.kind === 'divider',
       words: unit.words ?? 0,
-      state: CHAPTER_STATE[manifest?.state?.[unit.id] ?? ''] ?? ('pending' as ChapterState),
+      state: CHAPTER_STATE[manifest?.state?.[unit.id] ?? ''] ?? 'pending',
     }));
     const text = chapters.filter((c) => !c.divider);
     return {

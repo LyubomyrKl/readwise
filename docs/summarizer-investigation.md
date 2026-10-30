@@ -1521,7 +1521,26 @@ in round 3, so the calibration goes to the owner's ratings rather than being swi
 
 ### 21.3 Round 4
 
-ROUND4
+The round-3 chapters made again by the finished engine (§20.2's rules, Qwen checking `dense`), as it is
+("current") and with proofreading and the length calibration on ("tuned"; English gets neither):
+
+| Chapter | Version | Length | Fact-check fixes | Proofreading fixes | Seconds |
+|---|---|---|---|---|---|
+| Russell, ch. V (en) | current | 38% | 0 | 0 | 108 |
+| Russell, ch. V (en) | tuned | 38% | 1 | 0 | 114 |
+| Chekhov, *Остров Сахалин*, ch. 1 (ru) | current | 24% | 5 | 0 | 148 |
+| Chekhov, *Остров Сахалин*, ch. 1 (ru) | tuned | 28% | 3 | 1 | 189 |
+| «Хмельниччина» (uk) | current | 30% | 5 | 0 | 184 |
+| «Хмельниччина» (uk) | tuned | 39% | 5 | 0 | 214 |
+
+The tuned Russian and Ukrainian chapters are longer (24% -> 28%, 30% -> 39%, on their 27-40% targets) and
+proofreading changed one word ("на тонущем барке" -> "на тонущей барке"); its guard refused the checker's
+wrong suggestions ("Хабаровки" -> "Хабаровска", the town's old name, as Chekhov writes it; "уступить жену"
+-> "продать жену"). So round 4 mostly asks the owner about length. The blind page is
+`~/Downloads/summarizer-bench/review-round4.html` (key: `key-round4.json`, raw results in
+`results/round4`): ratings as in round 3 and a preference per chapter. If the owner prefers the tuned
+lengths, set `ABRIDGE_CALIBRATE_LENGTH=true`; proofreading (`ABRIDGE_PROOFREAD=true`) costs a Qwen call
+per part and fixed real slips in §21.2's texts without a wrong change.
 
 ---
 
