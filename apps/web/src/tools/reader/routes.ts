@@ -9,6 +9,6 @@ export const READER_ROUTES = Object.freeze({
   upload: `${BASE}/upload`,
   bookProfile: (id: string) => `${BASE}/book/${id}`,
   bookReader: (id: string) => `${BASE}/book/${id}/read`,
-  bookSummary: (id: string) => `${BASE}/book/${id}/summary`,
+  bookEdition: (id: string) => `${BASE}/book/${id}/edition`,
   settings: "/settings/reader",
 } as const);

@@ -34,14 +34,11 @@ class WorkerSettings(BaseSettings):
     s3_secret_access_key: str = "minioadmin"
     s3_book_bucket_name: str = "books"
     s3_extractions_bucket_name: str = "extractions"
-    s3_summaries_bucket_name: str = "summaries"
     s3_checkpoints_bucket_name: str = "checkpoints"
 
     # ---- LLM host (Ollama, started by hand)
     ollama_base_url: str = ""
-    ollama_model: str = ""
-    ollama_embed_model: str = ""
-    pipeline_mode: str = "balanced"
+    ollama_model: str = ""              # the default model; the edition uses it when ABRIDGE_MODEL is empty
     # context of every request (the server's default can be 4,096 tokens, which cut prompts silently)
     ollama_num_ctx: int = 32768
     ollama_timeout_seconds: float = 900.0

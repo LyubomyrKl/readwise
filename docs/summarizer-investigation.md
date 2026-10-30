@@ -1371,11 +1371,11 @@ below. How to run and configure it: `apps/workers/README.md` (the engine, the be
 | 1.2–1.5, 1.7 | Done in the current pipeline | `summarize/…`; `SummaryReader.tsx` |
 | 1.6 | Done: `q.py.reader_fast` (extract, ingest) and `q.py.reader` (summarize, abridge), one thread each; the API removes the old `jobs.reader.extract` binding | `topology.ts`; `handlers.py` |
 | 1.8 | Tokens and seconds per model in every edition's result, truncated replies counted; the bench | `abridge/llm.py`; `worker/bench` |
-| 1.9 | Withdrawn: the old pipeline keeps `qwen2.5`. With Gemma 4 (MLX) its `/v1/chat/completions` calls think by default and come back empty, and `format: json` is unavailable; editions set `ABRIDGE_MODEL` | `.env.example`; `docs/deploy.md` |
+| 1.9 | Withdrawn, then moot: with Gemma 4 (MLX) the old pipeline's `/v1/chat/completions` calls thought by default and came back empty, and `format: json` was unavailable; the pipeline went with 2.7 | — |
 | 2.1 | Done: the IR per file SHA-256, structure from the contents, the outline or fonts, section kinds in three languages, pictures, drop caps, language | `ingest/` |
 | 2.2–2.5 | Done as §8.4a describes, plus the fact-check of B.11 run book-wide | `abridge/` |
 | 2.6 | Done: endpoints, hooks, the panel with progress, the edition opens in the reader; the structure has an endpoint but no page yet | `editions/`; `EditionPanel.tsx` |
-| 2.7 | **Not done on purpose**: the old pipeline stays until the owner has read an edition of one of their own books | — |
+| 2.7 | Done on 2026-10-30 at the owner's request: the old pipeline, its API, page, table and models are gone (production had no old summaries) | `summarize/`, `extract/`, `reader/summaries` removed; migration `20261030000004_drop_old_summaries` |
 | 3.1 | Needs the owner's ratings of editions; the abstract-noun feature is in, as a small addition only | `density.py` |
 | 3.2 | One request in flight by design; the writer's fact-check prompts start with the source, so the server reuses its cache across a part's calls | `prompts.py` |
 | 3.3 | Not re-tested (no Ollama change since §10.5) | — |

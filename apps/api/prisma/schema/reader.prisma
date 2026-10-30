@@ -1,4 +1,4 @@
-// ===== reader tool: documents, reading, summaries =====
+// ===== reader tool: documents, reading, editions =====
 // Every table and enum carries the reader_ prefix so ownership is visible in psql.
 
 model Book {
@@ -20,8 +20,6 @@ model Book {
   /// state of the file itself; pipeline state lives in Job
   status                BookStatus @default(ready)
   errorMessage          String?
-  /// set by the reader.extract job; summaries are built from this object
-  extractionStorageKey  String?
   /// set by the reader.ingest job: the document IR in the extractions bucket (structure, pictures)
   irStorageKey          String?
   /// "en", "ru", "uk" or "other", detected by reader.ingest
@@ -34,7 +32,6 @@ model Book {
   user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   notes      Note[]
   highlights Highlight[]
-  summaries  Summary[]
   /// the abridged editions made of this book
   editions   Edition[]   @relation("EditionSource")
   /// set on a book that is itself an abridged edition
@@ -49,46 +46,6 @@ enum BookStatus {
   error
 
   @@map("reader_book_status")
-}
-
-enum SummaryType {
-  extractive
-  abstractive
-
-  @@map("reader_summary_type")
-}
-
-enum SummarizationStrategy {
-  basic
-  structured
-  two_pass
-  chain_of_density
-  hybrid
-
-  @@map("reader_summarization_strategy")
-}
-
-/// One requested summary of a book. storageKey is null until its job succeeds;
-/// progress and errors are read from the Job row referenced by jobId
-/// (no foreign key: platform tables stay unaware of tool tables).
-model Summary {
-  id         String                @id @default(cuid())
-  bookId     String
-  userId     String
-  type       SummaryType
-  strategy   SummarizationStrategy
-  percent    Float
-  storageKey String?
-  jobId      String?
-  createdAt  DateTime              @default(now())
-  updatedAt  DateTime              @updatedAt
-
-  book Book @relation(fields: [bookId], references: [id], onDelete: Cascade)
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([bookId, createdAt])
-  @@index([jobId])
-  @@map("reader_summary")
 }
 
 enum EditionLength {
@@ -109,7 +66,7 @@ enum EditionFigures {
 
 /// An abridged edition of a book: a reader.abridge job writes an EPUB to the books bucket and
 /// ReaderJobHooks adds it to the library as a book of its own (editionBookId). Progress and errors
-/// are read from the Job row referenced by jobId (no foreign key, as for summaries).
+/// are read from the Job row referenced by jobId (no foreign key: platform tables stay unaware of tool tables).
 model Edition {
   id            String         @id @default(cuid())
   bookId        String

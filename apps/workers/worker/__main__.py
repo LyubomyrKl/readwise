@@ -79,8 +79,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         while not stop.is_set() and any(t.is_alive() for t in threads):
             stop.wait(1.0)
-        # A running job stops at its next safe point (the summarizer: between sections, keeping its
-        # checkpoint) and reports a retryable failure. One that cannot within the grace period is
+        # A running job stops at its next safe point (an edition: before its next model call,
+        # keeping its manifest) and reports a retryable failure. One that cannot within the grace period is
         # reported here instead; the consumer threads are daemons and end with the process.
         deadline = time.monotonic() + settings.worker_shutdown_grace_seconds
         for thread in threads:

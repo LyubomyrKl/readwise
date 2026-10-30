@@ -1,3 +1,6 @@
+> **Superseded.** The pipeline these notes are about was removed on 2026-10-30; the reader now makes
+> abridged editions (`docs/summarizer-investigation.md`). Kept for the history it records.
+
 # Pipeline speed backlog (separate track, not part of the Workbench refactor)
 
 Date: 2026-10-24

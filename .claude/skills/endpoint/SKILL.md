@@ -25,7 +25,7 @@ The browser never calls the API directly. `apiFetch("/money/categories")` goes t
 ## Tests
 
 - A unit spec beside the service (`*.spec.ts`, run by `npm test`), with a small hand-written fake or `FakePrisma` from `apps/api/test/fakes`.
-- An e2e spec in `apps/api/test/e2e/*.e2e-spec.ts` boots the tool's module with `FakePrisma`, `FakeQueue`, a storage stub and the JWT guard overridden (model: `summaries.e2e-spec.ts`); extend `FakePrisma` if the model is new to it. Worth it when the endpoint has a flow (jobs, several calls) or a rejection to prove.
+- An e2e spec in `apps/api/test/e2e/*.e2e-spec.ts` boots the tool's module with `FakePrisma`, `FakeQueue`, a storage stub and the JWT guard overridden (model: `editions.e2e-spec.ts`); extend `FakePrisma` if the model is new to it. Worth it when the endpoint has a flow (jobs, several calls) or a rejection to prove.
 - Money ledger behaviour belongs in a DB spec under `apps/api/test/db` through `moneyHarness` (run with `/checks db`); the fakes do not run the triggers.
 - Web: `apps/web/__tests__/tools/*.test.ts` for api functions and hooks; components with Testing Library.
 - Finish with `/checks`.

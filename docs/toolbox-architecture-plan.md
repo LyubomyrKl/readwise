@@ -1,5 +1,8 @@
 # Readvise → Workbench (personal toolbox): Architecture Assessment and Migration Plan
 
+> **Note (2026-10-30).** The reader's summarizer this plan describes (`reader.extract`, `reader.summarize`)
+> has been replaced by abridged editions and removed; see `docs/summarizer-investigation.md`.
+
 Date: 2026-10-24, revision 2 (updated with the answers to the verification survey)
 Scope: `readwise-client` (Next.js), `readwise-gateway` (NestJS), `readwise-workers` (Python), `readwise-shared` (Prisma), `readwise-contracts`, `readwise-infra`.
 Status: assessment and plan only. No refactoring has been applied.

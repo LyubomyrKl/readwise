@@ -4,7 +4,7 @@ import { jobDuration, type JobResponse } from "@platform/jobs/types";
 
 const job = (overrides: Partial<JobResponse> = {}): JobResponse => ({
   id: "j1",
-  type: "reader.summarize",
+  type: "reader.abridge",
   toolId: "reader",
   userId: "u",
   status: "running",
@@ -26,7 +26,7 @@ describe("JobProgress", () => {
 
   it("draws an accessible bar and says how long the job has been running", () => {
     render(<JobProgress job={job({ startedAt: new Date(Date.now() - 12 * 60_000).toISOString() })} />);
-    expect(screen.getByRole("progressbar", { name: "Summarize progress" })).toHaveAttribute("aria-valuenow", "42");
+    expect(screen.getByRole("progressbar", { name: "Abridge progress" })).toHaveAttribute("aria-valuenow", "42");
     expect(screen.getByText("Running for 12 min")).toBeInTheDocument();
   });
 
@@ -52,7 +52,7 @@ describe("JobProgress", () => {
   });
 
   it("labels job types", () => {
-    expect(jobLabel("reader.summarize")).toBe("Summarize");
+    expect(jobLabel("reader.abridge")).toBe("Abridge");
     expect(jobLabel("x.two_pass")).toBe("Two pass");
   });
 });

@@ -5,7 +5,7 @@ import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 
 export class JobResponse {
   @ApiProperty() id!: string;
-  @ApiProperty({ example: 'reader.summarize' }) type!: string;
+  @ApiProperty({ example: 'reader.abridge' }) type!: string;
   @ApiProperty({ example: 'reader' }) toolId!: string;
   @ApiProperty() userId!: string;
   @ApiPropertyOptional({ nullable: true, example: 'book' }) subjectType?: string | null;
@@ -78,7 +78,7 @@ export class ListJobsQuery {
   @IsEnum(JobStatus)
   status?: JobStatus;
 
-  @ApiPropertyOptional({ example: 'reader.summarize' })
+  @ApiPropertyOptional({ example: 'reader.abridge' })
   @IsOptional()
   @IsString()
   type?: string;

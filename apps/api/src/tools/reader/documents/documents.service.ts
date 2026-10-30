@@ -25,8 +25,8 @@ import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.c
 import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse } from './document.helpers';
 
 /**
- * Owns the reader_book table and the objects behind it (file, cover,
- * extraction). Other reader sub-modules reach books through this service.
+ * Owns the reader_book table and the objects behind it (file, cover).
+ * Other reader sub-modules reach books through this service.
  */
 @Injectable()
 export class DocumentsService {
@@ -191,27 +191,18 @@ export class DocumentsService {
     return { status: 'success' };
   }
 
-  /** Records where the extraction worker stored the text of a book. */
-  async setExtraction(bookId: string, extractionStorageKey: string): Promise<void> {
-    await this.prisma.book.update({
-      where: { id: bookId },
-      data: { extractionStorageKey },
-    });
-  }
-
   /**
-   * Deletes the book's own objects (file, cover, extraction) and the row;
-   * Prisma cascades to notes, highlights and summaries. Objects the summaries
-   * sub-module owns are removed by SummariesService.deleteForBook first.
+   * Deletes the book's own objects (file, cover) and the row; Prisma cascades to
+   * notes, highlights and editions. The editions' objects are removed by
+   * EditionsService.deleteForBook first.
    * Storage failures are logged, not fatal: the row is the source of truth.
    */
   async deleteBook(userId: string, bookId: string): Promise<SuccessEmptyResponse> {
     const book = await this.getOwnedBook(userId, bookId);
 
-    const deletions: Array<[bucket: 'books' | 'covers' | 'extractions', key: string | null]> = [
+    const deletions: Array<[bucket: 'books' | 'covers', key: string | null]> = [
       ['books', book.fileStorageKey],
       ['covers', book.customCoverStorageKey],
-      ['extractions', book.extractionStorageKey],
     ];
     await Promise.all(
       deletions

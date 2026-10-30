@@ -6,7 +6,7 @@ export const readerManifest: ToolManifest = {
   id: "reader",
   name: "Reader",
   description:
-    "Upload PDF and EPUB books, read them with highlights and notes, and generate AI summaries.",
+    "Upload PDF and EPUB books, read them with highlights and notes, and make abridged editions of them.",
   icon: BookOpen,
   nav: [
     { title: "Library", icon: Library, href: READER_ROUTES.library },

@@ -1,1 +1,1 @@
-{ "v": 1, "jobId": "x", "type": "reader.extract", "toolId": "reader", "userId": "u", "attempt": 1, "payload": {} }
+{ "v": 1, "jobId": "x", "type": "reader.ingest", "toolId": "reader", "userId": "u", "attempt": 1, "payload": {} }

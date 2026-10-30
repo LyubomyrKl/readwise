@@ -1,4 +1,4 @@
-"""Summary objects: key layout and the metadata recorded next to them."""
+"""The storage wrapper: object metadata and the endpoint built from the settings."""
 from worker.platform.storage import S3Storage
 
 
@@ -14,27 +14,6 @@ def _storage():
     s = S3Storage.__new__(S3Storage)
     s.client = _FakeClient()
     return s
-
-
-def test_upload_summary_keys_by_book_and_summary_and_records_strategy():
-    s = _storage()
-
-    key = s.upload_summary(
-        bucket="summaries", book_id="book-1", summary_id="sum-1", summary_json='{"sections": []}',
-        summary_type="abstractive",
-        metadata={"original_tokens": 1200, "summary_tokens": 300, "compression_ratio": 0.25,
-                  "summarization_strategy": "two_pass"},
-    )
-
-    assert key == "summary/book-1/sum-1.json" == S3Storage.summary_key("book-1", "sum-1")
-    (put,) = s.client.puts
-    assert put["Bucket"] == "summaries" and put["Key"] == key
-    assert put["ContentType"] == "application/json"
-    assert put["Body"] == b'{"sections": []}'
-    assert put["Metadata"] == {
-        "book_id": "book-1", "summary_id": "sum-1", "summary_type": "abstractive", "original_tokens": "1200",
-        "summary_tokens": "300", "compression_ratio": "0.25", "summarization_strategy": "two_pass",
-    }
 
 
 def test_upload_text_makes_metadata_ascii_safe():

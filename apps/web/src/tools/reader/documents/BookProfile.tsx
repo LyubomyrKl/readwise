@@ -17,14 +17,11 @@ import {
   ArrowLeft,
   Award,
   TrendingUp,
-  Sparkles,
   Loader2,
   Trash2,
-  AlertTriangle,
+  Scissors,
 } from "lucide-react";
 import { IBook } from "@tools/reader/types";
-import { readerApi } from "@tools/reader/api";
-import { isActiveJob } from "@platform/jobs/types";
 import { useBookMutations } from "./useBookMutations";
 import { toast } from "sonner";
 import {
@@ -44,16 +41,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  SummaryType,
-  SummarizationStrategy,
-  SUMMARY_TYPES,
-  SUMMARIZATION_STRATEGIES,
-  STRATEGIES_WITH_EXTRACTIVE,
-  type NoteResponse,
-  type SummaryResponse,
-} from "@tools/reader/types";
+import type { NoteResponse } from "@tools/reader/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
 import { EditionStatusLine } from "@tools/reader/editions/EditionStatusLine";
@@ -62,8 +50,6 @@ interface BookProfileProps {
   book: IBook;
   /** The book's notes (fetched by the page through the reading endpoints). */
   notes: NoteResponse[];
-  /** The book's summaries, newest first. */
-  summaries: SummaryResponse[];
   onStartReading: () => void;
   onBack: () => void;
 }
@@ -71,7 +57,6 @@ interface BookProfileProps {
 export default function BookProfile({
   book,
   notes,
-  summaries,
   onStartReading,
   onBack,
 }: BookProfileProps) {
@@ -80,28 +65,6 @@ export default function BookProfile({
   const [isPending, startTransition] = useTransition();
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
-  const [showSummaryDialog, setShowSummaryDialog] = useState(false);
-  const latestSummary = summaries[0];
-  const readySummary = summaries.find((s) => s.state === "ready");
-  const [isGeneratingSummary, setIsGeneratingSummary] = useState(
-    !!latestSummary && isActiveJob(latestSummary.job?.status)
-  );
-  const [summaryType, setSummaryType] = useState<SummaryType>('abstractive');
-  const [strategy, setStrategy] = useState<SummarizationStrategy>('structured');
-
-  // The newest attempt ended without a summary.
-  const summaryFailed = !!latestSummary && (latestSummary.state === "failed" || latestSummary.state === "cancelled");
-
-  // Check if current strategy supports extractive mode
-  const supportsExtractiveMode = STRATEGIES_WITH_EXTRACTIVE.includes(strategy);
-
-  const handleStrategyChange = (newStrategy: SummarizationStrategy) => {
-    setStrategy(newStrategy);
-    // Auto-switch to abstractive if the new strategy doesn't support extractive
-    if (!STRATEGIES_WITH_EXTRACTIVE.includes(newStrategy) && summaryType === 'extractive') {
-      setSummaryType('abstractive');
-    }
-  };
 
   const { setFavorite, deleteBook } = useBookMutations();
 
@@ -162,29 +125,6 @@ export default function BookProfile({
     (book.spentTime - readingTimeHours) * 60
   );
 
-
-  const handleOpenSummaryDialog = () => {
-    setShowSummaryDialog(true);
-  };
-
-  const handleSummarize = async () => {
-    try {
-      setShowSummaryDialog(false);
-      setIsGeneratingSummary(true);
-
-      const created = await readerApi.summaries.create(book.id, {
-        summaryType,
-        summarizationStrategy: strategy,
-      });
-
-      toast.success(created.existing ? "A matching summary already exists" : "Summary generation started");
-      router.push(READER_ROUTES.bookSummary(book.id));
-    } catch (error) {
-      console.error("Error generating summary:", error);
-      setIsGeneratingSummary(false);
-      toast.error(error instanceof Error ? error.message : "Failed to generate summary. Please try again.");
-    }
-  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -338,147 +278,17 @@ export default function BookProfile({
                   </button>
                 </div>
 
-                {summaryFailed && !isGeneratingSummary && (
-                  <Alert variant="destructive">
-                    <AlertTriangle />
-                    <AlertTitle>Summary generation failed</AlertTitle>
-                    <AlertDescription className="break-words">
-                      {latestSummary?.job?.error ||
-                        "The last attempt did not finish. You can try again or delete the book."}
-                    </AlertDescription>
-                  </Alert>
-                )}
-
                 <div className="grid grid-cols-1 gap-2">
-                  {readySummary && !isGeneratingSummary ? (
-                    <button
-                      onClick={() =>
-                        (window.location.href = READER_ROUTES.bookSummary(book.id))
-                      }
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-all duration-300 text-sm font-medium"
-                    >
-                      <Sparkles className="h-4 w-4" />
-                      View Summary
-                    </button>
-                  ) : (
-                    <button
-                      onClick={handleOpenSummaryDialog}
-                      disabled={isGeneratingSummary}
-                      className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 disabled:from-gray-400 disabled:to-gray-500 text-white rounded-lg transition-all duration-300 text-sm font-medium disabled:cursor-not-allowed"
-                    >
-                      <Sparkles
-                        className={`h-4 w-4 ${
-                          isGeneratingSummary ? "animate-spin" : ""
-                        }`}
-                      />
-                      {isGeneratingSummary
-                        ? "Generating Summary..."
-                        : summaryFailed
-                          ? "Retry Summary"
-                          : "Generate Summary"}
-                    </button>
-                  )}
-                  {isGeneratingSummary && (
-                    <button
-                      onClick={() => router.push(READER_ROUTES.bookSummary(book.id))}
-                      className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors"
-                    >
-                      {latestSummary?.job?.status === "waiting"
-                        ? "Waiting for the LLM host. See progress"
-                        : `${latestSummary?.job?.stage || "In progress"}. See progress`}
-                    </button>
-                  )}
                   <button
-                    onClick={() => router.push(READER_ROUTES.bookSummary(book.id))}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm"
+                    onClick={() => router.push(READER_ROUTES.bookEdition(book.id))}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white rounded-lg transition-all duration-300 text-sm font-medium"
                     data-testid="abridged-edition-link"
                   >
-                    <BookOpen className="h-4 w-4" />
+                    <Scissors className="h-4 w-4" />
                     Abridged edition
                   </button>
                   <EditionStatusLine bookId={book.id} />
-                  {readySummary && summaries.length > 1 && (
-                    <p className="text-center text-xs text-muted-foreground">
-                      {summaries.filter((s) => s.state === "ready").length} summaries available
-                    </p>
-                  )}
                 </div>
-
-                {/* Summary Options Dialog */}
-                <AlertDialog open={showSummaryDialog} onOpenChange={setShowSummaryDialog}>
-                  <AlertDialogContent className="max-w-lg mx-4 sm:mx-auto">
-                    <AlertDialogHeader>
-                      <AlertDialogTitle className="flex items-center gap-2">
-                        <Sparkles className="h-5 w-5 text-purple-500" />
-                        Generate Summary
-                      </AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Choose how you want to summarize this book.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-
-                    <div className="space-y-4 py-4">
-                      {/* Strategy Selection */}
-                      <div>
-                        <label className="block text-sm font-medium mb-2">
-                          Summarization Strategy
-                        </label>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {SUMMARIZATION_STRATEGIES.map((s) => (
-                            <button
-                              key={s.value}
-                              onClick={() => handleStrategyChange(s.value)}
-                              className={`p-2 rounded-lg border-2 transition-all text-left ${
-                                strategy === s.value
-                                  ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
-                                  : 'border-border hover:border-purple-300'
-                              }`}
-                            >
-                              <div className="font-medium text-xs">{s.label}</div>
-                              <div className="text-[10px] text-muted-foreground mt-0.5 line-clamp-2">{s.description}</div>
-                            </button>
-                          ))}
-                        </div>
-                      </div>
-
-                      {/* Summary Type Selection - only for strategies that support it */}
-                      {supportsExtractiveMode && (
-                        <div>
-                          <label className="block text-sm font-medium mb-2">
-                            Summary Type
-                          </label>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {SUMMARY_TYPES.map((type) => (
-                              <button
-                                key={type.value}
-                                onClick={() => setSummaryType(type.value)}
-                                className={`p-2 rounded-lg border-2 transition-all text-left ${
-                                  summaryType === type.value
-                                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-950'
-                                    : 'border-border hover:border-purple-300'
-                                }`}
-                              >
-                                <div className="font-medium text-xs">{type.label}</div>
-                                <div className="text-[10px] text-muted-foreground mt-0.5">{type.description}</div>
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <AlertDialogFooter className="flex-col-reverse sm:flex-row gap-2">
-                      <AlertDialogCancel className="w-full sm:w-auto">Cancel</AlertDialogCancel>
-                      <AlertDialogAction
-                        onClick={handleSummarize}
-                        className="w-full sm:w-auto bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                      >
-                        <Sparkles className="h-4 w-4 mr-2" />
-                        Generate
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
               </div>
 
               {/* Quick Stats */}
@@ -494,7 +304,7 @@ export default function BookProfile({
                       {book.isFinished
                         ? "100%"
                         : `${Math.round(
-                            (book.pagePassCount / (Number(book.pageCount) || 1)) * 100
+                            (book.pagePassCount / Math.max(Number(book.pageCount), 1)) * 100
                           )}%`}
                     </span>
                   </div>
@@ -506,13 +316,13 @@ export default function BookProfile({
                         width: book.isFinished
                           ? "100%"
                           : `${Math.round(
-                              (book.pagePassCount / (Number(book.pageCount) || 1)) * 100
+                              (book.pagePassCount / Math.max(Number(book.pageCount), 1)) * 100
                             )}%`,
                       }}
                     />
                   </div>
 
-                  {book.pageCount && (
+                  {Number(book.pageCount) > 0 && (
                     <div className="flex justify-between text-xs text-muted-foreground">
                       <span>Page {book.pagePassCount}</span>
                       <span>of {Number(book.pageCount)}</span>
@@ -604,7 +414,7 @@ export default function BookProfile({
                   </div>
                 </div>
 
-                {book.pageCount && (
+                {Number(book.pageCount) > 0 && (
                   <div className="flex items-center gap-3">
                     <BookOpen className="h-4 w-4 text-muted-foreground" />
                     <div>
@@ -723,7 +533,7 @@ export default function BookProfile({
                   <div className="flex items-end gap-2 h-12">
                     {Array.from({ length: 7 }, (_, i) => {
                       const baseProgress =
-                        (book.pagePassCount / (Number(book.pageCount) || 1)) * 100;
+                        (book.pagePassCount / Math.max(Number(book.pageCount), 1)) * 100;
                       const dailyVariation = (Math.sin(i * 0.5) + 1) * 20;
                       const height = Math.min(
                         100,

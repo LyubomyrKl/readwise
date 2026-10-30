@@ -73,24 +73,26 @@ describe('QueueService', () => {
       expect(channel.assertQueue).toHaveBeenCalledWith(`${queue}.dlq`, { durable: true });
       expect(channel.bindQueue).toHaveBeenCalledWith(`${queue}.dlq`, 'workbench.dlx', queue);
     }
-    // LLM work on the heavy queue, extraction and ingest on the fast one; the old extract binding goes
-    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.summarize');
+    // LLM work on the heavy queue, ingest on the fast one; the old summarizer's bindings go
     expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.abridge');
-    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader_fast', 'workbench.jobs', 'jobs.reader.extract');
     expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader_fast', 'workbench.jobs', 'jobs.reader.ingest');
-    expect(channel.bindQueue).not.toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.extract');
+    for (const old of ['jobs.reader.extract', 'jobs.reader.summarize']) {
+      expect(channel.bindQueue).not.toHaveBeenCalledWith(expect.anything(), 'workbench.jobs', old);
+    }
     expect(channel.unbindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.extract');
+    expect(channel.unbindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.summarize');
+    expect(channel.unbindQueue).toHaveBeenCalledWith('q.py.reader_fast', 'workbench.jobs', 'jobs.reader.extract');
     expect(channel.bindQueue).toHaveBeenCalledWith('q.api.job-events', 'workbench.job-events', 'job.#');
     expect(channel.deleteQueue).toHaveBeenCalledWith('extract_request');
     expect(channel.deleteQueue).toHaveBeenCalledWith('summary_request');
   });
 
   it('publishes persistent JSON with the given routing key and merges options', async () => {
-    await service.publish(EXCHANGES.jobs, 'jobs.reader.extract', { v: 1 }, { messageId: 'job-1' });
+    await service.publish(EXCHANGES.jobs, 'jobs.reader.ingest', { v: 1 }, { messageId: 'job-1' });
 
     expect(mockPublish).toHaveBeenCalledWith(
       'workbench.jobs',
-      'jobs.reader.extract',
+      'jobs.reader.ingest',
       { v: 1 },
       expect.objectContaining({ persistent: true, contentType: 'application/json', messageId: 'job-1' }),
     );

@@ -10,7 +10,7 @@ export function isActiveJob(status: JobStatus | undefined | null): boolean {
 
 export interface JobResponse {
   id: string;
-  /** "<toolId>.<name>", e.g. "reader.summarize" */
+  /** "<toolId>.<name>", e.g. "reader.abridge" */
   type: string;
   toolId: string;
   userId: string;

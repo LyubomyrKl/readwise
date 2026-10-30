@@ -6,7 +6,7 @@ import type { JobResponse } from "@platform/jobs/types";
 jest.mock("@platform/jobs/api", () => ({ jobsApi: { get: jest.fn(), cancel: jest.fn(), retry: jest.fn() } }));
 
 const job = (overrides: Partial<JobResponse> = {}): JobResponse => ({
-  id: "j1", type: "reader.summarize", toolId: "reader", userId: "u", status: "running", progress: 10,
+  id: "j1", type: "reader.abridge", toolId: "reader", userId: "u", status: "running", progress: 10,
   attempts: 1, maxAttempts: 3, createdAt: "2026-10-27T10:00:00Z", ...overrides,
 });
 

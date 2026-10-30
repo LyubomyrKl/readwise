@@ -18,7 +18,7 @@ jest.mock("@embedpdf/plugin-zoom/react", () => ({ useZoom: () => ({ provides: nu
 
 const book: IBook = {
   id: "b1", title: "Paper", author: "A", fileUrl: "/api/gw/reader/documents/b1/download", spentTime: 0, pagePassCount: 0,
-  isFinished: false, isFavorite: false, mime: "application/pdf", sizeBytes: "1", status: "ready", hasExtraction: false,
+  isFinished: false, isFavorite: false, mime: "application/pdf", sizeBytes: "1", status: "ready",
   noteCount: 0, highlightCount: 0, createdAt: "2026-10-25T00:00:00Z", updatedAt: "2026-10-25T00:00:00Z",
 };
 

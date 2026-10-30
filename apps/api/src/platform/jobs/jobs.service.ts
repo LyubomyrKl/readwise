@@ -22,7 +22,7 @@ import {
 import { ACTIVE_JOB_STATUSES, JobEventContext, JobHooks, TERMINAL_JOB_STATUSES, isActive, isTerminal } from './job-hooks';
 
 export interface EnqueueInput {
-  /** "<toolId>.<name>", e.g. "reader.extract" */
+  /** "<toolId>.<name>", e.g. "reader.ingest" */
   type: string;
   toolId: string;
   userId: string;

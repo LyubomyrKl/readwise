@@ -21,8 +21,8 @@ export interface Completion {
 }
 
 /**
- * LLM calls for Node tools, against the same Ollama host and models the Python
- * workers use (OLLAMA_BASE_URL, OLLAMA_MODEL, OLLAMA_EMBED_MODEL). Speaks the
+ * LLM calls for Node tools, against the Ollama host the Python workers use
+ * (OLLAMA_BASE_URL, OLLAMA_MODEL; OLLAMA_EMBED_MODEL for embeddings). Speaks the
  * OpenAI-compatible chat API, so a hosted provider is a base-URL change. Short
  * requests only: anything that can run for minutes belongs in a job handler.
  */

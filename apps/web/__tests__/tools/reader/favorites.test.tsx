@@ -23,7 +23,7 @@ class Boundary extends Component<{ children: ReactNode }, { error: Error | null 
 const book: IBook = {
   id: "b1", title: "Dune", author: "Frank Herbert", fileUrl: "/api/gw/reader/documents/b1/download", spentTime: 0,
   pagePassCount: 0, isFinished: false, isFavorite: false, mime: "application/pdf", sizeBytes: "1024", status: "ready",
-  hasExtraction: false, noteCount: 0, highlightCount: 0, createdAt: "2026-10-25T00:00:00Z", updatedAt: "2026-10-25T00:00:00Z",
+  noteCount: 0, highlightCount: 0, createdAt: "2026-10-25T00:00:00Z", updatedAt: "2026-10-25T00:00:00Z",
 };
 
 function renderInApp(ui: ReactNode) {
@@ -82,7 +82,7 @@ describe("favorite toggles", () => {
     it("reverts the heart to its real previous value and reports a failed request", async () => {
       setFavorite.mockRejectedValue(new Error("Failed to fetch"));
       const { container } = renderInApp(
-        <BookProfile book={{ ...book, isFavorite: true }} notes={[]} summaries={[]} onStartReading={() => {}} onBack={() => {}} />
+        <BookProfile book={{ ...book, isFavorite: true }} notes={[]} onStartReading={() => {}} onBack={() => {}} />
       );
       expect(heart(container).querySelector("svg")).toHaveClass("fill-current");
 

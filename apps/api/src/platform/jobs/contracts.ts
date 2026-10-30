@@ -8,7 +8,7 @@ import { z } from 'zod';
 
 export const CONTRACT_VERSION = 1;
 
-/** "<toolId>.<name>", e.g. "reader.extract"; the routing key is "jobs.<type>". */
+/** "<toolId>.<name>", e.g. "reader.ingest"; the routing key is "jobs.<type>". */
 export const JOB_TYPE_PATTERN = /^[a-z][a-z0-9_]*\.[a-z][a-z0-9_]*$/;
 
 export const jobEnvelopeSchema = z

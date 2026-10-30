@@ -23,7 +23,6 @@
     "build:api": "turbo run build --filter=@workbench/api",
     "test:e2e": "npm run test:e2e --workspace apps/api",
     "test:workers": "scripts/test-workers.sh",
-    "smoke": "scripts/smoke-summary.sh",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,mjs,cjs,json,md,css,scss,yaml,yml}\""
   },

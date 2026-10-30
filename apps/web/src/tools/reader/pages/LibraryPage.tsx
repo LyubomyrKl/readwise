@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import React, { useMemo } from "react";
 import { LastReadCard, LibraryFilters, BooksGrid } from "@tools/reader/documents/library";
 import { useCoverGradient } from "@tools/reader/documents/useCoverGradient";
-import { useBooks, useLatestSummaries } from "@tools/reader/queries";
+import { useBooks } from "@tools/reader/queries";
 import { IBook } from "@tools/reader/types";
 import { filterAndSortBooks } from "@tools/reader/documents/library/utils";
 
@@ -21,9 +21,7 @@ export default function LibraryPage() {
     "recent" | "progress" | "alphabetical" | "time"
   >("recent");
   const booksQuery = useBooks();
-  const latestSummaries = useLatestSummaries();
   const books = useMemo(() => booksQuery.data ?? [], [booksQuery.data]);
-  const summaries = latestSummaries.data ?? {};
   const loading = booksQuery.isPending;
   const error = booksQuery.error ? booksQuery.error.message || "Failed to fetch books" : null;
 
@@ -77,7 +75,6 @@ export default function LibraryPage() {
           filteredBooks={filtered}
           loading={loading}
           error={error}
-          summaries={summaries}
         />
       </section>
     </div>

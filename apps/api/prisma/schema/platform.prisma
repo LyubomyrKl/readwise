@@ -22,7 +22,6 @@ model User {
   books         Book[]
   notes         Note[]
   highlights    Highlight[]
-  summaries     Summary[]
   editions      Edition[]
 
   moneySettings      MoneySettings?
@@ -88,7 +87,7 @@ model RefreshToken {
 /// workers acknowledge the queue message on claim and report through events.
 model Job {
   id            String    @id @default(cuid())
-  /// "reader.extract", "reader.summarize", ... (routing key is "jobs.<type>")
+  /// "reader.ingest", "reader.abridge", ... (routing key is "jobs.<type>")
   type          String
   toolId        String
   userId        String

@@ -1,8 +1,9 @@
 # Workbench
 
-A personal toolbox. The first tool is a reader with an AI summarizer: upload
-PDF/EPUB books, read them, keep highlights and notes, and generate structured
-summaries with a local LLM (Ollama). The second is money: accounts, movements and
+A personal toolbox. The first tool is a reader: upload PDF/EPUB books, read them,
+keep highlights and notes, and make abridged editions of them with a local LLM
+(Ollama): the book's own chapters, each with a short summary, compressed by how dense
+each part is, with its pictures. The second is money: accounts, movements and
 investments in a double-entry ledger ([`docs/money/`](docs/money/plan.md), built milestone by milestone),
 which Claude can read through an MCP server ([`docs/money/claude-access.md`](docs/money/claude-access.md)).
 
@@ -14,12 +15,12 @@ The architecture and the migration plan live in
 | Path | Stack | What |
 |---|---|---|
 | `apps/web` | Next.js 16, React 19, Tailwind 4 | web app: the shell in `src/platform`, one directory per tool in `src/tools/<id>` (mounted at `/apps/<id>`), one-line route files under `app/`; five server-side routes: the four auth routes that set the session cookies and the generic proxy `/api/gw/*` |
-| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, summaries; money: ledger and investments); the only code that touches the database |
-| `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: extraction (pdfplumber/ebooklib) and the summarization pipeline (Ollama); database-free, reports through job events |
+| `apps/api` | NestJS 11, Prisma 6, RabbitMQ, S3 | HTTP API: `src/platform` (auth, users, storage, queue, jobs, health) and `src/tools/<id>` (the reader: documents, reading, editions; money: ledger and investments); the only code that touches the database |
+| `apps/workers` | Python 3.11 | job consumer (`python -m worker`) with the reader's handlers: ingest (the book's structure, pictures and language; PyMuPDF, BeautifulSoup) and the abridged edition (Ollama); database-free, reports through job events |
 | `packages/contracts` | JSON Schema | the job and event envelopes shared by the API (zod) and the workers (pydantic), with fixtures both test against |
 | `infra/` | Caddy, backup | host-side files used by `docker-compose.yml` |
-| `scripts/` | bash, Python | `smoke-summary.sh`, `test-workers.sh`, the sample PDF fixture |
-| `docs/` | markdown | plan, pipeline speed backlog, `money/` requirements, plan and Claude access |
+| `scripts/` | bash, Python | `test-workers.sh`, the sample PDF fixture |
+| `docs/` | markdown | plan, the summarizer investigation (the edition engine), deployment, `money/` requirements, plan and Claude access |
 
 `apps/web` and `apps/api` are npm workspaces orchestrated by Turborepo; one
 `package-lock.json` at the root. `apps/workers` is a Python project (`pyproject.toml`).
@@ -51,12 +52,6 @@ MinIO stopped publishing container images in 2025, so `minio/minio:latest` is
 used with `pull_policy: missing`: it runs from the image already cached on the
 host. For a fresh host, copy it over with
 `docker save minio/minio:latest | ssh <host> docker load`.
-
-Smoke-test a running stack (needs the workers and the Ollama host):
-
-```bash
-API_URL=http://127.0.0.1:5173/api scripts/smoke-summary.sh
-```
 
 ### Upgrading from the pre-migration deployment
 
@@ -150,8 +145,8 @@ cd apps/api && npx prisma migrate dev --name <change>   # writes prisma/schema/m
 ```
 
 In Docker the one-shot `migrate` service runs `prisma migrate deploy` before `api`
-and `workers` start. Phase 4 regenerated the initial migration (job and summary
-tables, prefixed reader tables); a database created by an earlier phase must be
+and `workers` start. Phase 4 regenerated the initial migration (job tables, prefixed reader
+tables); a database created by an earlier phase must be
 reset once before this version starts: `docker compose down -v` (data is disposable)
 or `docker compose run --rm migrate node /repo/node_modules/prisma/build/index.js migrate reset --force`.
 
@@ -162,21 +157,18 @@ An upload queues `reader.ingest`, which reads the book's structure, pictures and
 `reader.abridge`, which makes the abridged edition (each chapter with a short summary, compressed by
 how dense each part is, with its pictures) as an EPUB that the API adds to the library as a book of
 its own; the worker's README and docs/summarizer-investigation.md describe the engine.
-A summary request creates `Job` rows (`reader.extract`, then `reader.summarize`) and
-publishes an envelope to RabbitMQ (`workbench.jobs`, routing key `jobs.<type>`). The
-worker acknowledges on claim and reports `started`, `progress`, `waiting`, `succeeded`
-or `failed` on `workbench.job-events`; the API updates the row and calls the reader's
-hook, which stores the extraction key on the book and the storage key on the summary.
+Each request creates a `Job` row and publishes an envelope to RabbitMQ (`workbench.jobs`,
+routing key `jobs.<type>`). The worker acknowledges on claim and reports `started`,
+`progress`, `waiting`, `succeeded` or `failed` on `workbench.job-events`; the API updates
+the row and calls the reader's hook, which stores the IR on the book and adds a finished
+edition to the library.
 A job whose heartbeat stops for `JOBS_LEASE_SECONDS` is re-published (up to
 `JOBS_MAX_ATTEMPTS`), a job whose LLM host is down shows `waiting` and resumes by
-itself. Every job keeps a `timeline` of its stage and status changes, and the
-reader's jobs report their own numbers in `result.metadata` (extraction seconds and
-characters; segmentation and summarization seconds, section and chunk counts, LLM and
-embedding call counts), which is the baseline the pipeline-speed track
-(`docs/pipeline-speed-backlog.md`) starts from. Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
+itself. Every job keeps a `timeline` of its stage and status changes, and an edition reports its
+own numbers in its result (words, chapters, tokens and seconds per model, fact-check fixes). Inspect and act with `GET /api/jobs`, `GET /api/jobs/:id`,
 `GET /api/jobs/:id/stream` (server-sent events: the current state, then one event per
 change, closed after the terminal state), `POST /api/jobs/:id/cancel` and
-`POST /api/jobs/:id/retry`. The dashboard lists recent jobs and the summary page follows
+`POST /api/jobs/:id/retry`. The dashboard lists recent jobs and the edition page follows
 its job through the stream (polling when the stream is unavailable); dead-lettered
 messages land in the `*.dlq` queues (RabbitMQ management UI).
 
@@ -187,7 +179,6 @@ npm run lint && npm run typecheck && npm test   # Turborepo across web + api
 npm run test:e2e                                # api e2e with mocked infrastructure
 npm run test:db --workspace apps/api            # money ledger rules against the Postgres at DATABASE_URL (migrated)
 npm run test:workers                            # pytest in python:3.11-slim
-npm run smoke                                   # end to end against a running stack
 ```
 
 CI (`.github/workflows/ci.yml`) runs the same plus a migration drift check and

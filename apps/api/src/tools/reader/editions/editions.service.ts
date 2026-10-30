@@ -6,7 +6,6 @@ import { JobsService } from '@platform/jobs/jobs.service';
 import { toJobResponse } from '@platform/jobs/job.models';
 import { isActive } from '@platform/jobs/job-hooks';
 import { DocumentsService } from '../documents/documents.service';
-import { READER_TOOL_ID } from '../summaries/summaries.service';
 import {
   ChapterState,
   CreateEditionDto,
@@ -17,6 +16,7 @@ import {
   EditionState,
 } from './edition.models';
 
+export const READER_TOOL_ID = 'reader';
 export const JOB_INGEST = 'reader.ingest';
 export const JOB_ABRIDGE = 'reader.abridge';
 export const EDITION_MIME = 'application/epub+zip';

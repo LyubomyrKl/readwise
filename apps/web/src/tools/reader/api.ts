@@ -9,15 +9,11 @@ import type {
   CreateNoteDto,
   CreateEditionDto,
   CreateEditionResponse,
-  CreateSummaryDto,
-  CreateSummaryResponse,
   EditionProgressResponse,
   EditionResponse,
   HighlightResponse,
   NoteResponse,
   ReadingPosition,
-  SummaryContentResponse,
-  SummaryResponse,
   UpdateHighlightDto,
   UpdateNoteDto,
 } from "./types";
@@ -79,16 +75,5 @@ export const readerApi = {
     updateNote: (id: string, dto: UpdateNoteDto) =>
       apiFetch<NoteResponse>(`/reader/notes/${enc(id)}`, { method: "PATCH", json: dto }),
     deleteNote: (id: string) => apiFetch<Ok>(`/reader/notes/${enc(id)}`, { method: "DELETE" }),
-  },
-
-  summaries: {
-    create: (bookId: string, dto: CreateSummaryDto) =>
-      apiFetch<CreateSummaryResponse>(`/reader/documents/${enc(bookId)}/summaries`, { method: "POST", json: dto }),
-    listForBook: (bookId: string) => apiFetch<SummaryResponse[]>(`/reader/documents/${enc(bookId)}/summaries`),
-    /** every summary of the user; latestPerBook keeps only the newest of each document */
-    listAll: (opts: { latestPerBook?: boolean; limit?: number } = {}) =>
-      apiFetch<SummaryResponse[]>("/reader/summaries", { query: opts }),
-    get: (summaryId: string) => apiFetch<SummaryResponse>(`/reader/summaries/${enc(summaryId)}`),
-    content: (summaryId: string) => apiFetch<SummaryContentResponse>(`/reader/summaries/${enc(summaryId)}/content`),
   },
 };

@@ -20,7 +20,6 @@ export function makeBook(overrides: Partial<BookRow> = {}): BookRow {
     fileStorageKey: 'user-1-1-a-book.pdf',
     status: 'ready',
     errorMessage: null,
-    extractionStorageKey: null,
     lastAccessed: new Date('2026-01-01T00:00:00Z'),
     readingPosition: null,
     createdAt: new Date('2026-01-01T00:00:00Z'),

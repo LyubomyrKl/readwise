@@ -148,8 +148,8 @@ working DNS: `getent hosts registry-1.docker.io` must answer, else `tailscale se
    set_env CADDY_MEM_LIMIT 128m
    ```
 
-   Also check `OLLAMA_MODEL` and `OLLAMA_EMBED_MODEL` against the models the Ollama machine has
-   (`curl http://<ip>:11434/api/tags`). If Compose complains about the comment after `API_PORT`,
+   Also check `OLLAMA_MODEL`, `ABRIDGE_MODEL` and `ABRIDGE_CHECK_MODEL` against the models the Ollama
+   machine has (`curl http://<ip>:11434/api/tags`). If Compose complains about the comment after `API_PORT`,
    remove the comment.
 
 5. **Private ports** (Rule 5): `/opt/workbench/docker-compose.override.yml`
@@ -187,7 +187,7 @@ working DNS: `getent hosts registry-1.docker.io` must answer, else `tailscale se
    docker compose exec -T workers python -c "import os,urllib.request;print(urllib.request.urlopen(os.environ['OLLAMA_BASE_URL'].rstrip('/')+'/api/tags',timeout=8).status)"
    ```
 
-   The last check fails while the Ollama machine is asleep or off Tailscale; summaries then wait
+   The last check fails while the Ollama machine is asleep or off Tailscale; editions then wait
    and continue when it is back.
 
 9. **Tailscale** (Rule 6):
@@ -221,21 +221,18 @@ OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 o
 ```
 
 - **Context.** Without `OLLAMA_CONTEXT_LENGTH` a model gets a 4,096-token context and longer prompts are cut
-  without an error (the old summarizer lost most of each section that way). The workers also ask for
+  without an error (the old summarizer, removed since, lost most of each section that way). The workers also ask for
   `OLLAMA_NUM_CTX` (32768) on every request, so a forgotten variable costs a reload, not the text.
-- **Models**, pulled once (about 52 GB):
+- **Models**, pulled once (about 41 GB):
 
   ```bash
-  ollama pull gemma4:26b-mlx     # writes the edition, describes pictures, reads scans (ABRIDGE_MODEL)
+  ollama pull gemma4:26b-mlx     # writes the edition, describes pictures, reads scans (ABRIDGE_MODEL, OLLAMA_MODEL)
   ollama pull qwen3.6:35b-mlx    # lists suspected errors for the fact-check (ABRIDGE_CHECK_MODEL)
-  ollama pull qwen2.5:14b-instruct-q5_K_M   # the old summarizer (OLLAMA_MODEL), until it is removed
-  ollama pull bge-m3             # the old summarizer's segmentation (OLLAMA_EMBED_MODEL)
   ```
 
-  The old summarizer cannot move to Gemma 4 by changing `OLLAMA_MODEL`: on the OpenAI-style endpoint
-  it calls, Gemma thinks by default (the thinking used the whole answer budget, the answer came back
-  empty), and its MLX build answers `format: json` with "structured output is unavailable".
-  Nothing else is needed on the Mac; other models can go (`ollama rm`).
+  Nothing else is needed on the Mac; other models can go (`ollama rm`). The workers call Ollama's own
+  `/api/chat` with `think: false`: on the OpenAI-style endpoint Gemma 4 thinks by default, and with a
+  small token budget the thinking used all of it and the answer came back empty.
 
   An edition checks the models when it starts: a missing writer fails it at once with the `ollama pull`
   command in the error; a missing checker only skips the fact-check (a warning on the edition).
@@ -250,10 +247,10 @@ OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 o
 - **Settings** (root `.env`): `ABRIDGE_MODEL`, `ABRIDGE_CHECK_MODEL` (empty: no fact-check),
   `ABRIDGE_VISION_MODEL` (default the writer), `ABRIDGE_FACTCHECK` (`dense`: only parts dense in names
   and numbers, the default; `all`; `off`), `ABRIDGE_OCR` (read scanned PDF pages, default on).
-- **Queues.** The worker consumes `q.py.reader` (summaries and editions, minutes to hours) and
-  `q.py.reader_fast` (extraction and the structure read on upload, seconds) with one thread each
-  (`WORKER_QUEUES=reader,reader_fast`), so an upload never waits behind a book. The API removes the
-  old `jobs.reader.extract` binding from `q.py.reader` when it connects.
+- **Queues.** The worker consumes `q.py.reader` (editions, minutes to hours) and `q.py.reader_fast`
+  (the structure read on upload, seconds) with one thread each (`WORKER_QUEUES=reader,reader_fast`),
+  so an upload never waits behind a book. The API removes the old summarizer's bindings
+  (`jobs.reader.extract`, `jobs.reader.summarize`) when it connects.
 
 ## Updating to a new commit
 
@@ -308,14 +305,14 @@ OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 o
 `docker compose --profile backup up -d` starts the nightly dump into the `workbench_backups`
 volume (verified, pruned only after a good dump, with a restore drill); the details are in
 `infra/README.md`. Off-server copies need an rclone crypt remote (`BACKUP_REMOTE`). The dump holds
-the database only; uploaded books and summaries live in the `workbench_minio` volume. Mind the
+the database only; uploaded books and editions live in the `workbench_minio` volume. Mind the
 disk (Rule 3): dumps grow with the data.
 
 ## Troubleshooting
 
 | Symptom | Cause and fix |
 |---|---|
-| Summaries stay "waiting" | The Ollama machine is asleep or off Tailscale. Jobs resume when it answers; check with the `workers` command in First deployment, step 8. |
+| Editions stay "waiting" | The Ollama machine is asleep or off Tailscale. Jobs resume when it answers; check with the `workers` command in First deployment, step 8. |
 | An edition fails at once with "is not on the LLM host" | The writer model is not pulled on the Mac: run the `ollama pull` from the error (The LLM host). |
 | An edition is slow | Expect about 10 s per 1,000 English words and 15 s for Russian or Ukrainian, about three times that with the fact-check on every part; `ABRIDGE_FACTCHECK=dense` (default) or `off` trades checking for time. A stopped edition continues from its last finished chapter. |
 | Workers cannot reach `100.x.y.z` | Tailscale on the server must run with its `tailscale0` interface (not userspace networking), so Docker traffic routes into the tailnet. |

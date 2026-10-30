@@ -1,0 +1,20 @@
+{
+  "v": 1,
+  "jobId": "cm2abridge0000000000001",
+  "type": "reader.abridge",
+  "toolId": "reader",
+  "userId": "cm2user000000000000001",
+  "attempt": 2,
+  "correlationId": "cm2edition000000000001",
+  "publishedAt": "2026-10-25T10:01:35.000Z",
+  "payload": {
+    "bookId": "4b3c5f1e-0c4e-4d8a-9c1a-0f6b5e3a2d11",
+    "editionId": "cm2edition000000000001",
+    "fileStorageKey": "cm2user000000000000001-1761350000000-book.pdf",
+    "mime": "application/pdf",
+    "title": "A Book",
+    "author": "An Author",
+    "length": "standard",
+    "figures": "key"
+  }
+}

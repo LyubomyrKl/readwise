@@ -20,7 +20,7 @@ export class ReadingPositionResponse {
 
 /**
  * A document in the library. Notes and highlights are fetched through the
- * reading endpoints and summaries through /reader/documents/:id/summaries;
+ * reading endpoints and editions through /reader/documents/:id/editions;
  * only the note and highlight counts travel with the book.
  */
 export class BookResponse {
@@ -66,14 +66,11 @@ export class BookResponse {
   @ApiProperty()
   sizeBytes!: string;
 
-  @ApiProperty({ description: 'State of the file itself: ready | error. Summary state lives on the summaries and their jobs.' })
+  @ApiProperty({ description: 'State of the file itself: ready | error. Edition state lives on the editions and their jobs.' })
   status!: string;
 
   @ApiPropertyOptional({ nullable: true, description: 'File-level error, present when status is "error"' })
   errorMessage?: string | null;
-
-  @ApiProperty({ description: 'True once the text has been extracted (a summary request skips the extract job)' })
-  hasExtraction!: boolean;
 
   @ApiProperty({ description: 'true once reader.ingest has read the structure (GET /reader/documents/:id/structure)' })
   hasStructure!: boolean;

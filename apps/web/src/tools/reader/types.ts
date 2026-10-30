@@ -4,7 +4,6 @@
  * generate noisier types than these few interfaces.
  */
 import type { JobResponse } from "@platform/jobs/types";
-import type { Summary } from "./summaries/types";
 
 // ---- documents --------------------------------------------------------------------------
 
@@ -54,7 +53,6 @@ export interface BookResponse {
   /** state of the file itself */
   status: "ready" | "error";
   errorMessage?: string | null;
-  hasExtraction: boolean;
   /** the structure (contents, pictures, language) was read on upload */
   hasStructure?: boolean;
   /** "en", "ru", "uk" or "other" */
@@ -135,60 +133,6 @@ export interface NoteResponse {
   createdAt: string;
   updatedAt: string;
   deletedAt?: string | null;
-}
-
-// ---- summaries --------------------------------------------------------------------------
-
-export type SummaryType = "extractive" | "abstractive";
-
-export const SUMMARY_TYPES: { value: SummaryType; label: string; description: string }[] = [
-  { value: "extractive", label: "Extractive", description: "Extracts key sentences directly from the text" },
-  { value: "abstractive", label: "Abstractive", description: "Generates new text that paraphrases the content" },
-];
-
-export type SummarizationStrategy = "basic" | "structured" | "two_pass" | "chain_of_density" | "hybrid";
-
-export const SUMMARIZATION_STRATEGIES: { value: SummarizationStrategy; label: string; description: string }[] = [
-  { value: "basic", label: "Basic", description: "Simple and fast summarization" },
-  { value: "structured", label: "Structured", description: "Better prompts with strict constraints (recommended)" },
-  { value: "two_pass", label: "Two-Pass", description: "Extracts key info, then synthesizes (best factuality)" },
-  { value: "chain_of_density", label: "Chain of Density", description: "Progressive density increase (most information-dense)" },
-  { value: "hybrid", label: "Hybrid", description: "Extractive then abstractive (best for technical content)" },
-];
-
-/** Only these strategies support the extractive mode. */
-export const STRATEGIES_WITH_EXTRACTIVE: readonly SummarizationStrategy[] = ["basic", "structured"];
-
-export type SummaryState = "queued" | "running" | "waiting" | "ready" | "failed" | "cancelled";
-
-export interface CreateSummaryDto {
-  summaryType?: SummaryType;
-  summarizationStrategy?: SummarizationStrategy;
-}
-
-export interface CreateSummaryResponse {
-  summaryId: string;
-  jobId: string;
-  extractJobId?: string | null;
-  existing: boolean;
-  storageKey?: string | null;
-}
-
-export interface SummaryResponse {
-  id: string;
-  bookId: string;
-  type: SummaryType;
-  strategy: SummarizationStrategy;
-  percent: number;
-  storageKey?: string | null;
-  jobId?: string | null;
-  state: SummaryState;
-  job?: JobResponse | null;
-  createdAt: string;
-}
-
-export interface SummaryContentResponse extends SummaryResponse {
-  summary: Summary;
 }
 
 // ---- abridged editions -------------------------------------------------------------------

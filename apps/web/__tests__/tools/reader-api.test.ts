@@ -27,7 +27,6 @@ const book = (overrides: Partial<BookResponse> = {}): BookResponse => ({
   mime: "application/pdf",
   sizeBytes: "1",
   status: "ready",
-  hasExtraction: false,
   noteCount: 0,
   highlightCount: 0,
   createdAt: "2026-10-25T00:00:00Z",
@@ -57,15 +56,15 @@ describe("readerApi", () => {
 
   it("targets the reader endpoints with the right methods", async () => {
     fetchMock.mockResolvedValue(res(200, {}));
-    await readerApi.summaries.create("b1", { summaryType: "abstractive", summarizationStrategy: "two_pass" });
-    await readerApi.summaries.listAll({ latestPerBook: true });
+    await readerApi.editions.create("b1", { length: "standard", figures: "key" });
+    await readerApi.editions.progress("e1");
     await readerApi.reading.updateNote("n1", { isPinned: true });
     await readerApi.documents.delete("b 1");
 
     const calls = fetchMock.mock.calls.map(([url, init]: [string, RequestInit]) => [init.method ?? "GET", url]);
     expect(calls).toEqual([
-      ["POST", "/api/gw/reader/documents/b1/summaries"],
-      ["GET", "/api/gw/reader/summaries?latestPerBook=true"],
+      ["POST", "/api/gw/reader/documents/b1/editions"],
+      ["GET", "/api/gw/reader/editions/e1/progress"],
       ["PATCH", "/api/gw/reader/notes/n1"],
       ["DELETE", "/api/gw/reader/documents/b%201"],
     ]);

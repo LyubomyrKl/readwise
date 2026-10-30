@@ -62,8 +62,8 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     const server = app.getHttpServer();
     await request(server).get('/api/jobs').expect(401);
     await request(server).get('/api/reader/documents').expect(401);
-    await request(server).get('/api/reader/documents/book-1/summaries').expect(401);
-    await request(server).get('/api/reader/summaries').expect(401);
+    await request(server).get('/api/reader/documents/book-1/editions').expect(401);
+    await request(server).get('/api/reader/editions/ed-1/progress').expect(401);
     await request(server).get('/api/reader/documents/book-1/notes').expect(401);
     await request(server).get('/api/reader/documents/book-1/highlights').expect(401);
     await request(server).get('/api/money/currencies').expect(401);
@@ -82,5 +82,12 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     await request(server).post('/api/summarizer/request').send({ bookId: 'book-1' }).expect(404);
     await request(server).get('/api/summarizer/status/book-1').expect(404);
     await request(server).get('/api/learning/notes').expect(404);
+  });
+
+  it('no longer answers at the old summarizer\'s paths', async () => {
+    const server = app.getHttpServer();
+    await request(server).get('/api/reader/summaries').expect(404);
+    await request(server).get('/api/reader/documents/book-1/summaries').expect(404);
+    await request(server).post('/api/reader/documents/book-1/summaries').send({}).expect(404);
   });
 });

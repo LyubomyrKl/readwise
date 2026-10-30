@@ -18,7 +18,6 @@ const defaults: Record<string, string> = {
   S3_SECRET_ACCESS_KEY: 'test',
   S3_BOOK_BUCKET_NAME: 'books',
   S3_BOOK_COVER_BUCKET_NAME: 'covers',
-  S3_SUMMARIES_BUCKET_NAME: 'summaries',
   RABBITMQ_HOST: 'localhost',
   RABBITMQ_USER: 'test',
   RABBITMQ_PASS: 'test',

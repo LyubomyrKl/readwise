@@ -86,29 +86,3 @@ class S3Storage:
             return True
         except ClientError:
             return False
-
-    @staticmethod
-    def summary_key(book_id: str, summary_id: str) -> str:
-        """Key layout: summary/<bookId>/<summaryId>.json (several summaries per book)."""
-        return f"summary/{book_id}/{summary_id}.json"
-
-    def upload_summary(self, bucket: str, book_id: str, summary_id: str, summary_json: str,
-                       summary_type: str, metadata: dict) -> str:
-        """Store a finished summary and return its object key."""
-        key = self.summary_key(book_id, summary_id)
-        self.upload_text(
-            bucket=bucket,
-            key=key,
-            content=summary_json,
-            content_type='application/json',
-            metadata={
-                'book_id': book_id,
-                'summary_id': summary_id,
-                'summary_type': summary_type,
-                'original_tokens': str(metadata.get('original_tokens', 0)),
-                'summary_tokens': str(metadata.get('summary_tokens', 0)),
-                'compression_ratio': str(metadata.get('compression_ratio', 0)),
-                'summarization_strategy': str(metadata.get('summarization_strategy', '')),
-            },
-        )
-        return key

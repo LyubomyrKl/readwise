@@ -37,7 +37,7 @@ export function JobStatusBadge({ status, className }: { status: JobStatus; class
   );
 }
 
-/** "reader.summarize" -> "Summarize" */
+/** "reader.abridge" -> "Abridge" */
 export function jobLabel(type: string): string {
   const name = type.split(".").pop() ?? type;
   return name.charAt(0).toUpperCase() + name.slice(1).replace(/_/g, " ");
@@ -45,7 +45,7 @@ export function jobLabel(type: string): string {
 
 export interface JobProgressProps {
   job: JobResponse;
-  /** the job this one waits for (e.g. the extraction before a summary) */
+  /** the job this one waits for (e.g. a step that has to finish first) */
   parent?: JobResponse | null;
   onCancel?: () => void | Promise<unknown>;
   onRetry?: () => void | Promise<unknown>;

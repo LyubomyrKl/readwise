@@ -21,7 +21,6 @@ x-shared-env: &shared-env
   S3_REGION: us-east-1
   S3_BOOK_BUCKET_NAME: books
   S3_BOOK_COVER_BUCKET_NAME: covers
-  S3_SUMMARIES_BUCKET_NAME: summaries
   S3_EXTRACTIONS_BUCKET_NAME: extractions
   S3_CHECKPOINTS_BUCKET_NAME: checkpoints
   RABBITMQ_HOST: rabbitmq
@@ -99,7 +98,7 @@ services:
     command:
       - >
         mc alias set local http://minio:9000 "$$MINIO_ROOT_USER" "$$MINIO_ROOT_PASSWORD" &&
-        mc mb --ignore-existing local/books local/covers local/extractions local/summaries local/checkpoints
+        mc mb --ignore-existing local/books local/covers local/extractions local/checkpoints
     mem_limit: ${MINIO_MEM_LIMIT:-512m}
     cpus: ${MINIO_CPUS:-1}
     logging: *logging
@@ -177,7 +176,7 @@ services:
       # Claude's custom connector: the public (Funnel) base URL; empty = no connector
       MONEY_CLAUDE_PUBLIC_URL: ${MONEY_CLAUDE_PUBLIC_URL:-}
     ports:
-      # loopback only: for host tools such as scripts/smoke-summary.sh; the public entry point is Caddy
+      # loopback only: for host tools (curl against the API); the public entry point is Caddy
       - "127.0.0.1:${API_PORT:-5173}:5173"
     depends_on:
       migrate:
@@ -208,8 +207,6 @@ services:
       RABBITMQ_HEARTBEAT: "0"
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:?set OLLAMA_BASE_URL in .env}
       OLLAMA_MODEL: ${OLLAMA_MODEL:?set OLLAMA_MODEL in .env}
-      OLLAMA_EMBED_MODEL: ${OLLAMA_EMBED_MODEL:?set OLLAMA_EMBED_MODEL in .env}
-      PIPELINE_MODE: ${PIPELINE_MODE:-balanced}
       OLLAMA_NUM_CTX: ${OLLAMA_NUM_CTX:-32768}
       # the abridged edition (reader.abridge); empty ABRIDGE_MODEL = OLLAMA_MODEL, empty checker = no fact-check
       ABRIDGE_MODEL: ${ABRIDGE_MODEL:-}

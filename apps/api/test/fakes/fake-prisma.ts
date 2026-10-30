@@ -1,12 +1,12 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/require-await */
-import { Book, Edition, Highlight, Job, Note, Prisma, RefreshToken, Summary, User } from '@prisma/client';
+import { Book, Edition, Highlight, Job, Note, Prisma, RefreshToken, User } from '@prisma/client';
 
 /**
  * An in-memory stand-in for the subset of the Prisma client the services use.
  * Supports where (equality, null, in, notIn, lt, lte, gt, gte, not, OR, AND),
  * orderBy (one key, object or array), take, include._count on books, and
  * Prisma.JsonNull in update data. Enough to exercise the job state machine and
- * the summaries flow without Postgres.
+ * the editions flow without Postgres.
  */
 type Row = Record<string, any>;
 
@@ -196,11 +196,9 @@ export class FakePrisma {
     startedAt: null,
     finishedAt: null,
   }));
-  readonly summary = new FakeTable<Summary>(this, 'summary', () => ({ storageKey: null, jobId: null }));
   readonly book = new FakeTable<Book>(this, 'book', () => ({
     status: 'ready',
     errorMessage: null,
-    extractionStorageKey: null,
     irStorageKey: null,
     language: null,
     customCoverStorageKey: null,
@@ -277,7 +275,6 @@ export function fakeConfig(values: Record<string, unknown> = {}) {
     S3_SECRET_ACCESS_KEY: 'secret',
     S3_BOOK_BUCKET_NAME: 'books',
     S3_BOOK_COVER_BUCKET_NAME: 'covers',
-    S3_SUMMARIES_BUCKET_NAME: 'summaries',
     S3_EXTRACTIONS_BUCKET_NAME: 'extractions',
     S3_CHECKPOINTS_BUCKET_NAME: 'checkpoints',
   };

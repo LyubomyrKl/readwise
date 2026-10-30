@@ -26,7 +26,6 @@ import {
   UpdateReadingPositionDto,
 } from './document.models';
 import { UPLOAD_MAX_FILE_BYTES } from './document.constants';
-import { SummariesService } from '../summaries/summaries.service';
 import { EditionsService } from '../editions/editions.service';
 
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
@@ -38,7 +37,6 @@ import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
 export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
-    private readonly summaries: SummariesService,
     private readonly editions: EditionsService,
   ) {}
 
@@ -160,8 +158,7 @@ export class DocumentsController {
     @Req() req: UserModel,
     @Param('id') id: string,
   ): Promise<SuccessEmptyResponse> {
-    // Summary objects, checkpoints and active jobs first, then the book and its own objects.
-    await this.summaries.deleteForBook(req.user.userId, id);
+    // The editions' working files and active jobs first, then the book and its own objects.
     await this.editions.deleteForBook(req.user.userId, id);
     return this.documentsService.deleteBook(req.user.userId, id);
   }

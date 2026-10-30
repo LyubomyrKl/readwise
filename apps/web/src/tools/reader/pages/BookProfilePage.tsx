@@ -3,7 +3,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import BookProfile from "@tools/reader/documents/BookProfile";
-import { useBook, useBookNotes, useBookSummaries } from "@tools/reader/queries";
+import { useBook, useBookNotes } from "@tools/reader/queries";
 import { READER_ROUTES } from "@tools/reader/routes";
 
 export default function BookProfilePage() {
@@ -13,7 +13,6 @@ export default function BookProfilePage() {
 
   const book = useBook(bookId);
   const notes = useBookNotes(bookId);
-  const summaries = useBookSummaries(bookId);
 
   const handleStartReading = () => {
     router.push(READER_ROUTES.bookReader(bookId));
@@ -62,7 +61,6 @@ export default function BookProfilePage() {
     <BookProfile
       book={book.data}
       notes={notes.data ?? []}
-      summaries={summaries.data ?? []}
       onStartReading={handleStartReading}
       onBack={handleBack}
     />

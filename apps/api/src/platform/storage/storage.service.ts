@@ -16,7 +16,6 @@ export type BucketName =
   | 'books'
   | 'covers'
   | 'extractions'
-  | 'summaries'
   | 'checkpoints';
 
 export interface ObjectStream {
@@ -43,7 +42,6 @@ export class StorageService {
       books: this.config.get('S3_BOOK_BUCKET_NAME', { infer: true })!,
       covers: this.config.get('S3_BOOK_COVER_BUCKET_NAME', { infer: true })!,
       extractions: this.config.get('S3_EXTRACTIONS_BUCKET_NAME', { infer: true }) ?? 'extractions',
-      summaries: this.config.get('S3_SUMMARIES_BUCKET_NAME', { infer: true })!,
       checkpoints: this.config.get('S3_CHECKPOINTS_BUCKET_NAME', { infer: true }) ?? 'checkpoints',
     };
 

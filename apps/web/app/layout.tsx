@@ -19,7 +19,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Workbench",
-  description: "A personal toolbox: read books and generate AI summaries.",
+  description: "A personal toolbox: read books and make abridged editions of them.",
   manifest: "/manifest.json",
   icons: {
     icon: [

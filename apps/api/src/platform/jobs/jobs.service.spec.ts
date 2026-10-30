@@ -31,7 +31,7 @@ describe('JobsService', () => {
 
   const enqueueExtract = () =>
     service.enqueue({
-      type: 'reader.extract',
+      type: 'reader.ingest',
       toolId: 'reader',
       userId: 'user-1',
       subjectType: 'book',
@@ -46,20 +46,20 @@ describe('JobsService', () => {
       expect(job.status).toBe('queued');
       expect(job.maxAttempts).toBe(3);
       const [published] = queue.publishedTo(EXCHANGES.jobs);
-      expect(published.routingKey).toBe('jobs.reader.extract');
+      expect(published.routingKey).toBe('jobs.reader.ingest');
       expect(jobEnvelopeSchema.parse(published.message)).toMatchObject({
         jobId: job.id,
-        type: 'reader.extract',
+        type: 'reader.ingest',
         toolId: 'reader',
         userId: 'user-1',
         attempt: 1,
         payload: { bookId: 'book-1' },
       });
-      expect(published.options).toMatchObject({ messageId: job.id, type: 'reader.extract' });
+      expect(published.options).toMatchObject({ messageId: job.id, type: 'reader.ingest' });
     });
 
     it('create() alone does not publish; publish() refuses finished jobs', async () => {
-      const job = await service.create({ type: 'reader.summarize', toolId: 'reader', userId: 'u', payload: {} });
+      const job = await service.create({ type: 'reader.abridge', toolId: 'reader', userId: 'u', payload: {} });
       expect(queue.published).toHaveLength(0);
       await prisma.job.update({ where: { id: job.id }, data: { status: 'succeeded' } });
       await expect(service.publish(job.id)).rejects.toThrow(/succeeded/);
@@ -109,15 +109,15 @@ describe('JobsService', () => {
       await service.applyEvent(event({ jobId: job.id, event: 'started' }));
 
       const done = await service.applyEvent(
-        event({ jobId: job.id, event: 'succeeded', result: { extractionStorageKey: 'extraction/book-1_extraction.md' } }),
+        event({ jobId: job.id, event: 'succeeded', result: { irStorageKey: 'ir/abc/ir-v1.json.gz' } }),
       );
 
       expect(done).toMatchObject({ status: 'succeeded', progress: 100, error: null });
-      expect(done!.result).toEqual({ extractionStorageKey: 'extraction/book-1_extraction.md' });
+      expect(done!.result).toEqual({ irStorageKey: 'ir/abc/ir-v1.json.gz' });
       expect(done!.finishedAt).toBeInstanceOf(Date);
       const hook = hookCalls.at(-1)!;
       expect(hook.event).toBe('succeeded');
-      expect(hook.result).toEqual({ extractionStorageKey: 'extraction/book-1_extraction.md' });
+      expect(hook.result).toEqual({ irStorageKey: 'ir/abc/ir-v1.json.gz' });
     });
 
     it('a retryable failure below maxAttempts re-queues and re-publishes with the next attempt', async () => {
@@ -237,7 +237,7 @@ describe('JobsService', () => {
     it('cancels an active job, broadcasts a control message and cancels its queued children', async () => {
       const parent = await enqueueExtract();
       const child = await service.create({
-        type: 'reader.summarize',
+        type: 'reader.abridge',
         toolId: 'reader',
         userId: 'user-1',
         parentJobId: parent.id,
@@ -352,10 +352,10 @@ describe('JobsService', () => {
 
       expect(await service.sweep(new Date('2026-10-25T10:20:00.000Z'))).toEqual({ requeued: 1, failed: 0 });
       expect(published()).toBe(2);
-      // touched: the next sweep within the lease leaves it be; a long summary in the queue is never touched
+      // touched: the next sweep within the lease leaves it be; a long edition in the queue is never touched
       expect(await service.sweep(new Date())).toEqual({ requeued: 0, failed: 0 });
-      const summary = await service.enqueue({ type: 'reader.summarize', toolId: 'reader', userId: 'user-1', payload: {} });
-      prisma.job.rows.find((r) => r.id === summary.id)!.updatedAt = new Date('2026-10-25T09:00:00.000Z');
+      const edition = await service.enqueue({ type: 'reader.abridge', toolId: 'reader', userId: 'user-1', payload: {} });
+      prisma.job.rows.find((r) => r.id === edition.id)!.updatedAt = new Date('2026-10-25T09:00:00.000Z');
       expect(await service.sweep(new Date('2026-10-25T10:20:00.000Z'))).toEqual({ requeued: 0, failed: 0 });
     });
 
@@ -379,11 +379,11 @@ describe('JobsService', () => {
   describe('queries', () => {
     it('lists the caller\'s jobs newest first with filters', async () => {
       const a = await enqueueExtract();
-      const b = await service.enqueue({ type: 'reader.summarize', toolId: 'reader', userId: 'user-1', subjectType: 'book', subjectId: 'book-1', payload: {} });
-      await service.enqueue({ type: 'reader.extract', toolId: 'reader', userId: 'user-2', payload: {} });
+      const b = await service.enqueue({ type: 'reader.abridge', toolId: 'reader', userId: 'user-1', subjectType: 'book', subjectId: 'book-1', payload: {} });
+      await service.enqueue({ type: 'reader.ingest', toolId: 'reader', userId: 'user-2', payload: {} });
 
       expect((await service.list('user-1')).map((j) => j.id)).toEqual([b.id, a.id]);
-      expect((await service.list('user-1', { type: 'reader.extract' })).map((j) => j.id)).toEqual([a.id]);
+      expect((await service.list('user-1', { type: 'reader.ingest' })).map((j) => j.id)).toEqual([a.id]);
       expect(await service.list('user-1', { status: 'failed' })).toEqual([]);
       expect((await service.findActive({ subjectType: 'book', subjectId: 'book-1' })).length).toBe(2);
     });

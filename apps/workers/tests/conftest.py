@@ -1,6 +1,6 @@
 """Shared test doubles: in-memory storage, a recording publisher, envelope factory.
 
-Nothing here connects to RabbitMQ, MinIO or an LLM host, or downloads tokenizer files.
+Nothing here connects to RabbitMQ, MinIO or an LLM host.
 """
 from __future__ import annotations
 
@@ -17,7 +17,6 @@ CONTRACTS = ROOT.parents[1] / "packages" / "contracts" / "jobs"
 
 os.environ.setdefault("OLLAMA_BASE_URL", "http://ollama.invalid:11434")
 os.environ.setdefault("OLLAMA_MODEL", "test-model")
-os.environ.setdefault("OLLAMA_EMBED_MODEL", "test-embed")
 os.environ.setdefault("WORKER_LLM_WAIT_MIN_SECONDS", "1")
 os.environ.setdefault("WORKER_LLM_WAIT_MAX_SECONDS", "2")
 
@@ -31,7 +30,7 @@ def _client_error(code: str, operation: str) -> ClientError:
 
 
 class _FakeClient:
-    """The boto3 subset the checkpoint manager and the extractors' save path use."""
+    """The boto3 subset the storage wrapper uses."""
 
     def __init__(self, store: dict):
         self.store = store
@@ -86,14 +85,6 @@ class FakeStorage:
         self.uploads.append({"bucket": bucket, "key": key, "content_type": content_type, "metadata": {}})
         return key
 
-    summary_key = staticmethod(lambda book_id, summary_id: f"summary/{book_id}/{summary_id}.json")
-
-    def upload_summary(self, bucket, book_id, summary_id, summary_json, summary_type, metadata):
-        key = self.summary_key(book_id, summary_id)
-        self.upload_text(bucket, key, summary_json, "application/json",
-                         {"summary_type": summary_type, **{k: str(v) for k, v in metadata.items()}})
-        return key
-
 
 class FakePublisher:
     """Records events instead of publishing; cancellation can be injected."""
@@ -141,7 +132,7 @@ def make_envelope(**overrides) -> JobEnvelope:
     base = {
         "v": 1,
         "jobId": "job-1",
-        "type": "reader.extract",
+        "type": "reader.ingest",
         "toolId": "reader",
         "userId": "user-1",
         "attempt": 1,
@@ -153,29 +144,11 @@ def make_envelope(**overrides) -> JobEnvelope:
     return JobEnvelope.model_validate(base)
 
 
-class _WordEncoding:
-    """Stands in for tiktoken's cl100k_base, whose first use downloads it: one token per word."""
-
-    def encode(self, text, *args, **kwargs):
-        return (text or "").split()
-
-    def decode(self, tokens):
-        return " ".join(tokens)
-
-
-@pytest.fixture(autouse=True)
-def offline_tokenizer(monkeypatch):
-    """The pipeline counts tokens with tiktoken; no test depends on exact counts."""
-    import tiktoken
-
-    monkeypatch.setattr(tiktoken, "get_encoding", lambda name: _WordEncoding())
-
-
 @pytest.fixture
 def settings() -> WorkerSettings:
     return WorkerSettings(_env_file=None, worker_id="workers-test", worker_llm_wait_min_seconds=1,
                           worker_llm_wait_max_seconds=2, ollama_base_url="http://ollama.invalid:11434",
-                          ollama_model="m", ollama_embed_model="e")
+                          ollama_model="m")
 
 
 @pytest.fixture

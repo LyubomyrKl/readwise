@@ -20,16 +20,16 @@ def _runner(settings, storage, publisher, handlers):
 def test_success_emits_started_progress_succeeded_with_result(settings, storage, publisher):
     def handler(ctx):
         ctx.progress("working", 40)
-        return {"extractionStorageKey": "extraction/book-1_extraction.md"}
+        return {"irStorageKey": "ir/abc/ir-v1.json.gz"}
 
-    outcome = _runner(settings, storage, publisher, {"reader.extract": handler}).handle(make_envelope())
+    outcome = _runner(settings, storage, publisher, {"reader.ingest": handler}).handle(make_envelope())
 
     assert outcome == "succeeded"
     assert publisher.kinds() == ["started", "progress", "succeeded"]
     started, progress, done = publisher.events
     assert started.attempt == 1 and started.workerId == "workers-test"
     assert (progress.stage, progress.progress) == ("working", 40)
-    assert done.result == {"extractionStorageKey": "extraction/book-1_extraction.md"} and done.progress == 100
+    assert done.result == {"irStorageKey": "ir/abc/ir-v1.json.gz"} and done.progress == 100
     assert publisher.flushed >= 1 and publisher.states == {}
 
 
@@ -37,7 +37,7 @@ def test_exception_is_a_retryable_failure_and_job_failed_controls_retryable(sett
     def boom(ctx):
         raise RuntimeError("disk full")
 
-    assert _runner(settings, storage, publisher, {"reader.extract": boom}).handle(make_envelope()) == "failed"
+    assert _runner(settings, storage, publisher, {"reader.ingest": boom}).handle(make_envelope()) == "failed"
     assert publisher.last().event == "failed"
     assert publisher.last().retryable is True
     assert "disk full" in publisher.last().error
@@ -47,7 +47,7 @@ def test_exception_is_a_retryable_failure_and_job_failed_controls_retryable(sett
     def unsupported(ctx):
         raise JobFailed("Unsupported file type: text/plain", retryable=False)
 
-    _runner(settings, storage, publisher, {"reader.extract": unsupported}).handle(make_envelope())
+    _runner(settings, storage, publisher, {"reader.ingest": unsupported}).handle(make_envelope())
     assert publisher.last().event == "failed" and publisher.last().retryable is False
     assert publisher.last().error == "Unsupported file type: text/plain"
 
@@ -59,7 +59,7 @@ def test_cancel_during_run_ends_with_cancelled(settings, storage, publisher):
         ctx.check_cancelled()
         raise AssertionError("must not get here")
 
-    outcome = _runner(settings, storage, publisher, {"reader.extract": slow}).handle(make_envelope())
+    outcome = _runner(settings, storage, publisher, {"reader.ingest": slow}).handle(make_envelope())
 
     assert outcome == "cancelled"
     assert publisher.kinds() == ["started", "progress", "cancelled"]
@@ -69,7 +69,7 @@ def test_job_cancelled_before_start_is_not_run(settings, storage, publisher):
     handler = MagicMock()
     publisher.cancelled.add("job-1")
 
-    outcome = _runner(settings, storage, publisher, {"reader.extract": handler}).handle(make_envelope())
+    outcome = _runner(settings, storage, publisher, {"reader.ingest": handler}).handle(make_envelope())
 
     assert outcome == "cancelled"
     handler.assert_not_called()
@@ -106,7 +106,7 @@ def test_consumer_acks_on_claim_before_running_and_dead_letters_garbage(settings
         channel.basic_ack.assert_called_once_with(delivery_tag=7)  # already acknowledged
         seen.append(envelope.jobId)
 
-    consumer = JobConsumer(settings.amqp, "reader", ["jobs.reader.extract"], on_envelope)
+    consumer = JobConsumer(settings.amqp, "reader", ["jobs.reader.ingest"], on_envelope)
     consumer.on_message(channel, method, None, make_envelope().model_dump_json().encode())
     assert seen == ["job-1"]
 
@@ -162,20 +162,20 @@ def test_real_publisher_ignores_cancels_older_than_the_envelope():
 def test_a_stopping_worker_ends_the_job_at_its_next_safe_point_as_a_retryable_failure(settings, storage, publisher):
     runner = _runner(settings, storage, publisher, {})
 
-    def summarize(ctx):
+    def abridge(ctx):
         ctx.progress("section 1/3 done", 30)
         runner.interrupt()  # SIGTERM
         ctx.check_cancelled()
         raise AssertionError("must not get here")
 
-    runner.handlers = {"reader.extract": summarize}
+    runner.handlers = {"reader.ingest": abridge}
     assert runner.handle(make_envelope()) == "failed"
     assert publisher.kinds() == ["started", "progress", "failed"]
     assert publisher.last().retryable is True and "worker stopped" in publisher.last().error
 
     publisher.events.clear()
     late = MagicMock()
-    runner.handlers = {"reader.extract": late}
+    runner.handlers = {"reader.ingest": late}
     assert runner.handle(make_envelope(jobId="job-2")) == "failed", "claimed while stopping: handed back"
     late.assert_not_called()
     assert publisher.kinds() == ["failed"] and publisher.last().retryable is True
@@ -184,13 +184,13 @@ def test_a_stopping_worker_ends_the_job_at_its_next_safe_point_as_a_retryable_fa
 def test_a_job_still_running_when_the_worker_exits_is_reported_once(settings, storage, publisher):
     started, release, done = threading.Event(), threading.Event(), threading.Event()
 
-    def extract(ctx):  # one long step that cannot stop halfway
+    def ingest(ctx):  # one long step that cannot stop halfway
         started.set()
         release.wait(5)
         ctx.progress("late", 90)
-        return {"extractionStorageKey": "k"}
+        return {"irStorageKey": "k"}
 
-    runner = _runner(settings, storage, publisher, {"reader.extract": extract})
+    runner = _runner(settings, storage, publisher, {"reader.ingest": ingest})
     threading.Thread(target=lambda: (runner.handle(make_envelope()), done.set())).start()
     assert started.wait(5)
 
@@ -220,10 +220,10 @@ def _run_main(monkeypatch, settings, handler, grace):
         running.set()
         return handler(ctx)
 
-    monkeypatch.setattr(entry, "_tools", lambda: {"reader": (["jobs.reader.summarize"], lambda s, st: {"reader.summarize": job})})
+    monkeypatch.setattr(entry, "_tools", lambda: {"reader": (["jobs.reader.abridge"], lambda s, st: {"reader.abridge": job})})
 
     def run_forever(consumer):  # one delivery, then idle until stopped
-        consumer.on_envelope(make_envelope(type="reader.summarize"))
+        consumer.on_envelope(make_envelope(type="reader.abridge"))
         consumer._stop.wait(5)
         consumer_done.set()
 
@@ -235,12 +235,12 @@ def _run_main(monkeypatch, settings, handler, grace):
 
 
 def test_sigterm_lets_the_running_job_stop_between_sections(settings, monkeypatch):
-    def summarize(ctx):
+    def abridge(ctx):
         while True:  # a section ends every 10 ms
             time.sleep(0.01)
             ctx.check_cancelled()
 
-    publisher, seconds, consumer_done = _run_main(monkeypatch, settings, summarize, grace=5)
+    publisher, seconds, consumer_done = _run_main(monkeypatch, settings, abridge, grace=5)
 
     assert publisher.kinds() == ["started", "failed"] and publisher.last().retryable is True
     assert seconds < 2 and consumer_done.is_set(), "the consumer thread ended within the grace period"
@@ -249,12 +249,12 @@ def test_sigterm_lets_the_running_job_stop_between_sections(settings, monkeypatc
 def test_sigterm_reports_a_job_that_cannot_stop_within_the_grace_period(settings, monkeypatch):
     release = threading.Event()
 
-    def extract(ctx):
+    def ingest(ctx):
         release.wait(5)
         ctx.progress("late", 90)
-        return {"extractionStorageKey": "k"}
+        return {"irStorageKey": "k"}
 
-    publisher, seconds, consumer_done = _run_main(monkeypatch, settings, extract, grace=0.2)
+    publisher, seconds, consumer_done = _run_main(monkeypatch, settings, ingest, grace=0.2)
 
     assert publisher.kinds() == ["started", "failed"] and publisher.last().retryable is True
     release.set()

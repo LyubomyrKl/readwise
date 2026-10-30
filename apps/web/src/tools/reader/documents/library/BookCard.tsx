@@ -11,32 +11,20 @@ import {
 
 import { useRef, useState, useEffect, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { IBook, SummaryResponse } from "@tools/reader/types";
-import { isActiveJob } from "@platform/jobs/types";
+import { IBook } from "@tools/reader/types";
 import { BookCover } from "./BookCover";
 import { useBookCoverStyle } from "@tools/reader/documents/useBookCoverStyle";
-import {
-  AlertTriangle,
-  BookCheck,
-  BookHeart,
-  Heart,
-  Loader2,
-  Sparkles,
-} from "lucide-react";
+import { BookCheck, BookHeart, Heart, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { useBookMutations } from "@tools/reader/documents/useBookMutations";
 
 import { READER_ROUTES } from "@tools/reader/routes";
 type BookCardProps = {
   book: IBook;
-  /** the newest summary of the book, if any */
-  summary?: SummaryResponse;
   onFavoriteChange?: (bookId: string, isFavorite: boolean) => void;
 };
 
-export function BookCard({ book, summary, onFavoriteChange }: BookCardProps) {
-  const summaryFailed = summary?.state === "failed" || summary?.state === "cancelled";
-  const summarizing = !!summary && isActiveJob(summary.job?.status);
+export function BookCard({ book, onFavoriteChange }: BookCardProps) {
   const titleRef = useRef<HTMLHeadingElement>(null);
   const [truncated, setTruncated] = useState(false);
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
@@ -144,24 +132,8 @@ export function BookCard({ book, summary, onFavoriteChange }: BookCardProps) {
             <p className="text-[10px] sm:text-xs text-muted-foreground line-clamp-1 flex-1">
               {book.author}
             </p>
-            {(isFavorite || book.isFinished || summaryFailed || summarizing) && (
+            {(isFavorite || book.isFinished) && (
               <div className="flex gap-1">
-                {summaryFailed && (
-                  <Badge
-                    variant="destructive"
-                    className="h-5 px-1.5 text-[10px] gap-1"
-                    title={summary?.job?.error || "Summary generation failed"}
-                  >
-                    <AlertTriangle className="w-3 h-3" />
-                    Summary failed
-                  </Badge>
-                )}
-                {summarizing && (
-                  <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted" title={summary?.job?.waitReason || summary?.job?.stage || "Summarizing"}>
-                    <Sparkles className="w-3 h-3 text-muted-foreground" />
-                    {summary?.job?.status === "waiting" ? "Waiting" : "Summarizing"}
-                  </Badge>
-                )}
                 {isFavorite && (
                   <Badge variant="outline" className="h-5 px-1.5 text-[10px] gap-1 border-muted">
                     <BookHeart className="w-3 h-3 fill-muted-foreground/40 text-muted-foreground" />

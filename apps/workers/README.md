@@ -1,6 +1,6 @@
 # Workbench workers
 
-One Python process (`python -m worker`) that consumes the reader tool's job queues and runs four
+One Python process (`python -m worker`) that consumes the reader tool's job queues and runs two
 handlers. It never touches the database: a job arrives as an envelope with everything the handler
 needs, and the handler reports back through events the API applies to the `Job` row (see
 `packages/contracts/jobs`).
@@ -8,9 +8,7 @@ needs, and the handler reports back through events the API applies to the `Job` 
 | Queue | Job type | Does |
 |---|---|---|
 | `q.py.reader_fast` | `reader.ingest` | right after upload: reads the file's structure once (EPUB contents, PDF outline or fonts), its pictures (captions, decorative or not, drop caps) and language into the document IR, stored under the file's SHA-256 in the extractions bucket; returns `irStorageKey` |
-| `q.py.reader_fast` | `reader.extract` | the old summarizer's input: PDF/EPUB to markdown in the extractions bucket |
 | `q.py.reader` | `reader.abridge` | the abridged edition: per chapter a short summary and the text abridged part by part to a target set by how dense each part is, the pictures kept and described, a fact-check, an EPUB in the books bucket that the API adds to the library |
-| `q.py.reader` | `reader.summarize` | the old summarizer (segmentation, chunk summaries, merges), kept until the edition has been validated on the owner's books |
 
 The two queues have one consumer thread each, so an upload's ingest never waits behind a book.
 
@@ -27,8 +25,6 @@ worker/
     ingest/                the document IR: EPUB and PDF readers, section kinds, pictures, language
     abridge/               the edition: plan, density targets, chapter pass, checks, fact-check,
                            pictures, OCR, manifest (resume), EPUB, the handler
-    extract/               the extract handler and the PDF/EPUB extractors (old summarizer)
-    summarize/             the summarize handler and the pipeline packages (old summarizer)
 ```
 
 ## The abridged edition
@@ -91,9 +87,9 @@ Long jobs: the queue message is acknowledged as soon as it is claimed; a heartbe
 thread emits `progress` every `WORKER_HEARTBEAT_SECONDS` so the API can tell a
 running job from a dead worker (lease of `JOBS_LEASE_SECONDS` on the API side). A
 `POST /jobs/:id/cancel` reaches the worker through the fanout exchange
-`workbench.job-control`; the summarize handler stops between sections and keeps
-its checkpoint (which also holds the segmentation, so a resume lines up with the
-finished sections). On SIGTERM a running job stops at the same points and is
+`workbench.job-control`; an edition stops before its next model call and keeps its
+manifest (the finished chapters and parts), so a retry continues where it stopped.
+On SIGTERM a running job stops at the same points and is
 reported as a retryable `failed`, so the API runs it again; one that cannot stop
 within `WORKER_SHUTDOWN_GRACE_SECONDS` (default 8, below Docker's 10 s stop
 timeout) is reported the same way just before the process exits.
@@ -108,9 +104,6 @@ timeout) is reported the same way just before the process exits.
   pip install -e ".[dev]"
   python -m worker --queues reader,reader_fast
   ```
-
-`PIPELINE_MODE` selects the `fast`, `balanced` or `quality` preset; the strategy and
-the summary type come from each job.
 
 ## Tests
 
