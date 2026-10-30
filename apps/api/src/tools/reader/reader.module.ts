@@ -11,12 +11,16 @@ import { NotesService } from './reading/notes.service';
 import { SummariesController } from './summaries/summaries.controller';
 import { SummariesService } from './summaries/summaries.service';
 import { ReaderJobHooks } from './summaries/reader-job-hooks';
+import { EditionsController } from './editions/editions.controller';
+import { EditionsService } from './editions/editions.service';
 
 /**
- * The reader tool: documents (library and files), reading (highlights, notes)
- * and summaries (rows plus reader.extract / reader.summarize jobs). One NestJS
- * module so the sub-modules share providers without circular module imports;
- * inside the tool the direction is summaries -> documents and reading -> documents.
+ * The reader tool: documents (library and files), reading (highlights, notes),
+ * summaries (rows plus reader.extract / reader.summarize jobs) and editions (the
+ * structure read on upload by reader.ingest, abridged editions made by
+ * reader.abridge). One NestJS module so the sub-modules share providers without
+ * circular module imports; inside the tool the direction is summaries -> documents,
+ * editions -> documents and reading -> documents.
  */
 @Module({
   imports: [QueueModule, JobsModule],
@@ -25,6 +29,7 @@ import { ReaderJobHooks } from './summaries/reader-job-hooks';
     HighlightsController,
     NotesController,
     SummariesController,
+    EditionsController,
   ],
   providers: [
     DocumentsService,
@@ -32,6 +37,7 @@ import { ReaderJobHooks } from './summaries/reader-job-hooks';
     HighlightsService,
     NotesService,
     SummariesService,
+    EditionsService,
     ReaderJobHooks,
   ],
 })

@@ -48,6 +48,8 @@ export function convertBookToResponse(book: BookRow): BookResponse {
     status: book.status,
     errorMessage: book.errorMessage ?? null,
     hasExtraction: !!book.extractionStorageKey,
+    hasStructure: !!book.irStorageKey,
+    language: book.language ?? null,
     noteCount: book._count.notes,
     highlightCount: book._count.highlights,
     readingPosition,

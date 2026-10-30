@@ -7,8 +7,11 @@ import type {
   BookResponse,
   CreateHighlightDto,
   CreateNoteDto,
+  CreateEditionDto,
+  CreateEditionResponse,
   CreateSummaryDto,
   CreateSummaryResponse,
+  EditionResponse,
   HighlightResponse,
   NoteResponse,
   ReadingPosition,
@@ -47,6 +50,16 @@ export const readerApi = {
       apiFetch<Ok>("/reader/documents/time-spent", { method: "POST", json: { bookId, amount } }),
     setReadingPosition: (bookId: string, position: ReadingPosition) =>
       apiFetch<Ok>("/reader/documents/reading-position", { method: "POST", json: { bookId, position } }),
+    /** contents, kinds, sizes and language as read on upload (404 until then) */
+    structure: (bookId: string) =>
+      apiFetch<{ bookId: string; structure: Record<string, unknown> }>(`/reader/documents/${enc(bookId)}/structure`),
+  },
+
+  editions: {
+    create: (bookId: string, dto: CreateEditionDto) =>
+      apiFetch<CreateEditionResponse>(`/reader/documents/${enc(bookId)}/editions`, { method: "POST", json: dto }),
+    listForBook: (bookId: string) => apiFetch<EditionResponse[]>(`/reader/documents/${enc(bookId)}/editions`),
+    get: (editionId: string) => apiFetch<EditionResponse>(`/reader/editions/${enc(editionId)}`),
   },
 
   reading: {

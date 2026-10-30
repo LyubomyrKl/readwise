@@ -22,6 +22,10 @@ model Book {
   errorMessage          String?
   /// set by the reader.extract job; summaries are built from this object
   extractionStorageKey  String?
+  /// set by the reader.ingest job: the document IR in the extractions bucket (structure, pictures)
+  irStorageKey          String?
+  /// "en", "ru", "uk" or "other", detected by reader.ingest
+  language              String?
   lastAccessed          DateTime   @default(now())
   readingPosition       Json? // { type: 'pdf' | 'epub', page?: number, cfi?: string, percentage?: number }
   createdAt             DateTime   @default(now())
@@ -31,6 +35,10 @@ model Book {
   notes      Note[]
   highlights Highlight[]
   summaries  Summary[]
+  /// the abridged editions made of this book
+  editions   Edition[]   @relation("EditionSource")
+  /// set on a book that is itself an abridged edition
+  editionOf  Edition[]   @relation("EditionBook")
 
   @@index([userId, updatedAt])
   @@map("reader_book")
@@ -81,6 +89,47 @@ model Summary {
   @@index([bookId, createdAt])
   @@index([jobId])
   @@map("reader_summary")
+}
+
+enum EditionLength {
+  short
+  standard
+  long
+
+  @@map("reader_edition_length")
+}
+
+enum EditionFigures {
+  key
+  all
+  none
+
+  @@map("reader_edition_figures")
+}
+
+/// An abridged edition of a book: a reader.abridge job writes an EPUB to the books bucket and
+/// ReaderJobHooks adds it to the library as a book of its own (editionBookId). Progress and errors
+/// are read from the Job row referenced by jobId (no foreign key, as for summaries).
+model Edition {
+  id            String         @id @default(cuid())
+  bookId        String
+  userId        String
+  length        EditionLength  @default(standard)
+  figures       EditionFigures @default(key)
+  jobId         String?
+  editionBookId String?
+  /// the job's result: ratio, chapters, pictures, checks, warnings, timings
+  result        Json?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  book        Book  @relation("EditionSource", fields: [bookId], references: [id], onDelete: Cascade)
+  editionBook Book? @relation("EditionBook", fields: [editionBookId], references: [id], onDelete: SetNull)
+  user        User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([bookId, createdAt])
+  @@index([jobId])
+  @@map("reader_edition")
 }
 
 model Note {

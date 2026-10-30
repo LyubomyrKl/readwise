@@ -88,7 +88,7 @@ Workers on the host (Python 3.11):
 ```bash
 cd apps/workers
 cp .env.example .env && pip install -e ".[dev]"   # point OLLAMA_BASE_URL at your Ollama host
-python -m worker --queues reader
+python -m worker --queues reader,reader_fast
 ```
 
 A full local stack with published ports: `docker compose -f docker-compose.yml -f docker-compose.dev.yml up -d --build`
@@ -157,6 +157,11 @@ or `docker compose run --rm migrate node /repo/node_modules/prisma/build/index.j
 
 ## Background jobs
 
+An upload queues `reader.ingest`, which reads the book's structure, pictures and language once
+(`GET /api/reader/documents/:id/structure`). `POST /api/reader/documents/:id/editions` queues
+`reader.abridge`, which makes the abridged edition (each chapter with a short summary, compressed by
+how dense each part is, with its pictures) as an EPUB that the API adds to the library as a book of
+its own; the worker's README and docs/summarizer-investigation.md describe the engine.
 A summary request creates `Job` rows (`reader.extract`, then `reader.summarize`) and
 publishes an envelope to RabbitMQ (`workbench.jobs`, routing key `jobs.<type>`). The
 worker acknowledges on claim and reports `started`, `progress`, `waiting`, `succeeded`

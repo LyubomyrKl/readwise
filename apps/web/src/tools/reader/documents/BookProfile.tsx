@@ -387,6 +387,14 @@ export default function BookProfile({
                         : `${latestSummary?.job?.stage || "In progress"}. See progress`}
                     </button>
                   )}
+                  <button
+                    onClick={() => router.push(READER_ROUTES.bookSummary(book.id))}
+                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-muted hover:bg-muted/80 rounded-lg transition-colors text-sm"
+                    data-testid="abridged-edition-link"
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    Abridged edition
+                  </button>
                   {readySummary && summaries.length > 1 && (
                     <p className="text-center text-xs text-muted-foreground">
                       {summaries.filter((s) => s.state === "ready").length} summaries available

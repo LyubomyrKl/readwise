@@ -23,6 +23,7 @@ model User {
   notes         Note[]
   highlights    Highlight[]
   summaries     Summary[]
+  editions      Edition[]
 
   moneySettings      MoneySettings?
   moneyCommodities   MoneyCommodity[]

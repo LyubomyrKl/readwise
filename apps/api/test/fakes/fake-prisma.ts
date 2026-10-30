@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-return, @typescript-eslint/no-unsafe-argument, @typescript-eslint/require-await */
-import { Book, Highlight, Job, Note, Prisma, RefreshToken, Summary, User } from '@prisma/client';
+import { Book, Edition, Highlight, Job, Note, Prisma, RefreshToken, Summary, User } from '@prisma/client';
 
 /**
  * An in-memory stand-in for the subset of the Prisma client the services use.
@@ -201,6 +201,8 @@ export class FakePrisma {
     status: 'ready',
     errorMessage: null,
     extractionStorageKey: null,
+    irStorageKey: null,
+    language: null,
     customCoverStorageKey: null,
     description: null,
     spentTime: 0,
@@ -211,6 +213,13 @@ export class FakePrisma {
     sha256: null,
     readingPosition: null,
     lastAccessed: new Date('2026-01-01T00:00:00Z'),
+  }));
+  readonly edition = new FakeTable<Edition>(this, 'edition', () => ({
+    length: 'standard',
+    figures: 'key',
+    jobId: null,
+    editionBookId: null,
+    result: null,
   }));
   readonly note = new FakeTable<Note>(this, 'note', () => ({ deletedAt: null }));
   readonly highlight = new FakeTable<Highlight>(this, 'highlight', () => ({ deletedAt: null }));

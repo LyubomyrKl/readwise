@@ -9,13 +9,14 @@ describe('ReaderJobHooks', () => {
   let jobs: JobsService;
   const documents = { setExtraction: jest.fn().mockResolvedValue(undefined) };
   const summaries = { setStorageKey: jest.fn().mockResolvedValue(undefined) };
+  const editions = { setIngest: jest.fn().mockResolvedValue(undefined), complete: jest.fn().mockResolvedValue(null) };
 
   beforeEach(() => {
     jest.clearAllMocks();
     prisma = new FakePrisma();
     queue = new FakeQueue();
     jobs = new JobsService(prisma as never, queue as never, fakeConfig() as never);
-    new ReaderJobHooks(jobs, documents as never, summaries as never).onModuleInit();
+    new ReaderJobHooks(jobs, documents as never, summaries as never, editions as never).onModuleInit();
   });
 
   const event = (jobId: string, kind: 'started' | 'succeeded' | 'failed', extra: Record<string, unknown> = {}) =>
@@ -80,6 +81,26 @@ describe('ReaderJobHooks', () => {
 
     expect((await prisma.job.findUnique({ where: { id: child.id } }))!.status).toBe('queued');
     expect(queue.publishedTo(EXCHANGES.jobs).map((p) => p.routingKey)).toEqual(['jobs.reader.extract']);
+  });
+
+  it('ingest succeeded: records the IR and the language on the book', async () => {
+    const job = await jobs.enqueue({ type: 'reader.ingest', toolId: 'reader', userId: 'u', payload: { bookId: 'book-1' } });
+    await event(job.id, 'started');
+
+    await event(job.id, 'succeeded', { result: { irStorageKey: 'ir/abc/ir-v1.json.gz', language: 'uk', chapters: 12 } });
+
+    expect(editions.setIngest).toHaveBeenCalledWith('book-1', 'ir/abc/ir-v1.json.gz', 'uk');
+  });
+
+  it('abridge succeeded: the edition is completed with the job result', async () => {
+    const job = await jobs.enqueue({ type: 'reader.abridge', toolId: 'reader', userId: 'u', payload: { bookId: 'book-1', editionId: 'ed-1' } });
+    await event(job.id, 'started');
+    const result = { storageKey: 'u-edition-ed-1.epub', bytes: 1000, irStorageKey: 'ir/abc/ir-v1.json.gz', language: 'en' };
+
+    await event(job.id, 'succeeded', { result });
+
+    expect(editions.complete).toHaveBeenCalledWith('ed-1', result);
+    expect(editions.setIngest).toHaveBeenCalledWith('book-1', 'ir/abc/ir-v1.json.gz', null);
   });
 
   it('summarize succeeded: stores the storage key on the summary', async () => {

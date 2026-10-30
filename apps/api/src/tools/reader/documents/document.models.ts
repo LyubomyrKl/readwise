@@ -75,6 +75,12 @@ export class BookResponse {
   @ApiProperty({ description: 'True once the text has been extracted (a summary request skips the extract job)' })
   hasExtraction!: boolean;
 
+  @ApiProperty({ description: 'true once reader.ingest has read the structure (GET /reader/documents/:id/structure)' })
+  hasStructure!: boolean;
+
+  @ApiPropertyOptional({ nullable: true, description: '"en", "ru", "uk" or "other", detected on upload' })
+  language?: string | null;
+
   @ApiProperty({ description: 'Number of notes (not deleted)' })
   noteCount!: number;
 

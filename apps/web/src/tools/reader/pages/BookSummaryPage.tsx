@@ -11,6 +11,7 @@ import { isActiveJob, type JobResponse } from "@platform/jobs/types";
 import type { Summary } from "@tools/reader/summaries/types";
 import { ErrorState, Loader, Processing, SummaryReader, GenerateSummaryState } from "@tools/reader/summaries";
 import { SummaryList } from "@tools/reader/summaries/SummaryList";
+import { EditionPanel } from "@tools/reader/editions/EditionPanel";
 
 /**
  * The summaries of one document. The newest ready summary opens in the reader;
@@ -109,6 +110,7 @@ export default function BookSummaryPage() {
 
   return (
     <div className="min-h-screen bg-background">
+      <EditionPanel bookId={bookId} />
       {active ? (
         <Processing jobId={active.jobId!} parentJobId={active.job?.parentJobId} onSettled={onJobSettled} />
       ) : (

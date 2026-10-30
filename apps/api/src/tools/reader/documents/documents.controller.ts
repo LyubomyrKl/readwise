@@ -27,6 +27,7 @@ import {
 } from './document.models';
 import { UPLOAD_MAX_FILE_BYTES } from './document.constants';
 import { SummariesService } from '../summaries/summaries.service';
+import { EditionsService } from '../editions/editions.service';
 
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
@@ -38,6 +39,7 @@ export class DocumentsController {
   constructor(
     private readonly documentsService: DocumentsService,
     private readonly summaries: SummariesService,
+    private readonly editions: EditionsService,
   ) {}
 
   @Post('upload')
@@ -69,12 +71,15 @@ export class DocumentsController {
     },
   })
   @ApiEndpoint({ summary: 'Upload book with optional cover', response: UploadResponse })
-  uploadBook(
+  async uploadBook(
     @Req() req: UserModel,
     @UploadedFiles() files: { book?: Express.Multer.File[]; cover?: Express.Multer.File[] },
     @Body() dto: UploadBookDto,
   ): Promise<UploadResponse> {
-    return this.documentsService.uploadBook(req.user.userId, files, dto);
+    const uploaded = await this.documentsService.uploadBook(req.user.userId, files, dto);
+    // the structure (contents, pictures, language) is read right away, on the fast queue
+    await this.editions.ingestAfterUpload(req.user.userId, uploaded.bookId);
+    return uploaded;
   }
 
   @Get()
@@ -157,6 +162,7 @@ export class DocumentsController {
   ): Promise<SuccessEmptyResponse> {
     // Summary objects, checkpoints and active jobs first, then the book and its own objects.
     await this.summaries.deleteForBook(req.user.userId, id);
+    await this.editions.deleteForBook(req.user.userId, id);
     return this.documentsService.deleteBook(req.user.userId, id);
   }
 }

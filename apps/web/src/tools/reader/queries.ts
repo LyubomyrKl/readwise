@@ -12,6 +12,7 @@ export const readerKeys = {
   book: (id: string) => ["reader", "book", id] as const,
   notes: (bookId: string) => ["reader", "notes", bookId] as const,
   summaries: (bookId: string) => ["reader", "summaries", bookId] as const,
+  editions: (bookId: string) => ["reader", "editions", bookId] as const,
   latestSummaries: ["reader", "summaries", "latest"] as const,
 };
 
@@ -37,6 +38,16 @@ export function useBookSummaries(bookId: string | undefined, activeIntervalMs = 
   });
 }
 
+/** The abridged editions of a book; refreshes while one is being made. */
+export function useBookEditions(bookId: string | undefined, activeIntervalMs = 5000) {
+  return useQuery({
+    queryKey: readerKeys.editions(bookId ?? ""),
+    queryFn: () => readerApi.editions.listForBook(bookId!),
+    enabled: !!bookId,
+    refetchInterval: (query) => (query.state.data?.some((e) => isActiveJob(e.job?.status)) ? activeIntervalMs : false),
+  });
+}
+
 /** Newest summary per book, for the library badges. */
 export function useLatestSummaries() {
   return useQuery({
@@ -54,6 +65,7 @@ export function useInvalidateReader() {
       ? Promise.all([
           client.invalidateQueries({ queryKey: readerKeys.book(bookId) }),
           client.invalidateQueries({ queryKey: readerKeys.summaries(bookId) }),
+          client.invalidateQueries({ queryKey: readerKeys.editions(bookId) }),
           client.invalidateQueries({ queryKey: readerKeys.notes(bookId) }),
           client.invalidateQueries({ queryKey: readerKeys.books }),
           client.invalidateQueries({ queryKey: readerKeys.latestSummaries }),

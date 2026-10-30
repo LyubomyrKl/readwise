@@ -212,6 +212,43 @@ working DNS: `getent hosts registry-1.docker.io` must answer, else `tailscale se
     turn on the authenticator app and/or add a passkey, and under Money → Claude create a token for
     Claude's connector.
 
+## The LLM host (the owner's Mac)
+
+The workers only call Ollama; the Mac decides how it serves. Started by hand:
+
+```bash
+OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 ollama serve
+```
+
+- **Context.** Without `OLLAMA_CONTEXT_LENGTH` a model gets a 4,096-token context and longer prompts are cut
+  without an error (the old summarizer lost most of each section that way). The workers also ask for
+  `OLLAMA_NUM_CTX` (32768) on every request, so a forgotten variable costs a reload, not the text.
+- **Models**, pulled once (about 41 GB):
+
+  ```bash
+  ollama pull gemma4:26b-mlx     # writes the edition, describes pictures, reads scans (ABRIDGE_MODEL, OLLAMA_MODEL)
+  ollama pull qwen3.6:35b-mlx    # lists suspected errors for the fact-check (ABRIDGE_CHECK_MODEL)
+  ollama pull bge-m3             # the old summarizer's segmentation only
+  ```
+
+  A job checks the models when it starts: a missing writer fails it at once with the `ollama pull`
+  command in the error; a missing checker only skips the fact-check (a warning on the edition).
+- **One request at a time.** On Apple Silicon Ollama serves these models with its MLX runner, which
+  answers simultaneous requests one after another, so `OLLAMA_NUM_PARALLEL` brings nothing; the
+  workers keep one request in flight. The two models do not fit in memory together, so an edition
+  runs its fact-check book-wide (all checks, then all fixes): each model is loaded once per stage.
+- **Pin what you validated.** `ollama list` shows each model's digest; after `ollama pull` of a newer
+  build or an Ollama upgrade, run the bench on a known chapter
+  (`python -m worker.bench abridge <book> --chapters 2 --out /tmp/check`, `apps/workers/README.md`) and
+  compare `parts.tsv` and the text before using it for real books.
+- **Settings** (root `.env`): `ABRIDGE_MODEL`, `ABRIDGE_CHECK_MODEL` (empty: no fact-check),
+  `ABRIDGE_VISION_MODEL` (default the writer), `ABRIDGE_FACTCHECK` (`dense`: only parts dense in names
+  and numbers, the default; `all`; `off`), `ABRIDGE_OCR` (read scanned PDF pages, default on).
+- **Queues.** The worker consumes `q.py.reader` (summaries and editions, minutes to hours) and
+  `q.py.reader_fast` (extraction and the structure read on upload, seconds) with one thread each
+  (`WORKER_QUEUES=reader,reader_fast`), so an upload never waits behind a book. The API removes the
+  old `jobs.reader.extract` binding from `q.py.reader` when it connects.
+
 ## Updating to a new commit
 
 1. Note the bot's state (Rule 1), `df -h /`, `free -h`.
@@ -273,6 +310,8 @@ disk (Rule 3): dumps grow with the data.
 | Symptom | Cause and fix |
 |---|---|
 | Summaries stay "waiting" | The Ollama machine is asleep or off Tailscale. Jobs resume when it answers; check with the `workers` command in First deployment, step 8. |
+| An edition fails at once with "is not on the LLM host" | The writer model is not pulled on the Mac: run the `ollama pull` from the error (The LLM host). |
+| An edition is slow | Expect about 10 s per 1,000 English words and 15 s for Russian or Ukrainian, about three times that with the fact-check on every part; `ABRIDGE_FACTCHECK=dense` (default) or `off` trades checking for time. A stopped edition continues from its last finished chapter. |
 | Workers cannot reach `100.x.y.z` | Tailscale on the server must run with its `tailscale0` interface (not userspace networking), so Docker traffic routes into the tailnet. |
 | `tailscale serve`/`funnel` prints a link | HTTPS certificates or Funnel are off for the tailnet: open the link in the admin console, run the command again. |
 | Login does nothing, or the session is lost at once | The page was opened over `http`; cookies are `Secure`. Use the `https://…ts.net` address. |
