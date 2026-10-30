@@ -1419,6 +1419,8 @@ through `python -m worker.bench`. Each finding below became a rule and a test:
 | Russell, Preface and ch. I (EPUB) | en | 3,094 | 31% | 4 of 4 | — | 0 ¹ | 104 s | 34 |
 | Apostol, 4 chapters (EPUB, pre-1918 spelling) | ru | 2,712 | 39% | 4 of 4 | 8 placed | 11 ² | 226 s | 83 |
 | «Хмельниччина» (PDF without bookmarks) | uk | 3,839 | 30% | 4 of 4 | — | 4 ³ | 223 s | 58 |
+| Russell, Preface and ch. I–II, final code | en | 5,827 | 37% | 6 of 6 | — | 0 | 173 s | 30 |
+| Apostol, 4 chapters, final code | ru | 2,712 | 37% | 4 of 4 (one retry for pre-1918 spelling) | 8 placed | 3 + 4 in summaries ⁴ | 590 s ⁵ | 218 |
 
 ¹ before the context header and the parser fix. ² before the guards of §20.2; 6 of the 11 were clear
 improvements (two misspelled names, a garbled sentence), 2 made the text worse (they led to the guards).
@@ -1428,6 +1430,11 @@ improvements (two misspelled names, a garbled sentence), 2 made the text worse (
 lands", and a judgement attributed to the historians the source names. One rewrite of the summary was
 refused by the comparison. The same chapter's previous run (the first comparison parser) refused all 9
 of its fixes; replayed with the new parser, Gemma preferred each correct rewrite in both orders.
+⁴ all improvements: two garbled names ("Гербштейн", "Ганс Гельме de"), the two Russian translations
+added to the eighteen editions, four summary sentences brought closer to the source.
+⁵ the checker slowed to 31 tokens/s on this run (one request took 4 min 13 s; 90–108 tokens/s on the
+others), with no thermal or memory warning on the Mac; on this pre-1918 text it also wrote about 1,860
+tokens of flags per call, 7 of 8 calls cut at the cap. Generation took 72 s and the fixes 38 s.
 
 - Generation alone (summaries, parts, picture descriptions) took 8 s per 1,000 words in English, 17 s in
   Ukrainian and 23 s for the short illustrated Russian chapters. Every part landed inside its band without
