@@ -1459,7 +1459,7 @@ tokens of flags per call, 7 of 8 calls cut at the cap. Generation took 72 s and 
    The fixes keep them (a fix rewrites a sentence for its facts, not its grammar).
 3. Whether `dense` should check fewer parts, by a higher threshold or only parts with an unsupported name
    or number, is for the owner to weigh: time against faithfulness.
-4. Deployment: the migration `20261030000000_reader_editions`, `WORKER_QUEUES=reader,reader_fast`, the
+4. Deployment: the migration `20261030000003_reader_editions`, `WORKER_QUEUES=reader,reader_fast`, the
    new `.env` settings, and the models pulled on the Mac (docs/deploy.md).
 
 ## 21. Progress, errors and the next tuning round (2026-10-30, night)
