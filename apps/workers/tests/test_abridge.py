@@ -100,6 +100,10 @@ class ScriptedLLM:
             return "An overview of the whole book in a few sentences."
         if "single letter" in prompt:
             return "Б"
+        if prompt.startswith("Below is a text in"):
+            return "NONE"
+        if prompt.startswith("Two versions of one sentence"):
+            return "A"
         raise AssertionError(f"unexpected prompt: {prompt[:120]}")
 
 

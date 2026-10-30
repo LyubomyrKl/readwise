@@ -22,7 +22,8 @@ from worker.tools.reader.abridge.text import (FIGURE_MARKER, clean_output, keep_
                                               split_parts, words)
 
 PART_WORDS = 1200
-# With ABRIDGE_CALIBRATE_LENGTH the writer is asked for this many times a part's target: on every run so far
+# With ABRIDGE_CALIBRATE_LENGTH (on by default since round 4) the writer is asked for this many times a part's
+# target: on every run so far
 # Gemma 4 wrote Ukrainian about 20% and modern Russian about 15% shorter than asked, English on target (§20, §21).
 ASK_FACTOR = {"uk": 1.25, "ru": 1.15}
 

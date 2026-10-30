@@ -2,8 +2,9 @@
 "У грудні"), which no deterministic check catches. The writer lists them as wrong -> right pairs, a short
 answer, and a pair is applied only when it is a spelling-sized edit: the words exist in the text, the
 correction resembles them and keeps the numbers, the words are not all in the source (then they are real
-words of the language, or its own spelling of a name), and the correction passes the language rule, and the model prefers the corrected sentence in both orders. Runs in the check stage with the
-checker model. Off unless ABRIDGE_PROOFREAD is set (§21).
+words of the language, or its own spelling of a name), the correction passes the language rule, and the
+model prefers the corrected sentence in both orders. Runs in the check stage with the checker model.
+On by default since the owner's round-4 ratings (ABRIDGE_PROOFREAD, §21).
 """
 
 from __future__ import annotations

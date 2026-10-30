@@ -53,8 +53,9 @@ class WorkerSettings(BaseSettings):
     abridge_vision_model: str = ""      # describes pictures and reads scans; default the writer
     abridge_factcheck: str = "dense"    # all | dense (parts dense in names and numbers) | off
     abridge_ocr: bool = True            # read scanned PDF pages with the vision model
-    abridge_proofread: bool = False     # Russian and Ukrainian slips listed by the writer, applied when small
-    abridge_calibrate_length: bool = False  # ask for more words where the writer runs short (uk, ru)
+    # both on since the owner's round-4 ratings preferred them (docs/summarizer-investigation.md §21.3)
+    abridge_proofread: bool = True      # Russian and Ukrainian slips listed by the checker, applied when small
+    abridge_calibrate_length: bool = True   # ask for more words where the writer runs short (uk, ru)
 
     # ---- this process
     worker_id: str = Field(default_factory=lambda: f"workers-{socket.gethostname()}")

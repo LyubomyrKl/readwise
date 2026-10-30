@@ -1538,9 +1538,33 @@ proofreading changed one word ("на тонущем барке" -> "на тон�
 wrong suggestions ("Хабаровки" -> "Хабаровска", the town's old name, as Chekhov writes it; "уступить жену"
 -> "продать жену"). So round 4 mostly asks the owner about length. The blind page is
 `~/Downloads/summarizer-bench/review-round4.html` (key: `key-round4.json`, raw results in
-`results/round4`): ratings as in round 3 and a preference per chapter. If the owner prefers the tuned
-lengths, set `ABRIDGE_CALIBRATE_LENGTH=true`; proofreading (`ABRIDGE_PROOFREAD=true`) costs a Qwen call
-per part and fixed real slips in §21.2's texts without a wrong change.
+`results/round4`): ratings as in round 3 and a preference per chapter.
+
+**The owner's round-4 ratings** (decoded with `key-round4.json`):
+
+| Chapter | Version | F | C | L | R | Total | Length | Preferred |
+|---|---|---|---|---|---|---|---|---|
+| Russell (en) | tuned | 5 | 4 | 5 | 5 | 19 | right | |
+| Russell (en) | current | 5 | 5 | 5 | 5 | 20 | right | ✓ |
+| Chekhov (ru) | current | 3 | 4 | 4 | 4 | 15 | right | |
+| Chekhov (ru) | tuned | 4 | 4 | 3 | 4 | 15 | right | ✓ |
+| «Хмельниччина» (uk) | current | 2 | 3 | 2 | 3 | 10 | right | |
+| «Хмельниччина» (uk) | tuned | 4 | 5 | 4 | 5 | 18 | right | ✓ |
+
+- Every length was "right", the longer tuned Russian and Ukrainian included, and the tuned version was
+  preferred in both. English had the same settings in both versions, so its pick is run-to-run variation.
+  **Decision: `ABRIDGE_CALIBRATE_LENGTH` and `ABRIDGE_PROOFREAD` are on by default.**
+- Against round 3 (Gemma 4 plus check: 17.0 on average), the English chapter rose to 19-20 and the
+  Ukrainian tuned chapter to 18; the Russian chapter stayed at 15.
+- What the owner still found is mostly for the fact-check, whose recall on the annotated errors is about
+  two thirds (§21.2): the Vilnius truce "зі Швецією" again, the Uman siege moved to autumn 1654,
+  Pyliavtsi skipped, "часто" for the source's "деколи" (all in or beside parts the check passed); in
+  Russian "предшественники не поверили" (fixed in the tuned version), Nevelskoy's wife "lost" (she lost
+  her health), the draft misread (the source: the ship draws 12½ feet where the channel is 14), geese that
+  "took place" in De-Kastri (the anecdote did). Proofreading did not catch "Екатерина Ивановная" (the
+  source: "Ивановна"; the slip is in the ending, so the name check takes it for an inflection) nor
+  "существование перешеек", and the Ukrainian quote was cut ("у руки проклятих").
+- Next: raise the fact-check's recall (a second checker, or two passes, measured on the annotated errors).
 
 ---
 
