@@ -58,3 +58,12 @@ export function jobDuration(job: Pick<JobResponse, "startedAt" | "finishedAt">):
   const s = total % 60;
   return h > 0 ? `${h}h ${String(m).padStart(2, "0")}m` : m > 0 ? `${m}m ${String(s).padStart(2, "0")}s` : `${s}s`;
 }
+
+/** "1 h 05 min", "12 min", "under a minute" */
+export function formatDuration(ms: number): string {
+  const minutes = Math.round(ms / 60000);
+  if (minutes < 1) return "under a minute";
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours} h ${String(minutes % 60).padStart(2, "0")} min`;
+}

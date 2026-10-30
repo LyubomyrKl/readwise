@@ -65,7 +65,14 @@ rebuilt with their text. Progress is saved per chapter and stage in the checkpoi
 
 Settings: `ABRIDGE_MODEL` (default `OLLAMA_MODEL`), `ABRIDGE_CHECK_MODEL` (empty: no fact-check),
 `ABRIDGE_VISION_MODEL`, `ABRIDGE_FACTCHECK` (`dense` default, `all`, `off`), `ABRIDGE_OCR`,
-`OLLAMA_NUM_CTX` (32768). The LLM host's own settings: docs/deploy.md, The LLM host.
+`ABRIDGE_PROOFREAD` (Russian and Ukrainian slips listed by the writer and applied when spelling-sized,
+`proofread.py`), `ABRIDGE_CALIBRATE_LENGTH` (ask for more words where the writer runs short: Ukrainian
+×1.25, Russian ×1.08), `OLLAMA_NUM_CTX` (32768). The LLM host's own settings: docs/deploy.md, The LLM host.
+
+Progress: the job reports its stage ("chapter 3 of 12: part 2 of 4", "fact-checking chapter 3 of 12",
+"fixing …", "writing the book overview", "building the EPUB") with percentages that follow where the
+time goes; the manifest holds every chapter's state, which `GET /api/reader/editions/:id/progress`
+serves to the web app's progress view.
 
 ## Bench
 

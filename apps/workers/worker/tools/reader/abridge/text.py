@@ -113,3 +113,10 @@ def keep_whole_sentences(text: str) -> str:
 
 def paragraphs(text: str) -> list[str]:
     return [p.strip() for p in re.split(r"\n\s*\n|\n", text or "") if p.strip()]
+
+
+def verdict(text: str, words: tuple[str, ...]) -> str:
+    """The first of `words` the model answered with: models wrap a one-word answer ("The correct answer is
+    **B**.", "**YES**"), and a short token cap cuts the explanation that follows."""
+    match = re.search(r"\b(" + "|".join(words) + r")\b", (text or "").replace("*", " ").upper())
+    return match.group(1) if match else ""

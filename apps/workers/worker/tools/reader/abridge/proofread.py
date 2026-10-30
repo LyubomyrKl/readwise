@@ -13,6 +13,7 @@ import re
 from worker.tools.reader.ingest.language import language_name
 from worker.tools.reader.abridge import checks, prompts
 from worker.tools.reader.abridge.engine import Engine
+from worker.tools.reader.abridge.text import sentences, verdict
 
 LANGUAGES = ("uk", "ru")
 _PAIR = re.compile(r"WRONG:\s*(.*?)\s*\|\s*RIGHT:\s*(.*)", re.I)
@@ -52,6 +53,18 @@ def acceptable(wrong: str, right: str, text: str, source: str, lang: str) -> str
     return ""
 
 
+def better_language(engine: Engine, old: str, new: str, language: str) -> bool:
+    """The corrected sentence must win in both orders: on its own list the writer once turned a correct
+    "Річчю Посполитою" into "Речі Посполитої", which breaks the sentence."""
+    for first, second, wanted in ((old, new, "B"), (new, old, "A")):
+        answer = engine.call(engine.models.writer, prompts.GRAMMAR_COMPARE.format(language=language, first=first,
+                                                                                  second=second),
+                             num_predict=12, temperature=0.0).text
+        if verdict(answer, ("A", "B")) != wanted:
+            return False
+    return True
+
+
 def proofread(engine: Engine, text: str, lang: str, source: str = "") -> tuple[str, list[dict]]:
     """The text with the accepted corrections, and every proposed pair with what happened to it."""
     if lang not in LANGUAGES or not text.strip():
@@ -62,6 +75,10 @@ def proofread(engine: Engine, text: str, lang: str, source: str = "") -> tuple[s
     changes = []
     for wrong, right in pairs_of(reply.text):
         reason = acceptable(wrong, right, text, source, lang)
+        if not reason:
+            sentence = next((s for p in text.split("\n") for s in sentences(p) if re.search(_word(wrong), s)), "")
+            if sentence and not better_language(engine, sentence, re.sub(_word(wrong), right, sentence), language):
+                reason = "not better in context"
         if not reason:
             text = re.sub(_word(wrong), right, text)
         changes.append({"wrong": wrong, "right": right, "action": f"skipped: {reason}" if reason else "fixed"})

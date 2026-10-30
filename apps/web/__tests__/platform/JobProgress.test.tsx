@@ -24,6 +24,12 @@ describe("JobProgress", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
+  it("draws an accessible bar and says how long the job has been running", () => {
+    render(<JobProgress job={job({ startedAt: new Date(Date.now() - 12 * 60_000).toISOString() })} />);
+    expect(screen.getByRole("progressbar", { name: "Summarize progress" })).toHaveAttribute("aria-valuenow", "42");
+    expect(screen.getByText("Running for 12 min")).toBeInTheDocument();
+  });
+
   it("explains a waiting job and how it resumes", () => {
     render(<JobProgress job={job({ status: "waiting", waitReason: "LLM host unreachable: http://ollama:11434" })} />);
     expect(screen.getByText(/Waiting: LLM host unreachable/)).toBeInTheDocument();

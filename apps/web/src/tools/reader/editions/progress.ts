@@ -2,7 +2,7 @@
  * What the abridge job's stage and error mean to a reader. The stage strings come from the worker
  * (apps/workers/worker/tools/reader/abridge/handler.py) and are matched here, in one place.
  */
-import type { JobResponse, JobStatus } from "@platform/jobs/types";
+import { formatDuration, type JobResponse, type JobStatus } from "@platform/jobs/types";
 
 export type EditionPhase = "queued" | "reading" | "writing" | "checking" | "fixing" | "finishing" | "done";
 
@@ -61,14 +61,7 @@ function parseRunning(text: string): StageInfo {
   return { phase: "reading", label: "Reading the book" };
 }
 
-/** "1 h 05 min", "12 min", "under a minute" */
-export function formatDuration(ms: number): string {
-  const minutes = Math.round(ms / 60000);
-  if (minutes < 1) return "under a minute";
-  if (minutes < 60) return `${minutes} min`;
-  const hours = Math.floor(minutes / 60);
-  return `${hours} h ${String(minutes % 60).padStart(2, "0")} min`;
-}
+export { formatDuration };
 
 export interface Sample {
   at: number;

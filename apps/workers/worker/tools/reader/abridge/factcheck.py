@@ -20,20 +20,13 @@ from worker.tools.reader.ingest.language import language_name
 from worker.tools.reader.abridge import prompts
 from worker.tools.reader.abridge.chapter import ChapterResult, PartResult
 from worker.tools.reader.abridge.engine import Engine
-from worker.tools.reader.abridge.text import FIGURE_MARKER, keep_whole_sentences, sentences, words
+from worker.tools.reader.abridge.text import FIGURE_MARKER, keep_whole_sentences, sentences, verdict, words
 
 DENSE_FACTS = 1.0     # names and numbers per 100 words from which a part is checked in "dense" mode
 
 NOISE = re.compile(r"(this is (accurate|faithful|correct)|is (accurate|faithful)|no error|faithful(ly)?\b|accurately"
                    r"|stylistic|omission|omits|omitted|not listed per instructions|^none\.?$|minor (change|shift)"
                    r"|matches the source|consistent with the source)", re.I)
-
-
-def verdict(text: str, words: tuple[str, ...]) -> str:
-    """The first of `words` the model answered with: models wrap a one-word answer ("The correct answer is
-    **B**.", "**YES**"), and a short token cap cuts the explanation that follows."""
-    match = re.search(r"\b(" + "|".join(words) + r")\b", (text or "").replace("*", " ").upper())
-    return match.group(1) if match else ""
 
 
 def should_check(part: PartResult, mode: str) -> bool:

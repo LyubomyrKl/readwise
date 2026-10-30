@@ -1,10 +1,11 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { AlertTriangle, Ban, CheckCircle2, Clock, Loader2, PauseCircle, RotateCcw } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { isActiveJob, type JobResponse, type JobStatus } from "./types";
+import { formatDuration, isActiveJob, type JobResponse, type JobStatus } from "./types";
 
 const STATUS_LABEL: Record<JobStatus, string> = {
   queued: "Queued",
@@ -52,8 +53,19 @@ export interface JobProgressProps {
   className?: string;
 }
 
+/** Re-renders every 30 s so a running time stays current. */
+function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs);
+    return () => clearInterval(timer);
+  }, [intervalMs]);
+  return now;
+}
+
 /** Stage, progress bar, the waiting hint and the cancel/retry actions of one job. */
 export function JobProgress({ job, parent, onCancel, onRetry, busy, className }: JobProgressProps) {
+  const now = useNow();
   const waitingOnParent = job.status === "queued" && parent && isActiveJob(parent.status);
   const shown = waitingOnParent ? parent! : job;
   const waiting = shown.status === "waiting";
@@ -72,12 +84,24 @@ export function JobProgress({ job, parent, onCancel, onRetry, busy, className }:
         <span className="text-sm font-medium tabular-nums">{Math.round(progress)}%</span>
       </div>
 
-      <div className="h-2 overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-2.5 overflow-hidden rounded-full bg-muted"
+        role="progressbar"
+        aria-label={`${jobLabel(shown.type)} progress`}
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(progress)}
+      >
         <div
           className={cn("h-full rounded-full transition-all duration-500", waiting ? "bg-amber-500" : "bg-primary")}
           style={{ width: `${Math.max(2, Math.min(100, progress))}%` }}
         />
       </div>
+      {shown.status === "running" && shown.startedAt && (
+        <p className="text-xs text-muted-foreground">
+          Running for {formatDuration(Math.max(0, now - new Date(shown.startedAt).getTime()))}
+        </p>
+      )}
 
       {waiting && (
         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm">

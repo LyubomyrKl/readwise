@@ -401,6 +401,8 @@ def test_proofreading_runs_on_every_ukrainian_part_when_switched_on(settings, st
         def _answer(self, prompt, last, images):
             if prompt.startswith("Below is a text in Ukrainian"):
                 return "WRONG: гетьман | RIGHT: гетьмана" if "гетьман " in prompt else "NONE"
+            if prompt.startswith("Two versions of one sentence"):
+                return "B" if "\nB: " in prompt and "гетьмана" in prompt.split("\nB: ")[1] else "A"
             return super()._answer(prompt, last, images)
 
     llm = Proofreading()

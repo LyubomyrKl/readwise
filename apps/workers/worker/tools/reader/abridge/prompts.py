@@ -160,6 +160,12 @@ If there is nothing to correct, answer exactly: NONE
 {text}
 </text>"""
 
+GRAMMAR_COMPARE = """Two versions of one sentence in {language}. Which one is correct standard modern {language}:
+spelling, word forms, cases and agreement? Answer with one letter: A or B.
+
+A: {first}
+B: {second}"""
+
 DESCRIBE = """This picture is from the book "{book}". Caption: «{caption}».
 In 1-2 sentences in {language}, say what the picture shows for a reader who cannot see it: the subject, and for
 a chart, map or diagram what it shows and its main trend. Do not invent numbers or names you cannot read.
