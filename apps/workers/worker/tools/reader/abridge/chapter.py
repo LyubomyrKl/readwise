@@ -18,10 +18,14 @@ from worker.tools.reader.abridge import checks, prompts
 from worker.tools.reader.abridge.density import density
 from worker.tools.reader.abridge.engine import Engine, tokens_per_word
 from worker.tools.reader.abridge.figures import place
+from worker.tools.reader.abridge.proofread import proofread
 from worker.tools.reader.abridge.text import (FIGURE_MARKER, clean_output, keep_whole_sentences, last_sentences,
                                               split_parts, words)
 
 PART_WORDS = 1200
+# With ABRIDGE_CALIBRATE_LENGTH the writer is asked for this many times a part's target: on every run so far
+# Gemma 4 wrote Ukrainian about 20% and Russian about 8% shorter than asked, English on target (§20).
+ASK_FACTOR = {"uk": 1.25, "ru": 1.08}
 
 
 @dataclass
@@ -48,6 +52,7 @@ class PartResult:
     checked: bool = False
     check_flags: list[dict] = field(default_factory=list)
     changes: list[dict] = field(default_factory=list)
+    proofread: list[dict] = field(default_factory=list)
 
     @property
     def ratio(self) -> float:
@@ -136,6 +141,8 @@ def abridge_part(engine: Engine, *, book: str, author: str, chapter: str, lang: 
     d = density(plain, [FIGURE_MARKER.sub("", o) for o in others], lang, length)
     words_in = words(text)
     target_words = max(30, round(words_in * d.target))
+    if getattr(engine.settings, "abridge_calibrate_length", False):
+        target_words = max(30, round(target_words * ASK_FACTOR.get(lang, 1.0)))
     headings = [item[3:] for item in items if item.startswith("## ")]
     figure_numbers = [int(n) for n in FIGURE_MARKER.findall(text)]
     extras = (prompts.HEADINGS_RULE if headings else "") + (prompts.FIGURES_RULE if figure_numbers else "")
@@ -177,6 +184,9 @@ def abridge_part(engine: Engine, *, book: str, author: str, chapter: str, lang: 
             output, truncated, report = second, second_truncated, second_report
 
     output = checks.repair(plain, output, lang, report)
+    proofread_changes: list[dict] = []
+    if getattr(engine.settings, "abridge_proofread", False):
+        output, proofread_changes = proofread(engine, output, lang, plain)
     output, put_back = place(output, figure_numbers, items)
     return PartResult(
         index=index, source=text, output=output, words_in=words_in, words_out=words(output), density=d.score,
@@ -184,7 +194,7 @@ def abridge_part(engine: Engine, *, book: str, author: str, chapter: str, lang: 
         figures_put_back=put_back, retried=retried, truncated=truncated, flags=report.flags(),
         corrected=[list(c) for c in report.corrected], mixed_unfixed=report.mixed_unfixed,
         unsupported_names=report.unsupported_names, unsupported_numbers=report.unsupported_numbers,
-        seconds=round(time.perf_counter() - started, 2))
+        proofread=proofread_changes, seconds=round(time.perf_counter() - started, 2))
 
 
 def abridge_chapter(engine: Engine, *, unit: str, book: str, author: str, title: str, lang: str, length: str,

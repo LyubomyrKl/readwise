@@ -364,3 +364,46 @@ def test_checks_band_follows_the_target():
 
 def test_png_helper_used_here_is_valid():
     assert png(4, 4).startswith(b"\x89PNG")
+
+
+# ---- proofreading (Russian and Ukrainian slips) ---------------------------------------------------
+
+def test_proofreading_applies_spelling_sized_fixes_only():
+    from worker.tools.reader.abridge.proofread import acceptable, pairs_of
+
+    text = "Війна послабила контроль над землями Реччю Посполитою. У груді 1653 року греко-колицькі священники пішли."
+    source = "Річ Посполита втратила контроль. У грудні 1653 року греко-католицькі священники пішли. Хмельницький."
+    answer = ("WRONG: Реччю | RIGHT: Річчю\nWRONG: У груді 1653 | RIGHT: У грудні 1653\nWRONG: колицькі | RIGHT: католицькі\n"
+              "WRONG: 1653 | RIGHT: 1654\nWRONG: послабила контроль над землями | RIGHT: змусила Польщу відступити з усіх її володінь\n"
+              "WRONG: Хмельницький | RIGHT: Хмельницкий\nWRONG: пішли | RIGHT: ушли")
+    verdicts = {wrong: acceptable(wrong, right, text, source, "uk") for wrong, right in pairs_of(answer)}
+
+    assert verdicts["Реччю"] == "" and verdicts["У груді 1653"] == "" and verdicts["колицькі"] == ""
+    assert verdicts["1653"] == "changes a number"
+    assert verdicts["послабила контроль над землями"] == "a rewrite, not a spelling fix"
+    assert verdicts["Хмельницький"] == "not in the text"
+    assert verdicts["пішли"] == "the source has these words"      # a real word, whatever the model thinks
+
+
+def test_proofreading_keeps_the_sources_own_spelling_of_a_name():
+    from worker.tools.reader.abridge.proofread import acceptable
+
+    assert acceptable("Гельмес", "Гельмс", "Переводчик Гельмес пришёл.", "Переводчик Гельмес пришёл.", "ru") == \
+        "the source has these words"
+
+
+def test_proofreading_runs_on_every_ukrainian_part_when_switched_on(settings, storage, make_ctx):
+    chapter = xhtml("<h1>Розділ 1</h1>" + "".join(f"<p>{paragraph(i, lang='uk')}</p>" for i in range(1, 5)))
+    storage.store[("books", "user-1-book.epub")] = epub([("c1.xhtml", chapter), ("c2.xhtml", chapter)],
+                                                        toc=[("Розділ 1", "c1.xhtml", []), ("Розділ 2", "c2.xhtml", [])])
+
+    class Proofreading(ScriptedLLM):
+        def _answer(self, prompt, last, images):
+            if prompt.startswith("Below is a text in Ukrainian"):
+                return "WRONG: гетьман | RIGHT: гетьмана" if "гетьман " in prompt else "NONE"
+            return super()._answer(prompt, last, images)
+
+    llm = Proofreading()
+    _run(_settings(settings, abridge_factcheck="off", abridge_proofread=True), storage, make_ctx, llm)
+
+    assert sum(1 for _, p in llm.calls if p.startswith("Below is a text in Ukrainian")) == 2

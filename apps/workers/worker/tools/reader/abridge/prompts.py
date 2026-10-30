@@ -148,6 +148,18 @@ Output only the corrected sentence.
 
 Sentence: {sentence}"""
 
+PROOFREAD = """Below is a text in {language}. List every word or short phrase in it that is misspelled or is not
+standard modern {language}: a Russian word or form, a Latin letter inside a word, a wrong case, ending or
+preposition. Give the corrected form. Do not touch names, numbers, style or meaning, and do not list
+anything that is correct.
+One per line, in this format:
+WRONG: <exact words from the text> | RIGHT: <the corrected words>
+If there is nothing to correct, answer exactly: NONE
+
+<text>
+{text}
+</text>"""
+
 DESCRIBE = """This picture is from the book "{book}". Caption: «{caption}».
 In 1-2 sentences in {language}, say what the picture shows for a reader who cannot see it: the subject, and for
 a chart, map or diagram what it shows and its main trend. Do not invent numbers or names you cannot read.
