@@ -28,7 +28,8 @@ interface Section {
   id: string;
   title: string;
   content: string;
-  level: "chapter" | "section";
+  /** "overview": the book-level summary the worker writes as document_summary */
+  level: "overview" | "chapter" | "section";
   chapterNum: number;
   sectionNum?: number;
 }
@@ -80,6 +81,12 @@ const getContent = (section: { content?: string; summary?: { content: string }; 
 
 const flattenSections = (summary: Summary): Section[] => {
   const sections: Section[] = [];
+
+  // The synthesis of the whole book comes first; it used to be stored and never shown.
+  const overview = summary.document_summary?.content?.trim();
+  if (overview) {
+    sections.push({ id: "overview", title: "Overview", content: overview, level: "overview", chapterNum: 0 });
+  }
 
   summary.sections.forEach((chapter, chapterIdx) => {
     const chapterContent = getContent(chapter);
@@ -255,9 +262,11 @@ export const SummaryReader = ({ summary, summaryId }: { summary: Summary; summar
                     className="text-sm font-medium tracking-widest uppercase mb-4"
                     style={{ color: t.accent }}
                   >
-                    {currentSection.level === "chapter"
-                      ? `Chapter ${currentSection.chapterNum}`
-                      : `Section ${currentSection.chapterNum}.${currentSection.sectionNum}`}
+                    {currentSection.level === "overview"
+                      ? "The whole book"
+                      : currentSection.level === "chapter"
+                        ? `Chapter ${currentSection.chapterNum}`
+                        : `Section ${currentSection.chapterNum}.${currentSection.sectionNum}`}
                   </motion.p>
                   <motion.h1
                     initial={{ opacity: 0, y: 10 }}
@@ -266,7 +275,7 @@ export const SummaryReader = ({ summary, summaryId }: { summary: Summary; summar
                     className="font-bold leading-[1.15] tracking-tight break-words"
                     style={{
                       color: t.text,
-                      fontSize: currentSection.level === "chapter" ? "2.5rem" : "2rem",
+                      fontSize: currentSection.level === "section" ? "2rem" : "2.5rem",
                       fontFamily: f.family,
                     }}
                   >
@@ -503,7 +512,7 @@ const TOCSheet = ({
         <div className="flex-1 overflow-y-auto p-3">
           {sections.map((section, idx) => {
             const isActive = idx === currentIdx;
-            const isChapter = section.level === "chapter";
+            const isChapter = section.level !== "section";
 
             return (
               <button
@@ -522,7 +531,7 @@ const TOCSheet = ({
                   className={cn("font-medium leading-snug break-words", isChapter ? "text-base" : "text-sm")}
                   style={{ color: isActive ? theme.accent : theme.text }}
                 >
-                  {isChapter ? `${section.chapterNum}. ` : ""}
+                  {section.level === "chapter" ? `${section.chapterNum}. ` : ""}
                   {section.title}
                 </p>
                 {!isChapter && (

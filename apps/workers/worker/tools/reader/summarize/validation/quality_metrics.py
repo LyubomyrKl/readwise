@@ -20,6 +20,22 @@ STOP_WORDS: Set[str] = {
     "those", "i", "you", "he", "she", "we", "they", "what", "which", "who", "whom",
 }
 
+# First lines that mean "no problems found"; models often go on to explain why.
+_ACCURATE_VERDICTS = ("ACCURATE", "NONE", "NO ISSUES", "NO ERRORS", "NO FACTUAL ERRORS")
+
+
+def is_accurate_verdict(response: str) -> bool:
+    """True when the fact-checker's answer starts with a no-problems verdict.
+
+    The old test (`"ACCURATE" in response and len(response) < 50`) took "ACCURATE. The summary
+    reflects..." for a list of issues and failed about half the chunks for nothing.
+    """
+    lines = [line.strip() for line in (response or "").splitlines() if line.strip()]
+    if not lines:
+        return False
+    first = lines[0].strip("*#>-:. \"'").upper()
+    return first.startswith(_ACCURATE_VERDICTS)
+
 
 class QualityMetrics:
     """Calculate summary quality metrics.
@@ -232,7 +248,7 @@ Format: List each issue on a new line, or "ACCURATE" if none."""
                 temperature=0.1,
             )
 
-            if "ACCURATE" in response.upper() and len(response) < 50:
+            if is_accurate_verdict(response):
                 return 1.0, []
 
             # Parse issues from response

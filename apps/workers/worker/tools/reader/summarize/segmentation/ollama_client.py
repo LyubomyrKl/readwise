@@ -4,7 +4,7 @@ import json
 import os
 import requests
 import numpy as np
-from typing import Dict
+from typing import Dict, List
 
 # Greedy decoding with a fixed seed: the same text is segmented the same way every time
 LLM_OPTIONS = {"temperature": 0, "seed": 42}
@@ -45,6 +45,38 @@ class OllamaClient:
                 raise Exception(f"Embedding failed: {response.status_code}")
         except Exception as e:
             raise Exception(f"Ollama embedding error: {e}")
+
+    def get_embeddings(self, texts: List[str], batch_size: int = 64) -> List[np.ndarray]:
+        """L2-normalized embeddings of many texts, `batch_size` per request (POST /api/embed).
+
+        One request per window cost about 13 minutes per book in round trips; a server without
+        /api/embed (Ollama before 0.3) gets the old one-by-one requests.
+        """
+        out: List[np.ndarray] = []
+        for start in range(0, len(texts), batch_size):
+            batch = texts[start:start + batch_size]
+            self.calls["embeddings"] += 1
+            try:
+                response = requests.post(
+                    f"{self.base_url}/api/embed",
+                    json={"model": self.embed_model, "input": batch},
+                    timeout=120,
+                )
+            except (requests.ConnectionError, requests.Timeout):
+                raise  # the host is unreachable; the handler waits for it
+            if response.status_code == 404 and "model" not in response.text.lower():
+                self.calls["embeddings"] -= 1
+                return out + [self.get_embedding(t) for t in texts[start:]]
+            if response.status_code != 200:
+                raise Exception(f"Ollama embedding error: {response.status_code} {response.text[:200]}")
+            vectors = response.json().get("embeddings") or []
+            if len(vectors) != len(batch):
+                raise Exception(f"Ollama embedding error: {len(vectors)} vectors for {len(batch)} texts")
+            for vector in vectors:
+                embedding = np.array(vector, dtype=float)
+                norm = np.linalg.norm(embedding)
+                out.append(embedding / norm if norm > 0 else embedding)
+        return out
 
     def call_llm(self, prompt: str) -> Dict:
         """Call LLM via Ollama and return JSON response."""

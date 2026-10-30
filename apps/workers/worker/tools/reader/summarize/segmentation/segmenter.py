@@ -60,7 +60,7 @@ class DeterministicSegmenter:
             return []
 
         windows = create_windows(sentences, self.window_size)
-        embeddings = [self.ollama_client.get_embedding(w) for w in windows]
+        embeddings = self.ollama_client.get_embeddings(windows)
 
         topic_scores = compute_topic_shift_scores(embeddings)
         peak_indices = find_peaks_zscore(topic_scores, self.z_window, self.z_threshold)

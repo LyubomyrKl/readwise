@@ -30,6 +30,17 @@ ProgressCallback = Callable[[str, str, int, int], None]
 SectionCallback = Callable[[int, Dict[str, Any]], None]
 
 
+def scale_ratio(ratio: float, target: Optional[float], base: float) -> float:
+    """Centres an adaptive ratio (computed around `base`) on the requested summary percent.
+
+    The adaptive compressor used to replace the job's summaryPercent altogether; scaling keeps its
+    per-chunk variation (denser chunks keep more) while the average follows the request.
+    """
+    if not target or not base:
+        return ratio
+    return max(0.05, min(0.9, ratio * target / base))
+
+
 class SummarizationPipeline:
     """Main orchestrator for the enhanced summarization pipeline.
 
@@ -75,6 +86,7 @@ class SummarizationPipeline:
         self._validation_loop = None
         self._deduplicator = None
         self._merger = None
+        self._summary_percent: Optional[float] = None  # set per process() call
 
     async def __aenter__(self) -> "SummarizationPipeline":
         """Open the pipeline and initialize components."""
@@ -133,8 +145,10 @@ class SummarizationPipeline:
 
         # Adaptive Compressor
         if self.features.use_adaptive_compression:
+            # heuristics only: the LLM variant cost one extra call per chunk for a number the
+            # clamps below mostly overrode
             density_analyzer = DensityAnalyzer(
-                llm_client=self._llm_client,
+                llm_client=None,
                 tokenizer_encoding=self.settings.tokenizer_encoding,
             )
             self._compressor = AdaptiveCompressor.from_settings(
@@ -222,9 +236,11 @@ class SummarizationPipeline:
         Returns:
             Compression ratio
         """
+        target = self._summary_percent
         if self.features.use_adaptive_compression and self._compressor:
-            return await self._compressor.get_compression_ratio(chunk, context)
-        return self.settings.compression_base_ratio
+            ratio = await self._compressor.get_compression_ratio(chunk, context)
+            return scale_ratio(ratio, target, self.settings.compression_base_ratio)
+        return target or self.settings.compression_base_ratio
 
     async def _summarize_chunk(
         self,
@@ -360,6 +376,8 @@ class SummarizationPipeline:
         # Override base ratio with summary_percent
         if hasattr(self._summarizer, 'default_ratio'):
             self._summarizer.default_ratio = summary_percent  # type: ignore
+        # ...and centre the adaptive ratios on it (_get_compression_ratio)
+        self._summary_percent = summary_percent
 
         # Process sections
         result_sections = []

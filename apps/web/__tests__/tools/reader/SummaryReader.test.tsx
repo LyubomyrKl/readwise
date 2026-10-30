@@ -67,6 +67,17 @@ describe("SummaryReader position", () => {
     expect(JSON.parse(localStorage.getItem("summary-reader")!)).not.toHaveProperty("currentIdx");
   });
 
+  it("opens on the book overview when the summary has one", async () => {
+    const summary: Summary = {
+      ...summaryOf(2),
+      document_summary: { content: "What the whole book argues.", token_count: 6, entities: [] },
+    };
+    await open(summary, "sum-overview");
+    expect(screen.getByText("The whole book")).toBeInTheDocument();
+    expect(screen.getByText("What the whole book argues.")).toBeInTheDocument();
+    expect(screen.getByText("1 of 3")).toBeInTheDocument();
+  });
+
   it("shows an empty state for a summary without sections", async () => {
     localStorage.setItem("summary-reader.position.sum-empty", "3");
     await open({ sections: [] }, "sum-empty");
