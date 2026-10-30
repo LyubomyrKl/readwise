@@ -64,6 +64,15 @@ class S3Storage:
             logger.error(f"Failed to upload to S3: {e}")
             raise
 
+    def download_bytes(self, bucket: str, key: str) -> bytes:
+        response = self.client.get_object(Bucket=bucket, Key=key)
+        return response['Body'].read()
+
+    def upload_bytes(self, bucket: str, key: str, data: bytes, content_type: str = 'application/octet-stream') -> str:
+        self.client.put_object(Bucket=bucket, Key=key, Body=data, ContentType=content_type)
+        logger.info(f"Uploaded to S3: s3://{bucket}/{key} ({len(data)} bytes)")
+        return key
+
     def download_file(self, bucket: str, key: str, local_path: str):
         try:
             self.client.download_file(bucket, key, local_path)

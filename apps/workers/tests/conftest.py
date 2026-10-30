@@ -75,6 +75,17 @@ class FakeStorage:
     def object_exists(self, bucket, key):
         return (bucket, key) in self.store
 
+    def download_bytes(self, bucket, key):
+        if (bucket, key) not in self.store:
+            raise _client_error("NoSuchKey", "GetObject")
+        value = self.store[(bucket, key)]
+        return value.encode("utf-8") if isinstance(value, str) else value
+
+    def upload_bytes(self, bucket, key, data, content_type="application/octet-stream"):
+        self.store[(bucket, key)] = bytes(data)
+        self.uploads.append({"bucket": bucket, "key": key, "content_type": content_type, "metadata": {}})
+        return key
+
     summary_key = staticmethod(lambda book_id, summary_id: f"summary/{book_id}/{summary_id}.json")
 
     def upload_summary(self, bucket, book_id, summary_id, summary_json, summary_type, metadata):

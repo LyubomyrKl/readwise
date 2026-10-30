@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "workbench-workers"
 version = "0.2.0"
-description = "Workbench background workers: a job consumer plus the reader tool's extraction and summarization handlers"
+description = "Workbench background workers: a job consumer plus the reader tool's handlers (extract, ingest, summarize, abridge)"
 requires-python = ">=3.11"
 dependencies = [
   # messaging, storage, configuration
@@ -21,6 +21,8 @@ dependencies = [
   "Pillow==10.1.0",
   "ebooklib==0.18",
   "beautifulsoup4==4.12.2",
+  # the reader's ingest: PDF structure, fonts, pictures, page rendering for OCR (AGPL, self-hosted use)
+  "pymupdf==1.28.2",
   # summarization pipeline
   "tiktoken==0.5.2",
   "numpy>=1.21.0",

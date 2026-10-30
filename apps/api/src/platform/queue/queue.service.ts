@@ -13,6 +13,7 @@ import {
   LEGACY_QUEUES,
   PYTHON_JOB_TYPES,
   QUEUES,
+  STALE_BINDINGS,
   dlqOf,
   jobRoutingKey,
   pythonQueueFor,
@@ -212,6 +213,10 @@ export class QueueService implements OnModuleInit, OnModuleDestroy {
       for (const pattern of bindings) {
         await channel.bindQueue(queue, exchange, pattern);
       }
+    }
+
+    for (const { queue, pattern } of STALE_BINDINGS) {
+      await channel.unbindQueue(queue, EXCHANGES.jobs, pattern);
     }
 
     for (const legacy of LEGACY_QUEUES) {

@@ -42,10 +42,21 @@ class WorkerSettings(BaseSettings):
     ollama_model: str = ""
     ollama_embed_model: str = ""
     pipeline_mode: str = "balanced"
+    # context of every request (the server's default can be 4,096 tokens, which cut prompts silently)
+    ollama_num_ctx: int = 32768
+    ollama_timeout_seconds: float = 900.0
+    ollama_keep_alive: str = "30m"
+
+    # ---- the abridged edition (reader.abridge); docs/summarizer-investigation.md 10.4
+    abridge_model: str = ""             # writes, confirms and fixes; default OLLAMA_MODEL
+    abridge_check_model: str = ""       # lists suspected errors (qwen3.6:35b-mlx); empty = no fact-check
+    abridge_vision_model: str = ""      # describes pictures and reads scans; default the writer
+    abridge_factcheck: str = "dense"    # all | dense (parts dense in names and numbers) | off
+    abridge_ocr: bool = True            # read scanned PDF pages with the vision model
 
     # ---- this process
     worker_id: str = Field(default_factory=lambda: f"workers-{socket.gethostname()}")
-    worker_queues: str = "reader"
+    worker_queues: str = "reader,reader_fast"
     worker_prefetch_count: int = 1
     worker_heartbeat_seconds: int = 60
     worker_reconnect_seconds: int = 5

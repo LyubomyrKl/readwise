@@ -1,4 +1,4 @@
-"""`python -m worker [--queues reader]`: consume the tools' job queues until stopped."""
+"""`python -m worker [--queues reader,reader_fast]`: consume the tools' job queues until stopped."""
 
 from __future__ import annotations
 
@@ -18,12 +18,13 @@ from worker.platform.storage import S3Storage
 
 logger = logging.getLogger("worker")
 
-# tool id -> (bindings, handler factory). Adding a Python tool means one line here.
+# queue id (q.py.<id>) -> (bindings, handler factory). Adding a Python tool means a line here.
 def _tools():
     from worker.tools.reader import handlers as reader
 
     return {
         reader.TOOL_ID: (reader.BINDINGS, reader.build_handlers),
+        reader.FAST_QUEUE: (reader.FAST_BINDINGS, reader.build_fast_handlers),
     }
 
 
@@ -31,7 +32,7 @@ def main(argv: list[str] | None = None) -> int:
     settings = get_settings()
     parser = argparse.ArgumentParser(prog="worker", description="Workbench Python job worker")
     parser.add_argument("--queues", default=settings.worker_queues,
-                        help="comma-separated tool ids to consume (default: %(default)s)")
+                        help="comma-separated queue ids to consume, q.py.<id> (default: %(default)s)")
     args = parser.parse_args(argv)
     configure_logging(settings.log_level)
 

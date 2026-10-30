@@ -31,6 +31,7 @@ function fakeChannel() {
     assertExchange: jest.fn().mockResolvedValue({}),
     assertQueue: jest.fn().mockResolvedValue({}),
     bindQueue: jest.fn().mockResolvedValue({}),
+    unbindQueue: jest.fn().mockResolvedValue({}),
     deleteQueue: jest.fn().mockResolvedValue({ messageCount: 0 }),
     prefetch: jest.fn().mockResolvedValue(undefined),
     consume: jest.fn().mockResolvedValue({ consumerTag: 't' }),
@@ -64,7 +65,7 @@ describe('QueueService', () => {
     expect(channel.assertExchange).toHaveBeenCalledWith('workbench.job-control', 'fanout', { durable: true });
     expect(channel.assertExchange).toHaveBeenCalledWith('workbench.dlx', 'direct', { durable: true });
 
-    for (const queue of ['q.api.job-events', 'q.node.default', 'q.py.reader']) {
+    for (const queue of ['q.api.job-events', 'q.node.default', 'q.py.reader', 'q.py.reader_fast']) {
       expect(channel.assertQueue).toHaveBeenCalledWith(queue, {
         durable: true,
         arguments: { 'x-dead-letter-exchange': 'workbench.dlx', 'x-dead-letter-routing-key': queue },
@@ -72,8 +73,13 @@ describe('QueueService', () => {
       expect(channel.assertQueue).toHaveBeenCalledWith(`${queue}.dlq`, { durable: true });
       expect(channel.bindQueue).toHaveBeenCalledWith(`${queue}.dlq`, 'workbench.dlx', queue);
     }
-    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.extract');
+    // LLM work on the heavy queue, extraction and ingest on the fast one; the old extract binding goes
     expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.summarize');
+    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.abridge');
+    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader_fast', 'workbench.jobs', 'jobs.reader.extract');
+    expect(channel.bindQueue).toHaveBeenCalledWith('q.py.reader_fast', 'workbench.jobs', 'jobs.reader.ingest');
+    expect(channel.bindQueue).not.toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.extract');
+    expect(channel.unbindQueue).toHaveBeenCalledWith('q.py.reader', 'workbench.jobs', 'jobs.reader.extract');
     expect(channel.bindQueue).toHaveBeenCalledWith('q.api.job-events', 'workbench.job-events', 'job.#');
     expect(channel.deleteQueue).toHaveBeenCalledWith('extract_request');
     expect(channel.deleteQueue).toHaveBeenCalledWith('summary_request');

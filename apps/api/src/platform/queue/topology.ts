@@ -23,10 +23,24 @@ export const jobRoutingKey = (type: string): string => `jobs.${type}`;
 export const eventRoutingKey = (event: string): string => `job.${event}`;
 export const pythonQueueFor = (toolId: string): string => `q.py.${toolId}`;
 
-/** Job types handled by the Python workers, grouped by their queue. */
+/**
+ * Job types handled by the Python workers, grouped by their queue. The reader has two: the heavy
+ * one for LLM work that runs for hours, and a fast one (seconds, no LLM) so an upload's extraction
+ * or ingest never waits behind a book; the worker consumes both with one thread each.
+ */
 export const PYTHON_JOB_TYPES: Record<string, string[]> = {
-  reader: ['reader.extract', 'reader.summarize'],
+  reader: ['reader.summarize', 'reader.abridge'],
+  reader_fast: ['reader.extract', 'reader.ingest'],
 };
+
+/**
+ * Bindings an earlier release declared and RabbitMQ keeps until they are removed: jobs of these
+ * types now go to another queue, and a stale binding would deliver them twice. Removing a binding
+ * that does not exist is not an error on RabbitMQ (3.2 and later).
+ */
+export const STALE_BINDINGS: Array<{ queue: string; pattern: string }> = [
+  { queue: 'q.py.reader', pattern: 'jobs.reader.extract' },
+];
 
 /** Queue arguments every work queue is declared with (must match on both sides). */
 export const workQueueArguments = (queue: string): Record<string, unknown> => ({
