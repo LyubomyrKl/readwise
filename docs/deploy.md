@@ -223,15 +223,21 @@ OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 o
 - **Context.** Without `OLLAMA_CONTEXT_LENGTH` a model gets a 4,096-token context and longer prompts are cut
   without an error (the old summarizer lost most of each section that way). The workers also ask for
   `OLLAMA_NUM_CTX` (32768) on every request, so a forgotten variable costs a reload, not the text.
-- **Models**, pulled once (about 41 GB):
+- **Models**, pulled once (about 52 GB):
 
   ```bash
-  ollama pull gemma4:26b-mlx     # writes the edition, describes pictures, reads scans (ABRIDGE_MODEL, OLLAMA_MODEL)
+  ollama pull gemma4:26b-mlx     # writes the edition, describes pictures, reads scans (ABRIDGE_MODEL)
   ollama pull qwen3.6:35b-mlx    # lists suspected errors for the fact-check (ABRIDGE_CHECK_MODEL)
-  ollama pull bge-m3             # the old summarizer's segmentation only
+  ollama pull qwen2.5:14b-instruct-q5_K_M   # the old summarizer (OLLAMA_MODEL), until it is removed
+  ollama pull bge-m3             # the old summarizer's segmentation (OLLAMA_EMBED_MODEL)
   ```
 
-  A job checks the models when it starts: a missing writer fails it at once with the `ollama pull`
+  The old summarizer cannot move to Gemma 4 by changing `OLLAMA_MODEL`: on the OpenAI-style endpoint
+  it calls, Gemma thinks by default (the thinking used the whole answer budget, the answer came back
+  empty), and its MLX build answers `format: json` with "structured output is unavailable".
+  Nothing else is needed on the Mac; other models can go (`ollama rm`).
+
+  An edition checks the models when it starts: a missing writer fails it at once with the `ollama pull`
   command in the error; a missing checker only skips the fact-check (a warning on the edition).
 - **One request at a time.** On Apple Silicon Ollama serves these models with its MLX runner, which
   answers simultaneous requests one after another, so `OLLAMA_NUM_PARALLEL` brings nothing; the

@@ -1371,7 +1371,7 @@ below. How to run and configure it: `apps/workers/README.md` (the engine, the be
 | 1.2–1.5, 1.7 | Done in the current pipeline | `summarize/…`; `SummaryReader.tsx` |
 | 1.6 | Done: `q.py.reader_fast` (extract, ingest) and `q.py.reader` (summarize, abridge), one thread each; the API removes the old `jobs.reader.extract` binding | `topology.ts`; `handlers.py` |
 | 1.8 | Tokens and seconds per model in every edition's result, truncated replies counted; the bench | `abridge/llm.py`; `worker/bench` |
-| 1.9 | `gemma4:26b-mlx` in the env examples | `.env.example` |
+| 1.9 | Withdrawn: the old pipeline keeps `qwen2.5`. With Gemma 4 (MLX) its `/v1/chat/completions` calls think by default and come back empty, and `format: json` is unavailable; editions set `ABRIDGE_MODEL` | `.env.example`; `docs/deploy.md` |
 | 2.1 | Done: the IR per file SHA-256, structure from the contents, the outline or fonts, section kinds in three languages, pictures, drop caps, language | `ingest/` |
 | 2.2–2.5 | Done as §8.4a describes, plus the fact-check of B.11 run book-wide | `abridge/` |
 | 2.6 | Done: endpoints, hooks, the panel with progress, the edition opens in the reader; the structure has an endpoint but no page yet | `editions/`; `EditionPanel.tsx` |
