@@ -1566,6 +1566,34 @@ wrong suggestions ("Хабаровки" -> "Хабаровска", the town's ol
   "существование перешеек", and the Ukrainian quote was cut ("у руки проклятих").
 - Next: raise the fact-check's recall (a second checker, or two passes, measured on the annotated errors).
 
+### 21.4 A second checker
+
+The owner's round-4 notes joined the test set: 27 chapters with 31 annotated errors that a checker can
+find (omissions cannot be checked). Whole-chapter checks, the round-3 prompt, 2,000 tokens:
+
+| Checker | Errors caught | Checking time |
+|---|---|---|
+| Qwen 3.6, one pass (two runs) | 13 and 17 of 31 | 1× (19 s a check) |
+| Gemma 4 alone | 10 of 31 | 0.45× (8 s a check, 2.6 flags against Qwen's 9.2) |
+| Qwen and Gemma | 16 and 19 of 31 | 1.45× |
+| Qwen, two passes | 18 of 31 | 2× |
+| all three | 20 of 31 | 2.35× |
+
+- One Qwen pass varies a lot between runs (13 or 17); Gemma finds errors Qwen misses ("Руська Правда"
+  attributed to Іларіон, the invented "bronze cannons", Nevelskoy "lost his family") and adds about as
+  much as a second Qwen pass for less than half its cost, with few flags to confirm.
+- **Decision: `ABRIDGE_SECOND_CHECK`, on by default.** The writer checks each checked part (and the summary)
+  at the start of the fix stage, where it is loaded; its flags about sentences the checker did not flag
+  join the list, and every fix records which checker found it (`fixedByWriterCheck` in the result).
+- On the Ukrainian chapter (3,839 words, everything on): 79 s writing, 65 s checking and proofreading,
+  66 s Gemma's check and the fixes, 216 s in all (the previous runs took 223 s without it; Qwen's time
+  varies more than Gemma's check adds). The check caught and fixed the Vilnius truce "зі Швецією"
+  this time; proofreading fixed "Реч Посполита" and "розгрошування"; Gemma's own check added three flags,
+  none confirmed.
+- Still missed by every checker: "предшественники не поверили" (every run since round 2), the Uman siege
+  date, the ship's draft, the geese, "часто" for "деколи", the retreat after Okhmativ. These are subtle
+  shifts of meaning that both models read past.
+
 ---
 
 ## Appendix A: measurements in detail

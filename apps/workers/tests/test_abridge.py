@@ -203,15 +203,54 @@ def test_the_fact_check_flags_with_the_checker_and_fixes_with_the_writer(setting
 
     checks_by = {model for model, prompt in llm.calls if "You are checking an abridgement" in prompt}
     fixes_by = {model for model, prompt in llm.calls if "Rewrite only that sentence" in prompt}
-    assert checks_by == {"checker"} and fixes_by == {"writer"}
+    assert checks_by == {"checker", "writer"} and fixes_by == {"writer"}      # the writer checks too (second check)
     assert result["fixedSentences"] >= 1 and result["checkedParts"] >= 3
     chapter = next(html for name, html in _epub_pages(storage.store[("books", result["storageKey"])]).items()
                    if "The Harbour" in html)
     assert "The pier was finished in June." in chapter
-    # all checks ran before the first fix: each model is loaded once
-    kinds = [("check" if "You are checking" in p else "fix") for _, p in llm.calls
-             if "You are checking" in p or "Rewrite only that sentence" in p]
-    assert kinds == sorted(kinds)
+    # every call of the checker came before the writer's stage: each model is loaded once
+    models = [model for model, _ in llm.calls]
+    first_fix = next(i for i, (_, p) in enumerate(llm.calls) if "Rewrite only that sentence" in p)
+    assert max(i for i, m in enumerate(models) if m == "checker") < first_fix
+
+
+def test_an_error_only_the_writers_own_check_finds_is_fixed_and_shared_flags_are_confirmed_once(
+        settings, storage, make_ctx):
+    storage.store[("books", "user-1-book.epub")] = sample_epub()
+
+    class WriterSees(ScriptedLLM):
+        """The checker finds nothing; the writer's own check flags the harbour office sentence."""
+
+        def _answer(self, prompt, last, images):
+            if "You are checking an abridgement" in prompt and self.calls[-1][0] == "checker":
+                return "NONE"
+            return super()._answer(prompt, last, images)
+
+    llm = WriterSees(flag_word="harbour office")
+    result = _run(_settings(settings), storage, make_ctx, llm)
+
+    assert result["fixedSentences"] >= 1 and result["fixedByWriterCheck"] == result["fixedSentences"]
+
+    both = ScriptedLLM(flag_word="harbour office")                 # both checkers flag the same sentence
+    storage.store.clear()
+    storage.store[("books", "user-1-book.epub")] = sample_epub()
+    _run(_settings(settings), storage, make_ctx, both)
+    flagged_parts = sum(1 for _, p in both.calls if "You are checking" in p and "harbour office" in p.split("<abridgement>")[1])
+    confirmations = sum(1 for _, p in both.calls if "Answer with one word: YES or NO" in p)
+    assert flagged_parts >= 2 and confirmations == flagged_parts // 2   # one confirmation per flagged sentence
+
+
+def test_merge_keeps_the_checkers_flags_and_adds_the_writers_new_ones():
+    from worker.tools.reader.abridge.factcheck import merge_flags
+
+    text = "The pier was finished in May. The storm came in June. The mayor resigned."
+    first = [{"quote": "The pier was finished in May", "problem": "June in the source"}]
+    second = [{"quote": "The pier was finished in May.", "problem": "wrong month"},
+              {"quote": "The mayor resigned", "problem": "the source says he stayed"}]
+    merged = merge_flags(text, first, second)
+
+    assert [f["problem"] for f in merged] == ["June in the source", "the source says he stayed"]
+    assert merged[1]["by"] == "writer" and "by" not in merged[0]
 
 
 def test_a_rewrite_that_is_not_faithful_either_is_not_applied(settings, storage, make_ctx):

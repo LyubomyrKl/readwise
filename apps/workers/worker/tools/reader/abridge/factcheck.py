@@ -7,7 +7,9 @@ without. It costs about three times the generation, so by default only parts den
 numbers (or with a name or number the deterministic check could not find in the source) are checked.
 
 The stages run book-wide, one model at a time (all checks, then all confirmations and fixes), because
-the two models do not fit the Mac's memory together and every switch reloads one of them.
+the two models do not fit the Mac's memory together and every switch reloads one of them. With
+ABRIDGE_SECOND_CHECK the writer also checks each part at the start of its stage, and its flags join the
+checker's.
 """
 
 from __future__ import annotations
@@ -73,11 +75,35 @@ def header(book: str, author: str, chapter: str) -> str:
     return f"Book: {book} by {author}\nChapter: {chapter}\n\n" if book or chapter else ""
 
 
-def check(engine: Engine, source: str, abridgement: str, context: str = "") -> list[dict]:
-    reply = engine.call(engine.models.checker, prompts.CHECK.format(source=context + FIGURE_MARKER.sub("", source),
-                                                                     abridgement=FIGURE_MARKER.sub("", abridgement)),
+def check(engine: Engine, source: str, abridgement: str, context: str = "", model: str = "") -> list[dict]:
+    reply = engine.call(model or engine.models.checker,
+                        prompts.CHECK.format(source=context + FIGURE_MARKER.sub("", source),
+                                             abridgement=FIGURE_MARKER.sub("", abridgement)),
                         num_predict=2000, temperature=0.1)
     return parse_flags(reply.text)
+
+
+def second_check(engine: Engine) -> bool:
+    """The writer checks too (ABRIDGE_SECOND_CHECK). On the owner's 31 annotated errors one Qwen pass caught
+    13-17, Qwen and Gemma together 16-19, for about 45% more checking time; Gemma's flags are few (2.6 a check
+    against Qwen's 9.2) and it is the model the fix stage has loaded (§21.4)."""
+    return bool(getattr(engine.settings, "abridge_second_check", False) and engine.models.checker
+                and engine.models.writer and engine.models.writer != engine.models.checker)
+
+
+def merge_flags(text: str, first: list[dict], second: list[dict]) -> list[dict]:
+    """`first` plus the flags of `second` about sentences `first` did not flag (marked by the writer)."""
+    taken = {locate(text, flag.get("quote", "")) for flag in first}
+    taken.discard(None)
+    merged = list(first)
+    for flag in second:
+        sentence = locate(text, flag.get("quote", ""))
+        if sentence is not None and sentence in taken:
+            continue
+        if sentence is not None:
+            taken.add(sentence)
+        merged.append({**flag, "by": "writer"})
+    return merged
 
 
 def _replace(text: str, sentence: str, new: Optional[str]) -> str:
@@ -113,7 +139,8 @@ def confirm_and_fix(engine: Engine, text: str, flags: list[dict], source: str, l
                           num_predict=400, temperature=0.1).text.strip().strip('"«»')
         if new.upper().startswith("DELETE"):
             text = _replace(text, sentence, None)
-            changes.append({"old": sentence, "new": None, "problem": problem, "action": "deleted"})
+            changes.append({"old": sentence, "new": None, "problem": problem, "action": "deleted",
+                            "by": flag.get("by", "checker")})
             continue
         new = keep_whole_sentences(new.split("\n")[0].strip())
         if not new or words(new) > 3 * max(8, words(sentence)):
@@ -123,7 +150,8 @@ def confirm_and_fix(engine: Engine, text: str, flags: list[dict], source: str, l
             changes.append({"old": sentence, "new": new, "problem": problem, "action": "fix rejected: not better"})
         else:
             text = _replace(text, sentence, new)
-            changes.append({"old": sentence, "new": new, "problem": problem, "action": "fixed"})
+            changes.append({"old": sentence, "new": new, "problem": problem, "action": "fixed",
+                            "by": flag.get("by", "checker")})
     for word in mixed_words:
         sentence = next((s for p in text.split("\n") for s in sentences(p) if word in s), None)
         if not sentence:
@@ -177,13 +205,23 @@ def check_chapter(engine: Engine, chapter: ChapterResult, mode: str, source_text
 
 
 def fix_chapter(engine: Engine, chapter: ChapterResult, source_text: str, context: str = "",
-                on_part: Optional[Callable[[int, int], None]] = None) -> None:
-    """Stage 2 (writer model): confirmation and fixes of the flags from stage 1, and spelling fixes."""
+                on_part: Optional[Callable[[int, int], None]] = None, mode: str = "dense") -> None:
+    """Stage 2 (writer model): its own check when ABRIDGE_SECOND_CHECK is on, then confirmation and fixes of
+    all flags, and spelling fixes."""
+    writer_checks = second_check(engine) and mode != "off"
+    pending = all("flag" in c for c in chapter.summary_changes)          # not confirmed and fixed yet
+    if writer_checks and chapter.summary_checked and pending:
+        extra = check(engine, source_text, chapter.summary, context, model=engine.models.writer)
+        flags = merge_flags(chapter.summary, [c["flag"] for c in chapter.summary_changes], extra)
+        chapter.summary_changes = [{"flag": f} for f in flags]
     if chapter.summary_checked and chapter.summary_changes and "flag" in chapter.summary_changes[0]:
         flags = [c["flag"] for c in chapter.summary_changes]
         chapter.summary, chapter.summary_changes = confirm_and_fix(engine, chapter.summary, flags, source_text,
                                                                    chapter.language, context=context)
     for index, part in enumerate(chapter.parts, 1):
+        if writer_checks and part.checked and not part.changes:
+            extra = check(engine, part.source, part.output, context, model=engine.models.writer)
+            part.check_flags = merge_flags(part.output, part.check_flags, extra)
         if not part.changes and (part.check_flags or part.mixed_unfixed):
             part.output, part.changes = confirm_and_fix(engine, part.output, part.check_flags, part.source,
                                                         chapter.language, part.mixed_unfixed, context=context)

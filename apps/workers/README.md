@@ -67,7 +67,8 @@ Settings: `ABRIDGE_MODEL` (default `OLLAMA_MODEL`), `ABRIDGE_CHECK_MODEL` (empty
 `ABRIDGE_VISION_MODEL`, `ABRIDGE_FACTCHECK` (`dense` default, `all`, `off`), `ABRIDGE_OCR`,
 `ABRIDGE_PROOFREAD` (on: Russian and Ukrainian slips listed by the checker and applied when spelling-sized
 and preferred in context, `proofread.py`), `ABRIDGE_CALIBRATE_LENGTH` (on: ask for more words where the
-writer runs short, Ukrainian ×1.25, Russian ×1.15), `OLLAMA_NUM_CTX` (32768). The LLM host's own settings: docs/deploy.md, The LLM host.
+writer runs short, Ukrainian ×1.25, Russian ×1.15), `ABRIDGE_SECOND_CHECK` (on: the writer checks each part
+at the start of the fix stage and its flags join the checker's), `OLLAMA_NUM_CTX` (32768). The LLM host's own settings: docs/deploy.md, The LLM host.
 
 Progress: the job reports its stage ("chapter 3 of 12: part 2 of 4", "fact-checking chapter 3 of 12",
 "fixing …", "writing the book overview", "building the EPUB") with percentages that follow where the

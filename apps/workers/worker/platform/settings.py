@@ -56,6 +56,7 @@ class WorkerSettings(BaseSettings):
     # both on since the owner's round-4 ratings preferred them (docs/summarizer-investigation.md §21.3)
     abridge_proofread: bool = True      # Russian and Ukrainian slips listed by the checker, applied when small
     abridge_calibrate_length: bool = True   # ask for more words where the writer runs short (uk, ru)
+    abridge_second_check: bool = True   # the writer checks each part too; its flags join the checker's (§21.4)
 
     # ---- this process
     worker_id: str = Field(default_factory=lambda: f"workers-{socket.gethostname()}")
