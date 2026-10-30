@@ -87,9 +87,10 @@ class ScriptedLLM:
         if "Which one is more faithful to the source" in prompt:
             rewrite_first = re.search(r"\nA: (.*)\nB:", prompt).group(1) == "The pier was finished in June."
             prefers_rewrite = not self.unfaithful_fixes
-            return ("A" if rewrite_first else "B") if prefers_rewrite else ("B" if rewrite_first else "A")
+            letter = ("A" if rewrite_first else "B") if prefers_rewrite else ("B" if rewrite_first else "A")
+            return f"The correct answer is **{letter}**.\n\n**Reasoning:** {'A' if letter == 'B' else 'B'} adds a date"
         if "Answer with one word: YES or NO" in prompt:
-            return "YES"
+            return "**YES**"
         if "Rewrite only that sentence" in prompt:
             return "The pier was finished in June."
         if "say what the picture shows" in prompt:
@@ -204,6 +205,24 @@ def test_a_rewrite_that_is_not_faithful_either_is_not_applied(settings, storage,
     assert "The pier was finished in June." not in chapter and "harbour office" in chapter
 
 
+@pytest.mark.parametrize("answer, expected", [
+    ("B", "B"), ("The correct answer is **B**.\n\n**Reasoning:** A is wrong", "B"), ("**A**", "A"),
+    ("Answer: A", "A"), ("Neither", ""),
+])
+def test_a_wrapped_one_letter_answer_is_read(answer, expected):
+    from worker.tools.reader.abridge.factcheck import verdict
+
+    assert verdict(answer, ("A", "B")) == expected
+
+
+@pytest.mark.parametrize("answer, expected", [("YES", "YES"), ("**YES**", "YES"), ("The answer is NO.", "NO"),
+                                              ("Yes, it adds a date.", "YES"), ("", "")])
+def test_a_wrapped_yes_or_no_is_read(answer, expected):
+    from worker.tools.reader.abridge.factcheck import verdict
+
+    assert verdict(answer, ("YES", "NO")) == expected
+
+
 def test_sentences_do_not_end_at_initials_or_abbreviations():
     from worker.tools.reader.abridge.text import sentences
 
@@ -211,6 +230,21 @@ def test_sentences_do_not_end_at_initials_or_abbreviations():
                      "e.g. this. Fig. 3 shows it.") == [
         "Поштовхом став напад Д. Чаплинського на Суботів.", "Він писав: «Годі.»", "Потім J. M. Keynes, e.g. this.",
         "Fig. 3 shows it."]
+
+
+def test_a_drop_cap_without_its_letter_in_the_alt_text_is_read_by_the_vision_model(settings, storage, make_ctx):
+    chapter = xhtml('<h1>Глава 1</h1><p><img src="../img/cap.png" alt=""/>лагодаря капитану зимовье построили.</p>'
+                    + "".join(f"<p>{paragraph(i, lang='ru')}</p>" for i in range(1, 5)))
+    storage.store[("books", "user-1-book.epub")] = epub([("text/c1.xhtml", chapter), ("text/c2.xhtml", chapter)],
+                                                        toc=[("Глава 1", "text/c1.xhtml", []), ("Глава 2", "text/c2.xhtml", [])],
+                                                        images={"img/cap.png": png(90, 90, (0, 0, 0))})
+    llm = ScriptedLLM()
+
+    _run(_settings(settings, abridge_factcheck="off"), storage, make_ctx, llm)
+
+    parts = [prompt for _, prompt in llm.calls if "Abridge ONLY" in prompt]
+    assert all("Благодаря капитану" in prompt for prompt in parts)
+    assert sum(1 for _, prompt in llm.calls if "single letter" in prompt) == 2
 
 
 def test_a_missing_marker_is_put_back_so_no_kept_picture_is_lost(settings, storage, make_ctx):

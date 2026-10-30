@@ -9,7 +9,10 @@ const push = jest.fn();
 jest.mock("next/navigation", () => ({ useRouter: () => ({ push }) }));
 jest.mock("sonner", () => ({ toast: { success: jest.fn(), error: jest.fn() } }));
 jest.mock("@tools/reader/api", () => ({
-  readerApi: { editions: { listForBook: jest.fn(), create: jest.fn() } },
+  readerApi: {
+    editions: { listForBook: jest.fn(), create: jest.fn() },
+    documents: { structure: jest.fn().mockRejectedValue(new Error("The structure of this book has not been read yet")) },
+  },
 }));
 jest.mock("@platform/jobs/useJob", () => ({
   useJob: () => ({
@@ -61,6 +64,24 @@ describe("EditionPanel", () => {
 
     expect(screen.getByText("progress: chapter 2 of 9: part 1 of 3")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Make abridged edition/ })).toBeNull();
+  });
+
+  it("shows which sections the edition keeps and which it leaves out", async () => {
+    listForBook.mockResolvedValue([]);
+    (readerApi.documents.structure as jest.Mock).mockResolvedValueOnce({
+      bookId: "b1",
+      structure: {
+        language: "uk", words: 5000, structureSource: "toc", sections: [
+          { id: "s1", title: "Зміст", level: 1, kind: "toc", words: 80, figures: 0, included: false },
+          { id: "s2", title: "Розділ 1", level: 1, kind: "chapter", words: 4900, figures: 2, included: true },
+        ],
+      },
+    });
+    await show(<EditionPanel bookId="b1" />);
+
+    expect(screen.getByTestId("edition-structure")).toHaveTextContent(
+      "What the edition will include: 1 of 2 sections, from the book's own contents");
+    expect(screen.getByText("Зміст")).toHaveClass("min-w-0");
   });
 
   it("opens a finished edition in the reader", async () => {

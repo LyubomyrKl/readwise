@@ -29,6 +29,13 @@ NOISE = re.compile(r"(this is (accurate|faithful|correct)|is (accurate|faithful)
                    r"|matches the source|consistent with the source)", re.I)
 
 
+def verdict(text: str, words: tuple[str, ...]) -> str:
+    """The first of `words` the model answered with: models wrap a one-word answer ("The correct answer is
+    **B**.", "**YES**"), and a short token cap cuts the explanation that follows."""
+    match = re.search(r"\b(" + "|".join(words) + r")\b", (text or "").replace("*", " ").upper())
+    return match.group(1) if match else ""
+
+
 def should_check(part: PartResult, mode: str) -> bool:
     if mode == "off":
         return False
@@ -100,10 +107,10 @@ def confirm_and_fix(engine: Engine, text: str, flags: list[dict], source: str, l
         if not sentence:
             changes.append({"quote": flag.get("quote"), "problem": problem, "action": "not located"})
             continue
-        verdict = engine.call(engine.models.writer, prompts.CONFIRM.format(sentence=sentence, problem=problem,
-                                                                           source=plain_source),
-                              num_predict=8, temperature=0.0).text
-        if not verdict.strip().upper().startswith("YES"):
+        answer = engine.call(engine.models.writer, prompts.CONFIRM.format(sentence=sentence, problem=problem,
+                                                                          source=plain_source),
+                             num_predict=12, temperature=0.0).text
+        if verdict(answer, ("YES", "NO")) != "YES":
             changes.append({"quote": flag.get("quote"), "problem": problem, "action": "not confirmed"})
             continue
         new = engine.call(engine.models.writer, prompts.FIX.format(language=language, rule=rule, problem=problem,
@@ -143,8 +150,8 @@ def better(engine: Engine, old: str, new: str, source: str, spelling: bool = Fal
     votes = []
     for first, second, rewrite in ((old, new, "B"), (new, old, "A")):
         answer = engine.call(engine.models.writer, prompts.COMPARE.format(source=source, first=first, second=second),
-                             num_predict=4, temperature=0.0).text.strip().upper()[:1]
-        votes.append(answer == rewrite)
+                             num_predict=12, temperature=0.0).text
+        votes.append(verdict(answer, ("A", "B")) == rewrite)
     return all(votes) or (spelling and any(votes))
 
 

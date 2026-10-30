@@ -359,7 +359,9 @@ def _restore_drop_caps(doc: Document) -> None:
             if starts_lower:
                 following.text = figure.drop_cap + following.text
             figure.decorative, figure.reason = True, "drop-cap"
-        elif starts_lower and small and not figure.caption and figure_rules.DECORATIVE_ALT.search(figure.alt or ""):
+        elif starts_lower and small and not figure.caption and (
+                min(figure.width, figure.height) < 200 or figure_rules.DECORATIVE_ALT.search(figure.alt or "")):
+            # the letter is read from the picture by the vision model when an edition is made
             figure.decorative, figure.reason = True, "drop-cap"
             doc.warnings.append(f"drop cap without a named letter before: {following.text[:40]}")
 

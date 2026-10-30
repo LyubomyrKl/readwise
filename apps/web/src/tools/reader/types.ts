@@ -246,3 +246,24 @@ export interface EditionResponse {
   result?: EditionResult | null;
   createdAt: string;
 }
+
+/** What reader.ingest read from the file (GET /reader/documents/:id/structure). */
+export interface StructureSection {
+  id: string;
+  title: string;
+  level: number;
+  /** chapter, part, front, appendix, or front/back matter the edition leaves out (toc, notes, index...) */
+  kind: string;
+  words: number;
+  figures: number;
+  included: boolean;
+}
+
+export interface DocumentStructure {
+  language: string;
+  words: number;
+  structureSource: string;
+  informativeFigures?: number;
+  ocrPages?: number;
+  sections: StructureSection[];
+}

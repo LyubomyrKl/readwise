@@ -11,7 +11,7 @@ import { JobProgress } from "@platform/jobs/JobProgress";
 import { isActiveJob } from "@platform/jobs/types";
 import { useJob } from "@platform/jobs/useJob";
 import { readerApi } from "@tools/reader/api";
-import { useBookEditions, useInvalidateReader } from "@tools/reader/queries";
+import { useBookEditions, useBookStructure, useInvalidateReader } from "@tools/reader/queries";
 import { READER_ROUTES } from "@tools/reader/routes";
 import {
   EDITION_FIGURES,
@@ -53,6 +53,45 @@ function Choice<T extends string>({
         ))}
       </div>
     </fieldset>
+  );
+}
+
+const SOURCES: Record<string, string> = {
+  toc: "the book's own contents",
+  outline: "the PDF's bookmarks",
+  headings: "headings recognized by their fonts",
+  documents: "the book's files",
+  pages: "equal parts (no structure found)",
+};
+
+/** The book as read on upload: which sections the edition keeps and which it leaves out. */
+function StructureList({ bookId }: { bookId: string }) {
+  const { data } = useBookStructure(bookId);
+  if (!data?.sections?.length) return null;
+  const kept = data.sections.filter((s) => s.included);
+  return (
+    <details className="mb-4 rounded-lg border p-3 text-sm" data-testid="edition-structure">
+      <summary className="cursor-pointer">
+        What the edition will include: {kept.filter((s) => s.kind !== "part").length} of {data.sections.length} sections,
+        from {SOURCES[data.structureSource] ?? data.structureSource}
+        {data.ocrPages ? `, ${data.ocrPages} scanned pages to read first` : ""}
+      </summary>
+      <ul className="mt-2 space-y-0.5">
+        {data.sections.map((section) => (
+          <li
+            key={section.id}
+            className={cn("flex gap-2", !section.included && "text-muted-foreground line-through")}
+            style={{ paddingLeft: `${(section.level - 1) * 1.25}rem` }}
+          >
+            <span className="min-w-0 flex-1 truncate">{section.title}</span>
+            <span className="shrink-0 text-xs text-muted-foreground">
+              {section.kind === "chapter" ? "" : `${section.kind} · `}
+              {section.words.toLocaleString()} words
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 
@@ -173,6 +212,7 @@ export function EditionPanel({ bookId }: { bookId: string }) {
 
       {!active ? (
         <div>
+          <StructureList bookId={bookId} />
           <Choice label="Length" options={EDITION_LENGTHS} value={length} onChange={setLength} />
           <Choice label="Pictures" options={EDITION_FIGURES} value={figures} onChange={setFigures} />
           <Button onClick={() => void start()} disabled={busy}>

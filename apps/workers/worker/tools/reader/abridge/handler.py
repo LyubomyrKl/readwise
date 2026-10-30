@@ -147,6 +147,7 @@ class AbridgeHandler:
              key: str, length: str, figure_mode: str, mode: str, out_key: str, p: dict, warnings: list[str]
              ) -> dict[str, Any]:
         book, author = str(p.get("title") or doc.title or ""), str(p.get("author") or ", ".join(doc.authors))
+        self._read_drop_caps(engine, doc)
         units = plan(doc)
         limit = int(p.get("maxChapters") or 0)        # the bench's quick runs; the API never sends it
         if limit:
@@ -236,6 +237,29 @@ class AbridgeHandler:
         ctx.progress("building the EPUB", 98)
         return self._build(doc, units, results, pictures, numbers, manifest, store, book, author, book_lang,
                            engine, out_key, mode, length, figure_mode, warnings)
+
+    def _read_drop_caps(self, engine: Engine, doc: Document) -> None:
+        """A drop cap whose alt text does not name its letter: the vision model reads it (Gemma 4 read 4 of 4;
+        the alt text stays the first source because a smaller model once read «Б» as «В»)."""
+        if not engine.models.vision:
+            return
+        lang = doc.language if doc.language in ("en", "ru", "uk") else ""
+        for index, block in enumerate(doc.blocks[:-1]):
+            figure = doc.figures.get(block.figure or "") if block.type == "figure" else None
+            following = doc.blocks[index + 1]
+            if not figure or figure.reason != "drop-cap" or figure.drop_cap or not figure.key \
+                    or not following.text or not following.text[0].islower():
+                continue
+            try:
+                data = self.storage.download_bytes(self.settings.s3_extractions_bucket_name, figure.key)
+            except Exception:  # noqa: BLE001 - the picture object is gone: the paragraph keeps its gap
+                continue
+            reply = engine.call(engine.models.vision, prompts.DROP_CAP.format(language=language_name(lang)),
+                                num_predict=8, temperature=0.0, images=[for_vision(data)])
+            letter = re.search(r"[A-Za-zА-Яа-яЁёЇїІіЄєҐґ]", reply.text.replace("*", ""))
+            if letter:
+                figure.drop_cap = letter.group(0).upper()
+                following.text = figure.drop_cap + following.text
 
     def _markers(self, ctx: JobContext, engine: Engine, doc: Document, unit: Unit, pictures, numbers: dict[str, int],
                  manifest: Manifest, book: str, lang: str) -> dict[str, str]:

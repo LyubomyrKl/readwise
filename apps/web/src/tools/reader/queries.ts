@@ -3,7 +3,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { isActiveJob } from "@platform/jobs/types";
 import { readerApi } from "./api";
-import type { SummaryResponse } from "./types";
+import type { DocumentStructure, SummaryResponse } from "./types";
 
 /** Query keys of the reader; invalidate by prefix. */
 export const readerKeys = {
@@ -13,6 +13,7 @@ export const readerKeys = {
   notes: (bookId: string) => ["reader", "notes", bookId] as const,
   summaries: (bookId: string) => ["reader", "summaries", bookId] as const,
   editions: (bookId: string) => ["reader", "editions", bookId] as const,
+  structure: (bookId: string) => ["reader", "structure", bookId] as const,
   latestSummaries: ["reader", "summaries", "latest"] as const,
 };
 
@@ -45,6 +46,17 @@ export function useBookEditions(bookId: string | undefined, activeIntervalMs = 5
     queryFn: () => readerApi.editions.listForBook(bookId!),
     enabled: !!bookId,
     refetchInterval: (query) => (query.state.data?.some((e) => isActiveJob(e.job?.status)) ? activeIntervalMs : false),
+  });
+}
+
+/** The book as read on upload (contents, kinds, sizes); absent until reader.ingest has run. */
+export function useBookStructure(bookId: string | undefined) {
+  return useQuery({
+    queryKey: readerKeys.structure(bookId ?? ""),
+    queryFn: () => readerApi.documents.structure(bookId!),
+    enabled: !!bookId,
+    retry: false,
+    select: (response) => response.structure as unknown as DocumentStructure,
   });
 }
 
