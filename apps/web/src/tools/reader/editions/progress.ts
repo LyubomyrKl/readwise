@@ -50,6 +50,7 @@ function parseRunning(text: string): StageInfo {
     ? `chapter ${numbers.chapter} of ${numbers.chapters}${numbers.parts ? ` (part ${numbers.part} of ${numbers.parts})` : ""}`
     : "";
   if (/^fact-checking/i.test(text)) return { phase: "checking", label: `Fact-checking ${where}`.trim(), ...numbers };
+  if (/^proofreading/i.test(text)) return { phase: "checking", label: `Proofreading ${where}`.trim(), ...numbers };
   if (/^fixing/i.test(text)) return { phase: "fixing", label: `Correcting ${where}`.trim(), ...numbers };
   if (chapter) return { phase: "writing", label: `Writing ${where}`, ...numbers };
   if (/scanned page (\d+) of (\d+)/i.test(text)) {

@@ -398,14 +398,22 @@ def test_proofreading_runs_on_every_ukrainian_part_when_switched_on(settings, st
                                                         toc=[("Розділ 1", "c1.xhtml", []), ("Розділ 2", "c2.xhtml", [])])
 
     class Proofreading(ScriptedLLM):
+        """Writes "Сечі" for the source's "Січі", and as the proofreader spots it."""
+
         def _answer(self, prompt, last, images):
             if prompt.startswith("Below is a text in Ukrainian"):
-                return "WRONG: гетьман | RIGHT: гетьмана" if "гетьман " in prompt else "NONE"
+                return "WRONG: Сечі | RIGHT: Січі" if "Сечі" in prompt else "NONE"
             if prompt.startswith("Two versions of one sentence"):
-                return "B" if "\nB: " in prompt and "гетьмана" in prompt.split("\nB: ")[1] else "A"
-            return super()._answer(prompt, last, images)
+                return "The correct answer is **B**." if "Січі" in prompt.split("\nB: ")[1] else "A"
+            answer = super()._answer(prompt, last, images)
+            return answer.replace("Січі", "Сечі") if "Abridge ONLY" in prompt else answer
 
     llm = Proofreading()
-    _run(_settings(settings, abridge_factcheck="off", abridge_proofread=True), storage, make_ctx, llm)
+    result = _run(_settings(settings, abridge_factcheck="off", abridge_proofread=True), storage, make_ctx, llm)
 
-    assert sum(1 for _, p in llm.calls if p.startswith("Below is a text in Ukrainian")) == 2
+    proofreads = [model for model, p in llm.calls if p.startswith("Below is a text in Ukrainian")]
+    assert proofreads == ["checker"] * 4                       # two summaries and two parts, by the checker
+    assert not any("You are checking an abridgement" in p for _, p in llm.calls)   # the fact-check stays off
+    assert result["proofreadFixes"] == 2                       # once per part; the summaries had no slip
+    pages = _epub_pages(storage.store[("books", result["storageKey"])])
+    assert not any("Сечі" in html for html in pages.values()) and any("Січі" in html for html in pages.values())

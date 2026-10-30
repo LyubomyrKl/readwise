@@ -13,6 +13,7 @@ describe("parseStage", () => {
     ["chapter 3 of 12: part 2 of 4", "running", "writing", "Writing chapter 3 of 12 (part 2 of 4)"],
     ["fact-checking chapter 5 of 12: part 1 of 3", "running", "checking", "Fact-checking chapter 5 of 12 (part 1 of 3)"],
     ["fixing chapter 12 of 12", "running", "fixing", "Correcting chapter 12 of 12"],
+    ["proofreading chapter 2 of 5: part 1 of 2", "running", "checking", "Proofreading chapter 2 of 5 (part 1 of 2)"],
     ["writing the book overview", "running", "finishing", "Writing the book overview"],
     ["building the EPUB", "running", "finishing", "Building the EPUB"],
     ["chapter 3 of 12: part 2 of 4", "waiting", "writing", "Paused: writing chapter 3 of 12 (part 2 of 4)"],

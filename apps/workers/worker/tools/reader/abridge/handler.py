@@ -169,8 +169,10 @@ class AbridgeHandler:
 
         # The bar's shares follow where the time goes, so it moves evenly and the time left holds: with
         # the fact-check on, writing took about a third of the time, checking half, fixing a sixth (§20.3).
-        shares = {"generated": 32, "checked": 48, "fixed": 14} if mode != "off" else {"generated": 93, "checked": 0,
-                                                                                      "fixed": 0}
+        proofread_on = bool(self.settings.abridge_proofread and engine.models.checker)
+        checking = mode != "off" or proofread_on
+        shares = {"generated": 32, "checked": 48, "fixed": 14} if checking else {"generated": 93, "checked": 0,
+                                                                                 "fixed": 0}
         base = {"generated": 2, "checked": 2 + shares["generated"], "fixed": 2 + shares["generated"] + shares["checked"]}
         position = {u.id: i for i, u in enumerate(chapters, 1)}
 
@@ -204,9 +206,9 @@ class AbridgeHandler:
             store.save(manifest)
             done_words += unit.words
 
-        # (B) suspected errors, by the checker model; (C) confirmations and fixes, by the writer
-        if mode != "off":
-            for stage, verb in (("checked", "fact-checking"), ("fixed", "fixing")):
+        # (B) proofreading and suspected errors, by the checker model; (C) confirmations and fixes, by the writer
+        if checking:
+            for stage, verb in (("checked", "fact-checking" if mode != "off" else "proofreading"), ("fixed", "fixing")):
                 finished = ("checked", "fixed") if stage == "checked" else ("fixed",)
                 stage_words = sum(u.words for u in chapters if manifest.state.get(u.id) in finished)
                 for unit in chapters:
@@ -393,6 +395,8 @@ class AbridgeHandler:
             "factcheck": mode,
             "checkedParts": sum(1 for p in parts if p.checked),
             "fixedSentences": sum(1 for p in parts for c in p.changes if c.get("action") in ("fixed", "deleted")),
+            "proofreadFixes": sum(1 for p in parts for c in p.proofread if c.get("action") == "fixed")
+            + sum(1 for r in results.values() if r for c in r.summary_proofread if c.get("action") == "fixed"),
             "retriedParts": sum(1 for p in parts if p.retried),
             "correctedNames": sum(len(p.corrected) for p in parts),
             "flaggedParts": sum(1 for p in parts if p.flags),

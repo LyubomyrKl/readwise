@@ -1462,6 +1462,67 @@ tokens of flags per call, 7 of 8 calls cut at the cap. Generation took 72 s and 
 4. Deployment: the migration `20261030000000_reader_editions`, `WORKER_QUEUES=reader,reader_fast`, the
    new `.env` settings, and the models pulled on the Mac (docs/deploy.md).
 
+## 21. Progress, errors and the next tuning round (2026-10-30, night)
+
+### 21.1 What the owner sees while an edition is made
+
+- **Steps**: Reading, Writing, Fact-checking, Correcting, Finishing (the two check steps only when the
+  fact-check is on), with the current one marked.
+- **The bar** with the percentage. The worker's shares now follow where the time goes (writing about a
+  third, checking half, fixing a sixth, §20.3), so the bar moves evenly; before, writing filled 75% of the
+  bar in a third of the time.
+- **Time**: how long it has run and about how long is left, from the progress seen while the page is
+  open (a continued edition starts at its last finished chapter, so its start time misleads).
+- **Chapters**: each with its state (waiting, writing…, written, fact-checking…, checked, correcting…,
+  done), from the worker's manifest (`GET /api/reader/editions/:id/progress`).
+- **A pause** (the Mac's Ollama does not answer) and a job no worker picked up are explained; Stop keeps
+  the finished chapters.
+- **Errors** in plain words with what to do: a missing model (with the `ollama pull` command to copy), no
+  readable text, an unreadable file, the worker or the LLM host failing. Continue (the same job, from the
+  last finished chapter) where it can help, Start over, the raw error under Details. The book profile has
+  a one-line status; the summaries' job bar shows its running time.
+
+### 21.2 Tuning experiments
+
+**The checker's prompt**, on the owner's 23 annotated errors (21 whole-chapter cases, Qwen 3.6):
+
+| Variant | Annotated errors caught | Flags | Tokens | Cut at the cap | Seconds |
+|---|---|---|---|---|---|
+| The round-3 prompt, cap 2,000 tokens | 15 of 23 | 158 | 32,499 | 12 of 21 | 394 |
+| A tighter prompt ("only real errors, at most 8") | 10 of 23 | 112 | 32,738 | 13 of 21 | 390 |
+| The round-3 prompt, cap 3,000 tokens | 15 of 23 | 172 | 46,771 | 13 of 21 | 506 |
+
+The tighter prompt caught fewer errors and saved nothing (Qwen writes as much); a larger cap found
+nothing more. The prompt and the 2,000-token cap stay.
+
+**Proofreading Russian and Ukrainian** (`ABRIDGE_PROOFREAD`, off): the writer lists wrong -> right pairs
+and a pair is applied only when it is a spelling-sized edit (in the text, similar, same numbers, not all
+words of it in the source, passing the language rule). On the 28 Ukrainian outputs so far, Gemma fixed
+4 of the 13 known slips ("У груді" -> "У грудні" twice, "колицькі" -> "католицькі", "розгроmano") and
+"євріїв" -> "євреїв", but it never flagged "Реччю" (its own error, which it takes for correct) and it
+turned a correct "Річчю Посполитою" into "Речі Посполитої". A pair is now applied only when the writer
+prefers the corrected sentence in both orders (`GRAMMAR_COMPARE`), and the proofreader was compared:
+
+| Proofreader (with the guard) | Known slips fixed | Corrections applied | Of them wrong | Seconds (28 texts) |
+|---|---|---|---|---|
+| Gemma 4 | 5 of 13 | 8 | 2 ("Річчю Посполитою" made "Речі Посполитої"; "розгромив залогу на Базавлуці" mangled) | 55 |
+| Qwen 3.6 | 5 of 13 | 13 | 0 | 85 |
+
+Qwen's corrections: "Реч Посполита" -> "Річ Посполита" four times, "розгрошування" -> "розгрому" twice,
+"розгроmano" -> "розгромлено" twice, "колицькі" -> "католицькі", "євріїв" -> "євреїв", "Коначевича" ->
+"Конашевича", "Іслям III Ґерій" -> "Іслам III Ґерай" (right about "Ґерай"; the source spells "Іслям").
+Its guard is cautious rather than wrong: it refused three right "Реччю" -> "Річчю". So proofreading runs in
+the check stage with the checker model, which that stage has loaded anyway (no extra model switch); it
+stays off until the owner's round-4 ratings.
+
+**Length** (`ABRIDGE_CALIBRATE_LENGTH`, off): on every run so far Gemma wrote Ukrainian about 20% and
+Russian about 8% shorter than asked (English on target). The owner rated those Ukrainian lengths "right"
+in round 3, so the calibration goes to the owner's ratings rather than being switched on.
+
+### 21.3 Round 4
+
+ROUND4
+
 ---
 
 ## Appendix A: measurements in detail

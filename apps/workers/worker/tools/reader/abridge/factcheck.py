@@ -20,6 +20,8 @@ from worker.tools.reader.ingest.language import language_name
 from worker.tools.reader.abridge import prompts
 from worker.tools.reader.abridge.chapter import ChapterResult, PartResult
 from worker.tools.reader.abridge.engine import Engine
+from worker.tools.reader.abridge.proofread import LANGUAGES as PROOFREAD_LANGUAGES
+from worker.tools.reader.abridge.proofread import proofread
 from worker.tools.reader.abridge.text import FIGURE_MARKER, keep_whole_sentences, sentences, verdict, words
 
 DENSE_FACTS = 1.0     # names and numbers per 100 words from which a part is checked in "dense" mode
@@ -148,13 +150,25 @@ def better(engine: Engine, old: str, new: str, source: str, spelling: bool = Fal
     return all(votes) or (spelling and any(votes))
 
 
+def proofreading(engine: Engine, chapter: ChapterResult) -> bool:
+    return bool(getattr(engine.settings, "abridge_proofread", False) and engine.models.checker
+                and chapter.language in PROOFREAD_LANGUAGES)
+
+
 def check_chapter(engine: Engine, chapter: ChapterResult, mode: str, source_text: str, context: str = "",
                   on_part: Optional[Callable[[int, int], None]] = None) -> None:
-    """Stage 1 (checker model): flags for the summary and every part that qualifies."""
+    """Stage 1 (checker model): proofreading when it is on, then flags for the summary and every part that
+    qualifies (the flags quote the proofread text)."""
+    proofread_on = proofreading(engine, chapter)
+    if proofread_on and chapter.summary and not chapter.summary_proofread:
+        chapter.summary, chapter.summary_proofread = proofread(engine, chapter.summary, chapter.language, source_text)
     if mode != "off" and chapter.summary and words(source_text) <= engine.summary_budget_words(chapter.language):
         chapter.summary_changes = [{"flag": f} for f in check(engine, source_text, chapter.summary, context)]
         chapter.summary_checked = True
     for index, part in enumerate(chapter.parts, 1):
+        if proofread_on and part.target < 1.0 and not part.proofread:
+            part.output, part.proofread = proofread(engine, part.output, chapter.language, part.source)
+            part.words_out = words(part.output)
         if should_check(part, mode) and part.target < 1.0:
             part.check_flags = check(engine, part.source, part.output, context)
             part.checked = True
