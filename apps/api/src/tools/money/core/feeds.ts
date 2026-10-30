@@ -2,7 +2,7 @@ import { addDays, formatDate, parseDate } from './dates';
 
 /**
  * Parsers for the public data the daily jobs fetch: ECB reference rates,
- * NBP table A and Stooq end-of-day prices. Pure: text in, rows out. Rates and
+ * NBP table A and Yahoo Finance end-of-day prices. Pure: text in, rows out. Rates and
  * prices stay decimal strings as published; nothing goes through a float.
  */
 
@@ -70,50 +70,45 @@ export function dateChunks(from: string, to: string, maxDays = 90): [string, str
   return out;
 }
 
-function csvLines(text: string): string[][] {
-  return text
-    .replace(/^\uFEFF/, '')
-    .split(/\r?\n/)
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => l.split(','));
+/** A decimal as a JSON encoder writes it ("169.3000030517578") rounded half up to `places`, as text; null when it is not a plain positive number. */
+export function roundDecimalText(value: string, places: number): string | null {
+  const m = /^(\d+)(?:\.(\d+))?$/.exec(value.trim());
+  if (!m) return null;
+  const digits = (m[2] ?? '').padEnd(places + 1, '0');
+  let scaled = BigInt(m[1] + digits.slice(0, places));
+  if (Number(digits[places]) >= 5) scaled += 1n;
+  if (scaled === 0n) return null;
+  const s = scaled.toString().padStart(places + 1, '0');
+  return places > 0 ? `${s.slice(0, -places)}.${s.slice(-places)}` : s;
 }
 
-/** A number as Stooq writes it ("129.88"), or null for "N/D" and the like. */
-function stooqNumber(value: string | undefined): string | null {
-  const v = (value ?? '').trim();
-  if (!DECIMAL.test(v) || !/[1-9]/.test(v)) return null;
-  return v.replace(/^0+(?=\d)/, '');
+export interface FeedChart {
+  currency: string;
+  prices: FeedPrice[];
 }
 
 /**
- * Stooq quote CSV (`/q/l/?s=vwce.de&f=sd2t2ohlcv&h&e=csv`): the latest close.
- * Null when the symbol is unknown (Stooq answers "N/D").
+ * Yahoo Finance chart JSON (`/v8/finance/chart/VWCE.DE?range=5d&interval=1d`):
+ * the daily closes, oldest first, dated in the exchange's time zone and rounded
+ * to the exchange's precision (priceHint). The numbers are read from the text,
+ * not through JSON.parse, so no close passes through a float. Null when the
+ * symbol is unknown.
  */
-export function parseStooqQuote(csv: string): FeedPrice | null {
-  const [header, row] = csvLines(csv);
-  if (!header || !row) return null;
-  const at = (name: string) => header.findIndex((h) => h.trim().toLowerCase() === name);
-  const date = row[at('date')]?.trim();
-  const close = stooqNumber(row[at('close')]);
-  if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date) || !close) return null;
-  return { date, price: close };
-}
-
-/** Stooq daily history CSV (`/q/d/l/?s=vwce.de&i=d`): every close, oldest first. */
-export function parseStooqHistory(csv: string): FeedPrice[] {
-  const [header, ...rows] = csvLines(csv);
-  if (!header) return [];
-  const date = header.findIndex((h) => h.trim().toLowerCase() === 'date');
-  const close = header.findIndex((h) => h.trim().toLowerCase() === 'close');
-  if (date < 0 || close < 0) return [];
-  const out: FeedPrice[] = [];
-  for (const r of rows) {
-    const d = r[date]?.trim();
-    const c = stooqNumber(r[close]);
-    if (d && /^\d{4}-\d{2}-\d{2}$/.test(d) && c) out.push({ date: d, price: c });
-  }
-  return out.sort((a, b) => a.date.localeCompare(b.date));
+export function parseYahooChart(json: string): FeedChart | null {
+  const currency = /"currency":"([A-Za-z]{3})"/.exec(json)?.[1]?.toUpperCase();
+  const offset = Number(/"gmtoffset":(-?\d+)/.exec(json)?.[1] ?? '0');
+  const places = Number(/"priceHint":(\d+)/.exec(json)?.[1] ?? '4');
+  const stamps = /"timestamp":\[([^\]]*)\]/.exec(json)?.[1]?.split(',') ?? [];
+  const closes = /"close":\[([^\]]*)\]/.exec(json)?.[1]?.split(',') ?? [];
+  if (!currency || stamps.length === 0 || stamps.length !== closes.length) return null;
+  const byDate = new Map<string, string>();
+  stamps.forEach((stamp, i) => {
+    const price = /^\d/.test(closes[i]) ? roundDecimalText(closes[i], places) : null;
+    if (!/^\d+$/.test(stamp) || !price) return;
+    byDate.set(formatDate(new Date((Number(stamp) + offset) * 1000)), price);
+  });
+  const prices = [...byDate.entries()].map(([date, price]) => ({ date, price })).sort((a, b) => a.date.localeCompare(b.date));
+  return prices.length > 0 ? { currency, prices } : null;
 }
 
 /** The last close of each month (and the latest close), enough for month-end values without storing every day. */

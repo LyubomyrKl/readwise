@@ -446,15 +446,18 @@ export class ImportsService {
     const account = batch.accountId
       ? await this.prisma.moneyAccount.findFirst({ where: { id: batch.accountId, userId }, include: { subAccounts: true } })
       : null;
-    const ownAccounts = await this.prisma.moneyAccount.findMany({
-      where: { userId, type: { not: 'system' } },
-      select: { id: true, name: true, number: true },
-    });
+    // every numbered currency of your accounts, to recognise transfers between them
+    const ownAccounts = (
+      await this.prisma.moneySubAccount.findMany({
+        where: { number: { not: null }, account: { userId, type: { not: 'system' } } },
+        select: { accountId: true, number: true },
+      })
+    ).map((s) => ({ id: s.accountId, number: s.number }));
     const decimals = new Map((await this.commodities.list()).map((c) => [c.code, c.decimals]));
     const mapped = profile.map({
       rows: raw,
       mapping,
-      account: account ? { id: account.id, number: account.number, currencies: account.subAccounts.map((s) => s.commodityId) } : undefined,
+      account: account ? { id: account.id, currencies: account.subAccounts.map((s) => s.commodityId) } : undefined,
       ownAccounts,
       decimalsOf: (code) => decimals.get(code),
     });

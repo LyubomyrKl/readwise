@@ -7,9 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { moneyApi } from "../api";
-import { useApiTokens, useMoneyMutation } from "../queries";
-import type { CreatedApiToken, TokenScope } from "../types";
-import { Field, Segmented } from "./Fields";
+import { useApiTokens, useMoneyMutation, useOAuthInfo } from "../queries";
+import type { CreatedApiToken } from "../types";
+import { Field } from "./Fields";
 
 function when(iso: string | null): string {
   return iso ? new Date(iso).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" }) : "never";
@@ -40,13 +40,13 @@ function CopyLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-/** Tokens that let Claude read the ledger (and, with the draft scope, propose movements for approval). */
+/** Read-only tokens that let Claude read the ledger. */
 export function ClaudeAccessCard() {
   const { data: tokens } = useApiTokens();
+  const { data: oauthInfo, isLoading: oauthLoading } = useOAuthInfo();
   const [name, setName] = useState("Claude");
-  const [scope, setScope] = useState<TokenScope>("read");
   const [created, setCreated] = useState<CreatedApiToken | null>(null);
-  const create = useMoneyMutation(() => moneyApi.tokens.create({ name: name.trim() || "Claude", scope }), { onSuccess: setCreated });
+  const create = useMoneyMutation(() => moneyApi.tokens.create({ name: name.trim() || "Claude", scope: "read" }), { onSuccess: setCreated });
   const revoke = useMoneyMutation((id: string) => moneyApi.tokens.revoke(id), { success: "Revoked; it stops working at once" });
   const mcpUrl = typeof window === "undefined" ? "/api/money/claude/mcp" : `${window.location.origin}/api/money/claude/mcp`;
 
@@ -55,13 +55,12 @@ export function ClaudeAccessCard() {
       <CardHeader>
         <CardTitle>Claude</CardTitle>
         <CardDescription>
-          Let Claude answer from your live data through its MCP connector: read only, or able to propose movements that post only when you approve them under
-          Drafts. Revoke a token and it stops working at once.
+          Let Claude answer from your live data through its MCP connector, read only. Revoke a token and it stops working at once.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
         <form
-          className="grid items-end gap-3 sm:grid-cols-[1fr_auto_auto]"
+          className="grid items-end gap-3 sm:grid-cols-[1fr_auto]"
           onSubmit={(e) => {
             e.preventDefault();
             create.mutate(undefined);
@@ -69,16 +68,6 @@ export function ClaudeAccessCard() {
         >
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={60} />
-          </Field>
-          <Field label="Can">
-            <Segmented
-              value={scope}
-              onChange={setScope}
-              options={[
-                { value: "read", label: "Read" },
-                { value: "draft", label: "Read and propose" },
-              ]}
-            />
           </Field>
           <Button type="submit" disabled={create.isPending}>
             <KeyRound className="mr-1 h-4 w-4" /> Create token
@@ -101,6 +90,19 @@ export function ClaudeAccessCard() {
           </div>
         ) : null}
 
+        <section className="space-y-2 rounded-md border p-3 text-sm">
+          <h3 className="font-medium">Use in the Claude app</h3>
+          <p className="text-muted-foreground">
+            In claude.ai open Settings → Connectors → Add custom connector and enter the URL below. Sign in here when Claude asks;
+            the connection then shows up in this list as a token named &quot;Claude connector&quot;, and revoking it here cuts it off.
+          </p>
+          {oauthInfo?.mcpUrl ? (
+            <CopyLine label="Connector URL" value={oauthInfo.mcpUrl} />
+          ) : oauthLoading ? null : (
+            <p className="text-xs text-muted-foreground">The public connector URL is not set up on this server.</p>
+          )}
+        </section>
+
         {(tokens ?? []).length > 0 ? (
           <ul className="divide-y rounded-md border text-sm">
             {(tokens ?? []).map((t) => (
@@ -113,7 +115,13 @@ export function ClaudeAccessCard() {
                   </div>
                   <div className="text-xs text-muted-foreground">
                     <code>{t.prefix}…</code> · created {when(t.createdAt)} · last used {when(t.lastUsedAt)}
+                    {t.lastUsedIp ? <> from <code>{t.lastUsedIp}</code></> : null}
                   </div>
+                  {t.renewsUntil && !t.revokedAt ? (
+                    <div className="text-xs text-muted-foreground">
+                      Renews itself daily; ends {when(t.renewsUntil)} if Claude stops using it
+                    </div>
+                  ) : null}
                 </div>
                 {t.revokedAt ? null : (
                   <Button size="sm" variant="outline" onClick={() => revoke.mutate(t.id)} disabled={revoke.isPending}>

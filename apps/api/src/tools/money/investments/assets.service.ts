@@ -219,7 +219,7 @@ export class AssetsService {
     if (valuation === 'price_feed') {
       const c = config as { symbol?: unknown } | null | undefined;
       if (!c || typeof c.symbol !== 'string' || !c.symbol.trim()) {
-        throw new BadRequestException('price feed: valuationConfig needs { "provider": "stooq", "symbol": "vwce.de" }');
+        throw new BadRequestException('price feed: valuationConfig needs { "provider": "yahoo", "symbol": "VWCE.DE" }');
       }
     }
   }

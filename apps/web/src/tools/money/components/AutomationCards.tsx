@@ -12,10 +12,9 @@ import type { AmountJson, AutomationJob, MoneyTask } from "../types";
 import { AmountInput, CurrencySelect, DateInput, Field } from "./Fields";
 
 const TASK_NAMES: Record<MoneyTask, string> = {
-  recurring: "Recurring movements",
   snapshot: "Quarter-end snapshot",
   rates: "Exchange rates (ECB, NBP)",
-  prices: "Prices (Stooq)",
+  prices: "Prices (Yahoo Finance)",
 };
 const SOURCE_NAMES: Record<string, string> = { ecb: "ECB", nbp: "NBP", manual: "By hand" };
 const ACTIVE = ["queued", "running", "waiting"];
@@ -41,8 +40,6 @@ function outcome(task: MoneyTask, job: AutomationJob): string {
       const failed = assets.filter((a) => a.error);
       return `${assets.length - failed.length} of ${assets.length} prices${failed.length ? `; ${failed.map((a) => `${a.code}: ${a.error}`).join("; ")}` : ""}`;
     }
-    case "recurring":
-      return `${Number(r.posted ?? 0)} posted, ${Number(r.drafted ?? 0)} drafts`;
     case "snapshot": {
       const nw = r.netWorth as AmountJson | undefined;
       return nw ? `net worth ${formatAmount(nw)}` : "taken";
@@ -60,13 +57,13 @@ export function AutomationCard() {
       <CardHeader>
         <CardTitle>Runs on its own</CardTitle>
         <CardDescription>
-          Every day in {data.timeZone}: recurring movements at 06:00, rates at 17:15, prices at 18:30, and a snapshot after each quarter ends.
+          Every day in {data.timeZone}: rates at 17:15, prices at 18:30, and a snapshot after each quarter ends.
           {data.scheduler ? null : " The daily schedule is off on this server; run them here."}
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <ul className="divide-y rounded-md border">
-          {data.tasks.map(({ task, startsAt, lastJob }) => (
+          {data.tasks.flatMap((t) => (t.task === "recurring" ? [] : [{ ...t, task: t.task }])).map(({ task, startsAt, lastJob }) => (
             <li key={task} className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5 text-sm">
               <div className="min-w-0 flex-1">
                 <div className="font-medium">
@@ -143,7 +140,7 @@ export function RatesCard() {
       <CardHeader>
         <CardTitle>Exchange rates</CardTitle>
         <CardDescription>
-          For display only; a rate typed in wins over the feeds for its day. The tax report always uses NBP.
+          For display only; a rate typed in wins over the feeds for its day.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

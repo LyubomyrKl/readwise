@@ -1,0 +1,11 @@
+schema_version: "1.1"
+name: creates-a-workers-test-skill
+expected_outcome: |
+  A folder .claude/skills/workers-test with a SKILL.md whose frontmatter starts on line 1,
+  has name workers-test and a description that says what the skill does and lists phrases
+  that should trigger it (worker tests, pytest, python tests, apps/workers). The body points
+  at scripts/test-workers.sh by path instead of copying it, explains that the tests run in a
+  python:3.11-slim container because the Mac lacks Python 3.11, tells Claude to classify a
+  failure as worker code, contracts (packages/contracts) or Docker not running, and ends with
+  what to report. The validator (new-skill/scripts/check_skills.py) passes on it, and a line
+  was added to .claude/skills/README.md. The tests themselves were not run.

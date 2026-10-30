@@ -1,10 +1,31 @@
 # Single public entry point. Everything goes to the web app; its server-side
 # routes talk to the api container internally (API_URL). The one exception is
-# Claude's access to the money tool (token-authenticated REST and MCP), which
-# goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
+# Claude's access to the money tool (token-authenticated REST and MCP, and the
+# OAuth endpoints of its connector), which goes to the API directly. SITE_ADDRESS: a hostname enables automatic HTTPS,
 # ":80" is plain HTTP.
+#
+# Tailscale (serve and Funnel) and Docker reach Caddy from private addresses and
+# say in X-Forwarded-For who the client was; the client is the right-most address
+# that is not one of them (strict, so a client cannot claim one by sending the
+# header itself). Caddy hands only that address on, in X-Forwarded-For.
+{
+	servers {
+		trusted_proxies static private_ranges
+		trusted_proxies_strict
+		client_ip_headers X-Forwarded-For
+	}
+}
+
+
 {$SITE_ADDRESS::80} {
 	encode zstd gzip
+	# Access log for the public (Funnel) paths only: who called, and what they got.
+	log {
+		output stderr
+		format json
+	}
+	@not_public not path /api/money/claude/* /.well-known/oauth-* /api/money/oauth/token /api/money/oauth/register
+	log_skip @not_public
 	# Security headers, each only if the upstream did not send its own ("?"; one directive per
 	# header, since the "?" fields of one block are set only when none of them is present).
 	# Framing is refused; a full Content-Security-Policy would need the app's cooperation.
@@ -16,9 +37,27 @@
 	@https protocol https
 	header @https ?Strict-Transport-Security "max-age=31536000; includeSubDomains"
 	handle /api/money/claude/* {
-		reverse_proxy api:5173
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	# OAuth for Claude's custom connector: metadata, client registration and
+	# token come from Claude's cloud; approving is a page of the web app.
+	handle /.well-known/oauth-* {
+		rewrite * /api/money/oauth{uri}
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	@oauth path /api/money/oauth/token /api/money/oauth/register
+	handle @oauth {
+		reverse_proxy api:5173 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 	handle {
-		reverse_proxy web:3000
+		reverse_proxy web:3000 {
+			header_up X-Forwarded-For {client_ip}
+		}
 	}
 }

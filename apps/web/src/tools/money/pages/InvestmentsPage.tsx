@@ -28,8 +28,10 @@ const VALUED_BY: Record<PositionResponse["valuedBy"], string> = {
 export default function InvestmentsPage() {
   const { data: positions, isLoading } = usePositions();
   const [pricing, setPricing] = useState(false);
+  // one grid, the positions of an account next to each other; each card names its account
   const byAccount = new Map<string, PositionResponse[]>();
-  for (const p of positions ?? []) byAccount.set(p.accountName, [...(byAccount.get(p.accountName) ?? []), p]);
+  for (const p of positions ?? []) byAccount.set(p.accountId, [...(byAccount.get(p.accountId) ?? []), p]);
+  const sorted = [...byAccount.values()].flat();
 
   return (
     <MoneyPage>
@@ -67,16 +69,9 @@ export default function InvestmentsPage() {
           , then record a buy.
         </EmptyState>
       ) : (
-        <div className="space-y-6">
-          {[...byAccount.entries()].map(([account, list]) => (
-            <section key={account} className="space-y-2">
-              <h2 className="text-sm font-medium text-muted-foreground">{account}</h2>
-              <div className="grid gap-3 md:grid-cols-2">
-                {list.map((p) => (
-                  <PositionCard key={`${p.accountId}-${p.assetId}`} position={p} />
-                ))}
-              </div>
-            </section>
+        <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+          {sorted.map((p) => (
+            <PositionCard key={`${p.accountId}-${p.assetId}`} position={p} />
           ))}
         </div>
       )}
@@ -101,8 +96,9 @@ function PositionCard({ position: p }: { position: PositionResponse }) {
   const { data: lots } = useLots(p.accountId, p.assetId, open);
   const gainNegative = p.gain?.value.startsWith("-");
   return (
-    <Card>
+    <Card className="min-w-0">
       <CardHeader className="pb-2">
+        <div className="truncate text-xs text-muted-foreground">{p.accountName}</div>
         <CardTitle className="flex items-start justify-between gap-2 text-base">
           <span className="min-w-0">
             <span className="block truncate">{p.code}</span>

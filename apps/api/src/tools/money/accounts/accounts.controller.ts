@@ -6,6 +6,8 @@ import { toDate } from '../common/parse';
 import {
   AccountResponse,
   AddCurrencyDto,
+  SubAccountUpdateDto,
+  MergeAccountDto,
   CreateAccountDto,
   CreateInstitutionDto,
   InstitutionResponse,
@@ -87,5 +89,20 @@ export class AccountsController {
   @ApiEndpoint({ summary: 'Add a currency sub-account', response: AccountResponse })
   addCurrency(@Req() req: UserModel, @Param('id') id: string, @Body() dto: AddCurrencyDto) {
     return this.accounts.addCurrency(req.user.userId, id, dto.currency);
+  }
+
+  @Post('accounts/:id/merge')
+  @ApiParam({ name: 'id', description: 'the account that goes away' })
+  @ApiEndpoint({ summary: 'Merge this account into another: its currencies move over with their history', response: AccountResponse })
+  merge(@Req() req: UserModel, @Param('id') id: string, @Body() dto: MergeAccountDto) {
+    return this.accounts.merge(req.user.userId, id, dto.intoAccountId, { name: dto.name });
+  }
+
+  @Patch('accounts/:id/currencies/:currency')
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'currency', example: 'PLN' })
+  @ApiEndpoint({ summary: "Set the IBAN or account number of one of the account's currencies", response: AccountResponse })
+  updateCurrency(@Req() req: UserModel, @Param('id') id: string, @Param('currency') currency: string, @Body() dto: SubAccountUpdateDto) {
+    return this.accounts.setNumber(req.user.userId, id, currency, dto.number);
   }
 }

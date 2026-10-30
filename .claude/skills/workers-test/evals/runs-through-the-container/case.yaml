@@ -1,0 +1,10 @@
+schema_version: "1.1"
+name: runs-through-the-container
+expected_outcome: |
+  The tests were run with scripts/test-workers.sh (or npm run test:workers), in the
+  python:3.11-slim container, with a timeout long enough for the install step; pytest and pip
+  were not run with the host's own Python. The report opens with the outcome: green with
+  pytest's passed count, or red with the place named first (worker code, contracts, or Docker)
+  and the failing test ids or the first error quoted verbatim. If Docker was not available
+  where the case ran, the report says the suite did not run rather than presenting it as
+  failing tests.

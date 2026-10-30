@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowRight, Inbox, Plus, Wallet } from "lucide-react";
+import { ArrowRight, Plus, Wallet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -53,14 +53,6 @@ export default function MoneyHomePage() {
         }
       />
 
-      {data && data.drafts > 0 ? (
-        <Link href={MONEY_ROUTES.drafts} className="flex items-center justify-between rounded-lg border bg-muted/40 px-4 py-3 text-sm hover:bg-muted">
-          <span className="flex items-center gap-2">
-            <Inbox className="h-4 w-4" /> {data.drafts} {data.drafts === 1 ? "draft waits" : "drafts wait"} for approval
-          </span>
-          <ArrowRight className="h-4 w-4" />
-        </Link>
-      ) : null}
 
       {home.isLoading || !data ? (
         <div className="grid gap-4 lg:grid-cols-2">
@@ -126,8 +118,8 @@ export default function MoneyHomePage() {
               <MonthFigures month={data.month} />
               <MissingRates currencies={data.month.missingRates} base={data.base} />
               <div className="grid gap-6 md:grid-cols-2">
-                <CategoryBreakdown title="Top expenses" items={data.month.expensesByCategory} month={data.month.month} color={FLOW_SERIES[1].color} top={5} />
-                <CategoryBreakdown title="Income" items={data.month.incomeByCategory} month={data.month.month} color={FLOW_SERIES[0].color} top={5} />
+                <CategoryBreakdown title="Top expenses" items={data.month.expensesByCategory} span={{ from: data.month.month, to: data.month.month }} color={FLOW_SERIES[1].color} top={5} />
+                <CategoryBreakdown title="Income" items={data.month.incomeByCategory} span={{ from: data.month.month, to: data.month.month }} color={FLOW_SERIES[0].color} top={5} />
               </div>
             </CardContent>
           </Card>

@@ -174,6 +174,8 @@ services:
       # money tool: daily rates, prices, recurring movements and quarterly snapshots
       MONEY_TIMEZONE: ${MONEY_TIMEZONE:-Europe/Warsaw}
       MONEY_SCHEDULER: ${MONEY_SCHEDULER:-on}
+      # Claude's custom connector: the public (Funnel) base URL; empty = no connector
+      MONEY_CLAUDE_PUBLIC_URL: ${MONEY_CLAUDE_PUBLIC_URL:-}
     ports:
       # loopback only: for host tools such as scripts/smoke-summary.sh; the public entry point is Caddy
       - "127.0.0.1:${API_PORT:-5173}:5173"

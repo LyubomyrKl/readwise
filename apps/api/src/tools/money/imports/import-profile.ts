@@ -28,9 +28,9 @@ export interface ProfileInput {
   rows: string[][];
   mapping?: MoneyManagerMapping;
   /** the account a statement belongs to */
-  account?: { id: string; number: string | null; currencies: string[] };
-  /** the user's accounts, to recognise transfers between them by account number */
-  ownAccounts: { id: string; name: string; number: string | null }[];
+  account?: { id: string; currencies: string[] };
+  /** the numbered currencies of the user's accounts (account id and number), to recognise transfers between them */
+  ownAccounts: { id: string; number: string | null }[];
   /** decimal places of a supported currency */
   decimalsOf: (currency: string) => number | undefined;
 }

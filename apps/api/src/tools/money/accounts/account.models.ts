@@ -66,10 +66,22 @@ export class OpeningBalanceInput {
   date!: string;
 }
 
-export class CreateAccountDto {
-  @ApiProperty({ description: 'institution id' })
+export class SubAccountNumberInput {
+  @ApiProperty({ example: 'PLN' })
+  @Matches(CURRENCY_PATTERN)
+  currency!: string;
+
+  @ApiProperty({ example: 'PL61 1090 1014 0000 0712 1981 2874' })
   @IsString()
-  institutionId!: string;
+  @MaxLength(64)
+  number!: string;
+}
+
+export class CreateAccountDto {
+  @ApiProperty({ required: false, description: 'institution (group) id; none: the account sits under "Other"' })
+  @IsOptional()
+  @IsString()
+  institutionId?: string;
 
   @ApiProperty({ example: 'eKonto' })
   @IsString()
@@ -104,11 +116,12 @@ export class CreateAccountDto {
   @Type(() => OpeningBalanceInput)
   openingBalances?: OpeningBalanceInput[];
 
-  @ApiProperty({ required: false, description: 'IBAN or account number as statements print it' })
+  @ApiProperty({ required: false, type: [SubAccountNumberInput], description: 'IBAN or account number per currency, as statements print it' })
   @IsOptional()
-  @IsString()
-  @MaxLength(64)
-  number?: string;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => SubAccountNumberInput)
+  numbers?: SubAccountNumberInput[];
 
   @ApiProperty({ required: false, description: 'asset class the cash counts in' })
   @IsOptional()
@@ -130,10 +143,10 @@ export class UpdateAccountDto {
   @MaxLength(80)
   name?: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ required: false, nullable: true, description: 'null: no group' })
   @IsOptional()
   @IsString()
-  institutionId?: string;
+  institutionId?: string | null;
 
   @ApiProperty({ required: false, enum: ACCOUNT_TYPES })
   @IsOptional()
@@ -153,12 +166,6 @@ export class UpdateAccountDto {
   @ApiProperty({ required: false, nullable: true })
   @IsOptional()
   @IsString()
-  @MaxLength(64)
-  number?: string | null;
-
-  @ApiProperty({ required: false, nullable: true })
-  @IsOptional()
-  @IsString()
   cashClassId?: string | null;
 
   @ApiProperty({ required: false, nullable: true })
@@ -172,6 +179,27 @@ export class AddCurrencyDto {
   @ApiProperty({ example: 'EUR' })
   @Matches(CURRENCY_PATTERN)
   currency!: string;
+}
+
+export class MergeAccountDto {
+  @ApiProperty({ description: 'the account this one merges into; it keeps its id' })
+  @IsString()
+  intoAccountId!: string;
+
+  @ApiProperty({ required: false, example: 'mBank', description: 'new name of the merged account' })
+  @IsOptional()
+  @IsString()
+  @MinLength(1)
+  @MaxLength(80)
+  name?: string;
+}
+
+export class SubAccountUpdateDto {
+  @ApiProperty({ nullable: true, description: 'IBAN or account number of this currency; null or empty clears it' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  number?: string | null;
 }
 
 export class ListAccountsQuery {
@@ -193,6 +221,7 @@ export class SubAccountBalance {
   @ApiProperty({ enum: ['currency', 'asset'] }) kind!: 'currency' | 'asset';
   @ApiProperty({ type: AmountJson, nullable: true }) balance!: AmountJson | null;
   @ApiProperty({ nullable: true, example: '71.5' }) units!: string | null;
+  @ApiProperty({ nullable: true, description: 'IBAN or account number of this currency' }) number!: string | null;
 }
 
 export class AccountResponse {
@@ -203,7 +232,6 @@ export class AccountResponse {
   @ApiProperty({ enum: TAX_WRAPPERS }) taxWrapper!: string;
   @ApiProperty({ enum: COST_BASIS_METHODS, nullable: true }) costBasisMethod!: string | null;
   @ApiProperty({ nullable: true }) cashClassId!: string | null;
-  @ApiProperty({ nullable: true }) number!: string | null;
   @ApiProperty({ nullable: true }) importProfile!: string | null;
   @ApiProperty({ nullable: true }) archivedAt!: string | null;
   @ApiProperty({ type: [SubAccountBalance] }) balances!: SubAccountBalance[];

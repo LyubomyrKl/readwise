@@ -10,7 +10,7 @@ export const KIND_LABELS: Record<TransactionKind, string> = {
   sell: "Sell",
   investment_income: "Investment income",
   unit_move: "Unit move",
-  split: "Split",
+  split: "Unit count change",
   correction: "Correction",
 };
 

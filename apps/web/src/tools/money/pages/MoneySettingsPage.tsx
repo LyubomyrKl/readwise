@@ -9,12 +9,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { PLATFORM_ROUTES } from "@platform/routes";
 import { moneyApi } from "../api";
-import { COST_BASIS_LABELS } from "../components/AccountForm";
 import { AutomationCard, RatesCard } from "../components/AutomationCards";
 import { ClaudeAccessCard } from "../components/ClaudeAccessCard";
 import { categoryPath, CurrencySelect, Field, NONE, SimpleSelect } from "../components/Fields";
 import { useCategories, useMoneyMutation, useMoneySettings } from "../queries";
-import type { CategoryResponse, CostBasisMethod } from "../types";
+import type { CategoryResponse } from "../types";
 
 export default function MoneySettingsPage() {
   return (
@@ -31,7 +30,7 @@ export default function MoneySettingsPage() {
           <Wallet className="h-6 w-6" />
           Money
         </h1>
-        <p className="mt-1 text-muted-foreground">Base currency, tax rules, categories, Claude, and what runs on its own</p>
+        <p className="mt-1 text-muted-foreground">Base currency, categories, Claude, and what runs on its own</p>
       </div>
       <GeneralCard />
       <CategoriesCard />
@@ -45,7 +44,6 @@ export default function MoneySettingsPage() {
 function GeneralCard() {
   const { data: settings } = useMoneySettings();
   const save = useMoneyMutation(moneyApi.settings.update, { success: "Saved" });
-  const [residence, setResidence] = useState<string | null>(null);
   if (!settings) return null;
   return (
     <Card>
@@ -58,29 +56,6 @@ function GeneralCard() {
       <CardContent className="grid gap-4 sm:grid-cols-3">
         <Field label="Base currency">
           <CurrencySelect value={settings.baseCurrency} onChange={(baseCurrency) => save.mutate({ baseCurrency })} />
-        </Field>
-        <Field label="Cost basis method" hint="Accounts may override it">
-          <SimpleSelect
-            value={settings.defaultCostBasis}
-            onChange={(defaultCostBasis: CostBasisMethod) => save.mutate({ defaultCostBasis })}
-            options={(Object.keys(COST_BASIS_LABELS) as CostBasisMethod[]).map((m) => ({ value: m, label: COST_BASIS_LABELS[m] }))}
-          />
-        </Field>
-        <Field label="Tax residence" hint="Two letters; PL uses NBP rates for the tax report">
-          <div className="flex gap-2">
-            <Input
-              maxLength={2}
-              value={residence ?? settings.taxResidence}
-              onChange={(e) => setResidence(e.target.value.toUpperCase())}
-            />
-            <Button
-              variant="outline"
-              disabled={!residence || residence === settings.taxResidence || !/^[A-Z]{2}$/.test(residence)}
-              onClick={() => save.mutate({ taxResidence: residence! }, { onSuccess: () => setResidence(null) })}
-            >
-              Save
-            </Button>
-          </div>
         </Field>
       </CardContent>
     </Card>

@@ -45,3 +45,4 @@
 
 # worktrees of agents working alongside a session
 .claude/worktrees/
+.claude/settings.local.json

@@ -160,6 +160,11 @@ export class EnvironmentVariables {
   @IsString()
   WEBAUTHN_RP_ID?: string;
 
+  /** public base URL of Claude's connector (Tailscale Funnel), e.g. https://host.ts.net:8443; unset: no connector */
+  @IsOptional()
+  @IsString()
+  MONEY_CLAUDE_PUBLIC_URL?: string;
+
   /** origin of the site, e.g. https://money.example.com (default: http://localhost:3000) */
   @IsOptional()
   @IsString()
@@ -204,8 +209,8 @@ export class EnvironmentVariables {
 
   @IsOptional()
   @IsString()
-  @Transform(({ value }: { value: string }) => value || 'https://stooq.com')
-  MONEY_STOOQ_BASE_URL = 'https://stooq.com';
+  @Transform(({ value }: { value: string }) => value || 'https://query1.finance.yahoo.com')
+  MONEY_PRICE_FEED_BASE_URL = 'https://query1.finance.yahoo.com';
 }
 
 export function validate(config: Record<string, unknown>) {

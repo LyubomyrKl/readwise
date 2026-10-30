@@ -115,8 +115,11 @@ describe('M5 automation', () => {
         const body = nbpJson(nbp[1], nbp[2]);
         return body ? { status: 200, text: body } : { status: 404, text: '404 NotFound - Not Found - Brak danych' };
       }
-      if (url.includes('/q/d/l/')) return { status: 200, text: 'Date,Open,High,Low,Close,Volume\n2027-06-30,1,1,1,121.10,1\n2027-07-30,1,1,1,126.40,1\n' };
-      if (url.includes('/q/l/')) return { status: 200, text: 'Symbol,Date,Time,Open,High,Low,Close,Volume\nVWCE.DE,2027-08-20,17:36:00,129,131,128.5,130.50,1000\n' };
+      const yahoo = (stamps: string, closes: string) =>
+        `{"chart":{"result":[{"meta":{"currency":"EUR","symbol":"VWCE.DE","gmtoffset":7200,"priceHint":2},"timestamp":[${stamps}],"indicators":{"quote":[{"close":[${closes}]}]}}],"error":null}}`;
+      // 2027-06-30 and 2027-07-30 at 07:00 UTC; then 2027-08-20
+      if (url.includes('/v8/finance/chart/VWCE.DE?range=10y')) return { status: 200, text: yahoo('1814338800,1816930800', '121.0999984741211,126.4000015258789') };
+      if (url.includes('/v8/finance/chart/VWCE.DE?range=5d')) return { status: 200, text: yahoo('1818745200', '130.5') };
       return { status: 404, text: '' };
     });
 
@@ -144,7 +147,7 @@ describe('M5 automation', () => {
         quoteCurrency: 'EUR',
         isin: 'IE00BK5BQT80',
         valuation: 'price_feed',
-        valuationConfig: { provider: 'stooq', symbol: 'vwce.de' },
+        valuationConfig: { provider: 'yahoo', symbol: 'vwce.de' },
       })
     ).id;
   });

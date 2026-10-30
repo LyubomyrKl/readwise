@@ -48,6 +48,19 @@ export function formatValue(value: string, currency: string): string {
   return exactFormat(currencyFormat(currency, decimalsOf(value), "auto"), value);
 }
 
+const numberFormats = new Map<number, Intl.NumberFormat>();
+
+/** An exact decimal string as a number with its own decimal places, no currency ("1234.50" -> "1,234.50"). */
+export function formatNumber(value: string): string {
+  const decimals = decimalsOf(value);
+  let nf = numberFormats.get(decimals);
+  if (!nf) {
+    nf = new Intl.NumberFormat(undefined, { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+    numberFormats.set(decimals, nf);
+  }
+  return exactFormat(nf, value);
+}
+
 const unitsFormat = new Intl.NumberFormat(undefined, { maximumFractionDigits: 10 });
 
 export function formatUnits(units: string): string {
@@ -69,6 +82,7 @@ export function absValue(value: string): string {
 
 const dateFormat = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
 const monthFormat = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric", timeZone: "UTC" });
+const shortMonthFormat = new Intl.DateTimeFormat(undefined, { month: "short", year: "numeric", timeZone: "UTC" });
 
 /** "2026-10-28" -> "28 Oct 2026" in the browser's locale. */
 export function formatDate(date: string): string {
@@ -78,6 +92,12 @@ export function formatDate(date: string): string {
 /** "2026-10" -> "October 2026" */
 export function formatMonth(month: string): string {
   return monthFormat.format(new Date(`${month}-01T00:00:00Z`));
+}
+
+/** "2025-11", "2026-10" -> "Nov 2025 – Oct 2026"; one month alone when both are the same. */
+export function formatMonthSpan(from: string, to: string): string {
+  const short = (m: string) => shortMonthFormat.format(new Date(`${m}-01T00:00:00Z`));
+  return from === to ? short(from) : `${short(from)} – ${short(to)}`;
 }
 
 /** Today as YYYY-MM-DD in the browser's time zone. */
@@ -96,6 +116,11 @@ export function percent(value: string, digits = 1): string {
 /** Normalizes what people type ("1 234,50") to the API's decimal format ("1234.50"). */
 export function normalizeAmountInput(input: string): string {
   return input.replace(/[\s ']/g, "").replace(",", ".");
+}
+
+/** Normalizes a typed percentage ("80 %", "12,5%") to the API's decimal format ("80", "12.5"). */
+export function normalizePercentInput(input: string): string {
+  return input.replace(/[\s %]/g, "").replace(",", ".");
 }
 
 export const AMOUNT_INPUT_RE = /^\s*[+-]?[\d\s ']+(?:[.,]\d+)?\s*$/;

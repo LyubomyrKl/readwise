@@ -4,7 +4,7 @@ import { PLATFORM_ROUTES } from "@platform/routes";
 import { isAuthRoute, needsAuth } from "@platform/auth/route-guard";
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname, search } = req.nextUrl;
   const accessToken = req.cookies.get("access_token")?.value;
   const refreshToken = req.cookies.get("refresh_token")?.value;
 
@@ -17,7 +17,7 @@ export function middleware(req: NextRequest) {
   // No session at all on a protected route: sign in, then come back here.
   if (needsAuth(pathname) && !accessToken && !refreshToken) {
     const url = new URL(PLATFORM_ROUTES.auth.login, req.url);
-    url.searchParams.set("next", pathname);
+    url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
   }
 

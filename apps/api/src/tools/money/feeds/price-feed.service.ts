@@ -3,7 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@platform/db/prisma.service';
 import { EnvironmentVariables } from '@platform/config/env.validation';
 import { parseDate } from '../core/dates';
-import { monthEndPrices, parseStooqHistory, parseStooqQuote, type FeedPrice } from '../core/feeds';
+import { monthEndPrices, parseYahooChart, type FeedPrice } from '../core/feeds';
 import { MoneyHttp } from './http.service';
 
 export interface PriceFeedOutcome {
@@ -17,9 +17,11 @@ export interface PriceFeedOutcome {
 
 /**
  * The evening price job: for each asset valued by the price feed, the latest
- * close from Stooq; the first time, also the month-end closes of its history
- * so values over time have prices. Prices land in the one price table with
- * source "feed"; a manual price of the same day stays beside it.
+ * close from Yahoo Finance (symbol as Yahoo writes it, e.g. VWCE.DE); the first
+ * time, also the month-end closes of ten years of history so values over time
+ * have prices. A quote in another currency than the asset's is refused. Prices
+ * land in the one price table with source "feed"; a manual price of the same
+ * day stays beside it.
  */
 @Injectable()
 export class PriceFeedService {
@@ -30,7 +32,7 @@ export class PriceFeedService {
     private readonly http: MoneyHttp,
     config: ConfigService<EnvironmentVariables>,
   ) {
-    this.base = (config.get('MONEY_STOOQ_BASE_URL', { infer: true }) ?? 'https://stooq.com').replace(/\/$/, '');
+    this.base = (config.get('MONEY_PRICE_FEED_BASE_URL', { infer: true }) ?? 'https://query1.finance.yahoo.com').replace(/\/$/, '');
   }
 
   /** Assets of the user valued by the feed, with the symbol they are fetched under. */
@@ -50,16 +52,19 @@ export class PriceFeedService {
     for (const { asset, symbol } of await this.feedAssets(userId)) {
       const outcome: PriceFeedOutcome = { assetId: asset.commodityId, code: asset.commodity.code, symbol, stored: 0, latest: null };
       try {
+        const chart = async (range: string) => {
+          const res = await this.http.get(`${this.base}/v8/finance/chart/${encodeURIComponent(symbol.toUpperCase())}?range=${range}&interval=1d`);
+          if (res.status !== 200) throw new Error(`Yahoo answered ${res.status} for ${symbol}`);
+          const parsed = parseYahooChart(res.text);
+          if (!parsed) throw new Error(`Yahoo has no price for ${symbol}`);
+          if (parsed.currency !== asset.quoteCurrencyId) throw new Error(`Yahoo quotes ${symbol} in ${parsed.currency}, the asset in ${asset.quoteCurrencyId}`);
+          return parsed.prices;
+        };
         const prices: FeedPrice[] = [];
         const hasFeedPrices = (await this.prisma.moneyPrice.count({ where: { assetId: asset.commodityId, source: 'feed' } })) > 0;
-        if (!hasFeedPrices) {
-          const res = await this.http.get(`${this.base}/q/d/l/?s=${encodeURIComponent(symbol)}&i=d`);
-          if (res.status === 200) prices.push(...monthEndPrices(parseStooqHistory(res.text)));
-        }
-        const res = await this.http.get(`${this.base}/q/l/?s=${encodeURIComponent(symbol)}&f=sd2t2ohlcv&h&e=csv`);
-        if (res.status !== 200) throw new Error(`Stooq answered ${res.status}`);
-        const quote = parseStooqQuote(res.text);
-        if (!quote) throw new Error(/limit/i.test(res.text) ? 'Stooq: daily limit reached' : `Stooq has no price for ${symbol}`);
+        if (!hasFeedPrices) prices.push(...monthEndPrices(await chart('10y')));
+        const recent = await chart('5d');
+        const quote = recent[recent.length - 1];
         prices.push(quote);
         for (const p of prices) {
           await this.prisma.moneyPrice.upsert({

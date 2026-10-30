@@ -10,6 +10,13 @@ export const RANGES: { value: RangeKey; label: string }[] = [
   { value: "all", label: "All" },
 ];
 
+/** What a range is called above its totals. */
+export const RANGE_TITLES: Record<RangeKey, string> = {
+  "12m": "Last 12 months",
+  "3y": "Last 3 years",
+  all: "All time",
+};
+
 /** The `from` the views API takes for a range ending this month. */
 export function rangeFrom(range: RangeKey, thisMonth: string): string {
   if (range === "all") return "start";

@@ -55,7 +55,7 @@ export default function ReportsPage() {
       </div>
 
       {view === "net-worth" ? <NetWorthView base={base || undefined} from={from} /> : null}
-      {view === "monthly" ? <MonthlyView base={base || undefined} from={from} month={month} onMonth={setMonth} /> : null}
+      {view === "monthly" ? <MonthlyView base={base || undefined} from={from} range={range} month={month} onMonth={setMonth} /> : null}
       {view === "allocation" ? <AllocationView base={base || undefined} /> : null}
       {view === "snapshots" ? <SnapshotsView /> : null}
     </MoneyPage>

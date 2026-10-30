@@ -27,6 +27,8 @@ import { McpController } from './claude/mcp.controller';
 import { MoneyTokenGuard } from './claude/token.guard';
 import { TokensController } from './claude/tokens.controller';
 import { TokensService } from './claude/tokens.service';
+import { OAuthController } from './claude/oauth.controller';
+import { OAuthService } from './claude/oauth.service';
 import { RatesController } from './rates/rates.controller';
 import { RatesService } from './rates/rates.service';
 import { MoneyHttp } from './feeds/http.service';
@@ -67,6 +69,7 @@ import { TransactionsService } from './transactions/transactions.service';
     TokensController,
     ClaudeController,
     McpController,
+    OAuthController,
   ],
   providers: [
     CommoditiesService,
@@ -95,6 +98,7 @@ import { TransactionsService } from './transactions/transactions.service';
     RecurringService,
     TaxService,
     TokensService,
+    OAuthService,
     ClaudeService,
     MoneyTokenGuard,
   ],

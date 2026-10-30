@@ -35,6 +35,7 @@ model User {
   moneyRecurring     MoneyRecurringRule[]
   moneyImportBatches MoneyImportBatch[]
   moneyApiTokens     MoneyApiToken[]
+  moneyOauthCodes    MoneyOauthCode[]
   moneyAuditLog      MoneyAuditLog[]
   moneySnapshots     MoneySnapshot[]
 }

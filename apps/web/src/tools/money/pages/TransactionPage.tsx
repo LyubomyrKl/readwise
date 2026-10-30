@@ -69,7 +69,6 @@ export default function TransactionPage() {
           <span className="flex flex-wrap items-center gap-2">
             {formatDate(tx.date)}
             <Badge variant="secondary">{KIND_LABELS[tx.kind]}</Badge>
-            {tx.status === "draft" ? <Badge variant="outline">Draft</Badge> : null}
             {tx.reversedBy ? <Badge variant="outline">Reversed</Badge> : null}
             {tx.impliedRate ? <span>Rate {tx.impliedRate}</span> : null}
           </span>
@@ -160,7 +159,7 @@ export default function TransactionPage() {
 }
 
 function EntryTable({ entries }: { entries: EntryResponse[] }) {
-  if (entries.length === 0) return <p className="text-sm text-muted-foreground">No entries (a draft).</p>;
+  if (entries.length === 0) return <p className="text-sm text-muted-foreground">No entries.</p>;
   return (
     <div className="divide-y">
       {entries.map((e) => (
@@ -182,9 +181,9 @@ function EntryTable({ entries }: { entries: EntryResponse[] }) {
   );
 }
 
-/** "token:…" -> "proposed by Claude", "recurring:…" -> "from a recurring movement", "import:…" -> "imported". */
+/** "token:…" -> "from Claude", "recurring:…" -> "from a recurring movement", "import:…" -> "imported". */
 function proposedByText(actor: string): string {
-  if (actor.startsWith("token:")) return "proposed by Claude";
+  if (actor.startsWith("token:")) return "from Claude";
   if (actor.startsWith("recurring:")) return "from a recurring movement";
   if (actor.startsWith("import:")) return "imported";
   if (actor === "scheduler") return "by the daily jobs";
