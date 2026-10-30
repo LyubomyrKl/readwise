@@ -37,6 +37,7 @@ class Manifest:
     descriptions: dict[str, str] = field(default_factory=dict)   # picture number -> description
     overview: str = ""
     result: Optional[dict] = None
+    settings: dict = field(default_factory=dict)                 # length, figures, factcheck, models (for the UI)
     version: int = MANIFEST_VERSION
 
 

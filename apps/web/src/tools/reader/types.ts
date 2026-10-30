@@ -267,3 +267,28 @@ export interface DocumentStructure {
   ocrPages?: number;
   sections: StructureSection[];
 }
+
+export type ChapterState = "pending" | "written" | "checked" | "fixed";
+
+export interface EditionChapterProgress {
+  id: string;
+  title: string;
+  level: number;
+  /** a part title without text of its own */
+  divider: boolean;
+  words: number;
+  state: ChapterState;
+}
+
+/** GET /reader/editions/:id/progress: the chapters as the worker's manifest has them. */
+export interface EditionProgressResponse {
+  editionId: string;
+  state: EditionState;
+  job?: JobResponse | null;
+  chapters: EditionChapterProgress[];
+  totalWords: number;
+  writtenWords: number;
+  overview: boolean;
+  /** all, dense or off; null until the worker has planned the chapters */
+  factcheck?: string | null;
+}

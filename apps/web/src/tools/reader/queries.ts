@@ -14,6 +14,7 @@ export const readerKeys = {
   summaries: (bookId: string) => ["reader", "summaries", bookId] as const,
   editions: (bookId: string) => ["reader", "editions", bookId] as const,
   structure: (bookId: string) => ["reader", "structure", bookId] as const,
+  editionProgress: (editionId: string) => ["reader", "edition-progress", editionId] as const,
   latestSummaries: ["reader", "summaries", "latest"] as const,
 };
 
@@ -46,6 +47,16 @@ export function useBookEditions(bookId: string | undefined, activeIntervalMs = 5
     queryFn: () => readerApi.editions.listForBook(bookId!),
     enabled: !!bookId,
     refetchInterval: (query) => (query.state.data?.some((e) => isActiveJob(e.job?.status)) ? activeIntervalMs : false),
+  });
+}
+
+/** The chapters of an edition being made; refreshes while it is active. */
+export function useEditionProgress(editionId: string | undefined, active: boolean, intervalMs = 8000) {
+  return useQuery({
+    queryKey: readerKeys.editionProgress(editionId ?? ""),
+    queryFn: () => readerApi.editions.progress(editionId!),
+    enabled: !!editionId,
+    refetchInterval: active ? intervalMs : false,
   });
 }
 

@@ -11,6 +11,7 @@ import type {
   CreateEditionResponse,
   CreateSummaryDto,
   CreateSummaryResponse,
+  EditionProgressResponse,
   EditionResponse,
   HighlightResponse,
   NoteResponse,
@@ -60,6 +61,8 @@ export const readerApi = {
       apiFetch<CreateEditionResponse>(`/reader/documents/${enc(bookId)}/editions`, { method: "POST", json: dto }),
     listForBook: (bookId: string) => apiFetch<EditionResponse[]>(`/reader/documents/${enc(bookId)}/editions`),
     get: (editionId: string) => apiFetch<EditionResponse>(`/reader/editions/${enc(editionId)}`),
+    /** the chapters and their state while the edition is being made */
+    progress: (editionId: string) => apiFetch<EditionProgressResponse>(`/reader/editions/${enc(editionId)}/progress`),
   },
 
   reading: {

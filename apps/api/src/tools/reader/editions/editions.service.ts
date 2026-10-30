@@ -8,9 +8,11 @@ import { isActive } from '@platform/jobs/job-hooks';
 import { DocumentsService } from '../documents/documents.service';
 import { READER_TOOL_ID } from '../summaries/summaries.service';
 import {
+  ChapterState,
   CreateEditionDto,
   CreateEditionResponse,
   DocumentStructureResponse,
+  EditionProgressResponse,
   EditionResponse,
   EditionState,
 } from './edition.models';
@@ -28,6 +30,16 @@ export const structureKeyOf = (irStorageKey: string): string =>
   irStorageKey.replace(/ir-v(\d+)\.json\.gz$/, 'structure-v$1.json');
 
 type EditionWithJob = { edition: Edition; job: Job | null };
+
+/** The part of the worker's manifest (abridge/manifest.py) the progress view reads. */
+interface EditionManifest {
+  units?: Array<{ id: string; title: string; level: number; kind: string; words?: number }>;
+  state?: Record<string, string>;
+  overview?: string;
+  settings?: { factcheck?: string };
+}
+
+const CHAPTER_STATE: Record<string, ChapterState> = { generated: 'written', checked: 'checked', fixed: 'fixed' };
 
 /**
  * Owns reader_edition and the reader's ingest: a book's structure is read once (reader.ingest, on
@@ -180,6 +192,38 @@ export class EditionsService {
     if (!edition) throw new NotFoundException('Edition not found');
     const [pair] = await this.withJobs([edition]);
     return this.toResponse(pair);
+  }
+
+  /** Chapter by chapter, from the manifest the worker updates after each chapter and stage. */
+  async progress(userId: string, editionId: string): Promise<EditionProgressResponse> {
+    const edition = await this.prisma.edition.findFirst({ where: { id: editionId, userId } });
+    if (!edition) throw new NotFoundException('Edition not found');
+    const [pair] = await this.withJobs([edition]);
+    let manifest: EditionManifest | null = null;
+    try {
+      manifest = await this.storage.getJson<EditionManifest>('checkpoints', `${editionPrefix(editionId)}manifest.json`);
+    } catch {
+      manifest = null; // not planned yet, or the working files are gone (the edition is finished or deleted)
+    }
+    const chapters = (manifest?.units ?? []).map((unit) => ({
+      id: unit.id,
+      title: unit.title,
+      level: unit.level,
+      divider: unit.kind === 'divider',
+      words: unit.words ?? 0,
+      state: CHAPTER_STATE[manifest?.state?.[unit.id] ?? ''] ?? ('pending' as ChapterState),
+    }));
+    const text = chapters.filter((c) => !c.divider);
+    return {
+      editionId,
+      state: this.stateOf(edition, pair.job),
+      job: pair.job ? toJobResponse(pair.job) : null,
+      chapters,
+      totalWords: text.reduce((sum, c) => sum + c.words, 0),
+      writtenWords: text.filter((c) => c.state !== 'pending').reduce((sum, c) => sum + c.words, 0),
+      overview: !!manifest?.overview,
+      factcheck: manifest?.settings?.factcheck ?? null,
+    };
   }
 
   /** Removes what the editions sub-module keeps about a book: the working files of its editions and,

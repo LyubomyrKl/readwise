@@ -160,20 +160,31 @@ class AbridgeHandler:
         pictures = selected(doc, figure_mode, figure_numbers_referenced(full_text))
         numbers = {figure.id: index for index, figure in enumerate(pictures, 1)}
         if manifest is None:
-            manifest = Manifest(fingerprint=key, units=[u.to_json() for u in units])
+            manifest = Manifest(fingerprint=key, units=[u.to_json() for u in units],
+                                settings={"length": length, "figures": figure_mode, "factcheck": mode,
+                                          "writer": engine.models.writer, "checker": engine.models.checker})
             store.save(manifest)
         book_lang = doc.language if doc.language in ("en", "ru", "uk") else (detect_language(full_text) or "other")
         total_words = max(1, sum(u.words for u in chapters))
 
+        # The bar's shares follow where the time goes, so it moves evenly and the time left holds: with
+        # the fact-check on, writing took about a third of the time, checking half, fixing a sixth (§20.3).
+        shares = {"generated": 32, "checked": 48, "fixed": 14} if mode != "off" else {"generated": 93, "checked": 0,
+                                                                                      "fixed": 0}
+        base = {"generated": 2, "checked": 2 + shares["generated"], "fixed": 2 + shares["generated"] + shares["checked"]}
+        position = {u.id: i for i, u in enumerate(chapters, 1)}
+
+        def report(stage: str, label: str, words_done: float) -> None:
+            ctx.progress(label, base[stage] + int(shares[stage] * min(1.0, words_done / total_words)))
+
         # (A) generation, chapter by chapter
-        generation_share = 75 if mode != "off" else 93
         done_words = sum(u.words for u in chapters if manifest.state.get(u.id))
-        for position, unit in enumerate(chapters, 1):
+        for unit in chapters:
             if manifest.state.get(unit.id):
                 continue
-            label = f"chapter {position} of {len(chapters)}"
+            label = f"chapter {position[unit.id]} of {len(chapters)}"
             engine.stage = label
-            ctx.progress(label, 2 + int(generation_share * done_words / total_words))
+            report("generated", label, done_words)
             markers = self._markers(ctx, engine, doc, unit, pictures, numbers, manifest, book, book_lang)
             items = unit_items(doc, unit, markers)
             unit_text = "\n\n".join(items)
@@ -181,8 +192,7 @@ class AbridgeHandler:
             lang = lang if lang != "other" else book_lang
 
             def on_part(done: int, total: int, unit=unit, label=label) -> None:
-                share = done_words + unit.words * done / total
-                ctx.progress(f"{label}: part {done} of {total}", 2 + int(generation_share * share / total_words))
+                report("generated", f"{label}: part {done} of {total}", done_words + unit.words * done / total)
 
             if words(unit_text) < PASS_THROUGH_WORDS:
                 result = self._pass_through(unit, items, lang)
@@ -196,24 +206,32 @@ class AbridgeHandler:
 
         # (B) suspected errors, by the checker model; (C) confirmations and fixes, by the writer
         if mode != "off":
-            for stage, target, share in (("checked", "fact-checking", 12), ("fixed", "fixing", 6)):
-                pending = [u for u in chapters if manifest.state.get(u.id) not in (stage, "fixed")]
-                for position, unit in enumerate(pending, 1):
-                    engine.stage = f"{target} chapter {position} of {len(pending)}"
-                    base = 2 + generation_share + (0 if stage == "checked" else 12)
-                    ctx.progress(engine.stage, base + int(share * (position - 1) / max(1, len(pending))))
+            for stage, verb in (("checked", "fact-checking"), ("fixed", "fixing")):
+                finished = ("checked", "fixed") if stage == "checked" else ("fixed",)
+                stage_words = sum(u.words for u in chapters if manifest.state.get(u.id) in finished)
+                for unit in chapters:
+                    if manifest.state.get(unit.id) in finished:
+                        continue
+                    label = f"{verb} chapter {position[unit.id]} of {len(chapters)}"
+                    engine.stage = label
+                    report(stage, label, stage_words)
                     chapter = store.load_unit(unit.id)
                     if chapter is None:
                         continue
+
+                    def on_step(done: int, total: int, unit=unit, label=label, stage=stage, before=stage_words) -> None:
+                        report(stage, f"{label}: part {done} of {total}", before + unit.words * done / max(1, total))
+
                     source = "\n\n".join(p.source for p in chapter.parts)
                     context = factcheck.header(book, author, chapter.title)
                     if stage == "checked":
-                        factcheck.check_chapter(engine, chapter, mode, source, context)
+                        factcheck.check_chapter(engine, chapter, mode, source, context, on_part=on_step)
                     else:
-                        factcheck.fix_chapter(engine, chapter, source, context)
+                        factcheck.fix_chapter(engine, chapter, source, context, on_part=on_step)
                     store.save_unit(chapter)
                     manifest.state[unit.id] = stage
                     store.save(manifest)
+                    stage_words += unit.words
         else:
             # without the checker, the spelling fixes (mixed scripts) still run
             for unit in chapters:

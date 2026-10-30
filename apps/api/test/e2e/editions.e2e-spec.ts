@@ -102,6 +102,33 @@ describe('Abridged editions (e2e, infrastructure mocked)', () => {
     await request(app.getHttpServer()).post('/api/reader/documents/nope/editions').send({}).expect(404);
   });
 
+  it('GET /api/reader/editions/:id/progress lists the chapters from the worker manifest', async () => {
+    storage.getJson.mockRejectedValueOnce(Object.assign(new Error('NoSuchKey'), { name: 'NoSuchKey' }));
+    const before = await request(app.getHttpServer()).get(`/api/reader/editions/${editionId}/progress`).expect(200);
+    expect(before.body).toMatchObject({ editionId, state: 'queued', chapters: [], totalWords: 0, writtenWords: 0 });
+
+    storage.getJson.mockResolvedValueOnce({
+      units: [
+        { id: 'u1', title: 'Частина перша', level: 1, kind: 'divider', words: 3 },
+        { id: 'u2', title: 'Розділ 1', level: 2, kind: 'chapter', words: 4000 },
+        { id: 'u3', title: 'Розділ 2', level: 2, kind: 'chapter', words: 6000 },
+      ],
+      state: { u2: 'checked' },
+      overview: '',
+      settings: { factcheck: 'dense' },
+    });
+    const res = await request(app.getHttpServer()).get(`/api/reader/editions/${editionId}/progress`).expect(200);
+
+    expect(storage.getJson).toHaveBeenLastCalledWith('checkpoints', `edition/${editionId}/manifest.json`);
+    expect(res.body.chapters).toEqual([
+      { id: 'u1', title: 'Частина перша', level: 1, divider: true, words: 3, state: 'pending' },
+      { id: 'u2', title: 'Розділ 1', level: 2, divider: false, words: 4000, state: 'checked' },
+      { id: 'u3', title: 'Розділ 2', level: 2, divider: false, words: 6000, state: 'pending' },
+    ]);
+    expect(res.body).toMatchObject({ totalWords: 10000, writtenWords: 4000, overview: false, factcheck: 'dense' });
+    await request(app.getHttpServer()).get('/api/reader/editions/nope/progress').expect(404);
+  });
+
   it('progress shows on the edition; success adds the EPUB to the library and records the structure', async () => {
     await workerEvent({ jobId, event: 'started', attempt: 1 });
     await workerEvent({ jobId, event: 'progress', stage: 'chapter 3 of 12: part 2 of 4', progress: 30 });

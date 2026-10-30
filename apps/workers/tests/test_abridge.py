@@ -158,6 +158,22 @@ def test_a_book_becomes_an_epub_edition_with_summaries_abridged_chapters_and_its
     assert set(result["metrics"]["llm"]) == {"writer", "checker"}
 
 
+def test_progress_only_moves_forward_and_names_the_books_own_chapter_numbers(settings, storage, make_ctx, publisher):
+    storage.store[("books", "user-1-book.epub")] = sample_epub()
+
+    _run(_settings(settings), storage, make_ctx, ScriptedLLM())
+
+    progress = [(e.stage, e.progress) for e in publisher.events if e.event == "progress"]
+    values = [p for _, p in progress]
+    assert values == sorted(values) and values[-1] >= 98
+    stages = [stage for stage, _ in progress]
+    assert "chapter 2 of 3: part 1 of 1" in stages
+    assert "fact-checking chapter 3 of 3: part 1 of 1" in stages and "fixing chapter 1 of 3" in stages
+    # writing ends near a third of the bar when the fact-check is on: the shares follow the time
+    first_check = next(p for stage, p in progress if stage.startswith("fact-checking"))
+    assert 30 <= first_check <= 40
+
+
 def test_each_part_gets_its_own_word_target_and_the_chapter_summary_as_context(settings, storage, make_ctx):
     long_chapter = "".join(f"<p>{paragraph(i, words=120)}</p>" for i in range(1, 26))   # ~3,000 words
     storage.store[("books", "user-1-book.epub")] = epub(

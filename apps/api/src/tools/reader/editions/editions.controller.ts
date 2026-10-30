@@ -3,7 +3,13 @@ import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 import { EditionsService } from './editions.service';
-import { CreateEditionDto, CreateEditionResponse, DocumentStructureResponse, EditionResponse } from './edition.models';
+import {
+  CreateEditionDto,
+  CreateEditionResponse,
+  DocumentStructureResponse,
+  EditionProgressResponse,
+  EditionResponse,
+} from './edition.models';
 
 @ApiTags('reader: editions')
 @Controller()
@@ -29,6 +35,13 @@ export class EditionsController {
   @ApiEndpoint({ summary: 'An edition and the state of its job', response: EditionResponse })
   get(@Req() req: UserModel, @Param('editionId') editionId: string): Promise<EditionResponse> {
     return this.editions.get(req.user.userId, editionId);
+  }
+
+  @Get('reader/editions/:editionId/progress')
+  @ApiParam({ name: 'editionId' })
+  @ApiEndpoint({ summary: 'Chapter-by-chapter progress of an edition being made', response: EditionProgressResponse })
+  progress(@Req() req: UserModel, @Param('editionId') editionId: string): Promise<EditionProgressResponse> {
+    return this.editions.progress(req.user.userId, editionId);
   }
 
   @Get('reader/documents/:id/structure')

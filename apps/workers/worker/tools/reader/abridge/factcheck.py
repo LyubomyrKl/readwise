@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import difflib
 import re
-from typing import Optional
+from typing import Callable, Optional
 
 from worker.tools.reader.ingest.language import language_name
 from worker.tools.reader.abridge import prompts
@@ -155,28 +155,33 @@ def better(engine: Engine, old: str, new: str, source: str, spelling: bool = Fal
     return all(votes) or (spelling and any(votes))
 
 
-def check_chapter(engine: Engine, chapter: ChapterResult, mode: str, source_text: str, context: str = "") -> None:
+def check_chapter(engine: Engine, chapter: ChapterResult, mode: str, source_text: str, context: str = "",
+                  on_part: Optional[Callable[[int, int], None]] = None) -> None:
     """Stage 1 (checker model): flags for the summary and every part that qualifies."""
     if mode != "off" and chapter.summary and words(source_text) <= engine.summary_budget_words(chapter.language):
         chapter.summary_changes = [{"flag": f} for f in check(engine, source_text, chapter.summary, context)]
         chapter.summary_checked = True
-    for part in chapter.parts:
+    for index, part in enumerate(chapter.parts, 1):
         if should_check(part, mode) and part.target < 1.0:
             part.check_flags = check(engine, part.source, part.output, context)
             part.checked = True
+        if on_part:
+            on_part(index, len(chapter.parts))
 
 
-def fix_chapter(engine: Engine, chapter: ChapterResult, source_text: str, context: str = "") -> None:
+def fix_chapter(engine: Engine, chapter: ChapterResult, source_text: str, context: str = "",
+                on_part: Optional[Callable[[int, int], None]] = None) -> None:
     """Stage 2 (writer model): confirmation and fixes of the flags from stage 1, and spelling fixes."""
     if chapter.summary_checked and chapter.summary_changes and "flag" in chapter.summary_changes[0]:
         flags = [c["flag"] for c in chapter.summary_changes]
         chapter.summary, chapter.summary_changes = confirm_and_fix(engine, chapter.summary, flags, source_text,
                                                                    chapter.language, context=context)
-    for part in chapter.parts:
-        if part.changes or not (part.check_flags or part.mixed_unfixed):
-            continue
-        part.output, part.changes = confirm_and_fix(engine, part.output, part.check_flags, part.source,
-                                                    chapter.language, part.mixed_unfixed, context=context)
-        part.words_out = words(part.output)
-        if not part.changes:
-            part.changes = [{"action": "nothing to fix"}]
+    for index, part in enumerate(chapter.parts, 1):
+        if not part.changes and (part.check_flags or part.mixed_unfixed):
+            part.output, part.changes = confirm_and_fix(engine, part.output, part.check_flags, part.source,
+                                                        chapter.language, part.mixed_unfixed, context=context)
+            part.words_out = words(part.output)
+            if not part.changes:
+                part.changes = [{"action": "nothing to fix"}]
+        if on_part:
+            on_part(index, len(chapter.parts))

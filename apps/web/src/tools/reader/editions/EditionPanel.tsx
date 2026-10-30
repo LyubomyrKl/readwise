@@ -2,14 +2,12 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { BookOpen, Library, Loader2, RotateCcw, Scissors } from "lucide-react";
+import { AlertTriangle, BookOpen, Library, Loader2, Scissors } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { jobsApi } from "@platform/jobs/api";
-import { JobProgress } from "@platform/jobs/JobProgress";
 import { isActiveJob } from "@platform/jobs/types";
-import { useJob } from "@platform/jobs/useJob";
 import { readerApi } from "@tools/reader/api";
 import { useBookEditions, useBookStructure, useInvalidateReader } from "@tools/reader/queries";
 import { READER_ROUTES } from "@tools/reader/routes";
@@ -20,6 +18,8 @@ import {
   type EditionLength,
   type EditionResponse,
 } from "@tools/reader/types";
+import { EditionError } from "./EditionError";
+import { EditionProgress } from "./EditionProgress";
 
 function Choice<T extends string>({
   options,
@@ -95,13 +95,6 @@ function StructureList({ bookId }: { bookId: string }) {
   );
 }
 
-/** Live progress of the edition being made. */
-function EditionProgress({ edition, onSettled }: { edition: EditionResponse; onSettled: () => void }) {
-  const { job, cancel, isActive } = useJob(edition.jobId ?? null, { onSettled });
-  if (!job) return <p className="text-sm text-muted-foreground">Loading job…</p>;
-  return <JobProgress job={job} onCancel={isActive ? cancel : undefined} className="text-left" />;
-}
-
 function percent(value?: number): string {
   return typeof value === "number" ? `${Math.round(value * 100)}%` : "–";
 }
@@ -118,6 +111,7 @@ export function EditionPanel({ bookId }: { bookId: string }) {
   const [length, setLength] = useState<EditionLength>("standard");
   const [figures, setFigures] = useState<EditionFigures>("key");
   const [busy, setBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
 
   const editions = editionsQuery.data ?? [];
   const active = editions.find((e) => isActiveJob(e.job?.status));
@@ -125,14 +119,20 @@ export function EditionPanel({ bookId }: { bookId: string }) {
   const newest = editions[0];
   const failed = !active && newest && (newest.state === "failed" || newest.state === "cancelled") ? newest : null;
 
-  const start = async () => {
+  const start = async (settings: { length: EditionLength; figures: EditionFigures } = { length, figures }) => {
     setBusy(true);
+    setCreateError(null);
     try {
-      const created = await readerApi.editions.create(bookId, { length, figures });
+      const created = await readerApi.editions.create(bookId, settings);
       toast.success(created.existing ? "This edition already exists or is being made" : "Making the abridged edition");
       await invalidate(bookId);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not start the edition");
+      const message = error instanceof Error ? error.message : "";
+      setCreateError(
+        /failed to fetch|network/i.test(message)
+          ? "The server did not answer. Check your connection and try again."
+          : message || "Could not start the edition."
+      );
     } finally {
       setBusy(false);
     }
@@ -144,9 +144,9 @@ export function EditionPanel({ bookId }: { bookId: string }) {
     try {
       await jobsApi.retry(edition.jobId);
       await invalidate(bookId);
-      toast.success("Job queued again");
+      toast.success("Continuing from the last finished chapter");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Retry failed");
+      toast.error(error instanceof Error ? error.message : "Could not continue the edition");
     } finally {
       setBusy(false);
     }
@@ -202,12 +202,12 @@ export function EditionPanel({ bookId }: { bookId: string }) {
       ) : null}
 
       {failed ? (
-        <div className="mb-6 rounded-xl border border-destructive/40 p-4 text-sm">
-          <p>The last edition did not finish: {failed.job?.error ?? failed.state}.</p>
-          <Button className="mt-2" variant="outline" size="sm" disabled={busy} onClick={() => void retry(failed)}>
-            <RotateCcw className="h-4 w-4" /> Continue it
-          </Button>
-        </div>
+        <EditionError
+          edition={failed}
+          busy={busy}
+          onContinue={() => void retry(failed)}
+          onStartOver={() => void start({ length: failed.length, figures: failed.figures })}
+        />
       ) : null}
 
       {!active ? (
@@ -219,6 +219,12 @@ export function EditionPanel({ bookId }: { bookId: string }) {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Scissors className="h-4 w-4" />}
             {ready ? "Make another edition" : "Make abridged edition"}
           </Button>
+          {createError && (
+            <p role="alert" className="mt-3 flex items-start gap-2 text-sm text-destructive" data-testid="edition-create-error">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              {createError}
+            </p>
+          )}
         </div>
       ) : null}
     </section>

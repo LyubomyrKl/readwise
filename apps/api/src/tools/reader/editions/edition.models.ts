@@ -65,3 +65,29 @@ export class DocumentStructureResponse {
   })
   structure!: Record<string, unknown>;
 }
+
+/** Where a chapter of an edition being made has got to (the worker's manifest). */
+export const CHAPTER_STATES = ['pending', 'written', 'checked', 'fixed'] as const;
+export type ChapterState = (typeof CHAPTER_STATES)[number];
+
+export class EditionChapterProgress {
+  @ApiProperty() id!: string;
+  @ApiProperty() title!: string;
+  @ApiProperty({ description: '1 or 2, as in the edition\'s contents' }) level!: number;
+  @ApiProperty({ description: 'a part title without text of its own' }) divider!: boolean;
+  @ApiProperty() words!: number;
+  @ApiProperty({ enum: CHAPTER_STATES }) state!: ChapterState;
+}
+
+export class EditionProgressResponse {
+  @ApiProperty() editionId!: string;
+  @ApiProperty({ enum: EDITION_STATES }) state!: EditionState;
+  @ApiPropertyOptional({ type: JobResponse, nullable: true }) job?: JobResponse | null;
+  @ApiProperty({ type: [EditionChapterProgress], description: 'empty until the worker has planned the chapters' })
+  chapters!: EditionChapterProgress[];
+  @ApiProperty({ description: 'words of the chapters to abridge' }) totalWords!: number;
+  @ApiProperty({ description: 'words of the chapters already written' }) writtenWords!: number;
+  @ApiProperty({ description: 'the book overview is written' }) overview!: boolean;
+  @ApiPropertyOptional({ nullable: true, description: 'all, dense or off; null until the worker has planned' })
+  factcheck?: string | null;
+}

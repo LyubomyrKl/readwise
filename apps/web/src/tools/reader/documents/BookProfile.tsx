@@ -56,6 +56,7 @@ import {
 } from "@tools/reader/types";
 
 import { READER_ROUTES } from "@tools/reader/routes";
+import { EditionStatusLine } from "@tools/reader/editions/EditionStatusLine";
 
 interface BookProfileProps {
   book: IBook;
@@ -395,6 +396,7 @@ export default function BookProfile({
                     <BookOpen className="h-4 w-4" />
                     Abridged edition
                   </button>
+                  <EditionStatusLine bookId={book.id} />
                   {readySummary && summaries.length > 1 && (
                     <p className="text-center text-xs text-muted-foreground">
                       {summaries.filter((s) => s.state === "ready").length} summaries available
