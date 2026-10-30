@@ -1,7 +1,8 @@
 # Book summarization engine: investigation and redesign
 
-Date: 2026-10-30. Status: investigation only; no code was changed. Supersedes the parked notes in
-`docs/pipeline-speed-backlog.md` (every observation there is checked below).
+Date: 2026-10-30. Status: investigated, then implemented the same evening on branch `summarizer-v2`
+(§20). Supersedes the parked notes in `docs/pipeline-speed-backlog.md` (every observation there is
+checked below).
 
 **Revision 2 (same day, afternoon).** The owner set the constraints: free (local only, no paid APIs), the
 M3 Max as the LLM host, modern English, Russian and Ukrainian books, and as the main product an **abridged
@@ -1353,6 +1354,106 @@ Pictures inside scanned pages first have to be cut out of the page image. That i
 - **Large files (50–150 MB).** Process page by page and rasterize only pages that need OCR. Extracting the
   sample files took 0.03–0.4 s **[measured]**; the size of such files is mostly images.
 - **Caveat.** The test PDFs were generated from clean text, so they are easier than real-world PDFs.
+
+## 20. Implementation (2026-10-30, evening)
+
+On branch `summarizer-v2` (not pushed, not deployed), in milestone commits on top of `main`: this report;
+the phase-1 fixes to the current pipeline; the worker (`reader.ingest`, `reader.abridge`, the fast queue,
+the bench); the API and the web app (editions, structure, the panel); then the fact-check corrections
+below. How to run and configure it: `apps/workers/README.md` (the engine, the bench) and
+`docs/deploy.md`, The LLM host.
+
+### 20.1 The roadmap, item by item
+
+| # | State | Where |
+|---|---|---|
+| 1.1 | Host settings documented; the workers also send `num_ctx` 32768 with every request | `docs/deploy.md`; `abridge/llm.py` |
+| 1.2–1.5, 1.7 | Done in the current pipeline | `summarize/…`; `SummaryReader.tsx` |
+| 1.6 | Done: `q.py.reader_fast` (extract, ingest) and `q.py.reader` (summarize, abridge), one thread each; the API removes the old `jobs.reader.extract` binding | `topology.ts`; `handlers.py` |
+| 1.8 | Tokens and seconds per model in every edition's result, truncated replies counted; the bench | `abridge/llm.py`; `worker/bench` |
+| 1.9 | `gemma4:26b-mlx` in the env examples | `.env.example` |
+| 2.1 | Done: the IR per file SHA-256, structure from the contents, the outline or fonts, section kinds in three languages, pictures, drop caps, language | `ingest/` |
+| 2.2–2.5 | Done as §8.4a describes, plus the fact-check of B.11 run book-wide | `abridge/` |
+| 2.6 | Done: endpoints, hooks, the panel with progress, the edition opens in the reader; the structure has an endpoint but no page yet | `editions/`; `EditionPanel.tsx` |
+| 2.7 | **Not done on purpose**: the old pipeline stays until the owner has read an edition of one of their own books | — |
+| 3.1 | Needs the owner's ratings of editions; the abstract-noun feature is in, as a small addition only | `density.py` |
+| 3.2 | One request in flight by design; the writer's fact-check prompts start with the source, so the server reuses its cache across a part's calls | `prompts.py` |
+| 3.3 | Not re-tested (no Ollama change since §10.5) | — |
+| 3.4 | Not done (LanguageTool needs a Java server); see the open points | — |
+| 4.1 | Done: textless or garbled PDF pages read by the vision model, cached per page, the IR rebuilt with the text | `abridge/ocr.py` |
+| 4.2 | Raster pictures in PDFs only; vector charts and pictures inside scans are not cut out | — |
+| 4.3 | The bench writes per-part reports (`parts.tsv`); no automatic scoring against a corpus yet | `worker/bench` |
+| 4.4, 4.5 | Not done (only if wanted) | — |
+| 5.1 | Done: a manifest per edition, per chapter and stage | `abridge/manifest.py` |
+| 5.2 | Done: metrics in `Job.result` and on the edition | `abridge/handler.py` |
+| 5.3 | Done: working files, and the IR when no other book shares the file, deleted with the book; one edition per setting | `editions.service.ts` |
+| 5.4 | Documented: digests, and a bench run after any update | `docs/deploy.md` |
+
+### 20.2 What the first real runs changed
+
+The engine ran on the M3 Max against Ollama 0.40.13 (Gemma 4 26B writes, Qwen 3.6 checks, `dense`),
+through `python -m worker.bench`. Each finding below became a rule and a test:
+
+- **The checker needs what the writer saw.** Without the book, author and chapter it "corrected"
+  "In this preface, Bertrand Russell explains" into "In these pages, the author explains". The check,
+  the confirmation and the fix now get that header.
+- **A fix must not make things worse.** One rewrite turned "after the battle of Okhmativ the Cossacks went
+  west" into "a battle between the Cossacks and the Muscovite army" (the wrong sides). A rewrite now
+  replaces a sentence only when the writer prefers it to the original in both orders (A/B, then B/A).
+  An absolute "is the rewrite faithful?" check was tried first: it also refused the correct fix of the
+  owner's annotated error, the Vilnius truce "with Sweden".
+- **Read the verdict, not the first letter.** On a full part, Gemma answers "The correct answer is **B**."
+  where a short test gets "B". The first parser read "T" and dropped every fix, and a YES/NO
+  confirmation could be lost the same way (the B.11 scripts had the same weakness). Both now look for the
+  verdict word.
+- **The fix keeps the abridgement's person and tense** (one had switched to "we") and modern words.
+- **Name corrections never restore a forbidden spelling.** On the pre-1918 book the near-miss rule had
+  turned the model's "Персией" back into "Персіей".
+- **Sentences do not end at initials.** A fix located "Чаплинського на Суботів…" after "Д." and produced
+  "напад Д. Напад Чаплинського".
+
+### 20.3 Measurements
+
+| Text | Language | Words | Edition | Parts within the band | Pictures | Fixes kept | Time | s per 1,000 words |
+|---|---|---|---|---|---|---|---|---|
+| Russell, Preface and ch. I (EPUB) | en | 3,094 | 31% | 4 of 4 | — | 0 ¹ | 104 s | 34 |
+| Apostol, 4 chapters (EPUB, pre-1918 spelling) | ru | 2,712 | 39% | 4 of 4 | 8 placed | 11 ² | 226 s | 83 |
+| «Хмельниччина» (PDF without bookmarks) | uk | 3,839 | 30% | 4 of 4 | — | 4 ³ | 223 s | 58 |
+
+¹ before the context header and the parser fix. ² before the guards of §20.2; 6 of the 11 were clear
+improvements (two misspelled names, a garbled sentence), 2 made the text worse (they led to the guards).
+³ with every rule of §20.2. All four are right against the source: the Lviv siege moved from "spring" to
+"the end of September 1655" (the error the owner annotated in round 3), the siege of Uman from "autumn
+1654" to "20 January 1655", "Ukrainian lands" narrowed to "the central part of the Ukrainian ethnic
+lands", and a judgement attributed to the historians the source names. One rewrite of the summary was
+refused by the comparison. The same chapter's previous run (the first comparison parser) refused all 9
+of its fixes; replayed with the new parser, Gemma preferred each correct rewrite in both orders.
+
+- Generation alone (summaries, parts, picture descriptions) took 8 s per 1,000 words in English, 17 s in
+  Ukrainian and 23 s for the short illustrated Russian chapters. Every part landed inside its band without
+  a retry: 26–46% against targets of 29–40% (the two above 40% were a 120-word preface and a dense Russian
+  chapter). The rest is the fact-check: one Qwen call per checked part (often
+  2,000 tokens of flags, a third of them cut at that cap), then a Gemma confirmation per flag and two
+  comparisons per rewrite. On the Ukrainian chapter: 67 s generation, 104 s checking, 47 s fixing.
+  Model loads add 5–10 s per stage.
+- The writer's fact-check calls reuse the server's prompt cache: about 3,070 of each call's ~3,150
+  prompt tokens came from the cache (Ollama log), so a confirmation costs about a second.
+- `dense` (a part is checked from one name or number per 100 words) checks nearly every part of
+  nonfiction and history. `ABRIDGE_FACTCHECK=off` gives the generation-only speed.
+- Ingest took 0.06–0.6 s per file. The EPUBs of these runs are well-formed EPUB 3 with the source's cover,
+  the pictures and their descriptions as alt text.
+
+### 20.4 Open
+
+1. The owner reads an edition of one of their own modern Russian or Ukrainian books (§16.3, item 3);
+   only then delete the old pipeline (2.7) and calibrate the lengths (3.1) with the owner's ratings.
+2. Ukrainian slips that no check catches yet: "розгрошування" for "розгром", "Реччю" for "Річчю",
+   "У груді" for "У грудні". The names check flags some of them; a grammar pass (3.4) would catch more.
+   The fixes keep them (a fix rewrites a sentence for its facts, not its grammar).
+3. Whether `dense` should check fewer parts, by a higher threshold or only parts with an unsupported name
+   or number, is for the owner to weigh: time against faithfulness.
+4. Deployment: the migration `20261030000000_reader_editions`, `WORKER_QUEUES=reader,reader_fast`, the
+   new `.env` settings, and the models pulled on the Mac (docs/deploy.md).
 
 ---
 
