@@ -1,5 +1,5 @@
 import { Prisma } from '@prisma/client';
-import { BookResponse, ReadingPositionResponse } from './document.models';
+import { BookResponse, StoredReadingPosition } from './document.models';
 
 /** A book row plus the counts the library shows; relations themselves stay in `reading`. */
 export const BOOK_WITH_COUNTS = Prisma.validator<Prisma.BookDefaultArgs>()({
@@ -16,18 +16,13 @@ export const BOOK_WITH_COUNTS = Prisma.validator<Prisma.BookDefaultArgs>()({
 export type BookRow = Prisma.BookGetPayload<typeof BOOK_WITH_COUNTS>;
 
 export function convertBookToResponse(book: BookRow): BookResponse {
-  let readingPosition: ReadingPositionResponse | null = null;
-  if (book.readingPosition && typeof book.readingPosition === 'object') {
-    const pos = book.readingPosition as Record<string, unknown>;
-    if (pos.type === 'pdf' || pos.type === 'epub') {
-      readingPosition = {
-        type: pos.type,
-        page: typeof pos.page === 'number' ? pos.page : undefined,
-        cfi: typeof pos.cfi === 'string' ? pos.cfi : undefined,
-        percentage: typeof pos.percentage === 'number' ? pos.percentage : undefined,
-      };
-    }
-  }
+  // as stored: Locator v2, or the v1 shape the readers upgrade on the next save
+  const stored = book.readingPosition;
+  const position = stored && typeof stored === 'object' && !Array.isArray(stored) ? (stored as StoredReadingPosition) : null;
+  const readingPosition =
+    position && ((position.v === 2 && (position.format === 'pdf' || position.format === 'epub')) || position.type === 'pdf' || position.type === 'epub')
+      ? position
+      : null;
 
   return {
     id: book.id,

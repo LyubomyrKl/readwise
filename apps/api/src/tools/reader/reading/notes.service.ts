@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
 import { CreateNoteDto, UpdateNoteDto, NoteResponse } from './note.models';
 import { sanitizeHtml } from '@platform/common/sanitize';
+import { locatorJson } from './locator.models';
 
 @Injectable()
 export class NotesService {
@@ -52,7 +53,7 @@ export class NotesService {
         userId,
         bookId,
         body: sanitizeHtml(dto.body),
-        anchor: dto.anchor ? (dto.anchor as unknown as Prisma.InputJsonValue) : Prisma.JsonNull,
+        anchor: dto.anchor ? locatorJson(dto.anchor) : Prisma.JsonNull,
         isPinned: dto.isPinned || false,
         isArchived: false,
       },

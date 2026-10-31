@@ -1,23 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsBoolean, IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { LocatorDto } from '../reading/locator.models';
 import type { JsonValue } from '@prisma/client/runtime/library';
-
-// Anchor represents the position of a note in the document
-export class NoteAnchorDto {
-  @ApiProperty({ enum: ['pdf', 'epub'], description: 'Type of book format' })
-  @IsString()
-  @IsNotEmpty()
-  type!: 'pdf' | 'epub';
-
-  @ApiPropertyOptional({ description: 'Page number (for PDF)' })
-  @IsOptional()
-  page?: number;
-
-  @ApiPropertyOptional({ description: 'CFI location (for EPUB)' })
-  @IsOptional()
-  @IsString()
-  cfi?: string;
-}
 
 export class CreateNoteDto {
   @ApiProperty({ description: 'Note body content (markdown supported)' })
@@ -25,9 +10,11 @@ export class CreateNoteDto {
   @IsNotEmpty()
   body!: string;
 
-  @ApiPropertyOptional({ type: NoteAnchorDto, description: 'Position anchor in document' })
+  @ApiPropertyOptional({ type: LocatorDto, description: 'Where in the book (Locator v2)' })
   @IsOptional()
-  anchor?: NoteAnchorDto;
+  @ValidateNested()
+  @Type(() => LocatorDto)
+  anchor?: LocatorDto;
 
   @ApiPropertyOptional({ description: 'Whether the note is pinned', default: false })
   @IsOptional()

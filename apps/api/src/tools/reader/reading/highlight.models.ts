@@ -1,27 +1,8 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString, IsUUID } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsNotEmpty, IsOptional, IsString, MaxLength, ValidateNested } from 'class-validator';
+import { LocatorDto } from './locator.models';
 import type { JsonValue } from '@prisma/client/runtime/library';
-
-// Anchor represents the position of a highlight in the document
-export class HighlightAnchorDto {
-  @ApiProperty({ enum: ['pdf', 'epub'], description: 'Type of book format' })
-  @IsString()
-  @IsNotEmpty()
-  type!: 'pdf' | 'epub';
-
-  @ApiPropertyOptional({ description: 'Page number (for PDF)' })
-  @IsOptional()
-  page?: number;
-
-  @ApiPropertyOptional({ description: 'CFI range (for EPUB)' })
-  @IsOptional()
-  @IsString()
-  cfi?: string;
-
-  @ApiPropertyOptional({ description: 'Text rectangles for PDF highlight rendering' })
-  @IsOptional()
-  rects?: Array<{ x: number; y: number; width: number; height: number }>;
-}
 
 export class CreateHighlightDto {
   @ApiProperty({ description: 'Highlighted text content' })
@@ -29,9 +10,10 @@ export class CreateHighlightDto {
   @IsNotEmpty()
   text!: string;
 
-  @ApiProperty({ type: HighlightAnchorDto, description: 'Position anchor in document' })
-  @IsNotEmpty()
-  anchor!: HighlightAnchorDto;
+  @ApiProperty({ type: LocatorDto, description: 'Where in the book (Locator v2)' })
+  @ValidateNested()
+  @Type(() => LocatorDto)
+  anchor!: LocatorDto;
 
   @ApiPropertyOptional({ description: 'Highlight color (hex)', example: '#ffe066' })
   @IsOptional()
@@ -41,7 +23,7 @@ export class CreateHighlightDto {
   @ApiPropertyOptional({ description: 'Optional linked note ID' })
   @IsOptional()
   @IsString()
-  @IsUUID()
+  @MaxLength(64)
   noteId?: string;
 }
 

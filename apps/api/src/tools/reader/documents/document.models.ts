@@ -1,22 +1,12 @@
+import { LocatorDto } from '../reading/locator.models';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { IsBoolean, IsNotEmpty, IsString } from 'class-validator';
-import { IsNumber, IsOptional, IsUUID, Length } from 'class-validator';
-import { Transform } from 'class-transformer';
+import { IsNumber, IsOptional, IsUUID, Length, ValidateNested } from 'class-validator';
+import { Transform, Type } from 'class-transformer';
 import { BOOK_CONSTRAINTS } from './document.constants';
 
-export class ReadingPositionResponse {
-  @ApiProperty({ enum: ['pdf', 'epub'] })
-  type!: 'pdf' | 'epub';
-
-  @ApiPropertyOptional()
-  page?: number;
-
-  @ApiPropertyOptional()
-  cfi?: string;
-
-  @ApiPropertyOptional()
-  percentage?: number;
-}
+/** A reading position as stored: Locator v2, or the v1 shape (type, page, cfi, percentage) the readers upgrade. */
+export type StoredReadingPosition = Record<string, unknown>;
 
 /**
  * A document in the library. Notes and highlights are fetched through the
@@ -84,8 +74,8 @@ export class BookResponse {
   @ApiProperty({ description: 'Number of highlights (not deleted)' })
   highlightCount!: number;
 
-  @ApiPropertyOptional({ type: ReadingPositionResponse, nullable: true })
-  readingPosition?: ReadingPositionResponse | null;
+  @ApiPropertyOptional({ type: LocatorDto, nullable: true, description: 'Locator v2; positions saved before it keep their v1 shape (type, page, cfi, percentage)' })
+  readingPosition?: StoredReadingPosition | null;
 
   @ApiProperty()
   createdAt!: Date;
@@ -177,28 +167,6 @@ export class UploadResponse {
   status!: string;
 }
 
-export class ReadingPositionDto {
-  @ApiProperty({ enum: ['pdf', 'epub'], description: 'Type of book format' })
-  @IsString()
-  @IsNotEmpty()
-  type!: 'pdf' | 'epub';
-
-  @ApiPropertyOptional({ description: 'Current page number (for PDF)' })
-  @IsOptional()
-  @IsNumber()
-  page?: number;
-
-  @ApiPropertyOptional({ description: 'CFI location string (for EPUB)' })
-  @IsOptional()
-  @IsString()
-  cfi?: string;
-
-  @ApiPropertyOptional({ description: 'Reading progress percentage (0-100)' })
-  @IsOptional()
-  @IsNumber()
-  percentage?: number;
-}
-
 export class UpdateReadingPositionDto {
   @ApiProperty({ description: 'Book ID' })
   @IsString()
@@ -206,7 +174,8 @@ export class UpdateReadingPositionDto {
   @IsUUID()
   bookId!: string;
 
-  @ApiProperty({ type: ReadingPositionDto, description: 'Reading position data' })
-  @IsNotEmpty()
-  position!: ReadingPositionDto;
+  @ApiProperty({ type: LocatorDto, description: 'Reading position (Locator v2)' })
+  @ValidateNested()
+  @Type(() => LocatorDto)
+  position!: LocatorDto;
 }

@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import type { Response } from 'express';
 import { createHash } from 'crypto';
-import { Book, Prisma } from '@prisma/client';
+import { Book } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
 import { StorageService } from '@platform/storage/storage.service';
 import { SuccessEmptyResponse } from '@platform/common/models';
@@ -23,6 +23,7 @@ import {
 } from './document.models';
 import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.constants';
 import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse } from './document.helpers';
+import { locatorJson } from '../reading/locator.models';
 
 /**
  * Owns the reader_book table and the objects behind it (file, cover).
@@ -184,7 +185,7 @@ export class DocumentsService {
     await this.prisma.book.update({
       where: { id: dto.bookId },
       data: {
-        readingPosition: dto.position as unknown as Prisma.InputJsonValue,
+        readingPosition: locatorJson(dto.position),
         lastAccessed: new Date(),
       },
     });
