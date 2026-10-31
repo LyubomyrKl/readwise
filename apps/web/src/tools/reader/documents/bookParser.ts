@@ -1,4 +1,4 @@
-import ePub from "epubjs";
+import type { FoliateBook } from "@tools/reader/reading/engines/reflow/foliate";
 
 export interface BookMetadata {
   title?: string;
@@ -77,53 +77,72 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
   }
 }
 
+/** A Blob as a data URL (the upload form shows it and sends it as the cover). */
+function dataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** foliate's names: a string, a language map ({ "en": "…" }), a contributor ({ name }), or a list of them. */
+function nameOf(value: unknown): string | undefined {
+  if (typeof value === "string") return value.trim() || undefined;
+  if (Array.isArray(value)) return value.map(nameOf).filter(Boolean).join(", ") || undefined;
+  if (value && typeof value === "object") {
+    if ("name" in value) return nameOf((value as { name: unknown }).name);
+    return nameOf(Object.values(value)[0]);
+  }
+  return undefined;
+}
+
+/** EPUB descriptions are often HTML; the form wants the text (DOMParser runs no scripts and loads nothing). */
+function plainText(html: unknown): string | undefined {
+  if (typeof html !== "string") return undefined;
+  const text = new DOMParser().parseFromString(html, "text/html").body.textContent ?? "";
+  return text.replace(/\s+/g, " ").trim() || undefined;
+}
+
+/**
+ * The page count of a reflowable book: its print pages when it lists them (page-list), otherwise
+ * the reader's own locations (foliate counts one per 1500 bytes of the linear sections), so the
+ * library and the reader's "12 / 240" agree.
+ */
+export function reflowPageCount(book: Pick<FoliateBook, "sections" | "pageList">): number | null {
+  if (book.pageList?.length) return book.pageList.length;
+  const size = book.sections.reduce((sum, s) => sum + (s.linear !== "no" && (s.size ?? 0) > 0 ? s.size! : 0), 0);
+  return size > 0 ? Math.ceil(size / 1500) : null;
+}
+
+/** EPUB metadata with foliate-js, the parser the reader opens the book with; nothing is rendered. */
 async function extractEpubMetadata(file: File): Promise<BookMetadata> {
+  const { makeBook } = (await import("@/src/vendor/foliate-js/view.js")) as unknown as {
+    makeBook: (file: File) => Promise<FoliateBook>;
+  };
+  let book: FoliateBook | undefined;
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    // Type assertion needed as epubjs types may not be complete
-    const book = ePub(arrayBuffer as any) as any;
-
-    await book.ready;
-
-    // Extract metadata from the book
-    const metadata = await book.loaded.metadata;
-
-    // Extract cover image
+    book = await makeBook(file);
     let coverImage: string | undefined;
     try {
-      const cover = await book.coverUrl();
-      if (cover) {
-        // If it's a blob URL, fetch it and convert to data URL
-        if (cover.startsWith("blob:")) {
-          const response = await fetch(cover);
-          const blob = await response.blob();
-          coverImage = await new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(blob);
-          });
-        } else {
-          coverImage = cover;
-        }
-      }
+      const cover = await book.getCover?.();
+      if (cover) coverImage = await dataUrl(cover);
     } catch (coverError) {
       console.warn("Failed to extract EPUB cover image:", coverError);
     }
-
-    // Generate locations to get a page count estimate
-    // Using a chunk size of 1024 characters per "page"
-    await book.locations.generate(1024);
-
     return {
-      title: metadata?.title || undefined,
-      author: metadata?.creator || undefined,
-      description: metadata?.description || undefined,
-      pageCount: book.locations.total,
+      title: nameOf(book.metadata?.title),
+      author: nameOf(book.metadata?.author),
+      description: plainText(book.metadata?.description),
+      pageCount: reflowPageCount(book),
       coverImage,
     };
   } catch (error) {
     console.error("Error extracting EPUB metadata:", error);
     throw new Error("Failed to parse EPUB file");
+  } finally {
+    book?.destroy?.();
   }
 }
 

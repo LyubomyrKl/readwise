@@ -11,9 +11,10 @@ export type FoliateBook = {
   sections: FoliateSection[];
   toc?: FoliateTocItem[];
   pageList?: FoliateTocItem[];
-  metadata?: { title?: unknown; author?: unknown; language?: unknown };
+  metadata?: { title?: unknown; author?: unknown; language?: unknown; description?: unknown };
   transformTarget?: EventTarget;
   getCover?: () => Promise<Blob | null>;
+  destroy?: () => void;
 };
 
 export type FoliateRelocate = {

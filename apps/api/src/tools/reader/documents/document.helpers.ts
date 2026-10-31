@@ -51,3 +51,19 @@ export function convertBookToResponse(book: BookRow): BookResponse {
     updatedAt: book.updatedAt,
   };
 }
+
+/**
+ * The pages behind a reading position, for the library's "12/240 pages" and time left: the page
+ * itself in a PDF (0-based in the locator), the share of the book in a reflowable one. Undefined
+ * (the count stays) when the book has no page count or the position says neither.
+ */
+export function pagesRead(position: { page?: number; totalProgression?: number }, pageCount: number): number | undefined {
+  if (!(pageCount > 0)) return undefined;
+  const pages =
+    position.page !== undefined
+      ? position.page + 1
+      : position.totalProgression !== undefined
+        ? Math.round(position.totalProgression * pageCount)
+        : undefined;
+  return pages === undefined ? undefined : Math.min(Math.max(pages, 0), pageCount);
+}

@@ -64,9 +64,12 @@ type Locator = {
 
 ## Pipelines
 
-**Upload.** The browser reads title, author, page count and cover for the form (PDF.js legacy
-build; still epub.js for EPUB metadata, see Debt). The API stores the file and its SHA-256 and queues
-`reader.ingest`.
+**Upload.** The browser reads title, author, page count and cover for the form with the reader's
+own parsers (`documents/bookParser.ts`: PDF.js legacy build; foliate-js `makeBook` for EPUB, nothing
+rendered). An EPUB's page count is its print pages when it has a page-list, otherwise foliate's
+locations (one per 1500 bytes of linear sections), so the library and the reader's "12 / 240" agree.
+The API stores the file and its SHA-256 and queues `reader.ingest`. Saving a reading position also
+sets the library's pages read (`pagesRead`: the PDF page, or the book's share times its pages).
 
 **Reading a PDF.** `getDocument` with `rangeChunkSize` 256 KiB, `disableAutoFetch` and
 `disableStream`: only what is shown is fetched. The API answers `Range` with 206, `Content-Range`,
@@ -148,17 +151,15 @@ only skips a throttler named `default`, so every name is listed.
 | Foundations: ranges, Locator v2 (web, API, workers), engine interface, shell, CSP | done |
 | PDF on PDF.js | done: text layer, highlights (quads + quote), notes, outline, page labels, search, themes, zoom, ranges |
 | Reflowable on foliate-js | done: EPUB with highlights, TOC, section-size progress, search, themes, type size, line height, flow |
-| Old engines removed | EmbedPDF and react-reader removed from the readers; epub.js remains only for upload metadata (Debt) |
+| Old engines removed | EmbedPDF, epub.js, react-reader and @use-gesture removed; the upload form reads metadata with PDF.js and foliate-js |
 | Server rendition (sanitized, block ids) and IR v2 provenance (PDF boxes, page labels, EPUB block ids) | not started; the loader and the `blocks` field are ready for it |
-| Browser tests on real books, Chrome and WebKit | 16 passing |
+| Browser tests on real books, Chrome and WebKit | 20 passing (PDF, EPUB, CSP, upload form) |
 
 ## Debt and open points
 
 - **Renditions and IR v2** (next): the worker writes a sanitized, unzipped rendition with
   `data-wb-b` block ids and builds the IR from it; PDF blocks get boxes and page labels; the API
   serves `/reader/documents/:id/rendition/<path>`; the reader uses `rendition.ts`.
-- **Upload metadata** still uses epub.js for EPUBs: move it to foliate's `makeBook` (title, author,
-  cover) and drop epub.js.
 - **PDF chapter name** in the bottom bar is empty: resolving every outline entry to a page loads
   page objects across the whole file; take section pages from the server structure instead.
 - **Pinch zoom** on phones for PDFs is not wired (the old reader had custom gestures); zoom buttons

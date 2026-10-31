@@ -1,5 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { DocumentsService } from './documents.service';
+import { pagesRead } from './document.helpers';
+import type { UpdateReadingPositionDto } from './document.models';
 import { FakePrisma } from '../../../../test/fakes/fake-prisma';
 
 describe('DocumentsService', () => {
@@ -57,6 +59,28 @@ describe('DocumentsService', () => {
     storage.deleteObject.mockRejectedValueOnce(new Error('minio down'));
     await expect(service.deleteBook('user-1', 'book-1')).resolves.toEqual({ status: 'success' });
     expect(await prisma.book.count()).toBe(0);
+  });
+
+  it('saving a position moves the pages read with it', async () => {
+    await prisma.book.update({ where: { id: 'book-1' }, data: { pageCount: 240, pagePassCount: 7 } });
+    const save = (position: object) =>
+      service.updateReadingPosition('user-1', { bookId: 'book-1', position } as UpdateReadingPositionDto);
+    const book = () => prisma.book.findFirst({ where: { id: 'book-1' } });
+
+    await save({ v: 2, format: 'pdf', page: 41 });
+    expect(await book()).toMatchObject({ pagePassCount: 42, readingPosition: { v: 2, format: 'pdf', page: 41 } });
+
+    await save({ v: 2, format: 'epub', cfi: 'epubcfi(/6/4!/4/2)' }); // says neither: the count stays
+    expect((await book())?.pagePassCount).toBe(42);
+  });
+
+  it('pagesRead: the page in a PDF, the share of a reflowable book, within the book', () => {
+    expect(pagesRead({ page: 0 }, 240)).toBe(1);
+    expect(pagesRead({ page: 500 }, 240)).toBe(240);
+    expect(pagesRead({ totalProgression: 0.5 }, 240)).toBe(120);
+    expect(pagesRead({ totalProgression: 0 }, 240)).toBe(0);
+    expect(pagesRead({ totalProgression: 0.5 }, 0)).toBeUndefined();
+    expect(pagesRead({}, 240)).toBeUndefined();
   });
 
   it('refuses books of other users', async () => {

@@ -22,7 +22,7 @@ import {
   UpdateReadingPositionDto,
 } from './document.models';
 import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES, BOOK_STATUS } from './document.constants';
-import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse } from './document.helpers';
+import { BOOK_WITH_COUNTS, BookRow, convertBookToResponse, pagesRead } from './document.helpers';
 import { locatorJson } from '../reading/locator.models';
 
 /**
@@ -181,11 +181,12 @@ export class DocumentsService {
     userId: string,
     dto: UpdateReadingPositionDto,
   ): Promise<SuccessEmptyResponse> {
-    await this.getOwnedBook(userId, dto.bookId);
+    const book = await this.getOwnedBook(userId, dto.bookId);
     await this.prisma.book.update({
       where: { id: dto.bookId },
       data: {
         readingPosition: locatorJson(dto.position),
+        pagePassCount: pagesRead(dto.position, book.pageCount),
         lastAccessed: new Date(),
       },
     });

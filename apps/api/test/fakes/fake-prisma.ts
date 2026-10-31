@@ -104,6 +104,7 @@ export class FakeTable<T extends Row = Row> {
 
   private applyData(row: T, data: Row): void {
     for (const [key, value] of Object.entries(data)) {
+      if (value === undefined) continue; // as in Prisma: undefined leaves the column alone
       (row as Row)[key] = value === Prisma.JsonNull || value === Prisma.DbNull ? null : value;
     }
     (row as Row).updatedAt = new Date();
