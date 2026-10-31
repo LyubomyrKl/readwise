@@ -13,7 +13,8 @@ export interface BookMetadata {
  */
 async function extractPdfMetadata(file: File): Promise<BookMetadata> {
   // Dynamic import to avoid SSR issues with pdfjs-dist
-  const pdfjsLib = await import("pdfjs-dist");
+  // the legacy build, as in the reader: the one PDF.js supports on Safari
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf.mjs");
 
   // Configure PDF.js worker
   if (typeof window !== "undefined") {

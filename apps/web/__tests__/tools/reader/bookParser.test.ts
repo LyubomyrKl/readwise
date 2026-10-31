@@ -1,7 +1,7 @@
 import { extractBookMetadata } from "@tools/reader/documents/bookParser";
 
 const mockLoadingTask = { promise: Promise.resolve({}), destroy: jest.fn(() => Promise.resolve()) };
-jest.mock("pdfjs-dist", () => ({ GlobalWorkerOptions: {}, getDocument: jest.fn(() => mockLoadingTask) }));
+jest.mock("pdfjs-dist/legacy/build/pdf.mjs", () => ({ GlobalWorkerOptions: {}, getDocument: jest.fn(() => mockLoadingTask) }));
 jest.mock("epubjs", () => jest.fn());
 
 /** A PDF upload; arrayBuffer() is all the parser reads. */

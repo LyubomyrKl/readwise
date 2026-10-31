@@ -37,6 +37,12 @@ export class UpdateHighlightDto {
   @IsOptional()
   @IsString()
   noteId?: string | null;
+
+  @ApiPropertyOptional({ type: LocatorDto, description: 'Refreshed place: the reader found the text again by its quote' })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => LocatorDto)
+  anchor?: LocatorDto;
 }
 
 export class HighlightResponse {

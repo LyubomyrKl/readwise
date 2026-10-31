@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ApiTags, ApiParam, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { FileFieldsInterceptor } from '@nestjs/platform-express';
+import { SkipThrottle } from '@nestjs/throttler';
 import type { Response } from 'express';
 
 import { DocumentsService } from './documents.service';
@@ -31,6 +32,13 @@ import { EditionsService } from '../editions/editions.service';
 
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
+
+/**
+ * A reader loads a large PDF in ranges (dozens to hundreds of requests while it scrolls or searches)
+ * and the library shows a cover per book: the user's own files are not throttled. Every named
+ * throttler is listed, since SkipThrottle() alone skips only one called "default".
+ */
+const OWN_FILES = { short: true, medium: true, long: true };
 
 /** Library endpoints of the reader tool. */
 @ApiTags('reader: documents')
@@ -95,6 +103,7 @@ export class DocumentsController {
   }
 
   @Get(':id/download')
+  @SkipThrottle(OWN_FILES)
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Download book file', response: SuccessEmptyResponse })
   async downloadBook(
@@ -109,6 +118,7 @@ export class DocumentsController {
   }
 
   @Get(':id/cover')
+  @SkipThrottle(OWN_FILES)
   @ApiParam({ name: 'id' })
   @ApiEndpoint({ summary: 'Get book cover image', response: SuccessEmptyResponse })
   async downloadCover(

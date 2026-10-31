@@ -62,8 +62,8 @@ export default function HighlightPopover({
     <div
       className="fixed z-50 bg-background border rounded-lg shadow-xl p-2 flex items-center gap-2"
       style={{
-        left: Math.min(position.x, window.innerWidth - 250),
-        top: Math.max(position.y - 50, 10),
+        left: Math.max(8, Math.min(position.x, window.innerWidth - 250)),
+        top: Math.max(Math.min(position.y - 50, window.innerHeight - 60), 10),
       }}
     >
       {/* Color picker */}

@@ -9,7 +9,8 @@ const require = createRequire(import.meta.url);
 const root = dirname(require.resolve("pdfjs-dist/package.json"));
 
 mkdirSync("public/pdf-worker", { recursive: true });
-copyFileSync(join(root, "build/pdf.worker.min.mjs"), "public/pdf-worker/pdf.worker.min.mjs");
+// the legacy build (the one PDF.js supports on Safari), like the reader and the upload
+copyFileSync(join(root, "legacy/build/pdf.worker.min.mjs"), "public/pdf-worker/pdf.worker.min.mjs");
 for (const dir of ["cmaps", "standard_fonts", "wasm", "iccs"]) {
   cpSync(join(root, dir), join("public/pdfjs", dir), { recursive: true });
 }

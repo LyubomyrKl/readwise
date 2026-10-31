@@ -1,6 +1,6 @@
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
-import { CreateHighlightDto } from './highlight.models';
+import { CreateHighlightDto, UpdateHighlightDto } from './highlight.models';
 import { LocatorDto, locatorJson } from './locator.models';
 
 /** The app's ValidationPipe settings: unknown fields anywhere are refused. */
@@ -54,6 +54,11 @@ describe('LocatorDto', () => {
   it('validates the anchor of a new highlight, and a note id that is a cuid', async () => {
     expect(await errors({ text: 'x', anchor: epub, noteId: 'cmvvjce2t0001k401epv0ah5l' }, CreateHighlightDto)).toEqual([]);
     expect(await errors({ text: 'x', anchor: { type: 'epub', cfi: 'x' } }, CreateHighlightDto)).not.toEqual([]);
+  });
+
+  it('validates a refreshed anchor on a highlight update', async () => {
+    expect(await errors({ anchor: epub }, UpdateHighlightDto)).toEqual([]);
+    expect(await errors({ anchor: { ...pdf, quads: [[1, 2]] } }, UpdateHighlightDto)).not.toEqual([]);
   });
 
   it('stores plain JSON', () => {

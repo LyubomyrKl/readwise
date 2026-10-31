@@ -44,3 +44,8 @@ next-env.d.ts
 .claude
 public/pdf-worker/
 public/pdfjs/
+
+# Playwright: session and uploaded book ids of the browser tests, traces
+e2e/.state/
+test-results/
+playwright-report/

@@ -13,7 +13,7 @@ const config = {
     '^@platform/(.*)$': '<rootDir>/src/platform/$1',
     '^@tools/(.*)$': '<rootDir>/src/tools/$1',
   },
-  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/'],
+  testPathIgnorePatterns: ['<rootDir>/.next/', '<rootDir>/node_modules/', '<rootDir>/e2e/'],
   collectCoverageFrom: [
     'app/**/*.{ts,tsx}',
     'src/**/*.{ts,tsx}',

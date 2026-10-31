@@ -95,7 +95,7 @@ describe("NotesPanel with callbacks that resolve null/false on failure", () => {
     fireEvent.click(screen.getByText(/Highlights \(1\)/));
     const card = screen.getByText("a marked line").closest("div.border")! as HTMLElement;
     await act(async () => {
-      fireEvent.click(within(card).getByRole("button"));
+      fireEvent.click(within(card).getByRole("button", { name: "Delete highlight" }));
     });
 
     expect(onDeleteHighlight).toHaveBeenCalledWith("h1");

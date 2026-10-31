@@ -30,6 +30,7 @@ type NotesPanelProps = {
   showHighlights?: boolean;
   onClose: () => void;
   onNavigateToNote?: (note: NoteResponse) => void;
+  onNavigateToHighlight?: (highlight: HighlightResponse) => void;
   onCreateNote?: (dto: CreateNoteDto) => Promise<NoteResponse | null>;
   onUpdateNote?: (id: string, dto: UpdateNoteDto) => Promise<boolean>;
   onDeleteNote?: (id: string) => Promise<boolean>;
@@ -42,6 +43,7 @@ export default function NotesPanel({
   showHighlights = true,
   onClose,
   onNavigateToNote,
+  onNavigateToHighlight,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -388,7 +390,14 @@ export default function NotesPanel({
                       className="w-3 h-3 rounded-full flex-shrink-0 mt-1"
                       style={{ backgroundColor: highlight.color || "#ffe066" }}
                     />
-                    <p className="text-sm line-clamp-3">{highlight.text}</p>
+                    <button
+                      type="button"
+                      className="text-left text-sm line-clamp-3 hover:underline disabled:no-underline"
+                      onClick={() => onNavigateToHighlight?.(highlight)}
+                      disabled={!onNavigateToHighlight}
+                    >
+                      {highlight.text}
+                    </button>
                   </div>
                   <div className="flex items-center justify-between text-xs text-muted-foreground">
                     <span>{formatDate(highlight.createdAt)}</span>
@@ -396,6 +405,7 @@ export default function NotesPanel({
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-destructive hover:text-destructive"
+                      aria-label="Delete highlight"
                       onClick={() => handleDeleteHighlight(highlight.id)}
                       disabled={deletingId === highlight.id}
                     >

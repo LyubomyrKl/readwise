@@ -1,0 +1,75 @@
+/* The reader shell and its engines. PDF.js's own styles come from pdfjs-dist/web/pdf_viewer.css. */
+
+/* side panels: contents, search, notes, settings */
+.reader-panel {
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  width: min(380px, 100vw);
+  flex-direction: column;
+  border-inline: 1px solid var(--border, #e5e5e5);
+  background: var(--background, #fff);
+  color: var(--foreground, #111);
+  box-shadow: 0 0 24px rgb(0 0 0 / 0.18);
+}
+.reader-panel-header {
+  display: flex;
+  height: 3rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--border, #e5e5e5);
+  padding: 0 0.5rem 0 1rem;
+}
+
+/* PDF.js wants an absolutely positioned scroll container */
+.wb-pdf {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.wb-pdf .pdfViewer {
+  padding: 12px 0 24px;
+}
+.wb-pdf .pdfViewer .page {
+  margin: 0 auto 12px;
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.18);
+}
+
+/* our highlights: under the text layer (same z-index, earlier in the page) */
+.wb-pdf .wb-highlights {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+}
+.wb-pdf .wb-hl {
+  position: absolute;
+  border-radius: 2px;
+  opacity: 0.42;
+  mix-blend-mode: multiply;
+}
+.wb-pdf .wb-hl-search {
+  opacity: 1;
+  mix-blend-mode: normal;
+  background: transparent !important;
+  outline: 2px solid #f59e0b;
+}
+.wb-pdf .textLayer ::selection {
+  background: rgb(255 196 0 / 0.45);
+}
+
+/* themes for PDF pages: the page image is recoloured, the text layer stays selectable */
+.wb-pdf[data-theme="dark"] .canvasWrapper {
+  filter: invert(0.9) hue-rotate(180deg);
+}
+.wb-pdf[data-theme="dark"] .wb-hl {
+  mix-blend-mode: screen;
+  opacity: 0.35;
+}
+.wb-pdf[data-theme="sepia"] .canvasWrapper {
+  filter: sepia(0.35) brightness(0.97);
+}

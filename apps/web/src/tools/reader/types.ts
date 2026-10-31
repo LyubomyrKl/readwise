@@ -4,6 +4,7 @@
  * generate noisier types than these few interfaces.
  */
 import type { JobResponse } from "@platform/jobs/types";
+import type { LegacyAnchor, Locator } from "./reading/locator";
 
 // ---- documents --------------------------------------------------------------------------
 
@@ -21,12 +22,8 @@ export interface UpdateLastAccessedDto {
   bookId: string;
 }
 
-export interface ReadingPosition {
-  type: "pdf" | "epub";
-  page?: number;
-  cfi?: string;
-  percentage?: number;
-}
+/** Where the reader is (Locator v2; the readers upgrade a v1 position on its next save). */
+export type ReadingPosition = Locator;
 
 export interface UpdateReadingPositionDto {
   bookId: string;
@@ -59,7 +56,7 @@ export interface BookResponse {
   language?: string | null;
   noteCount: number;
   highlightCount: number;
-  readingPosition?: ReadingPosition | null;
+  readingPosition?: Locator | LegacyAnchor | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -73,16 +70,12 @@ export interface UploadResponse {
 
 // ---- reading ----------------------------------------------------------------------------
 
-export interface HighlightAnchor {
-  type: "pdf" | "epub";
-  page?: number;
-  cfi?: string;
-  rects?: Array<{ x: number; y: number; width: number; height: number }>;
-}
+/** A highlight's place: Locator v2 (highlights made before it keep their v1 shape until upgraded). */
+export type HighlightAnchor = Locator;
 
 export interface CreateHighlightDto {
   text: string;
-  anchor: HighlightAnchor;
+  anchor: Locator;
   color?: string;
   noteId?: string;
 }
@@ -90,6 +83,8 @@ export interface CreateHighlightDto {
 export interface UpdateHighlightDto {
   color?: string;
   noteId?: string | null;
+  /** refreshed place, when the reader found the text again by its quote */
+  anchor?: Locator;
 }
 
 export interface HighlightResponse {
@@ -98,21 +93,17 @@ export interface HighlightResponse {
   bookId: string;
   color?: string | null;
   text: string;
-  anchor: HighlightAnchor;
+  anchor: Locator | LegacyAnchor;
   noteId?: string | null;
   createdAt: string;
   updatedAt: string;
 }
 
-export interface NoteAnchor {
-  type: "pdf" | "epub";
-  page?: number;
-  cfi?: string;
-}
+export type NoteAnchor = Locator;
 
 export interface CreateNoteDto {
   body: string;
-  anchor?: NoteAnchor;
+  anchor?: Locator;
   isPinned?: boolean;
 }
 
@@ -127,7 +118,7 @@ export interface NoteResponse {
   userId: string;
   bookId: string;
   body: string;
-  anchor?: NoteAnchor | null;
+  anchor?: Locator | LegacyAnchor | null;
   isPinned: boolean;
   isArchived: boolean;
   createdAt: string;

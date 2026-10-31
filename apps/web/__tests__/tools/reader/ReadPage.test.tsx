@@ -2,21 +2,18 @@ import React from "react";
 import { act, render } from "@testing-library/react";
 import ReadPage from "@tools/reader/pages/ReadPage";
 import { readerApi } from "@tools/reader/api";
-import type { IBook, ReadingPosition } from "@tools/reader/types";
+import type { IBook } from "@tools/reader/types";
 
-/** The position each reader mounted with; like the real ones, they read it once. */
-const mockMounted: { reader: string; initialPosition: ReadingPosition | null | undefined }[] = [];
-function mockReader(reader: string) {
-  return function FakeReader(props: { initialPosition?: ReadingPosition | null }) {
-    const [initial] = React.useState(() => props.initialPosition);
-    React.useEffect(() => {
-      mockMounted.push({ reader, initialPosition: initial });
-    }, [initial]);
-    return null;
-  };
+/** What the reader shell mounted with; like the real one, it reads the start position once. */
+const mockMounted: { mime: string; startPosition: unknown }[] = [];
+function MockShell(props: { book: IBook; startPosition: unknown }) {
+  const [initial] = React.useState(() => props.startPosition);
+  React.useEffect(() => {
+    mockMounted.push({ mime: props.book.mime, startPosition: initial });
+  }, [initial, props.book.mime]);
+  return null;
 }
-jest.mock("@tools/reader/reading/EPUBReader", () => mockReader("epub"));
-jest.mock("@tools/reader/reading/PDFReader", () => mockReader("pdf"));
+jest.mock("next/dynamic", () => () => MockShell);
 jest.mock("@tools/reader/reading/useHighlights", () => ({
   useHighlights: () => ({ highlights: [], createHighlight: jest.fn(), updateHighlight: jest.fn(), deleteHighlight: jest.fn() }),
 }));
@@ -49,8 +46,8 @@ describe("ReadPage on a fresh load (the book query is pending first)", () => {
     (readerApi.documents.setLastAccessed as jest.Mock).mockClear();
   });
 
-  it("opens the EPUB reader at the server position once the book arrives", async () => {
-    const position: ReadingPosition = { type: "epub", cfi: "epubcfi(/6/40!/4/2)", percentage: 63 };
+  it("opens an EPUB at a position saved before Locator v2", async () => {
+    const position = { type: "epub" as const, cfi: "epubcfi(/6/40!/4/2)", percentage: 63 };
     const view = render(<ReadPage />);
     expect(mockMounted).toHaveLength(0);
 
@@ -59,11 +56,11 @@ describe("ReadPage on a fresh load (the book query is pending first)", () => {
       view.rerender(<ReadPage />);
     });
 
-    expect(mockMounted).toEqual([{ reader: "epub", initialPosition: position }]);
+    expect(mockMounted).toEqual([{ mime: "application/epub+zip", startPosition: position }]);
   });
 
-  it("opens the PDF reader at the server page once the book arrives", async () => {
-    const position: ReadingPosition = { type: "pdf", page: 42, percentage: 30 };
+  it("opens a PDF at its saved Locator v2", async () => {
+    const position = { v: 2 as const, format: "pdf" as const, page: 41, totalProgression: 0.3 };
     const view = render(<ReadPage />);
 
     mockBookQuery = { data: book({ mime: "application/pdf", readingPosition: position }), isPending: false, error: null };
@@ -71,7 +68,7 @@ describe("ReadPage on a fresh load (the book query is pending first)", () => {
       view.rerender(<ReadPage />);
     });
 
-    expect(mockMounted).toEqual([{ reader: "pdf", initialPosition: position }]);
+    expect(mockMounted).toEqual([{ mime: "application/pdf", startPosition: position }]);
   });
 
   it("records the visit only after loading the book, whose lastAccessed dates the server position", async () => {
@@ -86,6 +83,6 @@ describe("ReadPage on a fresh load (the book query is pending first)", () => {
 
     expect(readerApi.documents.setLastAccessed).toHaveBeenCalledTimes(1);
     expect(readerApi.documents.setLastAccessed).toHaveBeenCalledWith("b1");
-    expect(mockMounted).toEqual([{ reader: "epub", initialPosition: null }]);
+    expect(mockMounted).toEqual([{ mime: "application/epub+zip", startPosition: null }]);
   });
 });

@@ -24,6 +24,8 @@ export type Locator = {
   pageLabel?: string;
   /** fixed layout: highlight quads in PDF user space, 8 numbers each (x1,y1 x2,y2 x3,y3 x4,y4) */
   quads?: number[][];
+  /** fixed layout: the same selection on the pages after `page` */
+  continuation?: { page: number; quads: number[][] }[];
   /** normalized text, with up to 32 characters of context on each side */
   quote?: Quote;
   /** code points into the normalized text of the chapter (reflowable) or page (fixed) */

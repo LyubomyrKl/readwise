@@ -102,6 +102,7 @@ export class HighlightsService {
       data: {
         color: dto.color !== undefined ? dto.color : undefined,
         noteId: dto.noteId !== undefined ? dto.noteId : undefined,
+        anchor: dto.anchor ? locatorJson(dto.anchor) : undefined,
       },
     });
 

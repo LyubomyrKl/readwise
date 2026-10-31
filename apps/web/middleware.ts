@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { PLATFORM_ROUTES } from "@platform/routes";
 import { isAuthRoute, needsAuth } from "@platform/auth/route-guard";
+import { READER_PAGE, newNonce, readerCsp } from "@platform/security/csp";
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
@@ -19,6 +20,17 @@ export function middleware(req: NextRequest) {
     const url = new URL(PLATFORM_ROUTES.auth.login, req.url);
     url.searchParams.set("next", pathname + search);
     return NextResponse.redirect(url);
+  }
+
+  // the book reader runs untrusted book documents in frames: its own strict policy, with a nonce
+  // that Next.js puts on its scripts (it reads it from the request's policy)
+  if (READER_PAGE.test(pathname)) {
+    const csp = readerCsp(newNonce(), process.env.NODE_ENV !== "production");
+    const headers = new Headers(req.headers);
+    headers.set("content-security-policy", csp);
+    const response = NextResponse.next({ request: { headers } });
+    response.headers.set("content-security-policy", csp);
+    return response;
   }
 
   return NextResponse.next();
