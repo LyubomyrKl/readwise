@@ -62,6 +62,10 @@ def store(storage: S3Storage, bucket: str, doc: Document) -> None:
             uploaded[figure.digest] = key
         figure.key = key
     storage.upload_bytes(bucket, ir_key(doc.sha256), doc.dumps(), "application/gzip")
+    store_structure(storage, bucket, doc)
+
+
+def store_structure(storage: S3Storage, bucket: str, doc: Document) -> None:
     storage.upload_text(bucket, structure_key(doc.sha256), json.dumps(doc.structure(), ensure_ascii=False),
                         "application/json")
 
@@ -73,7 +77,10 @@ def load_or_build(storage: S3Storage, settings: WorkerSettings, file_key: str, m
     sha256 = hashlib.sha256(data).hexdigest()
     bucket = settings.s3_extractions_bucket_name
     if storage.object_exists(bucket, ir_key(sha256)) and storage.object_exists(bucket, structure_key(sha256)):
-        return Document.loads(storage.download_bytes(bucket, ir_key(sha256))), True
+        doc = Document.loads(storage.download_bytes(bucket, ir_key(sha256)))
+        # the IR stays as it was built (editions are keyed by it); its summary follows the code
+        store_structure(storage, bucket, doc)
+        return doc, True
     if ctx is not None:
         ctx.progress("reading the file's structure", 20)
     doc = parse(data, mime, sha256)

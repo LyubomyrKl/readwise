@@ -9,10 +9,34 @@ Deploying or updating the server: `docs/deploy.md`. Its Rules come first (the ho
 shared with a Telegram bot that must stay untouched).
 
 Checks before pushing: `npm run lint && npm run typecheck && npm test && npm run test:e2e`,
-and for the money tool with a Postgres at `DATABASE_URL`: `npm run test:db --workspace apps/api`.
+and for the money tool with a Postgres at `DATABASE_URL`: `npm run test:db --workspace apps/api`;
+for reader changes also the browser tests (Readers, below).
 
 Skills for the recurring work live in `.claude/skills/` (`/checks`, `/new-tool`, `/endpoint`,
 `/migration`, `/money-session`); `/new-skill` makes or revises one.
+
+## Readers
+
+Architecture, decisions, measurements and how to test: `docs/document-architecture.md` (the
+evidence behind it: `docs/readers-investigation.md`). One shell, two engines
+(`apps/web/src/tools/reader/reading/`): PDFs through PDF.js, pinned at 6.4.299 and its legacy build
+(Safari); reflowable books through foliate-js, vendored in `apps/web/src/vendor/foliate-js` (its
+local changes are listed in VENDORED.md there). Keep to these:
+
+1. Positions, highlights and notes are Locator v2 (`reading/locator/`). The quote is the record;
+   CFIs, quads and offsets are caches, found again by the quote. A change to text normalization or
+   quote matching goes into both twins (`locator/*.ts` and `apps/workers/worker/tools/reader/locator.py`)
+   and the shared cases in `packages/contracts/locator/`.
+2. Book content never runs: keep the reader page's CSP (`apps/web/src/platform/security/csp.ts`)
+   and the sanitizer hooks in `ReflowEngine.guard`; the CSP browser test proves it.
+3. Books are read in ranges of the original file: no whole-file fetch for PDFs or for EPUBs over
+   4 MB; the download endpoint keeps Range/206, the ETag and identity encoding; the user's own files
+   skip the throttler.
+4. IR additions are optional fields; raise `IR_VERSION` only when the edition engine must see the
+   change, because it is part of the editions' cache key.
+5. Reader changes are proven in real browsers: `npm run test:browser --workspace apps/web` (Chrome
+   and WebKit) against the isolated `wbtest` stack described in the guide, never the `workbench`
+   stack; real books live outside the repo (`READER_BOOKS`).
 
 ## Money tool
 

@@ -19,6 +19,7 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
 
   const existing = (await (await api.get("/api/gw/reader/documents")).json()) as { id: string; title: string }[];
   const ids: Partial<Record<BookKey, string>> = {};
+  const uploaded: string[] = [];
   for (const key of Object.keys(BOOKS) as BookKey[]) {
     if (!hasBook(key)) continue;
     const book = BOOKS[key];
@@ -37,6 +38,13 @@ export default async function globalSetup(config: FullConfig): Promise<void> {
     });
     if (!response.ok()) throw new Error(`Upload of ${book.file} failed: ${response.status()} ${await response.text()}`);
     ids[key] = ((await response.json()) as { bookId: string }).bookId;
+    uploaded.push(ids[key]!);
+  }
+  // the reader reads parts of the structure reader.ingest writes after an upload (chapter names)
+  for (const id of uploaded) {
+    for (let tries = 0; tries < 60 && !(await api.get(`/api/gw/reader/documents/${id}/structure`)).ok(); tries++) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+    }
   }
   writeFileSync(join(STATE_DIR, "books.json"), JSON.stringify(ids, null, 2));
   await api.dispose();

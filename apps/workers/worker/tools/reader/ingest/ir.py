@@ -119,6 +119,7 @@ class Document:
     cover: str = ""                 # figure id of the cover picture, when the file names one
     structure_source: str = ""      # toc | outline | headings | documents | pages | none
     pages: int = 0                  # PDF page count
+    page_labels: list[str] = field(default_factory=list)  # PDF: the printed label of each page, when the file defines them
     ocr_pages: list[int] = field(default_factory=list)  # PDF pages without a usable text layer
     warnings: list[str] = field(default_factory=list)
 
@@ -162,9 +163,23 @@ class Document:
             "ocrPages": len(self.ocr_pages),
             "sections": [{"id": s.id, "title": s.title, "level": s.level, "kind": s.kind,
                           "words": s.words, "figures": s.figures,
-                          "included": included(s)} for s in self.sections],
+                          "included": included(s), **self.source_of(s)} for s in self.sections],
             "warnings": self.warnings[:20],
         }
+
+    def page_label(self, page: int) -> str:
+        """The printed label of a 1-based PDF page, or its number when the file defines none."""
+        return self.page_labels[page - 1] if 0 < page <= len(self.page_labels) and self.page_labels[page - 1] else str(page)
+
+    def source_of(self, section: "Section") -> dict[str, Any]:
+        """Where a section starts in the file, for the reader: the PDF page (1-based, with its label)
+        or the EPUB document. Older structures have neither; readers do without."""
+        first = next((b for b in self.blocks[section.start:section.end] if b.page or b.href), None)
+        if first is None:
+            return {}
+        if first.page:
+            return {"page": first.page, "pageLabel": self.page_label(first.page)}
+        return {"href": first.href}
 
     # ---- serialization ---------------------------------------------------------------------
 
@@ -181,6 +196,7 @@ class Document:
             "structureSource": self.structure_source,
             "cover": self.cover,
             "pages": self.pages,
+            "pageLabels": self.page_labels,
             "ocrPages": self.ocr_pages,
             "warnings": self.warnings,
             "sections": [asdict(s) for s in self.sections],
@@ -199,6 +215,7 @@ class Document:
             sections=[Section(**s) for s in data.get("sections", [])],
             figures={fid: Figure(**f) for fid, f in data.get("figures", {}).items()},
             cover=data.get("cover", ""), structure_source=data.get("structureSource", ""), pages=data.get("pages", 0),
+            page_labels=list(data.get("pageLabels", [])),
             ocr_pages=list(data.get("ocrPages", [])), warnings=list(data.get("warnings", [])),
         )
 

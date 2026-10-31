@@ -42,6 +42,8 @@ test.describe("PDF reader", () => {
     await page.getByRole("button", { name: "Contents" }).click();
     await page.getByRole("button", { name: "Chapter 3", exact: true }).click();
     await expect(page.getByTestId("reader-location")).toContainText("41 / 1000");
+    // the chapter's name comes from the server's structure: its sections carry their first page
+    await expect(page.getByTestId("reader-chapter")).toHaveText("Chapter 3");
 
     await page.getByRole("button", { name: "Search" }).click();
     await page.getByLabel("Search for").fill("(12.3)");

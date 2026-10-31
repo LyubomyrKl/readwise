@@ -88,7 +88,26 @@ def test_ir_round_trips_through_its_stored_form():
     assert again.to_json() == doc.to_json()
     assert again.figures[doc.cover].data == b""          # bytes live in their own objects
     assert again.structure()["sections"][3] == {"id": "s3", "title": "Part One", "level": 1, "kind": "part",
-                                                "words": doc.sections[3].words, "figures": 1, "included": True}
+                                                "words": doc.sections[3].words, "figures": 1, "included": True,
+                                                "href": doc.blocks[doc.sections[3].start].href}
+
+
+def test_structure_says_where_each_section_starts_in_the_file():
+    pdf = read_pdf(sample_pdf(), sha256="pdf")
+    assert [(s["title"], s["page"], s["pageLabel"]) for s in pdf.structure()["sections"]] == \
+        [("Chapter One", 1, "1"), ("Chapter Two", 3, "3")]
+
+    book = read_epub(sample_epub(), sha256="abc")
+    hrefs = [s.get("href") for s in book.structure()["sections"]]
+    assert all(h and h.endswith(".xhtml") for h in hrefs) and "page" not in book.structure()["sections"][0]
+
+
+def test_pdf_page_labels_are_kept_when_the_file_defines_them():
+    labelled = read_pdf(sample_pdf(page_labels=True), sha256="pdf")
+    assert labelled.page_labels == ["i", "ii", "1", "2"]
+    assert [s["pageLabel"] for s in labelled.structure()["sections"]] == ["i", "1"]
+    assert Document.loads(labelled.dumps()).page_labels == ["i", "ii", "1", "2"]
+    assert read_pdf(sample_pdf(), sha256="pdf").page_labels == []
 
 
 def test_pdf_headings_by_font_running_heads_removed_hyphens_joined_figure_captioned():
@@ -158,7 +177,10 @@ def test_handler_stores_the_ir_pictures_and_structure_once_per_file(settings, st
 
     uploads = len(storage.uploads)
     again = IngestHandler(settings, storage)(make_ctx(make_envelope(type="reader.ingest", payload=payload)))
-    assert again["skipped"] is True and len(storage.uploads) == uploads
+    # the second time only the structure summary is written again, from the stored IR
+    assert again["skipped"] is True and len(storage.uploads) == uploads + 1
+    refreshed = json.loads(storage.store[("extractions", structure_key(sha))])
+    assert all(s.get("href") for s in refreshed["sections"])
 
 
 def test_handler_rejects_what_it_cannot_read(settings, storage, make_ctx):

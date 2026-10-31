@@ -106,6 +106,12 @@ describe("findQuote", () => {
     expect(findQuote(chapter, { exact: "the quick brown fox jumps over the lazy dog" })).toBeNull();
     expect(findQuote(chapter, { exact: "   " })).toBeNull();
   });
+
+  it("finds a short quote exactly or not at all", () => {
+    // a page number or a single word: one error allowed would match half the page
+    expect(findQuote(chapter, { exact: "12" })).toBeNull();
+    expect(findQuote(`${chapter} 1648`, { exact: "1648" })).not.toBeNull();
+  });
 });
 
 describe("toLocator", () => {

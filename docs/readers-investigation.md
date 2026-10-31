@@ -5,6 +5,12 @@ understand them for the edition pipeline, and how the two are tied together. The
 engineering guide that follows from this is [`document-architecture.md`](document-architecture.md);
 this file keeps the evidence and the reasoning.
 
+**Revised during implementation (2026-10-31):** the server rendition planned in sections 4, 5, 6.4
+and phase 4 was not built. EPUBs are read in HTTP ranges of the original file instead (the 65 MB test
+book shows its first chapter after 1.8 MB), which needs no derived copy, endpoint or migration; block
+ids went with it, and IR blocks are matched to locators by their quote within the page or chapter.
+See [`document-architecture.md`](document-architecture.md), Decisions and The map.
+
 Method: the code was read end to end (web readers, upload, API documents and reading modules, the
 worker ingest); four research tracks covered browser PDF rendering, browser EPUB rendering, server
 document understanding, and reading-system architecture, from primary sources (repositories,

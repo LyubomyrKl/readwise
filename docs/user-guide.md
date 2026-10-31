@@ -65,16 +65,26 @@ Files that work best:
 ### Read
 
 Open a book, then **Start Reading** (or **Continue Reading**). Your place is saved as you read and
-follows you to other devices.
+follows you to other devices; the library shows how far you are in each book.
 
-- **EPUB**: swipe or use the arrow keys to turn pages. Double-click (or double-tap) for the menu: back,
-  font size, table of contents, notes and settings. Select text to highlight it (five colours) or to
-  add a note.
-- **PDF**: scroll through the pages. The **...** button at the top right opens the menu: back, zoom,
-  fit to width, notes and settings. Pinch to zoom on a phone. PDFs do not have text selection or
-  highlights yet.
+- **Top bar**: Back, the title and the chapter you are in, **Contents**, **Search**, **Notes and
+  highlights** (with a count), **Settings**.
+- **Bottom bar**: previous and next page, the progress bar (click or tap anywhere on it to jump
+  there), and where you are: the page of a PDF ("xii · 14 / 320" when the book prints its own page
+  numbers), or the location in an EPUB.
+- **Turn pages** with the arrow keys, Page Up and Page Down, or the buttons. EPUBs turn pages left
+  and right, or scroll (Settings → Layout); PDFs scroll.
+- **Highlight** in PDFs and EPUBs alike: select text, pick one of five colours, then **Highlight**,
+  or **Note** to write a note about it. Tap a highlight to change its colour or delete it. **Notes and
+  highlights** lists them; tap one to go to it.
+- **Search** (Cmd/Ctrl+F, or the magnifier) finds text in the whole book; tap a result to go there.
+- **Settings**: light, sepia or dark; for EPUBs text size, line spacing and pages or scrolling; for
+  PDFs zoom and fit to width.
+- **Large books open at once**: only the pages you look at are downloaded, so a 200 MB illustrated
+  PDF shows its first page in about a second.
 
-The readers are being rebuilt (see "What is next"); this section changes with them.
+Not yet: pinch to zoom a PDF on a phone (use the zoom buttons in Settings), and text in scanned PDFs
+(they show, but nothing can be selected).
 
 ### Make an abridged edition
 
@@ -160,7 +170,7 @@ same list at any time. Details: [`money/claude-access.md`](money/claude-access.m
 
 ## 9. What is next
 
-The PDF and EPUB readers are being rebuilt on a new foundation: text selection, search, highlights
-and a table of contents in PDFs, a modern EPUB engine, faster opening of large books, and positions
-that link the original book with its editions. The design is in
-[`document-architecture.md`](document-architecture.md) once it lands; this guide is updated with it.
+The readers were rebuilt on PDF.js and foliate-js ([`document-architecture.md`](document-architecture.md)).
+Next on that foundation: opening the original book at the place an edition paragraph comes from,
+showing a book's highlights in its editions, search on the server for very large books, pinch zoom
+for PDFs on phones, and a text layer for scanned PDFs.

@@ -21,6 +21,8 @@ import NotesPanel from "../NotesPanel";
 import { createEngine, formatOf, type ShellEngine } from "../engines/createEngine";
 import type { HighlightItem, OpenedBook, ReaderPreferences, Relocation, TextSelection, TocItem, ViewportRect } from "../engines/types";
 import { normalizeText, toLocator, type Locator } from "../locator";
+import { useBookStructure } from "../../queries";
+import { sectionTitleAt } from "./sections";
 import SearchPanel from "./SearchPanel";
 import SettingsPanel from "./SettingsPanel";
 import TocPanel from "./TocPanel";
@@ -29,7 +31,7 @@ import { usePreferences } from "./usePreferences";
 type Panel = "toc" | "search" | "notes" | "settings" | null;
 
 export type ReaderShellProps = {
-  book: IBook & { renditionUrl?: string | null };
+  book: IBook;
   /** the stored position as it is (Locator v2, or the v1 shape) */
   startPosition: unknown;
   highlights: HighlightResponse[];
@@ -63,6 +65,8 @@ export default function ReaderShell(props: ReaderShellProps) {
   const [opened, setOpened] = useState<OpenedBook | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [relocation, setRelocation] = useState<Relocation | null>(null);
+  const structure = useBookStructure(format === "pdf" ? book.id : undefined).data;
+  const chapter = relocation?.tocLabel || (format === "pdf" ? sectionTitleAt(structure?.sections, relocation?.locator.page) : undefined);
   const [selection, setSelection] = useState<TextSelection | null>(null);
   const [active, setActive] = useState<{ id: string; rect: ViewportRect | null } | null>(null);
   const [panel, setPanel] = useState<Panel>(null);
@@ -81,7 +85,7 @@ export default function ReaderShell(props: ReaderShellProps) {
     void (async () => {
       try {
         engine = await createEngine(
-          { fileUrl: book.fileUrl, mime: book.mime, id: book.id, renditionUrl: book.renditionUrl ?? null },
+          { fileUrl: book.fileUrl, mime: book.mime, id: book.id, size: Number(book.sizeBytes) || undefined },
           {
             onRelocate: (r) => {
               setRelocation(r);
@@ -206,7 +210,11 @@ export default function ReaderShell(props: ReaderShellProps) {
           <p className="truncate text-sm font-medium" title={book.title}>
             {book.title}
           </p>
-          {relocation?.tocLabel && <p className="truncate text-xs opacity-70">{relocation.tocLabel}</p>}
+          {chapter && (
+            <p className="truncate text-xs opacity-70" data-testid="reader-chapter">
+              {chapter}
+            </p>
+          )}
         </div>
         <Button variant="ghost" size="icon" onClick={() => setPanel(panel === "toc" ? null : "toc")} aria-label="Contents" disabled={!opened}>
           <List className="h-5 w-5" />
@@ -330,7 +338,7 @@ export default function ReaderShell(props: ReaderShellProps) {
       {panel === "toc" && opened && (
         <TocPanel
           toc={opened.toc}
-          current={relocation?.tocLabel}
+          current={chapter}
           onSelect={(item) => {
             void goTo(item);
             setPanel(null);

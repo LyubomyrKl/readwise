@@ -21,7 +21,6 @@ import type {
   HighlightResponse,
   CreateNoteDto,
   UpdateNoteDto,
-  UpdateHighlightDto,
 } from "@tools/reader/types";
 
 type NotesPanelProps = {

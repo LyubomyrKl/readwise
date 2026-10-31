@@ -11,7 +11,7 @@ import type {
   TocItem,
 } from "../types";
 import { sanitizeBookDocument } from "../../sanitizeBook";
-import { loadRendition } from "./rendition";
+import { openEpubByRanges, WHOLE_FILE_LIMIT } from "./zipRanges";
 import type { FoliateBook, FoliateRelocate, FoliateTocItem, FoliateView, OverlayerStatic } from "./foliate";
 
 export const FOLIATE_COMMIT = "78914ae";
@@ -59,9 +59,11 @@ export class ReflowEngine implements ReaderEngine {
     const { Overlayer } = (await import("@/src/vendor/foliate-js/overlayer.js")) as unknown as { Overlayer: OverlayerStatic };
     this.overlayer = Overlayer;
 
-    const book = this.source.renditionUrl
-      ? await loadRendition(this.source.renditionUrl)
-      : await viewModule.makeBook(await this.fetchFile());
+    const size = this.source.size ?? 0;
+    const book =
+      this.source.mime === "application/epub+zip" && size > WHOLE_FILE_LIMIT
+        ? await openEpubByRanges(this.source.fileUrl, size)
+        : await viewModule.makeBook(await this.fetchFile());
     this.guard(book);
     this.book = book;
 
@@ -239,7 +241,6 @@ export class ReflowEngine implements ReaderEngine {
     if (!view || !book) return null;
     const described = describeRange(this.textIndex(index, doc), range);
     if (!described) return null;
-    const blocks = [blockId(range.startContainer), blockId(range.endContainer)].filter((b): b is string => !!b);
     const fractions = view.getSectionFractions?.() ?? [];
     const sectionStart = fractions[index] ?? 0;
     const sectionEnd = fractions[index + 1] ?? 1;
@@ -247,7 +248,6 @@ export class ReflowEngine implements ReaderEngine {
       v: 2,
       format: "epub",
       href: book.sections[index]?.id,
-      ...(blocks.length ? { blocks: blocks.length === 2 && blocks[0] === blocks[1] ? [blocks[0]] : blocks } : {}),
       cfi: view.getCFI(index, range),
       quote: described.quote,
       position: described.position,
@@ -435,11 +435,6 @@ function flattenToc(items: FoliateTocItem[], level = 0, out: TocItem[] = []): To
     if (item.subitems?.length) flattenToc(item.subitems, level + 1, out);
   }
   return out;
-}
-
-function blockId(node: Node): string | null {
-  const el = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-  return el?.closest("[data-wb-b]")?.getAttribute("data-wb-b") ?? null;
 }
 
 function clamp01(n: number): number {

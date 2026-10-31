@@ -28,7 +28,7 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
     const pdf = await loadingTask.promise;
     const metadata = await pdf.getMetadata();
 
-    const info = metadata.info as any;
+    const info = metadata.info as { Title?: string; Author?: string; Subject?: string } | undefined;
 
     // Extract cover image from first page
     let coverImage: string | undefined;
@@ -48,12 +48,7 @@ async function extractPdfMetadata(file: File): Promise<BookMetadata> {
       canvas.height = viewport.height;
 
       // Render PDF page to canvas
-      const renderContext: any = {
-        canvasContext: context,
-        viewport: viewport,
-      };
-
-      await page.render(renderContext).promise;
+      await page.render({ canvas, canvasContext: context, viewport }).promise;
 
       // Convert canvas to data URL
       coverImage = canvas.toDataURL("image/jpeg", 0.8);

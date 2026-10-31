@@ -22,6 +22,16 @@ Left out: `pdf.js` and `vendor/pdfjs` (13 MB; PDFs use our pinned PDF.js), the d
 1. `view.js`, `makeBook`: the PDF branch throws `UnsupportedTypeError` instead of importing the
    left-out `pdf.js`.
 
+## What our code relies on
+
+- `view.js`: `makeBook`, the `<foliate-view>` element and its events (`ReflowEngine.ts`, `foliate.ts`).
+- `epub.js`: the `EPUB` class built from a loader `{ entries, loadText, loadBlob, getSize }`
+  (`zipRanges.ts`, `bookParser.ts` through `makeBook`).
+- `vendor/zip.js`: `ZipReader` accepting any reader object with `size`, `init()`,
+  `readUint8Array(offset, length)` (returning a Uint8Array that starts its own buffer) and a
+  `readable` stream it points at an entry with `offset` and `size` (`zipRanges.ts`, `RangeReader`).
+  The build exports only `BlobReader`, `BlobWriter`, `TextWriter`, `ZipReader` and `configure`.
+
 ## Updating
 
 Copy the same files from a newer upstream commit (or from Readest's MIT fork,

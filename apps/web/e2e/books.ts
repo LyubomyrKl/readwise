@@ -11,6 +11,7 @@ export const BOOKS = {
   paperPdf: { file: "dropout.pdf", mime: "application/pdf", title: "Dropout paper" },
   englishEpub: { file: "russell.epub", mime: "application/epub+zip", title: "The Problems of Philosophy" },
   russianEpub: { file: "moskovia.epub", mime: "application/epub+zip", title: "Московия" },
+  bigEpub: { file: "big-illustrated.epub", mime: "application/epub+zip", title: "An illustrated EPUB of 65 MB" },
 } as const;
 
 export type BookKey = keyof typeof BOOKS;

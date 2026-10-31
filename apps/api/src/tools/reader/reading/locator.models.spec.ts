@@ -13,7 +13,6 @@ const epub = {
   v: 2,
   format: 'epub',
   href: 'OEBPS/ch03.xhtml',
-  blocks: ['b12', 'b13'],
   cfi: 'epubcfi(/6/8!/4/2,/1:0,/1:20)',
   quote: { exact: 'розбили коронне військо', prefix: 'Під Пилявцями козаки ', suffix: '. Після' },
   position: { start: 120, end: 143 },
@@ -46,7 +45,7 @@ describe('LocatorDto', () => {
     ['a quad of 6 numbers', { ...pdf, quads: [[1, 2, 3, 4, 5, 6]] }],
     ['a progression over 1', { ...epub, progression: 1.5 }],
     ['a context longer than 64', { ...epub, quote: { exact: 'x', prefix: 'p'.repeat(65) } }],
-    ['three blocks', { ...epub, blocks: ['a', 'b', 'c'] }],
+    ['the old block ids', { ...epub, blocks: ['b12'] }],
   ])('refuses %s', async (_name, body) => {
     expect(await errors(body)).not.toEqual([]);
   });

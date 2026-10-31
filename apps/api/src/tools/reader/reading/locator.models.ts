@@ -100,14 +100,6 @@ export class LocatorDto {
   @MaxLength(1024)
   href?: string;
 
-  @ApiPropertyOptional({ description: 'Reflowable: block ids of the first and last block covered', type: [String] })
-  @IsOptional()
-  @IsArray()
-  @ArrayMaxSize(2)
-  @IsString({ each: true })
-  @MaxLength(64, { each: true })
-  blocks?: string[];
-
   @ApiPropertyOptional({ description: 'Reflowable: engine cache, an EPUB CFI' })
   @IsOptional()
   @IsString()

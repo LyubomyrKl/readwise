@@ -115,9 +115,10 @@ def sample_epub() -> bytes:
     return epub(documents, toc, images, cover="img/cover.png")
 
 
-def sample_pdf(scanned_page: bool = False) -> bytes:
+def sample_pdf(scanned_page: bool = False, page_labels: bool = False) -> bytes:
     """Running header and page numbers, two chapters with large headings, a hyphenated word,
-    a picture with its caption below, and optionally a page that is only a picture (a scan)."""
+    a picture with its caption below, and optionally a page that is only a picture (a scan) and
+    printed page labels (i, ii, then 1, 2)."""
     pdf = pymupdf.open()
     body = [paragraph(i) for i in range(1, 7)]
     chapters = [("Chapter One", body[:3]), ("Chapter Two", body[3:])]
@@ -145,6 +146,9 @@ def sample_pdf(scanned_page: bool = False) -> bytes:
     if scanned_page:
         page = pdf.new_page(width=595, height=842)
         page.insert_image(pymupdf.Rect(0, 0, 595, 842), stream=png(1190, 1684, (240, 240, 230)))
+    if page_labels:
+        pdf.set_page_labels([{"startpage": 0, "style": "r", "firstpagenum": 1},
+                             {"startpage": 2, "style": "D", "firstpagenum": 1}])
     out = pdf.tobytes()
     pdf.close()
     return out

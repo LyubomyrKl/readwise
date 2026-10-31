@@ -12,10 +12,8 @@ export type BookFormat = "pdf" | "epub";
 export type Locator = {
   v: 2;
   format: BookFormat;
-  /** reflowable: the chapter's path in the book (the same in the original and the rendition) */
+  /** reflowable: the chapter's path inside the book (the IR's Block.href) */
   href?: string;
-  /** reflowable: data-wb-b ids of the first and last block covered (rendition only) */
-  blocks?: string[];
   /** reflowable: engine cache, a CFI point or range */
   cfi?: string;
   /** fixed layout: 0-based page index */

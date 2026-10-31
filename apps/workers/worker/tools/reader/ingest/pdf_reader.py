@@ -129,6 +129,18 @@ def _read_page(page: pymupdf.Page) -> _Page:
     return result
 
 
+def _page_labels(pdf: pymupdf.Document) -> list[str]:
+    """The printed page labels (/PageLabels: "i", "ii", ... "1", "2"), or [] when the file defines none
+    or they are just the page numbers."""
+    try:
+        if not pdf.get_page_labels():
+            return []
+        labels = [pdf[number].get_label() or "" for number in range(pdf.page_count)]
+    except Exception:  # noqa: BLE001 - a broken label tree: the numbers will do
+        return []
+    return [] if all(label in ("", str(index + 1)) for index, label in enumerate(labels)) else labels
+
+
 def _furniture(pages: list[_Page]) -> set[str]:
     """Normalized texts of lines repeated in the top or bottom band across pages (running heads, folios)."""
     if len(pages) < 4:
@@ -352,6 +364,7 @@ def read_pdf(data: bytes, sha256: str = "", mime: str = "application/pdf",
                        title="" if JUNK_TITLES.search(title) else title,
                        authors=[a.strip() for a in re.split(r"[;,&]| and ", author) if a.strip()] if author else [])
         doc.pages = pdf.page_count
+        doc.page_labels = _page_labels(pdf)
         pages = [_read_page(page) for page in pdf]
         doc.ocr_pages = [page.number for page in pages if page.needs_ocr]
         furniture = _furniture(pages)

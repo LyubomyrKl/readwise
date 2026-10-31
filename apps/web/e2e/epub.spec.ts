@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
-import { uploadedIds, type BookKey } from "./books";
+import { statSync } from "fs";
+import { bookPath, uploadedIds, type BookKey } from "./books";
 import { bookFrame, clearAnnotations, highlightWith, percentShown, readPath, selectEpubText } from "./helpers";
 
 const ids = uploadedIds();
@@ -56,6 +57,38 @@ for (const key of ["englishEpub", "russianEpub"] as BookKey[]) {
     });
   });
 }
+
+test.describe("EPUB reader (bigEpub)", () => {
+  test.skip(!ids.bigEpub, "big-illustrated.epub is not in READER_BOOKS");
+
+  test("opens a large illustrated EPUB over ranges without downloading it", async ({ page }, info) => {
+    const size = statSync(bookPath("bigEpub")).size;
+    let bytes = 0;
+    let wholeFile = false;
+    page.on("response", async (response) => {
+      if (!response.url().includes(`/documents/${ids.bigEpub}/download`)) return;
+      if (response.status() === 206) bytes += Number((await response.allHeaders())["content-length"] ?? 0);
+      if (response.status() === 200) wholeFile = true;
+    });
+
+    const started = Date.now();
+    await page.goto(readPath(ids.bigEpub!));
+    await bookFrame(page);
+    const firstText = Date.now() - started;
+    await expect(page.getByTestId("reader-location")).not.toHaveText("");
+    info.annotations.push({ type: "benchmark", description: `first chapter text after ${firstText} ms; ${bytes} of ${size} bytes fetched` });
+    expect(bytes).toBeLessThan(size * 0.1);
+    expect(wholeFile).toBe(false);
+
+    // contents and progress come from the zip's central directory: the last chapter is one click away
+    await page.getByRole("button", { name: "Contents" }).click();
+    await page.getByRole("button", { name: "Chapter 40", exact: true }).click();
+    await expect.poll(() => percentShown(page)).toBeGreaterThan(95);
+    const frame = await bookFrame(page);
+    await expect.poll(() => frame.evaluate(() => document.querySelector("h1")?.textContent)).toBe("Chapter 40");
+    expect(bytes).toBeLessThan(size * 0.2);
+  });
+});
 
 test.describe("Book documents are untrusted", () => {
   test.skip(!ids.englishEpub, "englishEpub is not in READER_BOOKS");

@@ -46,3 +46,9 @@ def test_finds_a_quote_whose_text_changed_a_little():
 def test_gives_up_on_text_that_is_not_there():
     assert find_quote(CHAPTER, Quote("the quick brown fox jumps over the lazy dog")) is None
     assert find_quote(CHAPTER, Quote("   ")) is None
+
+
+def test_a_short_quote_is_found_exactly_or_not_at_all():
+    # a page number or a single word: one error allowed would match half the page
+    assert find_quote(CHAPTER, Quote("12")) is None
+    assert find_quote(CHAPTER + " 1648", Quote("1648")) is not None

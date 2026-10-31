@@ -46,6 +46,9 @@ function textScore(actual: string, expected: string): number {
  * ranked by the quote, its context and the distance to `hint` (where it was last time).
  * `minScore` (0..1) rejects weak matches; 0.5 by default.
  */
+/** Shorter quotes are found exactly or not at all: with a few errors allowed they match anything. */
+export const MIN_FUZZY_LENGTH = 10;
+
 export function findQuote(text: string, quote: Quote, hint?: number, minScore = 0.5): QuoteMatch | null {
   const exact = normalizeText(quote.exact).trim();
   if (!exact) return null;
@@ -56,7 +59,7 @@ export function findQuote(text: string, quote: Quote, hint?: number, minScore = 
   for (let i = text.indexOf(exact); i !== -1 && candidates.length < 500; i = text.indexOf(exact, i + 1)) {
     candidates.push({ start: i, end: i + exact.length, errors: 0 });
   }
-  if (candidates.length === 0) {
+  if (candidates.length === 0 && exact.length >= MIN_FUZZY_LENGTH) {
     const maxErrors = Math.min(256, Math.floor(exact.length / 2));
     candidates = search(text, exact, maxErrors);
   }

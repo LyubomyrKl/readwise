@@ -92,8 +92,8 @@ export type BookSource = {
   mime: string;
   /** the book id, for keys and logs */
   id: string;
-  /** reflowable: base URL of the server rendition, when one exists */
-  renditionUrl?: string | null;
+  /** the file's size in bytes: a large EPUB is read in ranges instead of downloaded */
+  size?: number;
 };
 
 export interface ReaderEngine {

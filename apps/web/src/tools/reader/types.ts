@@ -192,6 +192,11 @@ export interface StructureSection {
   words: number;
   figures: number;
   included: boolean;
+  /** PDF: the section's first page (1-based) and its printed label (structures read since readers v2) */
+  page?: number;
+  pageLabel?: string;
+  /** EPUB: the document the section starts in */
+  href?: string;
 }
 
 export interface DocumentStructure {

@@ -19,6 +19,8 @@ SPACE_CODES = frozenset([0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x20, 0xA0, 0x1680, *rang
                          0x2028, 0x2029, 0x202F, 0x205F, 0x3000, 0xFEFF])
 SOFT_HYPHEN = 0xAD
 CONTEXT = 32
+# shorter quotes are found exactly or not at all: with a few errors allowed they match anything
+MIN_FUZZY_LENGTH = 10
 
 
 def normalize_text(text: str) -> str:
@@ -86,7 +88,7 @@ def find_quote(text: str, quote: Quote, hint: Optional[int] = None, min_score: f
     while i != -1 and len(candidates) < 500:
         candidates.append((i, i + len(exact), 1.0))
         i = text.find(exact, i + 1)
-    if not candidates:
+    if not candidates and len(exact) >= MIN_FUZZY_LENGTH:
         candidates = _fuzzy_candidates(text, exact)
     best: Optional[QuoteMatch] = None
     for start, end, quote_score in candidates:
