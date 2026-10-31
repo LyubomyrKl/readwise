@@ -3,7 +3,7 @@ import type { Response } from 'express';
 import { pipeline, Readable } from 'stream';
 import { Book } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
-import { StorageService, isInvalidRange } from '@platform/storage/storage.service';
+import { ObjectStream, StorageService, isInvalidRange } from '@platform/storage/storage.service';
 import { BOOK_CONSTRAINTS, BOOK_ERROR_MESSAGES } from './document.constants';
 
 /** What a book file is served as; anything else goes out as bytes, never as a type the browser runs. */
@@ -61,7 +61,7 @@ export class DocumentFilesService {
     // If-Range naming another version of the file: the whole file, not a piece of a different one
     const range = conditions.ifRange && conditions.ifRange !== etag ? undefined : singleRange(conditions.range);
 
-    let object;
+    let object: ObjectStream;
     try {
       object = await this.storage.getObjectStream('books', book.fileStorageKey, range);
     } catch (error) {
