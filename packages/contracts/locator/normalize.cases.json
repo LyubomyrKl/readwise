@@ -1,0 +1,51 @@
+{
+  "description": "The one text normalization for quotes and offsets: Unicode NFC, soft hyphens (U+00AD) dropped, every run of the listed whitespace one space. Offsets count code points. Mirrors: apps/web/src/tools/reader/reading/locator/text.ts and apps/workers/worker/tools/reader/locator.py.",
+  "whitespace": "\\t\\n\\u000b\\f\\r \\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000\\ufeff",
+  "cases": [
+    {
+      "name": "collapses runs of whitespace",
+      "input": "one  two\n\tthree",
+      "expected": "one two three"
+    },
+    {
+      "name": "keeps leading and trailing single spaces",
+      "input": "  a  ",
+      "expected": " a "
+    },
+    {
+      "name": "no-break and other Unicode spaces count as whitespace",
+      "input": "a b c　d e",
+      "expected": "a b c d e"
+    },
+    {
+      "name": "drops soft hyphens",
+      "input": "Дніп­ро",
+      "expected": "Дніпро"
+    },
+    {
+      "name": "composes to NFC",
+      "input": "й ё",
+      "expected": "й ё"
+    },
+    {
+      "name": "BOM is whitespace on both sides",
+      "input": "﻿Text",
+      "expected": " Text"
+    },
+    {
+      "name": "line and paragraph separators",
+      "input": "a b c",
+      "expected": "a b c"
+    },
+    {
+      "name": "keeps zero-width joiners and ordinary hyphens",
+      "input": "co-op‍x",
+      "expected": "co-op‍x"
+    },
+    {
+      "name": "keeps code points outside the BMP",
+      "input": "𝔸  𝔹",
+      "expected": "𝔸 𝔹"
+    }
+  ]
+}

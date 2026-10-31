@@ -4,7 +4,7 @@
 FROM node:22-alpine AS base
 WORKDIR /repo
 
-# ---- dependencies (postinstall copies the pdf.js worker into public/)
+# ---- dependencies
 FROM base AS deps
 COPY package.json package-lock.json ./
 COPY apps/web/package.json apps/web/
@@ -13,6 +13,8 @@ RUN npm ci --workspace apps/web --no-audit --no-fund
 # ---- build (output: standalone, traced from the repository root)
 FROM deps AS build
 COPY apps/web apps/web
+# the PDF.js worker and the files it loads on demand (postinstall ran before the sources were here)
+RUN cd apps/web && node scripts/copy-pdfjs-assets.mjs
 ENV NEXT_TELEMETRY_DISABLED=1
 ARG NEXT_PUBLIC_SENTRY_DSN=
 ENV NEXT_PUBLIC_SENTRY_DSN=$NEXT_PUBLIC_SENTRY_DSN
