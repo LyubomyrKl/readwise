@@ -35,7 +35,7 @@ local changes are listed in VENDORED.md there). Keep to these:
 4. IR additions are optional fields; raise `IR_VERSION` only when the edition engine must see the
    change, because it is part of the editions' cache key.
 5. Reader changes are proven in real browsers: `npm run test:browser --workspace apps/web` (Chrome
-   and WebKit) against the isolated `wbtest` stack described in the guide, never the `workbench`
+   and WebKit) against the isolated stack of `scripts/reader-test-stack.sh`, never the `workbench`
    stack; real books live outside the repo (`READER_BOOKS`).
 
 ## Money tool

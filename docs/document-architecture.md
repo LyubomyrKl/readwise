@@ -193,13 +193,16 @@ only skips a throttler named `default`, so every name is listed.
   highlights across each book and writes `READER_BOOKS/anchors.json`; then
   `READER_BOOKS=/tmp/wbtest/books npm run test:workers` checks every one against the IR built from the
   same file (last run: 22 of 23 found their block; the 23rd was a page number, which the IR drops).
-- The isolated test stack: `docker compose -p wbtest --env-file <own .env> -f docker-compose.yml -f <override>`
-  where the override resets every `container_name`, gives the images their own names, maps Caddy to
-  `127.0.0.1:18080/18443` and the API to `127.0.0.1:15173`, sets `SITE_ADDRESS=localhost` (Caddy's
-  internal CA) and **its own network**: `docker-compose.yml` names the network `workbench_net`, and a
-  second project joins the first one's network otherwise (service names then resolve across
-  stacks). Rebuild with `up -d --build --force-recreate <services>`; without `--force-recreate` the
-  old containers keep running.
+- The isolated test stack: `scripts/reader-test-stack.sh up -d --build` (arguments go to
+  `docker compose`; `down` stops it). It is the compose file plus `scripts/reader-test-stack.override.yml`,
+  under its own project `wbtest`: every `container_name` reset, its own image names, Caddy on
+  `127.0.0.1:18080/18443` with its internal CA for `localhost`, the API on `127.0.0.1:15173`, and
+  **its own network**: `docker-compose.yml` names the network `workbench_net`, and a second project
+  joins the first one's network otherwise (service names then resolve across stacks, and the test
+  API wrote to the local stack's MinIO once). The first run writes `/tmp/wbtest/.env`
+  (`WBTEST_DIR`) with fresh secrets. Rebuild one service with
+  `up -d --build --force-recreate <service>`; without `--force-recreate` the old container keeps
+  running.
 
 ## Adding a format
 

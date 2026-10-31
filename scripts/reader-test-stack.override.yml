@@ -1,0 +1,26 @@
+# An isolated copy of the stack for browser tests: own project (wbtest), images, volumes, ports.
+services:
+  db: { container_name: !reset null }
+  minio: { container_name: !reset null }
+  minio-init: { container_name: !reset null }
+  rabbitmq: { container_name: !reset null }
+  migrate: { container_name: !reset null, image: wbtest-api }
+  api:
+    container_name: !reset null
+    image: wbtest-api
+    ports: !override
+      - "127.0.0.1:15173:5173"
+  workers: { container_name: !reset null, image: wbtest-workers }
+  web: { container_name: !reset null, image: wbtest-web }
+  caddy:
+    container_name: !reset null
+    # HTTPS with Caddy's internal CA for "localhost": WebKit sends Secure cookies only over HTTPS
+    ports: !override
+      - "127.0.0.1:18080:80"
+      - "127.0.0.1:18443:443"
+  backup: { container_name: !reset null }
+  backup-offsite: { container_name: !reset null }
+# its own network: the compose file names one (workbench_net), which would join the local stack's
+networks:
+  default:
+    name: wbtest_net
