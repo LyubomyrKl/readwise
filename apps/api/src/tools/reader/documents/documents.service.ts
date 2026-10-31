@@ -11,7 +11,7 @@ import { Book, Prisma } from '@prisma/client';
 import { PrismaService } from '@platform/db/prisma.service';
 import { StorageService } from '@platform/storage/storage.service';
 import { SuccessEmptyResponse } from '@platform/common/models';
-import { DocumentFilesService } from './document-files.service';
+import { DocumentFilesService, DownloadConditions } from './document-files.service';
 import {
   SetBookToFavoriteDto,
   UpdateSpentTimeDto,
@@ -149,8 +149,8 @@ export class DocumentsService {
     return { bookId };
   }
 
-  async downloadBook(userId: string, bookId: string, res: Response): Promise<void> {
-    await this.documentFilesService.downloadBook(userId, bookId, res);
+  async downloadBook(userId: string, bookId: string, res: Response, conditions?: DownloadConditions): Promise<void> {
+    await this.documentFilesService.downloadBook(userId, bookId, res, conditions);
   }
 
   async downloadCover(userId: string, bookId: string, res: Response): Promise<void> {

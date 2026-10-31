@@ -21,7 +21,16 @@ export type BucketName =
 export interface ObjectStream {
   stream: ReadableStream;
   contentType?: string;
+  /** bytes in this response: the whole object, or the asked-for range */
   contentLength?: number;
+  /** for a range: "bytes <first>-<last>/<size>" */
+  contentRange?: string;
+}
+
+/** S3 (and MinIO) answer an unsatisfiable range with 416 InvalidRange. */
+export function isInvalidRange(error: unknown): boolean {
+  const e = error as { name?: string; $metadata?: { httpStatusCode?: number } } | null;
+  return e?.name === 'InvalidRange' || e?.$metadata?.httpStatusCode === 416;
 }
 
 @Injectable()
@@ -76,14 +85,16 @@ export class StorageService {
     );
   }
 
-  async getObjectStream(bucket: BucketName, key: string): Promise<ObjectStream> {
+  /** The object, or one byte range of it (`range` as in an HTTP Range header: "bytes=0-65535"). */
+  async getObjectStream(bucket: BucketName, key: string, range?: string): Promise<ObjectStream> {
     const response = await this.client.send(
-      new GetObjectCommand({ Bucket: this.bucket(bucket), Key: key }),
+      new GetObjectCommand({ Bucket: this.bucket(bucket), Key: key, ...(range ? { Range: range } : {}) }),
     );
     return {
       stream: response.Body!.transformToWebStream(),
       contentType: response.ContentType,
       contentLength: response.ContentLength,
+      contentRange: response.ContentRange,
     };
   }
 

@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Post,
   Delete,
   Param,
@@ -100,8 +101,11 @@ export class DocumentsController {
     @Req() req: UserModel,
     @Param('id') id: string,
     @Res() res: Response,
+    @Headers('range') range?: string,
+    @Headers('if-range') ifRange?: string,
+    @Headers('if-none-match') ifNoneMatch?: string,
   ): Promise<void> {
-    await this.documentsService.downloadBook(req.user.userId, id, res);
+    await this.documentsService.downloadBook(req.user.userId, id, res, { range, ifRange, ifNoneMatch });
   }
 
   @Get(':id/cover')
