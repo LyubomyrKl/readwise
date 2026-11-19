@@ -24,6 +24,8 @@ export default function TransactionsPage() {
   const [from, setFrom] = useState(params.get("from") ?? "");
   const [to, setTo] = useState(params.get("to") ?? "");
   const [q, setQ] = useState("");
+  // what stands by default: a corrected movement once, a reversed one not at all
+  const [trail, setTrail] = useState(params.get("trail") === "1");
 
   const filters = useMemo<TransactionFilters>(
     () => ({
@@ -33,8 +35,9 @@ export default function TransactionsPage() {
       from: from || undefined,
       to: to || undefined,
       q: q.trim() || undefined,
+      all: trail || undefined,
     }),
-    [accountId, categoryId, kind, from, to, q]
+    [accountId, categoryId, kind, from, to, q, trail]
   );
   const txs = useTransactions(filters);
   const items = txs.data?.pages.flatMap((p) => p.items) ?? [];
@@ -45,7 +48,7 @@ export default function TransactionsPage() {
       <PageHeader
         icon={ListOrdered}
         title="Transactions"
-        description="Everything posted, newest first. A mistake is fixed by a correction, never by rewriting."
+        description="What stands, newest first: a corrected movement shows once, a reversed one not at all. Mistakes are fixed by corrections, never by rewriting."
         actions={
           <Button asChild>
             <Link href={MONEY_ROUTES.newMovement()}>
@@ -91,6 +94,15 @@ export default function TransactionsPage() {
             <Input className="pl-8" value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search" />
           </div>
         </Field>
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground sm:col-span-2 lg:col-span-3">
+          <input
+            type="checkbox"
+            className="h-4 w-4 accent-primary"
+            checked={trail}
+            onChange={(e) => setTrail(e.target.checked)}
+          />
+          Show corrections and reversals (the whole trail)
+        </label>
       </div>
 
       {txs.isLoading ? (

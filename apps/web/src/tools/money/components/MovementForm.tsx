@@ -9,6 +9,7 @@ import { normalizeAmountInput, today } from "../lib/format";
 import { errorMessage, useAccounts, useMoneySettings } from "../queries";
 import type { Movement, MovementKind, TransactionResponse } from "../types";
 import {
+  AccountBalances,
   AccountSelect,
   accountCurrencies,
   AmountInput,
@@ -230,7 +231,7 @@ export function MovementForm<T = TransactionResponse>({
         </Field>
 
         {kind === "transfer" ? null : (
-          <Field label="Account" htmlFor="mv-account">
+          <Field label="Account" htmlFor="mv-account" hint={account ? <AccountBalances account={account} currency={s.currency} /> : undefined}>
             <AccountSelect id="mv-account" value={s.accountId} onChange={(v) => set("accountId", v)} />
           </Field>
         )}
@@ -239,7 +240,7 @@ export function MovementForm<T = TransactionResponse>({
       {kind === "transfer" ? (
         <div className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-[1fr_8rem_1fr]">
-            <Field label="From">
+            <Field label="From" hint={from ? <AccountBalances account={from} currency={s.fromCurrency} /> : undefined}>
               <AccountSelect value={s.fromAccountId} onChange={(v) => set("fromAccountId", v)} />
             </Field>
             <Field label="Currency">
@@ -250,7 +251,7 @@ export function MovementForm<T = TransactionResponse>({
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-[1fr_8rem_1fr]">
-            <Field label="To">
+            <Field label="To" hint={to ? <AccountBalances account={to} currency={s.toCurrency} /> : undefined}>
               <AccountSelect value={s.toAccountId} onChange={(v) => set("toAccountId", v)} />
             </Field>
             <Field label="Currency">

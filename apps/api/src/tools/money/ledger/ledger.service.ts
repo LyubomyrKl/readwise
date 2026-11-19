@@ -66,7 +66,7 @@ export type PostedTransaction = MoneyTransaction & { entries: EntryWithAccount[]
 /** What one database transaction already resolved; imports post thousands of movements through one. */
 interface WriteCache {
   accounts: Map<string, MoneyAccount>;
-  categories: Map<string, { id: string; kind: 'income' | 'expense'; name: string }>;
+  categories: Map<string, { id: string; kind: 'income' | 'expense'; name: string; mergedIntoId: string | null }>;
   systemAccounts?: MoneyAccount[];
   subAccounts: Map<string, string>;
   locked?: boolean;
@@ -177,8 +177,8 @@ export class LedgerService {
       }
     }
 
-    // categories: the user's, and of the right kind for the line
-    await this.checkCategories(db, userId, lines, opts.categoryId);
+    // categories: the user's, and of the right kind for the line; a merged one books to the one it went into
+    const bookedCategory = await this.checkCategories(db, userId, lines, opts.categoryId);
 
     // sub-accounts, created on first use
     cache.systemAccounts ??= await db.moneyAccount.findMany({ where: { userId, type: 'system' } });
@@ -207,7 +207,7 @@ export class LedgerService {
       subAccountId: subAccountIds.get(`${accountIdOf(line)}/${line.commodityId}`)!,
       amountMinor: line.amountMinor ?? null,
       quantity: line.quantity === undefined ? null : quantityToDb(line.quantity),
-      categoryId: line.categoryId ?? null,
+      categoryId: bookedCategory(line.categoryId),
     }));
 
     const header = {
@@ -215,7 +215,7 @@ export class LedgerService {
       kind: opts.kind,
       status: 'posted' as const,
       note: opts.note?.trim() || null,
-      categoryId: opts.categoryId ?? null,
+      categoryId: bookedCategory(opts.categoryId),
       assetId: opts.assetId ?? null,
       correctsId: opts.correctsId ?? null,
       recurringRuleId: opts.recurringRuleId ?? null,
@@ -268,26 +268,40 @@ export class LedgerService {
     });
   }
 
-  private async checkCategories(db: Db, userId: string, lines: PostingLine[], mainCategoryId?: string | null) {
+  /**
+   * Checks the categories of a posting (the user's, of the right kind for each line) and returns
+   * the category each books to: a merged category books to the one it was merged into.
+   */
+  private async checkCategories(
+    db: Db,
+    userId: string,
+    lines: PostingLine[],
+    mainCategoryId?: string | null,
+  ): Promise<(id: string | null | undefined) => string | null> {
     const ids = new Set(lines.flatMap((l) => (l.categoryId ? [l.categoryId] : [])));
     if (mainCategoryId) ids.add(mainCategoryId);
-    if (ids.size === 0) return;
     const cache = this.cacheOf(db).categories;
-    const missing = [...ids].filter((id) => !cache.has(id));
-    if (missing.length > 0) {
+    const booked = (id: string | null | undefined): string | null => (id ? (cache.get(id)?.mergedIntoId ?? id) : null);
+    if (ids.size === 0) return booked;
+    const load = async (wanted: string[]) => {
+      const missing = wanted.filter((id) => !cache.has(id));
+      if (missing.length === 0) return;
       for (const c of await db.moneyCategory.findMany({ where: { id: { in: missing }, userId } })) cache.set(c.id, c);
-    }
+    };
+    await load([...ids]);
     for (const id of ids) {
       if (!cache.has(id)) throw new NotFoundException(`category ${id} not found`);
     }
+    await load([...ids].flatMap((id) => cache.get(id)!.mergedIntoId ?? []));
     for (const line of lines) {
       if (!line.categoryId || 'accountId' in line.account) continue;
-      const category = cache.get(line.categoryId)!;
+      const category = cache.get(booked(line.categoryId)!) ?? cache.get(line.categoryId)!;
       const expected = line.account.system === 'income' ? 'income' : line.account.system === 'expense' ? 'expense' : null;
       if (expected && category.kind !== expected) {
         throw new BadRequestException(`${category.name} is an ${category.kind} category; this line needs an ${expected} category`);
       }
     }
+    return booked;
   }
 }
 

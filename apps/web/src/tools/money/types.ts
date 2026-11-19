@@ -151,6 +151,8 @@ export interface TransactionFilters {
   assetId?: string;
   kind?: string;
   q?: string;
+  /** the whole trail: reversed movements and their reversals too (default: what stands) */
+  all?: boolean;
   limit?: number;
   before?: string;
 }

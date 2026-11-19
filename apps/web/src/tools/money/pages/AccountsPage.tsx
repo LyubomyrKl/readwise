@@ -3,7 +3,19 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ChevronRight, Landmark, Plus } from "lucide-react";
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { ChevronRight, GripVertical, Landmark, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -11,9 +23,10 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ACCOUNT_TYPE_SHORT_LABELS, NewAccountForm } from "../components/AccountForm";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
-import { groupAccounts, UNGROUPED } from "../lib/accounts";
+import { moneyApi } from "../api";
+import { applyOrder, groupAccounts, UNGROUPED } from "../lib/accounts";
 import { formatNumber, formatUnits, isNegative, isZero } from "../lib/format";
-import { useAccounts } from "../queries";
+import { useAccounts, useMoneyMutation } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { AccountResponse } from "../types";
 
@@ -24,18 +37,26 @@ export default function AccountsPage() {
   const { data: all, isLoading } = useAccounts(true);
   const router = useRouter();
 
-  const archivedCount = (all ?? []).filter((a) => a.archivedAt).length;
-  const accounts = (all ?? []).filter((a) => showArchived || !a.archivedAt);
+  // the order being saved, shown at once; the list from the API takes over when it is saved
+  const [order, setOrder] = useState<string[] | null>(null);
+  const reorder = useMoneyMutation((ids: string[]) => moneyApi.accounts.reorder(ids), { onSuccess: () => setOrder(null) });
+
+  const archived = (all ?? []).filter((a) => a.archivedAt);
+  const accounts = applyOrder((all ?? []).filter((a) => !a.archivedAt), order);
   const groups = groupAccounts(accounts);
   // headings only when a group gathers several accounts; otherwise each card names its group
   const headed = groups.some(([, list]) => list.length > 1);
+  const move = (ids: string[]) => {
+    setOrder(ids);
+    reorder.mutate(ids, { onError: () => setOrder(null) });
+  };
 
   return (
     <MoneyPage>
       <PageHeader
         icon={Landmark}
         title="Accounts"
-        description="Every account with one balance per currency."
+        description="Every account with one balance per currency. Drag a card by its handle to put it in its place."
         actions={
           <Button onClick={() => setCreating(true)}>
             <Plus className="mr-1 h-4 w-4" /> New account
@@ -49,7 +70,7 @@ export default function AccountsPage() {
           <Skeleton className="h-32" />
           <Skeleton className="h-32" />
         </div>
-      ) : accounts.length === 0 ? (
+      ) : accounts.length === 0 && archived.length === 0 ? (
         <EmptyState title="No accounts yet">
           Create your first account, or import your history.
         </EmptyState>
@@ -58,19 +79,29 @@ export default function AccountsPage() {
           {groups.map(([group, list]) => (
             <section key={group} aria-label={group} className="space-y-2">
               <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{group}</h2>
-              <AccountGrid accounts={list} />
+              <SortableGrid
+                accounts={list}
+                // within its group; the groups keep their places
+                onMove={(ids) => move(groups.flatMap(([g, l]) => (g === group ? ids : l.map((a) => a.id))))}
+              />
             </section>
           ))}
         </div>
       ) : (
-        <AccountGrid accounts={groups.flatMap(([, list]) => list)} showGroup />
+        <SortableGrid accounts={accounts} showGroup onMove={move} />
       )}
 
-      {archivedCount > 0 ? (
-        <div>
+      {archived.length > 0 ? (
+        <div className="space-y-2">
           <Button variant="outline" size="sm" onClick={() => setShowArchived((v) => !v)}>
-            {showArchived ? "Hide archived" : `Show archived (${archivedCount})`}
+            {showArchived ? "Hide archived" : `Show archived (${archived.length})`}
           </Button>
+          {showArchived ? (
+            <section aria-label="Archived" className="space-y-2 pt-2">
+              <h2 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Archived</h2>
+              <AccountGrid accounts={archived} showGroup />
+            </section>
+          ) : null}
         </div>
       ) : null}
 
@@ -94,6 +125,66 @@ export default function AccountsPage() {
   );
 }
 
+/**
+ * Cards that can be dragged into another order by their handle: with a mouse, by touch (hold
+ * briefly, so the page still scrolls), or with the keyboard (focus the handle, space, arrows).
+ */
+function SortableGrid({
+  accounts,
+  showGroup = false,
+  onMove,
+}: {
+  accounts: AccountResponse[];
+  showGroup?: boolean;
+  onMove: (ids: string[]) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates })
+  );
+  const ids = accounts.map((a) => a.id);
+  const onDragEnd = ({ active, over }: DragEndEvent) => {
+    if (!over || active.id === over.id) return;
+    onMove(arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id))));
+  };
+  return (
+    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+      <SortableContext items={ids} strategy={rectSortingStrategy}>
+        <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {accounts.map((a) => (
+            <SortableCard key={a.id} account={a} showGroup={showGroup} />
+          ))}
+        </ul>
+      </SortableContext>
+    </DndContext>
+  );
+}
+
+function SortableCard({ account, showGroup }: { account: AccountResponse; showGroup: boolean }) {
+  const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id: account.id });
+  return (
+    <li
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn("relative min-w-0", isDragging && "z-10 opacity-80 shadow-lg")}
+    >
+      <AccountCard account={account} showGroup={showGroup} handleSpace />
+      {/* beside the link, not in it: a button inside a link is not valid */}
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
+        {...attributes}
+        {...listeners}
+        aria-label={`Move ${account.name}`}
+        className="absolute right-9 top-3 cursor-grab touch-none rounded p-1 text-muted-foreground/60 hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring active:cursor-grabbing"
+      >
+        <GripVertical className="h-4 w-4" />
+      </button>
+    </li>
+  );
+}
+
 function AccountGrid({ accounts, showGroup = false }: { accounts: AccountResponse[]; showGroup?: boolean }) {
   return (
     <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -106,8 +197,8 @@ function AccountGrid({ accounts, showGroup = false }: { accounts: AccountRespons
   );
 }
 
-/** One account as a card; the whole card is the link to it. */
-function AccountCard({ account, showGroup }: { account: AccountResponse; showGroup: boolean }) {
+/** One account as a card; the whole card is the link to it. `handleSpace` leaves room for a drag handle. */
+function AccountCard({ account, showGroup, handleSpace = false }: { account: AccountResponse; showGroup: boolean; handleSpace?: boolean }) {
   const type = ACCOUNT_TYPE_SHORT_LABELS[account.type];
   const group = showGroup ? account.institution?.name ?? UNGROUPED : null;
   const cash = account.balances.filter((b) => b.kind === "currency");
@@ -121,7 +212,7 @@ function AccountCard({ account, showGroup }: { account: AccountResponse; showGro
       )}
     >
       <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
+        <div className={cn("min-w-0", handleSpace && "pr-7")}>
           <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
             {group ? <span className="truncate">{group}</span> : null}
             {group ? <span aria-hidden>·</span> : null}

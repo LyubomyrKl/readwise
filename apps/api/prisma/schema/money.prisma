@@ -294,6 +294,8 @@ model MoneyAccount {
   cashClassId     String?
   /// default statement profile for imports into this account ("mbank", "pko", "zen", "ibkr")
   importProfile   String?
+  /// where the account comes in the user's lists (dragged into place); null: after the placed ones, by creation
+  position        Int?
   archivedAt      DateTime?
   createdAt       DateTime              @default(now())
 
@@ -327,19 +329,24 @@ model MoneySubAccount {
 }
 
 model MoneyCategory {
-  id         String            @id @default(cuid())
-  userId     String
-  name       String
-  kind       MoneyCategoryKind
-  parentId   String?
+  id           String            @id @default(cuid())
+  userId       String
+  name         String
+  kind         MoneyCategoryKind
+  parentId     String?
   /// set on the categories the ledger itself uses: fees, taxes, dividends, interest, other_income, other_expense
-  key        String?
-  archivedAt DateTime?
-  createdAt  DateTime          @default(now())
+  key          String?
+  /// merged into that category: hidden, and everything booked here counts and shows there (posted rows keep
+  /// pointing here, rule 4); always a category that is not merged itself
+  mergedIntoId String?
+  archivedAt   DateTime?
+  createdAt    DateTime          @default(now())
 
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent       MoneyCategory?     @relation("MoneyCategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
   children     MoneyCategory[]    @relation("MoneyCategoryTree")
+  mergedInto   MoneyCategory?     @relation("MoneyCategoryMerge", fields: [mergedIntoId], references: [id], onDelete: SetNull)
+  merged       MoneyCategory[]    @relation("MoneyCategoryMerge")
   transactions MoneyTransaction[]
   entries      MoneyEntry[]
 

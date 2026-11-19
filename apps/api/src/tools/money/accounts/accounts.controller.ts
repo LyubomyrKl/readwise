@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
@@ -12,6 +12,7 @@ import {
   CreateInstitutionDto,
   InstitutionResponse,
   ListAccountsQuery,
+  ReorderAccountsDto,
   UpdateAccountDto,
   UpdateInstitutionDto,
 } from './account.models';
@@ -48,6 +49,12 @@ export class AccountsController {
       includeArchived: query.archived === 'true',
       asOf: query.asOf ? toDate(query.asOf, 'asOf') : undefined,
     });
+  }
+
+  @Put('accounts/order')
+  @ApiEndpoint({ summary: 'Put the accounts in use in this order (as dragged into place)', response: [AccountResponse] })
+  reorder(@Req() req: UserModel, @Body() dto: ReorderAccountsDto) {
+    return this.accounts.reorder(req.user.userId, dto.ids);
   }
 
   @Get('accounts/:id')

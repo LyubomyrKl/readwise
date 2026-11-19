@@ -181,6 +181,15 @@ export class AddCurrencyDto {
   currency!: string;
 }
 
+export class ReorderAccountsDto {
+  @ApiProperty({ type: [String], description: 'every account in use (not archived), each once, in the order to list them' })
+  @IsArray()
+  @ArrayMaxSize(500)
+  @IsString({ each: true })
+  @MaxLength(64, { each: true })
+  ids!: string[];
+}
+
 export class MergeAccountDto {
   @ApiProperty({ description: 'the account this one merges into; it keeps its id' })
   @IsString()

@@ -349,8 +349,10 @@ export class ImportsService {
           category = await db.moneyCategory.create({ data: { userId, name: ref.name.slice(0, 60), kind: ref.kind, parentId } });
           categoriesCreated++;
         }
-        categoryIds.set(key, category.id);
-        return category.id;
+        // a merged category's name books to the category it went into
+        const id = category.mergedIntoId ?? category.id;
+        categoryIds.set(key, id);
+        return id;
       };
       const assetIds = new Map<string, string>();
       const resolveAsset = async (ref: NonNullable<ImportProposal['asset']>): Promise<string> => {

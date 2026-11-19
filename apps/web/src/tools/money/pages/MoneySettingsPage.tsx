@@ -3,6 +3,16 @@
 import { useState } from "react";
 import Link from "next/link";
 import { ArrowLeft, Wallet } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -78,7 +88,10 @@ function CategoriesCard() {
     <Card>
       <CardHeader>
         <CardTitle>Categories</CardTitle>
-        <CardDescription>Income and expense categories; nest one level. Archived ones keep their history.</CardDescription>
+        <CardDescription>
+          Income and expense categories; nest one level. Archived ones keep their history; a merged one is gone, and its
+          history counts under the one it went into.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         <form
@@ -137,6 +150,7 @@ function CategoriesCard() {
 
 function CategoryRow({ category, all }: { category: CategoryResponse; all: CategoryResponse[] }) {
   const [editing, setEditing] = useState(false);
+  const [merging, setMerging] = useState(false);
   const [name, setName] = useState(category.name);
   const update = useMoneyMutation((input: { name?: string; archived?: boolean }) => moneyApi.categories.update(category.id, input), {
     onSuccess: () => setEditing(false),
@@ -163,10 +177,68 @@ function CategoryRow({ category, all }: { category: CategoryResponse; all: Categ
         </button>
       )}
       {editing ? null : (
-        <Button size="sm" variant="ghost" onClick={() => update.mutate({ archived: !category.archived })}>
-          {category.archived ? "Restore" : "Archive"}
-        </Button>
+        <div className="flex shrink-0 items-center">
+          {category.key ? null : (
+            <Button size="sm" variant="ghost" onClick={() => setMerging(true)}>
+              Merge
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" onClick={() => update.mutate({ archived: !category.archived })}>
+            {category.archived ? "Restore" : "Archive"}
+          </Button>
+        </div>
       )}
+      {merging ? <MergeCategoryDialog category={category} all={all} onClose={() => setMerging(false)} /> : null}
     </li>
+  );
+}
+
+/**
+ * Merging a duplicate away: it leaves the lists, and what was booked to it shows and counts under
+ * the category picked here. Nothing posted changes (the API keeps the category, pointing there).
+ */
+function MergeCategoryDialog({ category, all, onClose }: { category: CategoryResponse; all: CategoryResponse[]; onClose: () => void }) {
+  const [intoId, setIntoId] = useState("");
+  const candidates = all
+    .filter((c) => c.kind === category.kind && c.id !== category.id && c.parentId !== category.id && !c.archived)
+    .sort((a, b) => categoryPath(a, all).localeCompare(categoryPath(b, all)));
+  const merge = useMoneyMutation(() => moneyApi.categories.merge(category.id, intoId), {
+    success: (into) => `${category.name} merged into ${into.name}`,
+    onSuccess: onClose,
+  });
+  const children = all.filter((c) => c.parentId === category.id);
+  return (
+    <AlertDialog open onOpenChange={(open) => (open ? null : onClose())}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Merge {category.name} into another category</AlertDialogTitle>
+          <AlertDialogDescription>
+            {category.name} leaves your categories. Everything booked to it shows and counts under the one you pick, in the
+            history and in the reports, and a movement given it later goes there too.
+            {children.length > 0 ? ` Its subcategories move along.` : ""} Nothing posted changes.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <Field label="Merge into">
+          <SimpleSelect
+            value={intoId}
+            onChange={setIntoId}
+            placeholder="Pick a category"
+            options={candidates.map((c) => ({ value: c.id, label: categoryPath(c, all) }))}
+          />
+        </Field>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            disabled={!intoId || merge.isPending}
+            onClick={(e) => {
+              e.preventDefault();
+              merge.mutate(undefined);
+            }}
+          >
+            Merge
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

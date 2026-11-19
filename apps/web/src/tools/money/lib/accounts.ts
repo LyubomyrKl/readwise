@@ -1,4 +1,4 @@
-import type { AccountResponse, AccountType, InstitutionResponse } from "../types";
+import type { AccountResponse, AccountType, InstitutionResponse, SubAccountBalance } from "../types";
 
 /** The account types that can hold units of an asset (buy, sell, unit moves). */
 export const UNIT_ACCOUNT_TYPES: readonly AccountType[] = ["investment", "bonds"];
@@ -24,6 +24,30 @@ export function pickableInstitutions(
     if (!a.archivedAt) active.set(a.institution.id, (active.get(a.institution.id) ?? 0) + 1);
   }
   return institutions.filter((i) => !total.get(i.id) || (active.get(i.id) ?? 0) > 0);
+}
+
+/**
+ * The cash balances to show under an account picker: the currency being used first, then the
+ * others as the account lists them. Units of assets are left out (the forms move money).
+ */
+export function balancesFor(
+  account: Pick<AccountResponse, "balances"> | undefined,
+  currency?: string
+): SubAccountBalance[] {
+  const cash = (account?.balances ?? []).filter((b) => b.kind === "currency" && b.balance);
+  const first = cash.filter((b) => b.commodityId === currency);
+  return [...first, ...cash.filter((b) => b.commodityId !== currency)];
+}
+
+/**
+ * `accounts` in the order of `ids` while a new order is being saved; any account the order does
+ * not name (one added meanwhile) keeps its place after the named ones.
+ */
+export function applyOrder<T extends Pick<AccountResponse, "id">>(accounts: T[], ids: string[] | null): T[] {
+  if (!ids) return accounts;
+  const at = new Map(ids.map((id, i) => [id, i]));
+  const named = accounts.filter((a) => at.has(a.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!);
+  return [...named, ...accounts.filter((a) => !at.has(a.id))];
 }
 
 /** The heading for accounts in no group; always listed last. */

@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { groupAccounts } from "../lib/accounts";
+import { balancesFor, groupAccounts } from "../lib/accounts";
+import { Amount } from "./Amount";
 import { useAccounts, useCategories, useCurrencies } from "../queries";
 import type { AccountResponse, CategoryResponse } from "../types";
 
@@ -154,6 +155,24 @@ export function AccountSelect({
         ))}
       </SelectContent>
     </Select>
+  );
+}
+
+/** What an account holds, under its picker: the currency in use first and stronger. */
+export function AccountBalances({ account, currency }: { account: AccountResponse | undefined; currency?: string }) {
+  if (!account) return null;
+  const list = balancesFor(account, currency);
+  if (list.length === 0) return <span>No money in it yet</span>;
+  return (
+    <span className="flex flex-wrap items-baseline gap-x-1.5">
+      <span>Balance</span>
+      {list.map((b, i) => (
+        <span key={b.subAccountId} className={i === 0 ? "font-medium text-foreground" : undefined}>
+          {i > 0 ? <span aria-hidden>· </span> : null}
+          <Amount amount={b.balance} muted={i > 0} />
+        </span>
+      ))}
+    </span>
   );
 }
 

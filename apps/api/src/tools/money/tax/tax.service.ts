@@ -126,7 +126,7 @@ export class TaxService {
         correctedBy: { none: { kind: 'correction' } },
       },
       include: {
-        category: true,
+        category: { include: { mergedInto: true } },
         asset: { include: { commodity: true } },
         entries: { include: { subAccount: { include: { account: true } } } },
       },
@@ -146,7 +146,7 @@ export class TaxService {
       const gross = -(incomeLeg.amountMinor ?? 0n);
       const withheld = taxLeg?.amountMinor ?? 0n;
       const rate = await this.rates.nbpBefore(this.prisma, currency, tx.date);
-      if (!rate) missing.push(`no NBP ${currency} rate in the week before ${formatDate(tx.date)} (${tx.category?.name ?? 'income'})`);
+      if (!rate) missing.push(`no NBP ${currency} rate in the week before ${formatDate(tx.date)} (${(tx.category?.mergedInto ?? tx.category)?.name ?? 'income'})`);
       const toPln = async (minor: bigint) => (await this.rates.toPlnForTax(this.prisma, minor, currency, decimals, tx.date))?.minor ?? null;
       const grossPln = rate ? await toPln(gross) : null;
       const withheldPln = rate ? await toPln(withheld) : null;
@@ -161,7 +161,7 @@ export class TaxService {
         date: formatDate(tx.date),
         accountName: nameOf.get(own.subAccount.accountId) ?? '',
         assetCode: tx.asset?.commodity.code ?? null,
-        category: tx.category?.name ?? 'Income',
+        category: (tx.category?.mergedInto ?? tx.category)?.name ?? 'Income',
         gross: amountJson(gross, currency, decimals),
         withheld: amountJson(withheld, currency, decimals),
         grossPln: grossPln === null ? null : amountJson(grossPln, PLN, plnDecimals),

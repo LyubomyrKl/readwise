@@ -47,3 +47,10 @@ export class UpdateCategoryDto {
   @IsBoolean()
   archived?: boolean;
 }
+
+export class MergeCategoryDto {
+  @ApiProperty({ description: 'the category this one merges into (same kind); it keeps its id and name' })
+  @IsString()
+  @MaxLength(64)
+  intoId!: string;
+}

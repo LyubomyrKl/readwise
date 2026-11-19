@@ -83,6 +83,8 @@ export const moneyApi = {
     /** the IBAN or account number of one currency; null or empty clears it */
     setNumber: (id: string, currency: string, number: string | null) =>
       patch<AccountResponse>(`/money/accounts/${enc(id)}/currencies/${enc(currency)}`, { number }),
+    /** every account in use, each once, in the order to list them */
+    reorder: (ids: string[]) => apiFetch<AccountResponse[]>("/money/accounts/order", { method: "PUT", json: { ids } }),
   },
 
   categories: {
@@ -91,6 +93,8 @@ export const moneyApi = {
       post<CategoryResponse>("/money/categories", input),
     update: (id: string, input: { name?: string; parentId?: string | null; archived?: boolean }) =>
       patch<CategoryResponse>(`/money/categories/${enc(id)}`, input),
+    /** `id` goes away: its history shows and counts under `intoId`; returns the category it went into */
+    merge: (id: string, intoId: string) => post<CategoryResponse>(`/money/categories/${enc(id)}/merge`, { intoId }),
   },
 
   transactions: {

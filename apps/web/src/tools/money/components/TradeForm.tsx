@@ -12,6 +12,7 @@ import { errorMessage, useAccounts, useAssets, usePositions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { AccountResponse, Movement, MovementKind, TransactionResponse } from "../types";
 import {
+  AccountBalances,
   AccountSelect,
   accountCurrencies,
   AmountInput,
@@ -339,7 +340,15 @@ export function TradeForm<T = TransactionResponse>({
       {kind === "buy" || kind === "sell" ? (
         <>
           <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-            <Field label={kind === "buy" ? "Paid from" : "Proceeds to"} hint="Default: the same account">
+            <Field
+              label={kind === "buy" ? "Paid from" : "Proceeds to"}
+              hint={
+                <>
+                  Default: the same account
+                  {cashAccount ? <AccountBalances account={cashAccount} currency={currency} /> : null}
+                </>
+              }
+            >
               <AccountSelect value={other || account} onChange={setOther} />
             </Field>
             <Field label="Currency">

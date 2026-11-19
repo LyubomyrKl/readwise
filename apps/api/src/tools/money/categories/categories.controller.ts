@@ -3,7 +3,7 @@ import { ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 import { CategoriesService } from './categories.service';
-import { CategoryResponse, CreateCategoryDto, UpdateCategoryDto } from './category.models';
+import { CategoryResponse, CreateCategoryDto, MergeCategoryDto, UpdateCategoryDto } from './category.models';
 
 @ApiTags('money')
 @Controller('money/categories')
@@ -28,5 +28,15 @@ export class CategoriesController {
   @ApiEndpoint({ summary: 'Rename, move or archive a category', response: CategoryResponse })
   update(@Req() req: UserModel, @Param('id') id: string, @Body() dto: UpdateCategoryDto) {
     return this.categories.update(req.user.userId, id, dto);
+  }
+
+  @Post(':id/merge')
+  @ApiParam({ name: 'id', description: 'the category that goes away' })
+  @ApiEndpoint({
+    summary: 'Merge this category into another: it leaves the lists, its history shows and counts under the other one; nothing posted changes',
+    response: CategoryResponse,
+  })
+  merge(@Req() req: UserModel, @Param('id') id: string, @Body() dto: MergeCategoryDto) {
+    return this.categories.merge(req.user.userId, id, dto.intoId);
   }
 }

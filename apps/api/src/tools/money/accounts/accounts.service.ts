@@ -77,10 +77,32 @@ export class AccountsService {
     const accounts = await this.prisma.moneyAccount.findMany({
       where: { userId, type: { not: 'system' }, ...(opts.includeArchived ? {} : { archivedAt: null }) },
       include: ROW_INCLUDE,
-      orderBy: [{ archivedAt: { sort: 'asc', nulls: 'first' } }, { createdAt: 'asc' }],
+      // in use first, in the order they were dragged into; new ones after the placed ones
+      orderBy: [{ archivedAt: { sort: 'asc', nulls: 'first' } }, { position: { sort: 'asc', nulls: 'last' } }, { createdAt: 'asc' }],
     });
     const totals = await this.balances.subAccountTotals(userId, { asOf: opts.asOf });
     return Promise.all(accounts.map((a) => this.toResponse(userId, a, totals)));
+  }
+
+  /**
+   * The order of the accounts in use, as dragged into place: every one of them, each once.
+   * Archived accounts keep their place for when they come back.
+   */
+  async reorder(userId: string, ids: string[], actor = 'user'): Promise<AccountResponse[]> {
+    await this.ledger.ensureSetup(userId);
+    const inUse = await this.prisma.moneyAccount.findMany({
+      where: { userId, type: { not: 'system' }, archivedAt: null },
+      select: { id: true },
+    });
+    const expected = new Set(inUse.map((a) => a.id));
+    if (ids.length !== expected.size || new Set(ids).size !== ids.length || ids.some((id) => !expected.has(id))) {
+      throw new BadRequestException('the order must name every account in use, once; reload the list and try again');
+    }
+    await this.prisma.$transaction(async (db) => {
+      for (const [position, id] of ids.entries()) await db.moneyAccount.update({ where: { id }, data: { position } });
+      await this.audit.record(db, { userId, actor, action: 'account.reorder', details: { ids } });
+    });
+    return this.list(userId);
   }
 
   async get(userId: string, id: string, asOf?: Date): Promise<AccountResponse> {

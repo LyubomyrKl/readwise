@@ -1,8 +1,17 @@
-import { groupAccounts, holdsUnits, mergeBlocker, mergeCandidates, mergeNameGuess, pickableInstitutions } from "@tools/money/lib/accounts";
+import {
+  applyOrder,
+  balancesFor,
+  groupAccounts,
+  holdsUnits,
+  mergeBlocker,
+  mergeCandidates,
+  mergeNameGuess,
+  pickableInstitutions,
+} from "@tools/money/lib/accounts";
 import { add, subtract } from "@tools/money/lib/decimal";
 import { CASH_KINDS, CASH_TABS } from "@tools/money/components/MovementForm";
 import { TRADE_KINDS, tradeMoney } from "@tools/money/components/TradeForm";
-import type { AccountResponse, InstitutionResponse } from "@tools/money/types";
+import type { AccountResponse, InstitutionResponse, SubAccountBalance } from "@tools/money/types";
 
 const inst = (id: string, name = id): InstitutionResponse => ({ id, name, kind: "bank" });
 const account = (id: string, institution: InstitutionResponse | null, archived = false, type: AccountResponse["type"] = "bank") =>
@@ -100,5 +109,33 @@ describe("money account helpers", () => {
     ]);
     expect(mergeBlocker(source)).toBeNull();
     expect(mergeBlocker({ name: "IBKR", balances: [bal("EUR"), bal("VWCE", "asset")] })).toMatch(/holds units/);
+  });
+});
+
+describe("account order and balances in the forms", () => {
+  const ids = (list: { id: string }[]) => list.map((a) => a.id);
+
+  it("shows a new order at once; an account the order does not name keeps its place after", () => {
+    const list = ["pko", "zen", "ibkr", "cash"].map((id) => account(id, null));
+    expect(ids(applyOrder(list, null))).toEqual(["pko", "zen", "ibkr", "cash"]);
+    expect(ids(applyOrder(list, ["ibkr", "pko", "zen"]))).toEqual(["ibkr", "pko", "zen", "cash"]);
+    expect(ids(applyOrder(list, ["gone", "cash", "pko"]))).toEqual(["cash", "pko", "zen", "ibkr"]);
+  });
+
+  it("lists the cash an account holds under its picker, the currency in use first, no units", () => {
+    const balance = (code: string, value: string | null, kind: SubAccountBalance["kind"] = "currency"): SubAccountBalance => ({
+      subAccountId: code,
+      commodityId: code,
+      code,
+      kind,
+      balance: value === null ? null : { value, currency: code, minor: "0" },
+      units: kind === "asset" ? "73" : null,
+      number: null,
+    });
+    const mbank = { balances: [balance("PLN", "7637.71"), balance("USD", "1.50"), balance("VWCE", null, "asset")] };
+    expect(balancesFor(mbank, "USD").map((b) => b.code)).toEqual(["USD", "PLN"]);
+    expect(balancesFor(mbank, "PLN").map((b) => b.code)).toEqual(["PLN", "USD"]);
+    expect(balancesFor(mbank).map((b) => b.code)).toEqual(["PLN", "USD"]);
+    expect(balancesFor(undefined, "PLN")).toEqual([]);
   });
 });

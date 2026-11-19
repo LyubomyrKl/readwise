@@ -292,12 +292,14 @@ export class ViewsService {
     >(Prisma.sql`
       SELECT e."transactionId", t.kind::text AS kind, to_char(t.date, 'YYYY-MM-DD') AS date, a.type::text AS "accountType",
              a."systemRole"::text AS "systemRole", s."commodityId", c.kind::text AS "commodityKind",
-             e."amountMinor"::text AS minor, e."categoryId"
+             e."amountMinor"::text AS minor, COALESCE(cat."mergedIntoId", e."categoryId") AS "categoryId"
         FROM "money_entry" e
         JOIN "money_transaction" t ON t."id" = e."transactionId"
         JOIN "money_sub_account" s ON s."id" = e."subAccountId"
         JOIN "money_account" a ON a."id" = s."accountId"
         JOIN "money_commodity" c ON c."id" = s."commodityId"
+        -- a merged category counts as the one it was merged into
+        LEFT JOIN "money_category" cat ON cat."id" = e."categoryId"
        WHERE t."userId" = ${userId} AND t."status" = 'posted' AND t."kind" <> 'opening_balance'
          AND t."date" >= ${formatDate(from)}::date AND t."date" <= ${formatDate(to)}::date
     `);

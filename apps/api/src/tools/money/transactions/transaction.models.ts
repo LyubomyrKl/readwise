@@ -103,6 +103,15 @@ export class ListTransactionsQuery {
   @Matches(/^\d{1,3}$/)
   limit?: string;
 
+  @ApiProperty({
+    required: false,
+    enum: ['true', 'false'],
+    description: 'true: the whole trail, reversed movements and their reversals too; default: what stands',
+  })
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  all?: string;
+
   @ApiProperty({ required: false, description: 'nextCursor of the previous page' })
   @IsOptional()
   @IsString()

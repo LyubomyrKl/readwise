@@ -12,12 +12,15 @@ import { asBadRequest, LedgerService, type PostedTransaction } from '../ledger/l
 import { CommoditiesService } from '../reference/commodities.service';
 import { ListTransactionsQuery, TransactionPage, TransactionResponse } from './transaction.models';
 
+// a merged category shows as the one it was merged into
+const CATEGORY = { include: { mergedInto: true } } as const;
+
 const INCLUDE = {
   entries: {
-    include: { subAccount: { include: { account: true } }, category: true },
+    include: { subAccount: { include: { account: true } }, category: CATEGORY },
     orderBy: { id: 'asc' },
   },
-  category: true,
+  category: CATEGORY,
   asset: { include: { commodity: true } },
   correctedBy: { select: { id: true, kind: true } },
 } satisfies Prisma.MoneyTransactionInclude;
@@ -55,12 +58,20 @@ export class TransactionsService {
     if (query.kind) and.push({ kind: query.kind as MoneyTransactionKind });
     if (query.accountId) and.push({ entries: { some: { subAccount: { accountId: query.accountId } } } });
     if (query.categoryId) {
-      and.push({ OR: [{ categoryId: query.categoryId }, { entries: { some: { categoryId: query.categoryId } } }] });
+      // with the categories merged into it
+      const merged = await this.prisma.moneyCategory.findMany({ where: { userId, mergedIntoId: query.categoryId }, select: { id: true } });
+      const ids = [query.categoryId, ...merged.map((c) => c.id)];
+      and.push({ OR: [{ categoryId: { in: ids } }, { entries: { some: { categoryId: { in: ids } } } }] });
     }
     if (query.assetId) {
       and.push({ OR: [{ assetId: query.assetId }, { entries: { some: { subAccount: { commodityId: query.assetId } } } }] });
     }
     if (query.q) and.push({ note: { contains: query.q, mode: 'insensitive' } });
+    // what stands: a reversed movement and its reversal cancel out and are left out; the movement
+    // that replaced a corrected one stays. `all` (or asking for reversals by kind) shows the trail.
+    if (status === 'posted' && query.all !== 'true' && query.kind !== 'correction') {
+      and.push({ kind: { not: 'correction' } }, { correctedBy: { none: { kind: 'correction' } } });
+    }
     if (query.before) {
       const [date, id] = query.before.split('_');
       if (!date || !id) throw new BadRequestException('before: not a cursor');
@@ -145,8 +156,8 @@ export class TransactionsService {
           code: c.code,
           amount: e.amountMinor === null ? null : amountJson(e.amountMinor, c.id, c.decimals),
           units: e.quantity === null ? null : unitsJson(quantityFromDb(e.quantity)),
-          categoryId: e.categoryId,
-          categoryName: e.category?.name ?? null,
+          categoryId: shown(e.category)?.id ?? null,
+          categoryName: shown(e.category)?.name ?? null,
         };
       });
 
@@ -172,7 +183,7 @@ export class TransactionsService {
         kind: row.kind,
         status: row.status,
         note: row.note,
-        category: row.category ? { id: row.category.id, name: row.category.name } : null,
+        category: row.category ? { id: shown(row.category)!.id, name: shown(row.category)!.name } : null,
         asset: row.asset ? { id: row.asset.commodityId, name: row.asset.commodity.code } : null,
         correctsId: row.correctsId,
         reversedBy: row.correctedBy.find((c) => c.kind === 'correction')?.id ?? null,
@@ -186,6 +197,13 @@ export class TransactionsService {
       };
     });
   }
+}
+
+type NamedCategory = { id: string; name: string };
+
+/** The category to show for one a row books to: the one it was merged into, if it was. */
+function shown(category: (NamedCategory & { mergedInto: NamedCategory | null }) | null): NamedCategory | null {
+  return category ? (category.mergedInto ?? category) : null;
 }
 
 export { INCLUDE as TRANSACTION_INCLUDE };
