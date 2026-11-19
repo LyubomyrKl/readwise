@@ -201,3 +201,20 @@ entries of posted transactions cannot be updated or deleted.
   mints an ordinary read token (`test/db/money-oauth.db-spec.ts`). Hardened: the public paths
   answer only Anthropic's outbound range and the tailnet (Caddy, strict client address),
   connector tokens live a day and renew by a rotating refresh token, the last address is kept.
+- **Tidy books, Nov 19** — what using it showed, fixed without rewriting the books: the history
+  lists what stands (a corrected movement once, as its replacement; a reversed one and the
+  reversals not at all; the whole trail on request, `all=true`, "Show corrections and
+  reversals"); accounts are dragged into an order that stays (`money_account.position`,
+  `PUT accounts/order` with every account in use once; cards sort by a handle with the mouse,
+  by touch or with the keyboard); categories merge (`POST categories/:id/merge`): a merged
+  category leaves every list, its history shows and counts under the other one (transactions,
+  filters, month and period views, tax report), and a movement or an import given it books there.
+  Nothing posted changes: the category stays, pointing at the other (`mergedIntoId`), so rule 4
+  holds in the database as before. Migration `money_tidy` merged the duplicates the first import
+  left (Transportation into Transport, Housing into Home, Shopping into "Clothing, shopping",
+  Other into Other expenses, Other into Other income; `money_merge_import_duplicates()`). The
+  movement and trade forms show the picked account's balance, the currency in use first. Tests:
+  `test/db/money-tidy.db-spec.ts` (a correction listed once and a deletion not at all, page by
+  page; the saved order and its refusals; a merge relabels the history and the month to the cent
+  while every posted row stays equal; the migration's merges, once); in the browser
+  `apps/web/e2e/money.spec.ts`.

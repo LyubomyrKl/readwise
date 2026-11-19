@@ -59,7 +59,9 @@ transaction with `assertBalanced` from `core/ledger.ts` before writing it. The
 database backs rules 2 and 4 with triggers (see the `money_rules` and
 `money_rules_hardening` migrations). Every way into the ledger (endpoints, drafts,
 imports, recurring rules, opening balances) posts through `MovementsService`, and
-every write takes the user's lock first (`LedgerService.lock`). What runs on its own lives in `automation/` (jobs
+every write takes the user's lock first (`LedgerService.lock`). A merged category (`mergedIntoId`) stays for the
+posted rows that point at it: every read shows and counts it as the one it went into, and `ledger.post` books it
+there. What runs on its own lives in `automation/` (jobs
 `money.rates`, `money.prices`, `money.recurring`, `money.snapshot` on the platform
 job runner); `MoneyModule` itself needs no queue, which is what `test/db` relies on.
 Claude's access (`claude/`: tokens, the read API and the MCP server at
