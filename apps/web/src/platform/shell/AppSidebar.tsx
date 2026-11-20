@@ -19,7 +19,7 @@ import {
   useMobileSidebar,
 } from "@platform/ui/MobileSidebar";
 
-import type { ActionButton, NavItem } from "./ToolManifest";
+import { activeNavHref, type ActionButton, type NavItem } from "./ToolManifest";
 import { PLATFORM_ROUTES } from "@platform/routes";
 
 export type { ActionButton, NavItem, SubItem } from "./ToolManifest";
@@ -64,6 +64,7 @@ function SidebarNav({
   onNavigate?: () => void;
 }) {
   const pathname = usePathname();
+  const current = activeNavHref(nav, pathname ?? "");
 
   const isActiveLink = (href: string) => {
     const isExactMatch = pathname === href;
@@ -88,7 +89,7 @@ function SidebarNav({
                 <NavLink
                   key={i}
                   href={entry.href}
-                  isActive={isActiveLink(entry.href)}
+                  isActive={entry.href === current}
                   onClick={onNavigate}
                 >
                   <Icon className="h-4 w-4 shrink-0" />
@@ -120,7 +121,7 @@ function SidebarNav({
                         <NavLink
                           key={item.href}
                           href={item.href}
-                          isActive={isActiveLink(item.href)}
+                          isActive={item.href === current}
                           onClick={onNavigate}
                         >
                           <span>{item.title}</span>

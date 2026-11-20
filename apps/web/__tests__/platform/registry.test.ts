@@ -1,7 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { TOOLS, findToolByPath } from "@platform/shell/registry";
-import { toolBasePath } from "@platform/shell/ToolManifest";
+import { activeNavHref, toolBasePath } from "@platform/shell/ToolManifest";
 
 describe("tool registry", () => {
   it("has at least one tool with unique, url-safe ids", () => {
@@ -38,5 +38,15 @@ describe("tool registry", () => {
     expect(findToolByPath("/apps/readers")).toBeUndefined();
     expect(findToolByPath("/settings/reader")).toBeUndefined();
     expect(findToolByPath("/")).toBeUndefined();
+  });
+
+  it("lights only the most specific nav link, so a tool's home stays unlit on its other pages", () => {
+    const nav = TOOLS.find((tool) => tool.id === "money")!.nav;
+    expect(activeNavHref(nav, "/apps/money")).toBe("/apps/money");
+    expect(activeNavHref(nav, "/apps/money/accounts")).toBe("/apps/money/accounts");
+    expect(activeNavHref(nav, "/apps/money/accounts/assets")).toBe("/apps/money/accounts");
+    expect(activeNavHref(nav, "/apps/money/transactions/new")).toBe("/apps/money/transactions");
+    expect(activeNavHref(nav, "/apps/moneybox")).toBeNull();
+    expect(activeNavHref(nav, "/settings/money")).toBeNull();
   });
 });

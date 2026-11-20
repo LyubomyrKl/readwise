@@ -39,3 +39,13 @@ export interface ToolManifest {
 export function toolBasePath(id: string): string {
   return `${TOOLS_BASE_PATH}/${id}`;
 }
+
+/**
+ * The nav link to light for a pathname: the most specific one the pathname is on or under, so a
+ * tool's home stays unlit on the tool's other pages. Null when it is under none of them.
+ */
+export function activeNavHref(nav: NavItem[], pathname: string): string | null {
+  const hrefs = nav.flatMap((entry) => ("href" in entry ? [entry.href] : entry.items.map((item) => item.href)));
+  const under = hrefs.filter((href) => pathname === href || (href !== "/" && pathname.startsWith(`${href}/`)));
+  return under.sort((a, b) => b.length - a.length)[0] ?? null;
+}
