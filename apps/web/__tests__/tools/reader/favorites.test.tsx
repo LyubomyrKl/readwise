@@ -82,7 +82,7 @@ describe("favorite toggles", () => {
     it("reverts the heart to its real previous value and reports a failed request", async () => {
       setFavorite.mockRejectedValue(new Error("Failed to fetch"));
       const { container } = renderInApp(
-        <BookProfile book={{ ...book, isFavorite: true }} notes={[]} onStartReading={() => {}} onBack={() => {}} />
+        <BookProfile book={{ ...book, isFavorite: true }} notes={[]} onStartReading={() => {}} />
       );
       expect(heart(container).querySelector("svg")).toHaveClass("fill-current");
 

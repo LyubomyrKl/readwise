@@ -3,7 +3,7 @@
 import { motion, Variants } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { Palette, ArrowLeft } from "lucide-react";
+import { Palette } from "lucide-react";
 import { ThemeToggle } from "@platform/ui/ThemeToggle";
 import { useMotion } from "@platform/providers/MotionProvider";
 import {
@@ -13,9 +13,9 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import Link from "next/link";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
+import { BackLink } from "@platform/ui/BackLink";
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: {
@@ -36,13 +36,7 @@ export default function AppearanceSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={PLATFORM_ROUTES.settings.root}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Settings
-        </Link>
+        <BackLink fallback={PLATFORM_ROUTES.settings.root} className="mb-4" />
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <Palette className="h-6 w-6" />
           Appearance

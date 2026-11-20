@@ -4,15 +4,15 @@ import { useTransition } from "react";
 import { motion, Variants } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { LogOut, User, ArrowLeft } from "lucide-react";
+import { LogOut, User } from "lucide-react";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { toast } from "sonner";
 import { authApi } from "@platform/api/auth";
 import { clearAppCaches } from "@platform/pwa/caches";
-import Link from "next/link";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
 import { SecuritySettings } from "@platform/auth/SecuritySettings";
+import { BackLink } from "@platform/ui/BackLink";
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: {
@@ -53,13 +53,7 @@ export default function AccountSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={PLATFORM_ROUTES.settings.root}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Settings
-        </Link>
+        <BackLink fallback={PLATFORM_ROUTES.settings.root} className="mb-4" />
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <User className="h-6 w-6" />
           Account

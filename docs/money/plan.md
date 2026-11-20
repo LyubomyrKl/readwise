@@ -254,3 +254,12 @@ entries of posted transactions cannot be updated or deleted.
   lights only the most specific link (Overview stayed lit on every money page, Library on the
   reader's Upload). Tests: `activeNavHref` in `registry.test.ts`; in the browser, a holding is
   priced from its account's page and the old address opens Accounts.
+- **Back arrows go back, Nov 20** — every back arrow (money, reader, settings) went to a fixed page
+  (an account's to Accounts even when it was opened from the Overview). Now one `BackLink` goes
+  back to where you came from when that page is the app's (the browser's Navigation API says so),
+  and up to the old fixed page otherwise: a page opened directly, right after signing in, or a
+  browser without the API. The reader's own back did `router.back()` alone and could leave the app;
+  it uses the same rule. Saving a movement, merging an account, deleting an import or a book now
+  replace the page in the history, so back skips the spent form or the page that is gone. Tests:
+  `back.test.ts`; in the browser, an account's movement and back, a movement saved from an account
+  and back, and a movement opened in a new tab going up to the list.

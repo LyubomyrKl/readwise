@@ -1,8 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, PenLine } from "lucide-react";
+import { PenLine } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { moneyApi } from "../api";
@@ -15,6 +14,7 @@ import { movementFromTransaction } from "../lib/movement";
 import { useMoneyMutation, useTransaction } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { Movement } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 /**
  * Records a movement, or corrects a posted one (?correct=<id>): the original
@@ -33,16 +33,15 @@ export default function NewMovementPage() {
   );
 
   const initial = original ? movementFromTransaction(original) : undefined;
-  const done = (id: string) => router.push(MONEY_ROUTES.transaction(id));
+  // the form gives way to what it saved: back from there returns to where the form was opened
+  const done = (id: string) => router.replace(MONEY_ROUTES.transaction(id));
   const startsAsTrade = TRADE_KINDS.some((k) => k.value === (initial?.kind ?? kind));
   const [area, setArea] = useState<"money" | "investments">(startsAsTrade ? "investments" : "money");
   const trade = initial ? startsAsTrade : area === "investments";
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.transactions} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Transactions
-      </Link>
+      <BackLink fallback={MONEY_ROUTES.transactions} />
       <PageHeader
         icon={PenLine}
         title={correctId ? "Correct a transaction" : "New movement"}

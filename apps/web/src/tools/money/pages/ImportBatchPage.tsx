@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Check, FileUp, Trash2 } from "lucide-react";
+import { Check, FileUp, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -30,6 +29,7 @@ import { formatDate, normalizeAmountInput, today } from "../lib/format";
 import { useAccounts, useImportBalances, useImportBatch, useImportProfiles, useImportRows, useMoneyMutation } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { ImportBatch, ImportColumns, ImportMapping, ImportRowStatus, ImportTypeValues } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 const STATUS_LABELS: Record<ImportRowStatus, string> = {
   pending: "Pending",
@@ -50,7 +50,7 @@ export default function ImportBatchPage() {
   const router = useRouter();
   const remove = useMoneyMutation(() => moneyApi.imports.remove(id), {
     success: "Import dropped",
-    onSuccess: () => router.push(MONEY_ROUTES.imports),
+    onSuccess: () => router.replace(MONEY_ROUTES.imports), // the batch is gone
   });
 
   if (isLoading || !batch) {
@@ -68,9 +68,7 @@ export default function ImportBatchPage() {
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.imports} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Imports
-      </Link>
+      <BackLink fallback={MONEY_ROUTES.imports} />
       <PageHeader
         icon={FileUp}
         title={batch.fileName}

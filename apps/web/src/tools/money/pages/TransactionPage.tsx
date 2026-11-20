@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ArrowLeft, Pencil, Undo2 } from "lucide-react";
+import { Pencil, Undo2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -27,6 +27,7 @@ import { movementFromTransaction } from "../lib/movement";
 import { useMoneyMutation, useTransaction } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { EntryResponse } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 const ROLE_LABELS: Record<string, string> = {
   income: "Income",
@@ -60,9 +61,7 @@ export default function TransactionPage() {
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.transactions} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Transactions
-      </Link>
+      <BackLink fallback={MONEY_ROUTES.transactions} />
       <PageHeader
         title={title(tx)}
         description={

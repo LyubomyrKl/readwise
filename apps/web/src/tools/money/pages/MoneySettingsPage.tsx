@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
-import { ArrowLeft, Wallet } from "lucide-react";
+import { Wallet } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,18 +23,13 @@ import { ClaudeAccessCard } from "../components/ClaudeAccessCard";
 import { categoryPath, CurrencySelect, Field, NONE, SimpleSelect } from "../components/Fields";
 import { useCategories, useMoneyMutation, useMoneySettings } from "../queries";
 import type { CategoryResponse } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 export default function MoneySettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={PLATFORM_ROUTES.settings.root}
-          className="mb-4 inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Settings
-        </Link>
+        <BackLink fallback={PLATFORM_ROUTES.settings.root} className="mb-4" />
         <h1 className="flex items-center gap-2 text-2xl font-bold">
           <Wallet className="h-6 w-6" />
           Money

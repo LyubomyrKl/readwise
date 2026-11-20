@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useCallback } from "react";
 import { Loader2 } from "lucide-react";
 import { useBook } from "@tools/reader/queries";
@@ -10,6 +10,8 @@ import { useHighlights } from "@tools/reader/reading/useHighlights";
 import { useNotes } from "@tools/reader/reading/useNotes";
 import { formatOf } from "@tools/reader/reading/engines/createEngine";
 import { toLocator, type Locator } from "@tools/reader/reading/locator";
+import { READER_ROUTES } from "@tools/reader/routes";
+import { useBack } from "@platform/ui/BackLink";
 
 // the shell loads PDF.js or foliate-js on demand; nothing of it runs on the server
 const ReaderShell = dynamic(() => import("@tools/reader/reading/shell/ReaderShell"), {
@@ -23,7 +25,6 @@ const ReaderShell = dynamic(() => import("@tools/reader/reading/shell/ReaderShel
 
 export default function BookReaderPage() {
   const params = useParams();
-  const router = useRouter();
   const bookId = params.id as string;
 
   const bookQuery = useBook(bookId);
@@ -41,10 +42,11 @@ export default function BookReaderPage() {
   const { highlights, createHighlight, updateHighlight, deleteHighlight } = useHighlights({ bookId });
   const { notes, createNote, updateNote, deleteNote } = useNotes({ bookId });
 
+  const back = useBack(READER_ROUTES.bookProfile(bookId));
   const handleBack = useCallback(async () => {
     await forceSave();
-    router.back();
-  }, [forceSave, router]);
+    back();
+  }, [forceSave, back]);
 
   const handlePositionChange = useCallback((locator: Locator) => setPosition(locator), [setPosition]);
 

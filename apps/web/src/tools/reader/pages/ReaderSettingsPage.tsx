@@ -2,13 +2,13 @@
 
 import { motion, Variants } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
-import { BookOpen, ArrowLeft } from "lucide-react";
+import { BookOpen } from "lucide-react";
 import { useMotion } from "@platform/providers/MotionProvider";
 import { useBookCoverStyle } from "@tools/reader/documents/useBookCoverStyle";
 import { BookCover } from "@tools/reader/documents/library/BookCover";
-import Link from "next/link";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
+import { BackLink } from "@platform/ui/BackLink";
 const container: Variants = {
   hidden: { opacity: 0, y: 10 },
   show: {
@@ -30,13 +30,7 @@ export default function ReaderSettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <Link
-          href={PLATFORM_ROUTES.settings.root}
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Settings
-        </Link>
+        <BackLink fallback={PLATFORM_ROUTES.settings.root} className="mb-4" />
         <h1 className="text-2xl font-bold flex items-center gap-2">
           <BookOpen className="h-6 w-6" />
           Reader Settings

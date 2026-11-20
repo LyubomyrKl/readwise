@@ -14,7 +14,6 @@ import {
   MoreHorizontal,
   Bookmark,
   Eye,
-  ArrowLeft,
   Award,
   TrendingUp,
   Loader2,
@@ -23,6 +22,7 @@ import {
 } from "lucide-react";
 import { IBook } from "@tools/reader/types";
 import { useBookMutations } from "./useBookMutations";
+import { BackLink } from "@platform/ui/BackLink";
 import { toast } from "sonner";
 import {
   AlertDialog,
@@ -51,14 +51,12 @@ interface BookProfileProps {
   /** The book's notes (fetched by the page through the reading endpoints). */
   notes: NoteResponse[];
   onStartReading: () => void;
-  onBack: () => void;
 }
 
 export default function BookProfile({
   book,
   notes,
   onStartReading,
-  onBack,
 }: BookProfileProps) {
   const router = useRouter();
   const [isFavorite, setIsFavorite] = useState(book.isFavorite);
@@ -73,7 +71,7 @@ export default function BookProfile({
     try {
       await deleteBook(book.id, () => {
         toast.success("Book deleted successfully");
-        router.push(READER_ROUTES.library);
+        router.replace(READER_ROUTES.library); // the book's page is gone
       });
     } catch {
       toast.error("Failed to delete book");
@@ -132,13 +130,7 @@ export default function BookProfile({
       <div className="border-b bg-background/80 backdrop-blur sticky top-0 z-10">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 py-3 sm:py-4">
           <div className="flex items-center justify-between">
-            <button
-              onClick={onBack}
-              className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              <span className="text-sm">Back to Library</span>
-            </button>
+            <BackLink fallback={READER_ROUTES.library} />
 
             <div className="flex items-center gap-2">
               <button

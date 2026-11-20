@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { Archive, ArchiveRestore, ArrowLeft, Check, Merge, MoreHorizontal, Pencil, Plus } from "lucide-react";
+import { Archive, ArchiveRestore, Check, Merge, MoreHorizontal, Pencil, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -24,6 +24,7 @@ import { formatNumber, formatUnits, isNegative, isZero, normalizeAmountInput, to
 import { errorMessage, useAccount, useAccounts, useInstitutions, useMoneyMutation, usePositions, useTransactions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { AccountResponse, AccountType, SubAccountBalance } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -69,9 +70,7 @@ export default function AccountDetailPage() {
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.accounts} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Accounts
-      </Link>
+      <BackLink fallback={MONEY_ROUTES.accounts} />
       <PageHeader
         title={account.name}
         description={
@@ -356,7 +355,8 @@ function MergeAccountForm({ account }: { account: AccountResponse }) {
     (input: { intoAccountId: string; name?: string }) => moneyApi.accounts.merge(account.id, input),
     {
       success: (a) => `Merged into ${a.name}`,
-      onSuccess: (a) => router.push(MONEY_ROUTES.account(a.id)),
+      // the merged account is gone: back from the one it went into must not land on it
+      onSuccess: (a) => router.replace(MONEY_ROUTES.account(a.id)),
     }
   );
 

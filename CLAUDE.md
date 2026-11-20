@@ -15,6 +15,11 @@ for reader changes also the browser tests (Readers, below).
 Skills for the recurring work live in `.claude/skills/` (`/checks`, `/new-tool`, `/endpoint`,
 `/migration`, `/money-session`); `/new-skill` makes or revises one.
 
+A page's back arrow is `BackLink` (or `useBack`) from `apps/web/src/platform/ui/BackLink.tsx`: back
+to the page the user came from when it is the app's, up to a fallback route otherwise. After a form
+saves, or a page's own object is deleted or merged away, move on with `router.replace`, so going
+back never lands on the spent form or a page that is gone.
+
 ## Readers
 
 Architecture, decisions, measurements and how to test: `docs/document-architecture.md` (the

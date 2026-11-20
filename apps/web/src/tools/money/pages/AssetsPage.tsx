@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, Plus, Tag } from "lucide-react";
+import { Plus, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -19,6 +19,7 @@ import { MONEY_ROUTES } from "../routes";
 import { inAllocation } from "../lib/accounts";
 import { addHoldingHref, heldIn, VALUATION_LABELS } from "../lib/assets";
 import type { AssetResponse, Valuation } from "../types";
+import { BackLink } from "@platform/ui/BackLink";
 
 
 export default function AssetsPage() {
@@ -36,9 +37,7 @@ export default function AssetsPage() {
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.accounts} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Accounts
-      </Link>
+      <BackLink fallback={MONEY_ROUTES.accounts} />
       <PageHeader
         icon={Tag}
         title="Assets and classes"

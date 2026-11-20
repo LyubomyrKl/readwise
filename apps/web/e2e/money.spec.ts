@@ -4,8 +4,8 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
  * Money in a real browser, on the test stack's own account (docs/document-architecture.md,
  * Testing): the account's balance under the movement form's picker, the history showing what
  * stands, cards dragged into an order that stays, a holding added and priced on its account's
- * page, and a category merged away. Every run makes its own accounts and categories, so the spec
- * runs again on the same stack.
+ * page, the back arrow going back, and a category merged away. Every run makes its own accounts and
+ * categories, so the spec runs again on the same stack.
  */
 const run = Date.now().toString(36);
 const day = "2026-11-02";
@@ -170,6 +170,35 @@ test.describe("Money", () => {
     await page.getByRole("link", { name: "Assets and classes" }).click();
     await expect(page.getByRole("heading", { name: "Assets and classes" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Update prices" })).toBeVisible();
+  });
+
+  test("the back arrow goes back where you came from, or up when the page was opened directly", async ({ page, context, request }) => {
+    const wallet = (await account(request, `Back ${run}`, "100.00")).id;
+    const coffee = await expense(request, wallet, "5.00", `coffee ${run}`);
+    const back = (on: Page) => on.getByRole("link", { name: "Back", exact: true }).click();
+    const onAccount = new RegExp(`/apps/money/accounts/${wallet}$`);
+
+    // from an account to one of its movements and back: the account, not the list of all movements
+    await page.goto(`/apps/money/accounts/${wallet}`);
+    await page.getByRole("link").filter({ hasText: `coffee ${run}` }).click();
+    await page.waitForURL(new RegExp(`/apps/money/transactions/${coffee.id}$`));
+    await back(page);
+    await page.waitForURL(onAccount);
+
+    // a movement saved from the account: back from what it saved skips the form
+    await page.getByRole("link", { name: "Movement", exact: true }).click();
+    await page.locator("#mv-amount").fill("7.00");
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.waitForURL((url) => /^\/apps\/money\/transactions\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
+    await back(page);
+    await page.waitForURL(onAccount);
+
+    // opened directly, in a tab of its own: up to the list of movements
+    const fresh = await context.newPage();
+    await fresh.goto(`/apps/money/transactions/${coffee.id}`);
+    await back(fresh);
+    await fresh.waitForURL(/\/apps\/money\/transactions$/);
+    await fresh.close();
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

@@ -18,10 +18,6 @@ export default function BookProfilePage() {
     router.push(READER_ROUTES.bookReader(bookId));
   };
 
-  const handleBack = () => {
-    router.push(READER_ROUTES.library);
-  };
-
   if (book.isPending) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -62,7 +58,6 @@ export default function BookProfilePage() {
       book={book.data}
       notes={notes.data ?? []}
       onStartReading={handleStartReading}
-      onBack={handleBack}
     />
   );
 }
