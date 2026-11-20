@@ -12,7 +12,8 @@ import {
 import { add, subtract } from "@tools/money/lib/decimal";
 import { CASH_KINDS, CASH_TABS } from "@tools/money/components/MovementForm";
 import { TRADE_KINDS, tradeMoney } from "@tools/money/components/TradeForm";
-import type { AccountResponse, InstitutionResponse, SubAccountBalance } from "@tools/money/types";
+import { addHoldingHref, heldIn, holdingsByAccount, newAssetInput, newAssetProblem, type NewAssetFields } from "@tools/money/lib/assets";
+import type { AccountResponse, InstitutionResponse, PositionResponse, SubAccountBalance } from "@tools/money/types";
 
 const inst = (id: string, name = id): InstitutionResponse => ({ id, name, kind: "bank" });
 const account = (id: string, institution: InstitutionResponse | null, archived = false, type: AccountResponse["type"] = "bank") =>
@@ -146,5 +147,41 @@ describe("what the allocation counts", () => {
     expect((["bank", "investment", "bonds"] as const).every((t) => inAllocation(t))).toBe(true);
     expect(inAllocation("debt")).toBe(false);
     expect(inAllocation("lent")).toBe(false);
+  });
+});
+
+describe("holding an asset in an account", () => {
+  const position = (accountId: string, assetId: string, units = "10") =>
+    ({ accountId, accountName: accountId.toUpperCase(), assetId, units }) as PositionResponse;
+
+  it("asks for what a new asset needs, and turns it into the API's input", () => {
+    const fields: NewAssetFields = { code: "vwce", name: "All-World", currency: "EUR", pricing: "feed", symbol: "" };
+    expect(newAssetProblem({ ...fields, code: " " })).toMatch(/short name/);
+    expect(newAssetProblem(fields)).toMatch(/symbol/);
+    expect(newAssetProblem({ ...fields, pricing: "manual" })).toBeNull();
+    expect(newAssetInput({ ...fields, symbol: " VWCE.DE " })).toEqual({
+      code: "VWCE",
+      name: "All-World",
+      quoteCurrency: "EUR",
+      valuation: "price_feed",
+      valuationConfig: { provider: "yahoo", symbol: "VWCE.DE" },
+      ticker: "VWCE.DE",
+    });
+    expect(newAssetInput({ ...fields, pricing: "manual" })).toEqual({ code: "VWCE", name: "All-World", quoteCurrency: "EUR", valuation: "manual" });
+  });
+
+  it("lists every account that can hold units, the empty ones too, with what each holds", () => {
+    const accounts = [account("ibkr", null, false, "investment"), account("edo", null, false, "bonds"), account("mbank", null), account("old", null, true, "investment")];
+    const groups = holdingsByAccount(accounts, [position("ibkr", "vwce"), position("old", "spy")]);
+    expect(groups.map((g) => [g.account.id, g.positions.map((p) => p.assetId)])).toEqual([
+      ["ibkr", ["vwce"]],
+      ["edo", []],
+      ["old", ["spy"]], // archived, still holding
+    ]);
+    expect(heldIn("vwce", [position("ibkr", "vwce", "129"), position("xtb", "vwce", "3")])).toEqual([
+      { accountId: "ibkr", accountName: "IBKR", units: "129" },
+      { accountId: "xtb", accountName: "XTB", units: "3" },
+    ]);
+    expect(addHoldingHref("/apps/money/transactions/new?kind=buy", "ibkr", "vwce")).toBe("/apps/money/transactions/new?kind=buy&account=ibkr&asset=vwce");
   });
 });

@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { moneyApi } from "../api";
 import { holdsUnits } from "../lib/accounts";
+import { EMPTY_NEW_ASSET, NEW_ASSET, newAssetInput, newAssetProblem, type NewAssetFields } from "../lib/assets";
 import { add, divide, isPositiveDecimal, subtract } from "../lib/decimal";
 import { formatUnits, formatValue, normalizeAmountInput, today } from "../lib/format";
 import { errorMessage, useAccounts, useAssets, usePositions } from "../queries";
@@ -53,12 +56,15 @@ export function AssetSelect({
   value,
   onChange,
   only,
+  allowNew = false,
 }: {
   id?: string;
   value: string;
   onChange: (value: string) => void;
   /** restrict to these asset ids (e.g. what an account holds) */
   only?: string[];
+  /** offer "New asset…" last: the form then describes one to create */
+  allowNew?: boolean;
 }) {
   const { data: assets } = useAssets();
   const list = (assets ?? []).filter((a) => !only || only.includes(a.id));
@@ -67,9 +73,53 @@ export function AssetSelect({
       id={id}
       value={value}
       onChange={onChange}
-      placeholder={list.length === 0 ? "No assets yet" : "Asset"}
-      options={list.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` }))}
+      placeholder={allowNew ? "Pick one, or create a new asset" : list.length === 0 ? "No assets yet" : "Asset"}
+      options={[
+        ...list.map((a) => ({ value: a.id, label: `${a.code} · ${a.name}` })),
+        ...(allowNew ? [{ value: NEW_ASSET, label: "+ New asset…" }] : []),
+      ]}
     />
+  );
+}
+
+/** A new asset described in place: what it takes to hold it and know its value. */
+function NewAssetBox({ value, onChange }: { value: NewAssetFields; onChange: (next: NewAssetFields) => void }) {
+  const set = <K extends keyof NewAssetFields>(key: K, v: NewAssetFields[K]) => onChange({ ...value, [key]: v });
+  return (
+    <div className="space-y-3 rounded-lg border border-dashed p-3">
+      <p className="text-xs text-muted-foreground">
+        A new asset: created when you save, together with this holding. Bonds valued by a formula (like EDO) are set up under Assets
+        and classes.
+      </p>
+      <div className="grid gap-3 sm:grid-cols-[9rem_1fr]">
+        <Field label="Short name" hint="As it shows everywhere">
+          <Input value={value.code} onChange={(e) => set("code", e.target.value.toUpperCase())} placeholder="VWCE" />
+        </Field>
+        <Field label="Full name">
+          <Input value={value.name} onChange={(e) => set("name", e.target.value)} placeholder="Vanguard FTSE All-World" />
+        </Field>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-[9rem_1fr]">
+        <Field label="Price currency">
+          <CurrencySelect value={value.currency} onChange={(v) => set("currency", v)} />
+        </Field>
+        <Field label="Its price">
+          <Segmented
+            value={value.pricing}
+            onChange={(v) => set("pricing", v)}
+            options={[
+              { value: "feed", label: "Daily from the internet" },
+              { value: "manual", label: "I enter prices" },
+            ]}
+          />
+        </Field>
+      </div>
+      {value.pricing === "feed" ? (
+        <Field label="Symbol at Yahoo Finance" hint="Search the fund on finance.yahoo.com; the price is fetched every evening">
+          <Input value={value.symbol} onChange={(e) => set("symbol", e.target.value)} placeholder="VWCE.DE" />
+        </Field>
+      ) : null}
+    </div>
   );
 }
 
@@ -81,6 +131,7 @@ export function TradeForm<T = TransactionResponse>({
   initial,
   initialKind = "buy",
   accountId,
+  initialAsset,
   lockKind = false,
   kinds = TRADE_KINDS,
   submitLabel = "Save",
@@ -90,6 +141,8 @@ export function TradeForm<T = TransactionResponse>({
   initial?: Movement;
   initialKind?: TradeKind;
   accountId?: string;
+  /** preselect this asset (buy more of it, sell it) */
+  initialAsset?: string;
   lockKind?: boolean;
   kinds?: { value: TradeKind; label: string }[];
   submitLabel?: string;
@@ -101,7 +154,11 @@ export function TradeForm<T = TransactionResponse>({
   const [date, setDate] = useState(str(i.date) || today());
   const [note, setNote] = useState(str(i.note));
   const [account, setAccount] = useState(str(i.accountId) || str(i.fromAccountId) || accountId || "");
-  const [asset, setAsset] = useState(str(i.assetId));
+  const [asset, setAsset] = useState(str(i.assetId) || initialAsset || "");
+  const [newAsset, setNewAsset] = useState<NewAssetFields>(EMPTY_NEW_ASSET);
+  /** "paid in another currency": rare, folded away */
+  const [otherCurrency, setOtherCurrency] = useState(!!str(i.tradeAmount));
+  const queryClient = useQueryClient();
   const [units, setUnits] = useState(str(i.units));
   const [money, setMoney] = useState(str(i.total) || str(i.proceeds) || str(i.amount));
   /** a buy's or sale's fee; the amount above it is before the fee */
@@ -145,6 +202,11 @@ export function TradeForm<T = TransactionResponse>({
     setAccount("");
   }, [holderKind, account, accounts, kind]);
 
+  // only a buy creates an asset in place
+  useEffect(() => {
+    if (kind !== "buy" && asset === NEW_ASSET) setAsset("");
+  }, [kind, asset]);
+
   // the currency follows the paying (or receiving) account, the asset's quote currency first
   useEffect(() => {
     if (kind === "split" || kind === "unit_move") return;
@@ -165,7 +227,8 @@ export function TradeForm<T = TransactionResponse>({
     return !a || canHold(a);
   };
 
-  function build(): Movement | string {
+  /** `assetId`: the asset picked, or (for a new one) its id once created */
+  function build(assetId: string = asset): Movement | string {
     const base: Record<string, unknown> = { date, ...(note.trim() ? { note: note.trim() } : {}) };
     const u = normalizeAmountInput(units);
     const m = normalizeAmountInput(money);
@@ -175,7 +238,7 @@ export function TradeForm<T = TransactionResponse>({
       case "sell": {
         if (!account) return "Pick the account that holds the units";
         if (!holderOk(account)) return "Units are held in an investment or bonds account";
-        if (!asset) return "Pick the asset";
+        if (!assetId) return "Pick the asset";
         if (!AMOUNT_RE.test(u)) return "Enter the units";
         if (!AMOUNT_RE.test(m)) return "Enter the amount";
         const f = normalizeAmountInput(fee);
@@ -183,7 +246,7 @@ export function TradeForm<T = TransactionResponse>({
         const all = tradeMoney(kind, m, f);
         if (!all || !isPositiveDecimal(all)) return "The fee must be less than the amount";
         if (!currency) return "Pick the currency";
-        const input: Record<string, unknown> = { ...base, accountId: account, assetId: asset, units: u, currency };
+        const input: Record<string, unknown> = { ...base, accountId: account, assetId, units: u, currency };
         if (kind === "buy") {
           input.total = all;
           if (heldBefore) input.heldBefore = true;
@@ -204,33 +267,50 @@ export function TradeForm<T = TransactionResponse>({
         if (!AMOUNT_RE.test(m)) return "Enter the amount received";
         const input: Record<string, unknown> = { ...base, accountId: account, currency, amount: m, incomeType };
         if (withholding) input.withholding = normalizeAmountInput(withholding);
-        if (asset) input.assetId = asset;
+        if (assetId) input.assetId = assetId;
         return { kind, input };
       }
       case "unit_move": {
         if (!account || !other) return "Pick both accounts";
         if (!holderOk(account) || !holderOk(other)) return "Units move between investment or bonds accounts";
-        if (!asset) return "Pick the asset";
+        if (!assetId) return "Pick the asset";
         if (!AMOUNT_RE.test(u)) return "Enter the units";
-        return { kind, input: { ...base, fromAccountId: account, toAccountId: other, assetId: asset, units: u } };
+        return { kind, input: { ...base, fromAccountId: account, toAccountId: other, assetId: assetId, units: u } };
       }
       case "split": {
-        if (!asset) return "Pick the asset";
+        if (!assetId) return "Pick the asset";
         if (!/^\d+$/.test(ratioFrom) || !/^\d+$/.test(ratioTo)) return "Enter the ratio as two whole numbers";
-        return { kind, input: { ...base, assetId: asset, ratioFrom, ratioTo } };
+        return { kind, input: { ...base, assetId: assetId, ratioFrom, ratioTo } };
       }
     }
   }
 
   async function submit() {
     setError(null);
-    const movement = build();
-    if (typeof movement === "string") {
-      setError(movement);
+    // a new asset is created only once the rest of the form is right, then the buy posts with it
+    const creating = kind === "buy" && asset === NEW_ASSET;
+    if (creating) {
+      const problem = newAssetProblem(newAsset);
+      if (problem) {
+        setError(problem);
+        return;
+      }
+    }
+    const checked = build(creating ? "pending" : asset);
+    if (typeof checked === "string") {
+      setError(checked);
       return;
     }
     setPending(true);
     try {
+      let movement = checked;
+      if (creating) {
+        const created = await moneyApi.assets.create(newAssetInput(newAsset));
+        // picked from now on: a buy that fails after this does not create it twice
+        setAsset(created.id);
+        void queryClient.invalidateQueries({ queryKey: ["money", "assets"] });
+        movement = build(created.id) as Movement;
+      }
       // awaited first: in onDone?.(await onSubmit(…)) a missing onDone would skip the submit too
       const result = await onSubmit({ kind: movement.kind as MovementKind, input: movement.input });
       onDone?.(result);
@@ -251,6 +331,24 @@ export function TradeForm<T = TransactionResponse>({
     >
       {lockKind ? null : <Segmented value={kind} onChange={setKind} options={kinds} />}
 
+      {kind === "buy" ? (
+        <div className="space-y-1.5">
+          <Segmented
+            value={heldBefore ? "owned" : "buying"}
+            onChange={(v) => setHeldBefore(v === "owned")}
+            options={[
+              { value: "buying", label: "Buying now" },
+              { value: "owned", label: "Already own them" },
+            ]}
+          />
+          <p className="text-xs text-muted-foreground">
+            {heldBefore
+              ? "Units you held before you started tracking: they join the account with what they cost; no money moves now."
+              : "The money leaves an account (this one, or another you pick) and the units arrive in the account below."}
+          </p>
+        </div>
+      ) : null}
+
       {kind === "split" ? (
         <p className="text-sm text-muted-foreground">
           When a fund turns each unit into several (e.g. 1 → 2), or several into one. You hold the same money; only the number of
@@ -269,13 +367,13 @@ export function TradeForm<T = TransactionResponse>({
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Date">
+        <Field label="Date" hint={kind === "buy" && heldBefore ? "When you got them, or the day you start tracking them" : undefined}>
           <DateInput value={date} onChange={setDate} />
         </Field>
         {kind === "split" ? null : (
           <Field
             label={kind === "unit_move" ? "From account" : "Account"}
-            hint={kind === "buy" ? "Where the units are held" : kind === "investment_income" ? "An investment or bonds account" : undefined}
+            hint={kind === "buy" ? "The investment or bonds account that holds them" : kind === "investment_income" ? "An investment or bonds account" : undefined}
           >
             <AccountSelect
               value={account}
@@ -316,7 +414,12 @@ export function TradeForm<T = TransactionResponse>({
       ) : (
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Asset">
-            <AssetSelect value={asset} onChange={setAsset} only={kind === "sell" || kind === "unit_move" ? heldHere : undefined} />
+            <AssetSelect
+              value={asset}
+              onChange={setAsset}
+              only={kind === "sell" || kind === "unit_move" ? heldHere : undefined}
+              allowNew={kind === "buy"}
+            />
           </Field>
           {kind === "split" ? (
             <Field label="Ratio" hint="Every N units before become M after (1 → 3 triples them)">
@@ -337,59 +440,77 @@ export function TradeForm<T = TransactionResponse>({
         </div>
       )}
 
+      {kind === "buy" && asset === NEW_ASSET ? <NewAssetBox value={newAsset} onChange={setNewAsset} /> : null}
+
       {kind === "buy" || kind === "sell" ? (
         <>
           <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-            <Field
-              label={kind === "buy" ? "Paid from" : "Proceeds to"}
-              hint={
-                <>
-                  Default: the same account
-                  {cashAccount ? <AccountBalances account={cashAccount} currency={currency} /> : null}
-                </>
-              }
-            >
-              <AccountSelect value={other || account} onChange={setOther} />
-            </Field>
+            {kind === "buy" && heldBefore ? (
+              <p className="self-end pb-2 text-sm text-muted-foreground">No account pays: you already own them.</p>
+            ) : (
+              <Field
+                label={kind === "buy" ? "Paid from" : "Proceeds to"}
+                hint={
+                  <>
+                    Default: the same account
+                    {cashAccount ? <AccountBalances account={cashAccount} currency={currency} /> : null}
+                  </>
+                }
+              >
+                <AccountSelect value={other || account} onChange={setOther} />
+              </Field>
+            )}
             <Field label="Currency">
               <CurrencySelect value={currency} onChange={setCurrency} only={heldBefore ? undefined : accountCurrencies(cashAccount)} />
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field
-              label="Amount"
-              hint={unitPrice ? `${unitPrice} ${currency} per unit, before the fee` : "Price × units, before the fee"}
+              label={kind === "buy" && heldBefore ? "What they cost" : "Amount"}
+              hint={
+                kind === "buy" && heldBefore
+                  ? "In total, what you paid for them"
+                  : unitPrice
+                    ? `${unitPrice} ${currency} per unit, before the fee`
+                    : "Price × units, before the fee"
+              }
             >
               <AmountInput value={money} onChange={setMoney} />
             </Field>
-            <Field
-              label={`Fee${currency ? ` (${currency})` : ""}`}
-              hint={kind === "buy" ? "Optional; part of the cost for tax" : "Optional; taken from what arrives"}
-            >
-              <AmountInput value={fee} onChange={setFee} placeholder="0.00" />
-            </Field>
+            {kind === "buy" && heldBefore ? null : (
+              <Field
+                label={`Fee${currency ? ` (${currency})` : ""}`}
+                hint={kind === "buy" ? "Optional; part of the cost for tax" : "Optional; taken from what arrives"}
+              >
+                <AmountInput value={fee} onChange={setFee} placeholder="0.00" />
+              </Field>
+            )}
           </div>
           {posted && currency ? (
             <p className="text-sm">
-              <span className="text-muted-foreground">{kind === "buy" ? "Total paid" : "You receive"}: </span>
+              <span className="text-muted-foreground">{kind === "buy" ? (heldBefore ? "Cost" : "Total paid") : "You receive"}: </span>
               <span className="font-medium tabular-nums">{formatValue(posted, currency)}</span>
             </p>
           ) : null}
-          {kind === "buy" ? (
-            <div className="space-y-3 rounded-lg border p-3">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={heldBefore} onChange={(e) => setHeldBefore(e.target.checked)} />
-                Held before tracking started (no cash moves; the total is what they cost)
-              </label>
-              <div className="grid gap-3 sm:grid-cols-[8rem_1fr]">
-                <Field label="Trade currency" hint="Optional">
+          {kind === "buy" && !heldBefore ? (
+            otherCurrency ? (
+              <div className="grid gap-3 rounded-lg border p-3 sm:grid-cols-[8rem_1fr]">
+                <Field label="Trade currency">
                   <CurrencySelect value={tradeCurrency} onChange={setTradeCurrency} placeholder="—" />
                 </Field>
                 <Field label="Broker charged" hint="When the trade was in another currency than the payment">
                   <AmountInput value={tradeAmount} onChange={setTradeAmount} />
                 </Field>
               </div>
-            </div>
+            ) : (
+              <button
+                type="button"
+                className="text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                onClick={() => setOtherCurrency(true)}
+              >
+                The broker charged in another currency?
+              </button>
+            )
           ) : null}
         </>
       ) : null}

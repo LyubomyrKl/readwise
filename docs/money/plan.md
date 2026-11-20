@@ -234,3 +234,15 @@ entries of posted transactions cannot be updated or deleted.
   out of the classes; a removed class leaves its accounts in none; a car sold kept out of the
   income and the savings rate, and back in when the category counts again); browser tests in
   `apps/web/e2e/money.spec.ts`.
+- **Assets and accounts, Nov 20** — the owner could not see how to create an asset and get it
+  into an account: the asset was made on one page, the buy on another, and nothing said that
+  buying is what puts an asset in an account. Now (web only): "Add a holding" everywhere a holding
+  can start (the Investments page, every investment or bonds account, each asset), one form for
+  buying now or already owning (the old "held before tracking" box, now a choice on top), "+ New
+  asset…" in the asset picker that creates the asset with the holding (short name, full name,
+  price currency, a daily price by Yahoo symbol or prices entered), the Investments page account by
+  account with the empty accounts showing how to start, holdings on an account's own page with buy
+  more and sell for that asset, and each asset saying where it is held. The asset form speaks plainly
+  (short name, price currency, its price; ISIN and exchange ticker under More details) and, for a new
+  asset, offers to add a holding of it. Tests: helpers in `money-accounts.test.ts`; in the browser,
+  an investment account adds a holding of a new asset already owned, in one form, and no money moves.

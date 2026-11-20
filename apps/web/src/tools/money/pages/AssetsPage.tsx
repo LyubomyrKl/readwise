@@ -12,22 +12,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { moneyApi } from "../api";
 import { accountLabel, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
-import { formatDate, formatValue, normalizePercentInput, percent, today } from "../lib/format";
-import { errorMessage, useAccounts, useAssetClasses, useAssets, useMoneyMutation } from "../queries";
+import { formatDate, formatUnits, formatValue, normalizePercentInput, percent, today } from "../lib/format";
+import { errorMessage, useAccounts, useAssetClasses, useAssets, useMoneyMutation, usePositions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import { inAllocation } from "../lib/accounts";
+import { addHoldingHref, heldIn, VALUATION_LABELS } from "../lib/assets";
 import type { AssetResponse, Valuation } from "../types";
 
-const VALUATION_LABELS: Record<Valuation, string> = {
-  manual: "Prices entered by hand",
-  price_feed: "Price feed",
-  bond_formula: "Bond formula (EDO-style)",
-};
 
 export default function AssetsPage() {
   const { data: assets } = useAssets(true);
   const { data: classes } = useAssetClasses();
-  const [editing, setEditing] = useState<AssetResponse | "new" | null>(null);
+  const [editing, setEditingState] = useState<AssetResponse | "new" | null>(null);
+  /** the asset just created: the sheet offers to add a holding of it */
+  const [created, setCreated] = useState<AssetResponse | null>(null);
+  const setEditing = (next: AssetResponse | "new" | null) => {
+    setCreated(null);
+    setEditingState(next);
+  };
+  const { data: positions } = usePositions();
 
   return (
     <MoneyPage>
@@ -55,14 +58,23 @@ export default function AssetsPage() {
           ) : (
             <ul className="divide-y">
               {(assets ?? []).map((a) => (
-                <li key={a.id}>
-                  <button type="button" className="flex w-full items-start justify-between gap-3 py-2 text-left hover:bg-muted/30" onClick={() => setEditing(a)}>
+                <li key={a.id} className="flex items-start gap-2">
+                  <button type="button" className="flex min-w-0 flex-1 items-start justify-between gap-3 py-2 text-left hover:bg-muted/30" onClick={() => setEditing(a)}>
                     <span className="min-w-0">
                       <span className="block truncate font-medium">
                         {a.code} {a.archived ? <Badge variant="outline">Archived</Badge> : null}
                       </span>
                       <span className="block truncate text-xs text-muted-foreground">
                         {a.name} · {a.quoteCurrency} · {VALUATION_LABELS[a.valuation]}
+                      </span>
+                      <span className="block truncate text-xs">
+                        {heldIn(a.id, positions ?? []).length === 0 ? (
+                          <span className="text-muted-foreground">Not held in any account yet</span>
+                        ) : (
+                          heldIn(a.id, positions ?? [])
+                            .map((h) => `${h.accountName}: ${formatUnits(h.units)} ${a.unitName}`)
+                            .join(" · ")
+                        )}
                       </span>
                     </span>
                     <span className="flex shrink-0 flex-col items-end gap-1 text-xs">
@@ -85,6 +97,14 @@ export default function AssetsPage() {
                       </span>
                     </span>
                   </button>
+                  {a.archived ? null : (
+                    <Link
+                      href={addHoldingHref(MONEY_ROUTES.newMovement("buy"), undefined, a.id)}
+                      className="shrink-0 py-2 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+                    >
+                      Add a holding
+                    </Link>
+                  )}
                 </li>
               ))}
             </ul>
@@ -99,10 +119,34 @@ export default function AssetsPage() {
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
             <SheetTitle>{editing === "new" ? "New asset" : editing ? `Edit ${editing.code}` : ""}</SheetTitle>
-            <SheetDescription>Nothing about an instrument is fixed in code; describe it here.</SheetDescription>
+            <SheetDescription>
+              {editing === "new"
+                ? "Something you can own units of: an ETF, a share, a bond. Saving it does not put it in an account; add a holding to do that (the Add a holding form can also create the asset for you)."
+                : "How the asset is named and valued; where it is held shows on the Investments page."}
+            </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">
-            {editing ? <AssetForm asset={editing === "new" ? null : editing} onDone={() => setEditing(null)} /> : null}
+            {created ? (
+              <div className="space-y-3">
+                <p className="text-sm">
+                  <span className="font-medium">{created.code}</span> is saved. To own it, add it to an account: buy it, or record what you
+                  already own.
+                </p>
+                <div className="flex gap-2">
+                  <Button asChild>
+                    <Link href={addHoldingHref(MONEY_ROUTES.newMovement("buy"), undefined, created.id)}>Add a holding</Link>
+                  </Button>
+                  <Button variant="outline" onClick={() => setEditing(null)}>
+                    Later
+                  </Button>
+                </div>
+              </div>
+            ) : editing ? (
+              <AssetForm
+                asset={editing === "new" ? null : editing}
+                onDone={(saved) => (editing === "new" && saved ? setCreated(saved) : setEditing(null))}
+              />
+            ) : null}
           </div>
         </SheetContent>
       </Sheet>
@@ -129,7 +173,7 @@ function bondFields(config: Record<string, unknown> | null) {
   };
 }
 
-function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () => void }) {
+function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: (saved?: AssetResponse) => void }) {
   const { data: classes } = useAssetClasses();
   const [code, setCode] = useState(asset?.code ?? "");
   const [name, setName] = useState(asset?.name ?? "");
@@ -137,7 +181,9 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
   const [unitName, setUnitName] = useState(asset?.unitName ?? "units");
   const [ticker, setTicker] = useState(asset?.ticker ?? "");
   const [isin, setIsin] = useState(asset?.isin ?? "");
-  const [valuation, setValuation] = useState<Valuation>(asset?.valuation ?? "manual");
+  const [valuation, setValuation] = useState<Valuation>(asset?.valuation ?? "price_feed");
+  /** ISIN and the exchange ticker: for broker imports, folded away until wanted */
+  const [details, setDetails] = useState(!!(asset?.isin || asset?.ticker));
   const [feedSymbol, setFeedSymbol] = useState(String((asset?.valuationConfig as { symbol?: string } | null)?.symbol ?? ""));
   const [bond, setBond] = useState(() => bondFields(asset?.valuation === "bond_formula" ? asset.valuationConfig : null));
   const [shares, setShares] = useState<{ classId: string; percent: string }[]>(asset?.classes ?? []);
@@ -201,33 +247,48 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
       onSubmit={(e) => {
         e.preventDefault();
         setError(null);
-        if (!code.trim() || !name.trim()) return setError("Code and name, please");
+        if (!code.trim() || !name.trim()) return setError("A short name and a full name, please");
+        if (valuation === "price_feed" && !feedSymbol.trim()) {
+          return setError("Enter its symbol at Yahoo Finance (e.g. VWCE.DE), or choose Prices I enter");
+        }
         save.mutate(undefined, { onError: (err) => setError(err instanceof Error ? err.message : String(err)) });
       }}
     >
       <div className="grid gap-3 sm:grid-cols-[8rem_1fr]">
-        <Field label="Code">
+        <Field label="Short name" hint="As it shows everywhere">
           <Input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} placeholder="VWCE" />
         </Field>
-        <Field label="Name">
+        <Field label="Full name">
           <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Vanguard FTSE All-World" />
         </Field>
       </div>
       <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Quote currency" hint={asset ? "Fixed once prices exist" : undefined}>
+        <Field label="Price currency" hint={asset ? "Fixed once prices exist" : "The currency its price is quoted in"}>
           {asset ? <Input value={quoteCurrency} disabled /> : <CurrencySelect value={quoteCurrency} onChange={setQuoteCurrency} />}
         </Field>
-        <Field label="Unit" hint="units, bonds of 100 PLN…">
+        <Field label="Counted in" hint="units, bonds of 100 PLN…">
           <Input value={unitName} onChange={(e) => setUnitName(e.target.value)} />
         </Field>
-        <Field label="ISIN" hint="Optional">
-          <Input value={isin} onChange={(e) => setIsin(e.target.value.toUpperCase())} />
-        </Field>
-        <Field label="Exchange ticker" hint="Optional; broker imports match it">
-          <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="VWCE.DE" />
-        </Field>
+        {details ? (
+          <>
+            <Field label="ISIN" hint="Optional">
+              <Input value={isin} onChange={(e) => setIsin(e.target.value.toUpperCase())} />
+            </Field>
+            <Field label="Exchange ticker" hint="Optional; broker imports match it">
+              <Input value={ticker} onChange={(e) => setTicker(e.target.value)} placeholder="VWCE.DE" />
+            </Field>
+          </>
+        ) : (
+          <button
+            type="button"
+            className="justify-self-start text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline sm:col-span-2"
+            onClick={() => setDetails(true)}
+          >
+            More details (ISIN, exchange ticker for broker imports)
+          </button>
+        )}
       </div>
-      <Field label="Value">
+      <Field label="Its price">
         <SimpleSelect
           value={valuation}
           onChange={setValuation}
@@ -235,7 +296,7 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
         />
       </Field>
       {valuation === "price_feed" ? (
-        <Field label="Feed symbol" hint="Yahoo Finance symbol, e.g. VWCE.DE; fetched every evening">
+        <Field label="Symbol at Yahoo Finance" hint="Search the fund on finance.yahoo.com, e.g. VWCE.DE; the price is fetched every evening">
           <Input value={feedSymbol} onChange={(e) => setFeedSymbol(e.target.value)} placeholder="vwce.de" />
         </Field>
       ) : null}

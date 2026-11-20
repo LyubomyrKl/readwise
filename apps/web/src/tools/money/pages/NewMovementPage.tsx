@@ -25,6 +25,7 @@ export default function NewMovementPage() {
   const router = useRouter();
   const kind = params.get("kind") ?? "expense";
   const accountId = params.get("account") ?? undefined;
+  const assetId = params.get("asset") ?? undefined;
   const correctId = params.get("correct") ?? undefined;
   const { data: original, isLoading } = useTransaction(correctId);
   const post = useMoneyMutation((movement: Movement) =>
@@ -74,6 +75,7 @@ export default function NewMovementPage() {
                   initial={initial}
                   initialKind={(TRADE_KINDS.some((k) => k.value === kind) ? kind : "buy") as TradeKind}
                   accountId={accountId}
+                  initialAsset={assetId}
                   lockKind={!!correctId}
                   submitLabel={correctId ? "Correct" : "Save"}
                   onSubmit={(m) => post.mutateAsync(m)}

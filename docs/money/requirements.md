@@ -75,10 +75,14 @@ default.
 | Cost basis method | A setting per account: first in first out, or average cost — changes with tax residence | First in, first out (the Polish rule) |
 | Prices | One price table (asset, date, price); manual entry, file import and a price feed all write to it | Manual, at the quarterly checkpoint |
 
-What you see: one Buy form (date, account, asset, units, total paid with fee,
-paid from; optional: the amount the broker charged in the trade currency) and one
-card per asset per account (units, cost, average cost, value, gain). Fields you
-don't use stay hidden.
+What you see: an asset is something you can own units of; you hold it in an
+investment or bonds account by adding a holding there. One form does it: buying now
+(units, amount and fee, paid from this or another account) or already owned (units
+and what they cost, no money moves), for an asset picked or created right in the
+form. Each investment or bonds account shows its holdings, one card per asset (units,
+cost, average cost, value, gain, buy more, sell), and the Investments page lists
+them account by account, empty ones with a way to add a holding. Fields you don't
+use stay hidden (the amount the broker charged in another currency, ISIN).
 
 ## Out of scope for v1, and open questions
 

@@ -14,11 +14,13 @@ import { cn } from "@/lib/utils";
 import { moneyApi } from "../api";
 import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_SHORT_LABELS, GroupField, resolveGroup, TYPE_HINTS } from "../components/AccountForm";
 import { accountCurrencies, AmountInput, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
-import { mergeBlocker, mergeCandidates, mergeNameGuess, pickableInstitutions } from "../lib/accounts";
+import { holdsUnits, mergeBlocker, mergeCandidates, mergeNameGuess, pickableInstitutions } from "../lib/accounts";
+import { addHoldingHref } from "../lib/assets";
+import { PositionCard } from "../components/PositionCard";
 import { MoneyPage, PageHeader } from "../components/PageHeader";
 import { TransactionList } from "../components/TransactionList";
 import { formatNumber, formatUnits, isNegative, isZero, normalizeAmountInput, today } from "../lib/format";
-import { errorMessage, useAccount, useAccounts, useInstitutions, useMoneyMutation, useTransactions } from "../queries";
+import { errorMessage, useAccount, useAccounts, useInstitutions, useMoneyMutation, usePositions, useTransactions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { AccountResponse, AccountType, SubAccountBalance } from "../types";
 
@@ -26,6 +28,7 @@ export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: account, isLoading } = useAccount(id);
   const txs = useTransactions({ accountId: id });
+  const { data: positions } = usePositions();
   const [editing, setEditing] = useState(false);
   /** the currency select is open */
   const [adding, setAdding] = useState(false);
@@ -54,6 +57,11 @@ export default function AccountDetailPage() {
   }
 
   const items = txs.data?.pages.flatMap((p) => p.items) ?? [];
+  // an investment or bonds account: its cash under Balances, what it holds under Holdings
+  const holder = holdsUnits(account);
+  const holdings = (positions ?? []).filter((p) => p.accountId === account.id);
+  const tiles = holder ? account.balances.filter((b) => b.kind === "currency") : account.balances;
+  const addHolding = addHoldingHref(MONEY_ROUTES.newMovement("buy"), account.id);
 
   return (
     <MoneyPage>
@@ -72,8 +80,15 @@ export default function AccountDetailPage() {
         }
         actions={
           <>
-            {account.archivedAt ? null : (
+            {account.archivedAt || !holder ? null : (
               <Button asChild>
+                <Link href={addHolding}>
+                  <Plus className="mr-1 h-4 w-4" /> Add a holding
+                </Link>
+              </Button>
+            )}
+            {account.archivedAt ? null : (
+              <Button variant={holder ? "outline" : "default"} asChild>
                 <Link href={`${MONEY_ROUTES.newMovement()}?account=${account.id}`}>
                   <Plus className="mr-1 h-4 w-4" /> Movement
                 </Link>
@@ -107,7 +122,7 @@ export default function AccountDetailPage() {
           Balances
         </h2>
         <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {account.balances.map((b) => (
+          {tiles.map((b) => (
             <li key={b.subAccountId} className="min-w-0">
               <BalanceTile
                 balance={b}
@@ -146,6 +161,33 @@ export default function AccountDetailPage() {
         </ul>
         {account.balances.length === 0 && account.archivedAt ? <p className="text-sm text-muted-foreground">No balances.</p> : null}
       </section>
+
+      {holder ? (
+        <section className="space-y-3" aria-labelledby="holdings-heading">
+          <h2 id="holdings-heading" className="text-lg font-semibold">
+            Holdings
+          </h2>
+          {holdings.length === 0 ? (
+            account.archivedAt ? (
+              <p className="text-sm text-muted-foreground">Nothing held.</p>
+            ) : (
+              <Link
+                href={addHolding}
+                className="block rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40 hover:text-foreground"
+              >
+                Nothing held here yet. Add a holding: buy something, or record what you already own. A new asset can be created in the
+                same form.
+              </Link>
+            )
+          ) : (
+            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+              {holdings.map((p) => (
+                <PositionCard key={p.assetId} position={p} showAccount={false} />
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Transactions</h2>

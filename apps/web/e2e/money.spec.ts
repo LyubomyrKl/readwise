@@ -122,6 +122,39 @@ test.describe("Money", () => {
     await expect(page.getByText("Not counted in these totals:")).toContainText(/Sold belongings \+PLN\s[\d,]+\.\d\d/); // the currency formatter puts a no-break space
   });
 
+  test("an investment account adds a holding of a new asset, already owned, in one form", async ({ page, request }) => {
+    const holder = await call<{ id: string }>(request, "post", "/money/accounts", {
+      name: `Holder ${run}`,
+      type: "investment",
+      currencies: ["PLN"],
+      openingBalances: [{ currency: "PLN", amount: "2000.00", date: "2026-11-01" }],
+    });
+    const code = `H${run}`.toUpperCase().slice(0, 12);
+    await page.goto(`/apps/money/accounts/${holder.id}`);
+    await expect(page.getByText("Nothing held here yet.")).toBeVisible();
+    await page.getByRole("link", { name: "Add a holding" }).first().click();
+
+    await page.getByRole("tab", { name: "Already own them" }).click();
+    await page.getByLabel("Asset").click();
+    await page.getByRole("option", { name: "+ New asset…" }).click();
+    await page.getByLabel("Short name").fill(code);
+    await page.getByLabel("Full name").fill("A fund held before tracking");
+    await page.getByLabel("Price currency").click();
+    await page.getByRole("option", { name: /^PLN/ }).click();
+    await page.getByRole("tab", { name: "I enter prices" }).click();
+    await page.getByLabel("Units").fill("5");
+    await page.getByLabel("What they cost").fill("500");
+    await page.getByRole("button", { name: "Save" }).click();
+    await page.waitForURL(/\/apps\/money\/transactions\/[^/]+$/);
+
+    await page.goto(`/apps/money/accounts/${holder.id}`);
+    const holdings = page.getByRole("region", { name: "Holdings" });
+    await expect(holdings).toContainText(code);
+    await expect(holdings).toContainText("5");
+    // already owned: no money left the account
+    await expect(page.getByRole("region", { name: "Balances" })).toContainText("2,000.00");
+  });
+
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {
     const wallet = (await account(request, `Merge ${run}`, "100.00")).id;
     const dup = await call<{ id: string }>(request, "post", "/money/categories", { name: `Dup ${run}`, kind: "expense" });
