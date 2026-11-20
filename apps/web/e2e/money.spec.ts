@@ -131,7 +131,7 @@ test.describe("Money", () => {
     });
     const code = `H${run}`.toUpperCase().slice(0, 12);
     await page.goto(`/apps/money/accounts/${holder.id}`);
-    await expect(page.getByText("Nothing held here yet.")).toBeVisible();
+    await expect(page.getByText("Buy something, or record what you already own")).toBeVisible();
     await page.getByRole("link", { name: "Add a holding" }).first().click();
 
     await page.getByRole("tab", { name: "Already own them" }).click();

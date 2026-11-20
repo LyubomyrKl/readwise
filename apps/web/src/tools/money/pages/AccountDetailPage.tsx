@@ -16,7 +16,7 @@ import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_SHORT_LABELS, GroupField, resolveGrou
 import { accountCurrencies, AmountInput, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
 import { holdsUnits, mergeBlocker, mergeCandidates, mergeNameGuess, pickableInstitutions } from "../lib/accounts";
 import { addHoldingHref } from "../lib/assets";
-import { PositionCard } from "../components/PositionCard";
+import { AddHoldingTile, PositionCard } from "../components/PositionCard";
 import { MoneyPage, PageHeader } from "../components/PageHeader";
 import { TransactionList } from "../components/TransactionList";
 import { formatNumber, formatUnits, isNegative, isZero, normalizeAmountInput, today } from "../lib/format";
@@ -97,22 +97,32 @@ export default function AccountDetailPage() {
             <Button variant="outline" onClick={() => setEditing(true)}>
               <Pencil className="mr-1 h-4 w-4" /> Edit
             </Button>
-            {account.archivedAt ? null : (
-              <Button variant="outline" onClick={() => setMerging(true)}>
-                <Merge className="mr-1 h-4 w-4" /> Merge into…
-              </Button>
-            )}
-            <Button variant="outline" onClick={() => archive.mutate(undefined)} disabled={archive.isPending}>
-              {account.archivedAt ? (
-                <>
-                  <ArchiveRestore className="mr-1 h-4 w-4" /> Unarchive
-                </>
-              ) : (
-                <>
-                  <Archive className="mr-1 h-4 w-4" /> Archive
-                </>
-              )}
-            </Button>
+            {/* the rare ones, out of the way */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" aria-label="More actions">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {account.archivedAt ? null : (
+                  <DropdownMenuItem onSelect={() => setMerging(true)}>
+                    <Merge className="mr-2 h-4 w-4" /> Merge into…
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onSelect={() => archive.mutate(undefined)} disabled={archive.isPending}>
+                  {account.archivedAt ? (
+                    <>
+                      <ArchiveRestore className="mr-2 h-4 w-4" /> Unarchive
+                    </>
+                  ) : (
+                    <>
+                      <Archive className="mr-2 h-4 w-4" /> Archive
+                    </>
+                  )}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         }
       />
@@ -167,23 +177,14 @@ export default function AccountDetailPage() {
           <h2 id="holdings-heading" className="text-lg font-semibold">
             Holdings
           </h2>
-          {holdings.length === 0 ? (
-            account.archivedAt ? (
-              <p className="text-sm text-muted-foreground">Nothing held.</p>
-            ) : (
-              <Link
-                href={addHolding}
-                className="block rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40 hover:text-foreground"
-              >
-                Nothing held here yet. Add a holding: buy something, or record what you already own. A new asset can be created in the
-                same form.
-              </Link>
-            )
+          {holdings.length === 0 && account.archivedAt ? (
+            <p className="text-sm text-muted-foreground">Nothing held.</p>
           ) : (
-            <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
+            <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
               {holdings.map((p) => (
                 <PositionCard key={p.assetId} position={p} showAccount={false} />
               ))}
+              {account.archivedAt ? null : <AddHoldingTile href={addHolding} />}
             </div>
           )}
         </section>

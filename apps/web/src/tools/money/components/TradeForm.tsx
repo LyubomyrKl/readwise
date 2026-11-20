@@ -92,7 +92,7 @@ function NewAssetBox({ value, onChange }: { value: NewAssetFields; onChange: (ne
         and classes.
       </p>
       <div className="grid gap-3 sm:grid-cols-[9rem_1fr]">
-        <Field label="Short name" hint="As it shows everywhere">
+        <Field label="Short name">
           <Input value={value.code} onChange={(e) => set("code", e.target.value.toUpperCase())} placeholder="VWCE" />
         </Field>
         <Field label="Full name">
@@ -444,48 +444,47 @@ export function TradeForm<T = TransactionResponse>({
 
       {kind === "buy" || kind === "sell" ? (
         <>
-          <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
-            {kind === "buy" && heldBefore ? (
-              <p className="self-end pb-2 text-sm text-muted-foreground">No account pays: you already own them.</p>
-            ) : (
-              <Field
-                label={kind === "buy" ? "Paid from" : "Proceeds to"}
-                hint={
-                  <>
-                    Default: the same account
-                    {cashAccount ? <AccountBalances account={cashAccount} currency={currency} /> : null}
-                  </>
-                }
-              >
-                <AccountSelect value={other || account} onChange={setOther} />
+          {kind === "buy" && heldBefore ? (
+            // already owned: no account pays, so what they cost and its currency are all there is
+            <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+              <Field label="What they cost" hint="In total, what you paid for them">
+                <AmountInput value={money} onChange={setMoney} />
               </Field>
-            )}
-            <Field label="Currency">
-              <CurrencySelect value={currency} onChange={setCurrency} only={heldBefore ? undefined : accountCurrencies(cashAccount)} />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field
-              label={kind === "buy" && heldBefore ? "What they cost" : "Amount"}
-              hint={
-                kind === "buy" && heldBefore
-                  ? "In total, what you paid for them"
-                  : unitPrice
-                    ? `${unitPrice} ${currency} per unit, before the fee`
-                    : "Price × units, before the fee"
-              }
-            >
-              <AmountInput value={money} onChange={setMoney} />
-            </Field>
-            {kind === "buy" && heldBefore ? null : (
-              <Field
-                label={`Fee${currency ? ` (${currency})` : ""}`}
-                hint={kind === "buy" ? "Optional; part of the cost for tax" : "Optional; taken from what arrives"}
-              >
-                <AmountInput value={fee} onChange={setFee} placeholder="0.00" />
+              <Field label="Currency">
+                <CurrencySelect value={currency} onChange={setCurrency} />
               </Field>
-            )}
-          </div>
+            </div>
+          ) : (
+            <>
+              <div className="grid gap-4 sm:grid-cols-[1fr_8rem]">
+                <Field
+                  label={kind === "buy" ? "Paid from" : "Proceeds to"}
+                  hint={
+                    <>
+                      Default: the same account
+                      {cashAccount ? <AccountBalances account={cashAccount} currency={currency} /> : null}
+                    </>
+                  }
+                >
+                  <AccountSelect value={other || account} onChange={setOther} />
+                </Field>
+                <Field label="Currency">
+                  <CurrencySelect value={currency} onChange={setCurrency} only={accountCurrencies(cashAccount)} />
+                </Field>
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Amount" hint={unitPrice ? `${unitPrice} ${currency} per unit, before the fee` : "Price × units, before the fee"}>
+                  <AmountInput value={money} onChange={setMoney} />
+                </Field>
+                <Field
+                  label={`Fee${currency ? ` (${currency})` : ""}`}
+                  hint={kind === "buy" ? "Optional; part of the cost for tax" : "Optional; taken from what arrives"}
+                >
+                  <AmountInput value={fee} onChange={setFee} placeholder="0.00" />
+                </Field>
+              </div>
+            </>
+          )}
           {posted && currency ? (
             <p className="text-sm">
               <span className="text-muted-foreground">{kind === "buy" ? (heldBefore ? "Cost" : "Total paid") : "You receive"}: </span>

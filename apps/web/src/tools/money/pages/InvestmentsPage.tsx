@@ -10,7 +10,7 @@ import { moneyApi } from "../api";
 import { ACCOUNT_TYPE_SHORT_LABELS } from "../components/AccountForm";
 import { AmountInput, DateInput } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
-import { PositionCard } from "../components/PositionCard";
+import { AddHoldingTile, PositionCard } from "../components/PositionCard";
 import { addHoldingHref, holdingsByAccount } from "../lib/assets";
 import { formatDate, formatValue, normalizeAmountInput, today } from "../lib/format";
 import { useAccounts, useAssets, useMoneyMutation, usePositions } from "../queries";
@@ -63,35 +63,18 @@ export default function InvestmentsPage() {
         <div className="space-y-6">
           {groups.map(({ account, positions: list }) => (
             <section key={account.id} aria-label={account.name} className="space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <h2 className="min-w-0 truncate text-sm font-semibold">
-                  <Link href={MONEY_ROUTES.account(account.id)} className="hover:underline">
-                    {account.name}
-                  </Link>{" "}
-                  <span className="font-normal text-muted-foreground">· {ACCOUNT_TYPE_SHORT_LABELS[account.type]}</span>
-                </h2>
-                {account.archivedAt ? null : (
-                  <Button size="sm" variant="outline" asChild>
-                    <Link href={addHolding(account.id)}>
-                      <Plus className="mr-1 h-4 w-4" /> Add a holding
-                    </Link>
-                  </Button>
-                )}
+              <h2 className="min-w-0 truncate text-sm font-semibold">
+                <Link href={MONEY_ROUTES.account(account.id)} className="hover:underline">
+                  {account.name}
+                </Link>{" "}
+                <span className="font-normal text-muted-foreground">· {ACCOUNT_TYPE_SHORT_LABELS[account.type]}</span>
+              </h2>
+              <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
+                {list.map((p) => (
+                  <PositionCard key={p.assetId} position={p} showAccount={false} />
+                ))}
+                {account.archivedAt ? null : <AddHoldingTile href={addHolding(account.id)} />}
               </div>
-              {list.length === 0 ? (
-                <Link
-                  href={addHolding(account.id)}
-                  className="block rounded-lg border border-dashed p-4 text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40 hover:text-foreground"
-                >
-                  Nothing held here yet. Add a holding: buy something, or record what you already own.
-                </Link>
-              ) : (
-                <div className="grid grid-cols-1 items-start gap-3 md:grid-cols-2">
-                  {list.map((p) => (
-                    <PositionCard key={p.assetId} position={p} showAccount={false} />
-                  ))}
-                </div>
-              )}
             </section>
           ))}
         </div>

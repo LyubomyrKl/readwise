@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { ChevronDown, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, Plus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,13 +27,16 @@ export function PositionCard({ position: p, showAccount = true }: { position: Po
   const { data: lots } = useLots(p.accountId, p.assetId, open);
   const gainNegative = p.gain?.value.startsWith("-");
   return (
-    <Card className="min-w-0">
-      <CardHeader className="pb-2">
+    <Card className="h-full min-w-0 gap-4">
+      <CardHeader>
         {showAccount ? <div className="truncate text-xs text-muted-foreground">{p.accountName}</div> : null}
-        <CardTitle className="flex items-start justify-between gap-2 text-base">
+        <CardTitle className="flex items-start justify-between gap-4 text-base">
           <span className="min-w-0">
             <span className="block truncate">{p.code}</span>
-            <span className="block truncate text-xs font-normal text-muted-foreground">{p.name}</span>
+            {/* a fund's full name is long: two lines at most, clear of the value beside it */}
+            <span className="line-clamp-2 text-xs font-normal leading-snug text-muted-foreground" title={p.name}>
+              {p.name}
+            </span>
           </span>
           <span className="shrink-0 text-right">
             <span className="block">{p.value ? <Amount amount={p.value} /> : <span className="text-muted-foreground">—</span>}</span>
@@ -73,10 +76,12 @@ export function PositionCard({ position: p, showAccount = true }: { position: Po
             </>
           ) : null}
         </dl>
-        <div className="flex flex-wrap items-center gap-2">
-          <Badge variant="secondary">Valued by {VALUED_BY[p.valuedBy]}</Badge>
-          {p.estimated ? <Badge variant="outline">Inflation estimated</Badge> : null}
-        </div>
+        {p.valuedBy !== "price" || p.estimated ? (
+          <div className="flex flex-wrap items-center gap-2">
+            {p.valuedBy === "price" ? null : <Badge variant="secondary">Valued by {VALUED_BY[p.valuedBy]}</Badge>}
+            {p.estimated ? <Badge variant="outline">Inflation estimated</Badge> : null}
+          </div>
+        ) : null}
         <div className="flex flex-wrap gap-2 pt-1">
           <Button size="sm" variant="outline" asChild>
             <Link href={addHoldingHref(MONEY_ROUTES.newMovement("buy"), p.accountId, p.assetId)}>Buy more</Link>
@@ -125,5 +130,23 @@ export function PositionCard({ position: p, showAccount = true }: { position: Po
         ) : null}
       </CardContent>
     </Card>
+  );
+}
+
+/**
+ * The last tile of an account's holdings: where a new one starts (buy something, or record what you
+ * already own; a new asset can be created in that form).
+ */
+export function AddHoldingTile({ href }: { href: string }) {
+  return (
+    <Link
+      href={href}
+      className="flex h-full min-h-[9rem] flex-col items-center justify-center gap-1 rounded-xl border border-dashed p-4 text-center text-sm text-muted-foreground transition-colors hover:border-foreground/30 hover:bg-muted/40 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      <span className="flex items-center gap-1.5 font-medium">
+        <Plus className="h-4 w-4" /> Add a holding
+      </span>
+      <span className="text-xs">Buy something, or record what you already own</span>
+    </Link>
   );
 }
