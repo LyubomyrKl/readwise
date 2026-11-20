@@ -5,6 +5,8 @@
 import { apiFetch } from "@platform/api/http";
 import type {
   ApiToken,
+  HabitKind,
+  HabitsResponse,
   CreatedApiToken,
   OAuthAuthorizeInput,
   OAuthAuthorizeResponse,
@@ -108,6 +110,8 @@ export const moneyApi = {
   movements: {
     post: (movement: Movement) => post<TransactionResponse>("/money/movements", movement),
     correct: (id: string, movement: Movement) => post<TransactionResponse>(`/money/movements/correct/${enc(id)}`, movement),
+    /** what quick entry learns from the history of one kind */
+    habits: (kind: HabitKind) => apiFetch<HabitsResponse>("/money/movements/habits", { query: { kind } }),
   },
 
   imports: {

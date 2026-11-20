@@ -590,3 +590,37 @@ export interface OAuthInfo {
   /** the public MCP URL to give claude.ai; null when this server has none set up */
   mcpUrl: string | null;
 }
+
+// ---- quick entry ---------------------------------------------------------------------------
+
+/** The kinds quick entry offers, and so learns. */
+export type HabitKind = "expense" | "income" | "transfer";
+
+/** A note as the history knows it: how often it came, and what it was last time. */
+export interface HabitNote {
+  note: string;
+  count: number;
+  lastDate: string;
+  /** a merged category as the one it went into */
+  categoryId: string | null;
+  /** a transfer: where from; null when archived since */
+  accountId: string | null;
+  /** a transfer: where to */
+  toAccountId: string | null;
+  /** last time, positive (a transfer: what was sent) */
+  amount: AmountJson | null;
+}
+
+/** What the history says about one kind of movement (only what stands counts). */
+export interface HabitsResponse {
+  /** most used first over the last year */
+  categories: string[];
+  /** open accounts most used first (a transfer: where from) */
+  accounts: string[];
+  /** a transfer: where to */
+  toAccounts: string[];
+  lastAccountId: string | null;
+  lastToAccountId: string | null;
+  /** each note once, most used first, then most recent */
+  notes: HabitNote[];
+}

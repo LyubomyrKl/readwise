@@ -3,7 +3,7 @@
 import { keepPreviousData, useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { moneyApi } from "./api";
-import type { Movement, TransactionFilters } from "./types";
+import type { HabitKind, Movement, TransactionFilters } from "./types";
 
 /** Query keys of the money tool; every write invalidates `money` so balances and views stay true. */
 export const moneyKeys = {
@@ -16,6 +16,7 @@ export const moneyKeys = {
   categories: (archived: boolean) => ["money", "categories", archived] as const,
   transactions: (filters: TransactionFilters) => ["money", "transactions", filters] as const,
   transaction: (id: string) => ["money", "transaction", id] as const,
+  habits: (kind: HabitKind) => ["money", "habits", kind] as const,
   importProfiles: ["money", "import-profiles"] as const,
   imports: ["money", "imports"] as const,
   importBatch: (id: string) => ["money", "import", id] as const,
@@ -88,6 +89,11 @@ export function useAccount(id: string | undefined) {
 
 export function useCategories(archived = false) {
   return useQuery({ queryKey: moneyKeys.categories(archived), queryFn: () => moneyApi.categories.list(archived) });
+}
+
+/** What quick entry learns: refreshed with everything else after each write. */
+export function useHabits(kind: HabitKind) {
+  return useQuery({ queryKey: moneyKeys.habits(kind), queryFn: () => moneyApi.movements.habits(kind), staleTime: 60_000 });
 }
 
 export function useTransaction(id: string | undefined) {

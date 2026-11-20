@@ -1,5 +1,6 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsObject, IsOptional, IsString, Matches, MaxLength } from 'class-validator';
+import { AmountJson } from '../common/amounts';
 import {
   AMOUNT_MESSAGE,
   AMOUNT_PATTERN,
@@ -143,4 +144,36 @@ export class ReverseDto {
   @IsString()
   @MaxLength(500)
   note?: string;
+}
+
+/** The kinds quick entry offers, and so learns: what moves day to day. */
+export const HABIT_KINDS = ['expense', 'income', 'transfer'] as const;
+export type HabitKind = (typeof HABIT_KINDS)[number];
+
+export class HabitsQuery {
+  @ApiProperty({ enum: HABIT_KINDS })
+  @IsIn(HABIT_KINDS)
+  kind!: HabitKind;
+}
+
+export class HabitNoteResponse {
+  @ApiProperty({ description: 'as written last time' }) note!: string;
+  @ApiProperty({ description: 'movements with this note, whatever its case' }) count!: number;
+  @ApiProperty({ example: '2026-11-18' }) lastDate!: string;
+  @ApiProperty({ nullable: true, description: 'last time; a merged category as the one it went into' }) categoryId!: string | null;
+  @ApiProperty({ nullable: true, description: 'last time (a transfer: where from); null when archived since' }) accountId!: string | null;
+  @ApiProperty({ nullable: true, description: 'a transfer: where to; null when archived since' }) toAccountId!: string | null;
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'last time, positive (a transfer: what was sent)' }) amount!: AmountJson | null;
+}
+
+/** What the history says about one kind of movement, for quick entry. Only what stands counts. */
+export class HabitsResponse {
+  @ApiProperty({ type: [String], description: 'most used first over the last year, at most 12' }) categories!: string[];
+  @ApiProperty({ type: [String], description: 'open accounts most used first over the last year (a transfer: where from), at most 8' })
+  accounts!: string[];
+  @ApiProperty({ type: [String], description: 'a transfer: where to, most used first' }) toAccounts!: string[];
+  @ApiProperty({ nullable: true, description: 'of the movement recorded last, unless archived since' }) lastAccountId!: string | null;
+  @ApiProperty({ nullable: true, description: 'a transfer: where the one recorded last went' }) lastToAccountId!: string | null;
+  @ApiProperty({ type: [HabitNoteResponse], description: 'each note once, most used first, then most recent; at most 300' })
+  notes!: HabitNoteResponse[];
 }

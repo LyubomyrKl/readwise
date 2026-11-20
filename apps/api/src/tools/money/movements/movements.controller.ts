@@ -1,10 +1,11 @@
-import { Body, Controller, Param, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req } from '@nestjs/common';
 import { ApiParam, ApiTags } from '@nestjs/swagger';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 import { TransactionResponse } from '../transactions/transaction.models';
 import { TransactionsService } from '../transactions/transactions.service';
-import { ExpenseDto, FeeDto, IncomeDto, MovementDto, OpeningBalanceDto, TransferDto } from './movement.models';
+import { HabitsService } from './habits.service';
+import { ExpenseDto, FeeDto, HabitsQuery, HabitsResponse, IncomeDto, MovementDto, OpeningBalanceDto, TransferDto } from './movement.models';
 import { MovementsService } from './movements.service';
 
 @ApiTags('money')
@@ -13,11 +14,21 @@ export class MovementsController {
   constructor(
     private readonly movements: MovementsService,
     private readonly transactions: TransactionsService,
+    private readonly habitsService: HabitsService,
   ) {}
 
   private async posted(userId: string, kind: MovementDto['kind'], input: object): Promise<TransactionResponse> {
     const tx = await this.movements.post(userId, { kind, input: { ...input } }, { actor: 'user' });
     return this.transactions.get(userId, tx.id);
+  }
+
+  @Get('habits')
+  @ApiEndpoint({
+    summary: 'What quick entry learns from the history of one kind: categories and accounts used most, the last account, each note with what it was last time',
+    response: HabitsResponse,
+  })
+  habits(@Req() req: UserModel, @Query() query: HabitsQuery) {
+    return this.habitsService.habits(req.user.userId, query.kind);
   }
 
   @Post('income')

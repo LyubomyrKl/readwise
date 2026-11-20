@@ -18,6 +18,7 @@ import { ImportsService } from './imports/imports.service';
 import { AuditService } from './ledger/audit.service';
 import { LedgerService } from './ledger/ledger.service';
 import { MovementsController } from './movements/movements.controller';
+import { HabitsService } from './movements/habits.service';
 import { MovementsService } from './movements/movements.service';
 import { CommoditiesService } from './reference/commodities.service';
 import { CurrenciesController } from './reference/currencies.controller';
@@ -81,6 +82,7 @@ import { TransactionsService } from './transactions/transactions.service';
     CategoriesService,
     TransactionsService,
     MovementsService,
+    HabitsService,
     DraftsService,
     ImportsService,
     RatesService,
