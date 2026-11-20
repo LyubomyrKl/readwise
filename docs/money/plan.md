@@ -218,3 +218,19 @@ entries of posted transactions cannot be updated or deleted.
   page; the saved order and its refusals; a merge relabels the history and the month to the cent
   while every posted row stays equal; the migration's merges, once); in the browser
   `apps/web/e2e/money.spec.ts`.
+- **Overview on real money, Nov 20** — what the owner's overview showed wrong, fixed in the
+  requirements as well: an account's class now covers everything it holds, cash and units
+  (`money_account.classId`, renamed from `cashClassId`, kept: the allocation counted only an
+  account's cash, so the broker's ETF and the bond account's bonds sat under "Not in a class",
+  54.8% of it); an asset with classes of its own still counts there. Money lent out is an account
+  type of its own (`lent`): a line of what you own, outside the allocation like debt. A class can be
+  removed (`DELETE asset-classes/:id`). A category can be left out of the month's income, expenses
+  and savings rate (`leftOutOfTotals`; "Sold belongings" comes with it, for every user), and the
+  month lists it apart: selling a car made November's income 88.7k and the savings rate 91.4%.
+  Migration `money_overview`. Web: "Accounts in the allocation", an asset's own classes as the
+  exception, "Leave out" on a category, the left-out amounts under each month, Claude's month
+  lists them as `notCounted`. Tests: `test/db/money-allocation.db-spec.ts` (an account's class
+  counts its units at their value; an asset's own classes win; lent money in its own line and
+  out of the classes; a removed class leaves its accounts in none; a car sold kept out of the
+  income and the savings rate, and back in when the category counts again); browser tests in
+  `apps/web/e2e/money.spec.ts`.

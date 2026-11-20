@@ -15,9 +15,12 @@ import { divRound, formatScaled } from './decimal';
  *    Income earned and kept inside an investment account is income, not a
  *    contribution.
  *  - opening balances are not flows.
+ *  - income and expenses in a category left out of the totals (a one-off such as selling a car)
+ *    count in neither, nor in the savings rate; they are summed apart. They still move money, so
+ *    "invested" sees them as before.
  */
 
-export type AccountKind = 'bank' | 'investment' | 'bonds' | 'debt' | 'system';
+export type AccountKind = 'bank' | 'investment' | 'bonds' | 'debt' | 'lent' | 'system';
 export type SystemRole = 'income' | 'expense' | 'opening_balance' | 'conversion' | null;
 
 export interface FlowEntry {
@@ -28,6 +31,8 @@ export interface FlowEntry {
   /** currency entries in the base currency; asset entries: null */
   base: bigint | null;
   categoryId: string | null;
+  /** the category is left out of the month's income and expenses */
+  leftOut?: boolean;
 }
 
 export interface MonthTotals {
@@ -40,6 +45,9 @@ export interface MonthTotals {
   savingsRate: string | null;
   expensesByCategory: Map<string | null, bigint>;
   incomeByCategory: Map<string | null, bigint>;
+  /** income and expenses in categories left out of the totals, by category (positive amounts) */
+  leftOutIncomeByCategory: Map<string | null, bigint>;
+  leftOutExpensesByCategory: Map<string | null, bigint>;
 }
 
 const SPENDING: AccountKind[] = ['bank', 'debt'];
@@ -60,12 +68,17 @@ export function monthTotals(entries: readonly FlowEntry[]): MonthTotals {
   let invested = 0n;
   const expensesByCategory = new Map<string | null, bigint>();
   const incomeByCategory = new Map<string | null, bigint>();
+  const leftOutIncomeByCategory = new Map<string | null, bigint>();
+  const leftOutExpensesByCategory = new Map<string | null, bigint>();
+  const add = (map: Map<string | null, bigint>, key: string | null, value: bigint) => map.set(key, (map.get(key) ?? 0n) + value);
 
   for (const list of byTx.values()) {
     if (list[0].kind === 'opening_balance') continue;
     let spending = 0n;
     let expenseLegs = 0n;
     let incomeLegs = 0n;
+    let countedExpenses = 0n;
+    let countedIncome = 0n;
     let touchesInvesting = false;
     let touchesSpending = false;
     for (const e of list) {
@@ -74,16 +87,24 @@ export function monthTotals(entries: readonly FlowEntry[]): MonthTotals {
       if (e.base === null) continue;
       if (e.systemRole === 'income') {
         incomeLegs += e.base;
-        incomeByCategory.set(e.categoryId, (incomeByCategory.get(e.categoryId) ?? 0n) - e.base);
+        if (e.leftOut) add(leftOutIncomeByCategory, e.categoryId, -e.base);
+        else {
+          countedIncome += e.base;
+          add(incomeByCategory, e.categoryId, -e.base);
+        }
       } else if (e.systemRole === 'expense') {
         expenseLegs += e.base;
-        expensesByCategory.set(e.categoryId, (expensesByCategory.get(e.categoryId) ?? 0n) + e.base);
+        if (e.leftOut) add(leftOutExpensesByCategory, e.categoryId, e.base);
+        else {
+          countedExpenses += e.base;
+          add(expensesByCategory, e.categoryId, e.base);
+        }
       } else if (SPENDING.includes(e.accountType)) {
         spending += e.base;
       }
     }
-    income -= incomeLegs;
-    expenses += expenseLegs;
+    income -= countedIncome;
+    expenses += countedExpenses;
     if (touchesInvesting && touchesSpending) invested -= spending + expenseLegs + incomeLegs;
   }
 
@@ -96,6 +117,8 @@ export function monthTotals(entries: readonly FlowEntry[]): MonthTotals {
     savingsRate: income > 0n ? percentOf(savings, income) : null,
     expensesByCategory,
     incomeByCategory,
+    leftOutIncomeByCategory,
+    leftOutExpensesByCategory,
   };
 }
 

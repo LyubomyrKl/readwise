@@ -41,7 +41,8 @@ export function buildMcpServer(claude: ClaudeService, token: VerifiedToken): Mcp
     'get_month',
     {
       title: 'One month',
-      description: 'Income, expenses, money invested, amount saved and savings rate for one month, with income and expenses by category.',
+      description:
+        'Income, expenses, money invested, amount saved and savings rate for one month, with income and expenses by category; notCounted lists one-offs (such as selling a car) kept out of those totals.',
       inputSchema: { month: z.string().regex(/^\d{4}-\d{2}$/).optional().describe('YYYY-MM; default: this month'), base: BASE },
       annotations: READ,
     },

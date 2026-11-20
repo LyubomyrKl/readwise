@@ -113,10 +113,20 @@ export class CategoryValue {
   @ApiProperty({ nullable: true, example: '23.1', description: 'percent of the month total' }) percent!: string | null;
 }
 
+/** Income or expenses in a category left out of the totals (a one-off such as selling a car). */
+export class LeftOutValue {
+  @ApiProperty({ nullable: true }) categoryId!: string | null;
+  @ApiProperty() name!: string;
+  @ApiProperty({ enum: ['income', 'expense'] }) kind!: 'income' | 'expense';
+  @ApiProperty({ type: AmountJson }) value!: AmountJson;
+}
+
 export class MonthDetail extends MonthFlow {
   @ApiProperty() base!: string;
   @ApiProperty({ type: [CategoryValue] }) expensesByCategory!: CategoryValue[];
   @ApiProperty({ type: [CategoryValue] }) incomeByCategory!: CategoryValue[];
+  @ApiProperty({ type: [LeftOutValue], description: 'categories left out of income, expenses and the savings rate' })
+  leftOutByCategory!: LeftOutValue[];
   @ApiProperty({ type: [String] }) missingRates!: string[];
 }
 
@@ -132,6 +142,8 @@ export class PeriodDetail {
   @ApiProperty({ nullable: true, example: '48.1' }) savingsRate!: string | null;
   @ApiProperty({ type: [CategoryValue] }) expensesByCategory!: CategoryValue[];
   @ApiProperty({ type: [CategoryValue] }) incomeByCategory!: CategoryValue[];
+  @ApiProperty({ type: [LeftOutValue], description: 'categories left out of income, expenses and the savings rate' })
+  leftOutByCategory!: LeftOutValue[];
   @ApiProperty({ type: [String] }) missingRates!: string[];
 }
 

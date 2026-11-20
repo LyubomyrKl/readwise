@@ -7,6 +7,11 @@ export function holdsUnits(account: Pick<AccountResponse, "type">): boolean {
   return UNIT_ACCOUNT_TYPES.includes(account.type);
 }
 
+/** Debt (money you owe) and money lent out are in what you own, never in the allocation. */
+export function inAllocation(type: AccountType): boolean {
+  return type !== "debt" && type !== "lent";
+}
+
 /**
  * The institutions worth offering for a new account: those with no accounts
  * yet, and those with at least one account not archived. `accounts` must

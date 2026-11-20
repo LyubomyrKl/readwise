@@ -90,7 +90,8 @@ function CategoriesCard() {
         <CardTitle>Categories</CardTitle>
         <CardDescription>
           Income and expense categories; nest one level. Archived ones keep their history; a merged one is gone, and its
-          history counts under the one it went into.
+          history counts under the one it went into. One left out of the totals (selling something you own) still shows
+          under each month, but not in its income, expenses or savings rate.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -152,9 +153,10 @@ function CategoryRow({ category, all }: { category: CategoryResponse; all: Categ
   const [editing, setEditing] = useState(false);
   const [merging, setMerging] = useState(false);
   const [name, setName] = useState(category.name);
-  const update = useMoneyMutation((input: { name?: string; archived?: boolean }) => moneyApi.categories.update(category.id, input), {
-    onSuccess: () => setEditing(false),
-  });
+  const update = useMoneyMutation(
+    (input: { name?: string; archived?: boolean; leftOutOfTotals?: boolean }) => moneyApi.categories.update(category.id, input),
+    { onSuccess: () => setEditing(false) }
+  );
   return (
     <li className="flex items-center justify-between gap-2 px-3 py-1.5 text-sm">
       {editing ? (
@@ -174,6 +176,11 @@ function CategoryRow({ category, all }: { category: CategoryResponse; all: Categ
         <button type="button" className="min-w-0 truncate text-left hover:underline" onClick={() => setEditing(true)}>
           <span className={category.archived ? "text-muted-foreground line-through" : undefined}>{categoryPath(category, all)}</span>
           {category.key ? <Badge variant="outline" className="ml-2">built in</Badge> : null}
+          {category.leftOutOfTotals ? (
+            <Badge variant="outline" className="ml-2 font-normal text-muted-foreground">
+              left out of totals
+            </Badge>
+          ) : null}
         </button>
       )}
       {editing ? null : (
@@ -183,6 +190,14 @@ function CategoryRow({ category, all }: { category: CategoryResponse; all: Categ
               Merge
             </Button>
           )}
+          <Button
+            size="sm"
+            variant="ghost"
+            title={category.leftOutOfTotals ? "Count it in the month's income and expenses again" : "Leave it out of the month's income, expenses and savings rate"}
+            onClick={() => update.mutate({ leftOutOfTotals: !category.leftOutOfTotals })}
+          >
+            {category.leftOutOfTotals ? "Count it" : "Leave out"}
+          </Button>
           <Button size="sm" variant="ghost" onClick={() => update.mutate({ archived: !category.archived })}>
             {category.archived ? "Restore" : "Archive"}
           </Button>

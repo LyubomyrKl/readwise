@@ -92,6 +92,8 @@ export class ClaudeService {
       savingsRatePercent: m.savingsRate,
       expensesByCategory: m.expensesByCategory.map((c) => ({ category: c.name, amount: money(c.value), percent: c.percent })),
       incomeByCategory: m.incomeByCategory.map((c) => ({ category: c.name, amount: money(c.value), percent: c.percent })),
+      // one-offs such as selling a car: in the books, not in income, expenses or the savings rate
+      notCounted: m.leftOutByCategory.map((c) => ({ category: c.name, kind: c.kind, amount: money(c.value) })),
       missingRates: m.missingRates,
     };
   }

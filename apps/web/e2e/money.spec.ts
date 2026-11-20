@@ -73,6 +73,8 @@ test.describe("Money", () => {
     const mine = async () => (await shownOrder(page)).filter((n) => names.includes(n));
     await expect.poll(mine).toEqual(names);
 
+    // the stack keeps the accounts of earlier runs: bring the new cards on screen before dragging
+    await page.getByRole("button", { name: `Move ${names[2]}` }).scrollIntoViewIfNeeded();
     const from = (await page.getByRole("button", { name: `Move ${names[2]}` }).boundingBox())!;
     const to = (await page.getByRole("button", { name: `Move ${names[0]}` }).boundingBox())!;
     const saved = page.waitForResponse((r) => r.url().endsWith("/money/accounts/order") && r.request().method() === "PUT");
@@ -85,6 +87,39 @@ test.describe("Money", () => {
 
     await page.reload();
     await expect.poll(mine).toEqual([names[2], names[0], names[1]]);
+  });
+
+  test("an account's class counts what it holds, its units too", async ({ page, request }) => {
+    const klass = await call<{ id: string }>(request, "post", "/money/asset-classes", { name: `Equity ${run}` });
+    const broker = await call<{ id: string }>(request, "post", "/money/accounts", {
+      name: `Broker ${run}`,
+      type: "investment",
+      currencies: ["PLN"],
+      classId: klass.id,
+      openingBalances: [{ currency: "PLN", amount: "5000.00", date: "2026-11-01" }],
+    });
+    const asset = await call<{ id: string }>(request, "post", "/money/assets", { code: `E${run}`.slice(0, 12), name: "World ETF", quoteCurrency: "PLN" });
+    await call(request, "post", "/money/movements", {
+      kind: "buy",
+      input: { date: "2026-11-02", accountId: broker.id, assetId: asset.id, units: "10", total: "1000.00", currency: "PLN" },
+    });
+    await call(request, "post", "/money/prices", { assetId: asset.id, date: "2026-11-03", price: "120.00" });
+
+    await page.goto("/apps/money");
+    // 4 000 cash left and 10 units at 120, both in the account's class
+    await expect(page.getByText(`Equity ${run}`).locator("xpath=ancestor::div[2]")).toContainText("PLN 5,200.00");
+  });
+
+  test("a one-off left out of the totals shows apart from them", async ({ page, request }) => {
+    const wallet = (await account(request, `One-off ${run}`)).id;
+    const sold = (await call<{ id: string; name: string }[]>(request, "get", "/money/categories")).find((c) => c.name === "Sold belongings")!;
+    const today = new Date().toISOString().slice(0, 10);
+    await call(request, "post", "/money/movements", {
+      kind: "income",
+      input: { date: today, accountId: wallet, currency: "PLN", amount: "999.99", categoryId: sold.id, note: `car ${run}` },
+    });
+    await page.goto("/apps/money");
+    await expect(page.getByText("Not counted in these totals:")).toContainText(/Sold belongings \+PLN\s[\d,]+\.\d\d/); // the currency formatter puts a no-break space
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

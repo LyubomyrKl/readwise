@@ -104,10 +104,10 @@ function PositionCard({ position: p }: { position: PositionResponse }) {
             <span className="block truncate">{p.code}</span>
             <span className="block truncate text-xs font-normal text-muted-foreground">{p.name}</span>
           </span>
-          <span className="text-right">
+          <span className="shrink-0 text-right">
             <span className="block">{p.value ? <Amount amount={p.value} /> : <span className="text-muted-foreground">—</span>}</span>
             {p.gain ? (
-              <span className={cn("block text-xs font-normal", gainNegative ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")}>
+              <span className={cn("block whitespace-nowrap text-xs font-normal", gainNegative ? "text-destructive" : "text-emerald-600 dark:text-emerald-400")}>
                 <Amount amount={p.gain} signed muted /> {p.gainPercent ? `(${p.gainPercent}%)` : ""}
               </span>
             ) : null}

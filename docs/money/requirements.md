@@ -21,7 +21,7 @@ Version 1 is accounts, money movements, history import and three views.
 |---|---|---|
 | Accounts | Create institutions (bank, broker, bond registry, lender, cash) and accounts under them. Each account holds one sub-account per currency, e.g. mBank → PLN, USD; ZEN → PLN, EUR, USD. | v1 |
 | Movements | Transfer money between any two sub-accounts. Same currency: one amount. Different currencies: amount out, amount in, the implied exchange rate and the fee. | v1 |
-| Accounts | Mark an account as bank, investment, bonds or debt. Debt (e.g. Borrowed USD) counts as negative in net worth. | v1 |
+| Accounts | Mark an account as bank, investment, bonds, debt or lent out. Debt (money I owe) counts as negative in net worth; money lent out (owed to me) is its own line. Neither is part of the allocation. | v1 |
 | Accounts | Archive an account without losing its history. | v1 |
 | Movements | Record income and expenses with a date, a category and a note. | v1 |
 | Movements | Money sent to an investment account is a transfer at cost, never an expense. | v1 |
@@ -31,8 +31,8 @@ Version 1 is accounts, money movements, history import and three views.
 | Investments | Get the cost basis in PLN per lot (central bank rate from the business day before) for the yearly tax return. | v1 |
 | Investments | See market value from a price feed; take a quarterly snapshot. | v1 |
 | Views | See net worth in a base currency I can switch at any time (all major currencies supported, not only mine), by account, currency and asset class. | v1 |
-| Views | See allocation against my target, with the drift for each part. | v1 |
-| Views | See each month's income, expenses, amount invested and savings rate. | v1 |
+| Views | See allocation against my target, with the drift for each part. Each account belongs to a class and everything it holds counts there, cash and units alike (the broker as equity, the bond account as the emergency fund); an asset can have classes of its own, which win. | v1 |
+| Views | See each month's income, expenses, amount invested and savings rate. A category can be left out of these totals (selling something I own is not income); what it holds still shows under the month. | v1 |
 | Data | Import the full history from my current money-manager export. | v1 |
 | Data | Give Claude read-only access to accounts, movements and positions. | v1 |
 | Data | Import statements from each bank, with duplicates detected. | v1 |
@@ -69,7 +69,7 @@ default.
 | What | Stored as | Default today |
 |---|---|---|
 | Asset | Any instrument: name, ticker, unit, currency, class, how it is valued | VWCE (units, EUR, manual price) · EDO (bonds of 100 PLN, manual value) |
-| Asset class + target | Own list of classes, each with a target %; one asset can be split across classes | Core equity · satellite · emergency fund, targets from the investment policy |
+| Asset class + target | Own list of classes, each with a target %; an account's class covers what it holds; one asset can be split across classes of its own | Core equity · satellite · emergency fund, targets from the investment policy |
 | Account | Any account can hold assets; taxable or tax-advantaged is a property of the account | IBKR taxable · XTB IKE tax-advantaged |
 | Investment movements | Buy, sell, income (dividend, interest), fee, move units between accounts, split | Buy only, until the first sale |
 | Cost basis method | A setting per account: first in first out, or average cost — changes with tax residence | First in, first out (the Polish rule) |

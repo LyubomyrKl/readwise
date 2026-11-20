@@ -173,6 +173,18 @@ export class AssetsService {
     return (await this.listClasses(userId)).find((c) => c.id === id)!;
   }
 
+  /**
+   * Removes a class with its targets; assets lose their shares in it and accounts in it are in no
+   * class afterwards (what they hold shows as not in a class until it gets another one).
+   */
+  async deleteClass(userId: string, id: string, actor = 'user'): Promise<void> {
+    const row = await this.classOf(userId, id);
+    await this.prisma.$transaction(async (db) => {
+      await db.moneyAssetClass.delete({ where: { id } });
+      await this.audit.record(db, { userId, actor, action: 'class.delete', subjectId: id, details: { name: row.name } });
+    });
+  }
+
   /** A new target from a day on; earlier targets stay as history. */
   async setTarget(userId: string, id: string, dto: TargetDto, actor = 'user'): Promise<AssetClassResponse> {
     await this.classOf(userId, id);

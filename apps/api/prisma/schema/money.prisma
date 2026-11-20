@@ -37,6 +37,8 @@ enum MoneyAccountType {
   investment
   bonds
   debt
+  /// money others owe you (lent out): its own line of what you own, outside the allocation
+  lent
   /// owned by the ledger: income, expense, opening balance, conversion
   system
 
@@ -290,8 +292,9 @@ model MoneyAccount {
   taxWrapper      MoneyTaxWrapper       @default(taxable)
   /// null: use MoneySettings.defaultCostBasis
   costBasisMethod MoneyCostBasisMethod?
-  /// the asset class this account's cash counts in (e.g. the emergency fund)
-  cashClassId     String?
+  /// the asset class everything this account holds counts in, cash and units (an asset with classes of
+  /// its own counts there instead); debt and money lent out stay out of the allocation
+  classId         String?
   /// default statement profile for imports into this account ("mbank", "pko", "zen", "ibkr")
   importProfile   String?
   /// where the account comes in the user's lists (dragged into place); null: after the placed ones, by creation
@@ -301,7 +304,7 @@ model MoneyAccount {
 
   user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   institution   MoneyInstitution?  @relation(fields: [institutionId], references: [id], onDelete: Cascade)
-  cashClass     MoneyAssetClass?   @relation(fields: [cashClassId], references: [id], onDelete: SetNull)
+  assetClass    MoneyAssetClass?   @relation(fields: [classId], references: [id], onDelete: SetNull)
   subAccounts   MoneySubAccount[]
   lots          MoneyLot[]
   importBatches MoneyImportBatch[]
@@ -329,18 +332,21 @@ model MoneySubAccount {
 }
 
 model MoneyCategory {
-  id           String            @id @default(cuid())
-  userId       String
-  name         String
-  kind         MoneyCategoryKind
-  parentId     String?
+  id              String            @id @default(cuid())
+  userId          String
+  name            String
+  kind            MoneyCategoryKind
+  parentId        String?
   /// set on the categories the ledger itself uses: fees, taxes, dividends, interest, other_income, other_expense
-  key          String?
+  key             String?
   /// merged into that category: hidden, and everything booked here counts and shows there (posted rows keep
   /// pointing here, rule 4); always a category that is not merged itself
-  mergedIntoId String?
-  archivedAt   DateTime?
-  createdAt    DateTime          @default(now())
+  mergedIntoId    String?
+  /// left out of the month's income and expenses and the savings rate (a one-off such as selling a car);
+  /// still shown apart
+  leftOutOfTotals Boolean           @default(false)
+  archivedAt      DateTime?
+  createdAt       DateTime          @default(now())
 
   user         User               @relation(fields: [userId], references: [id], onDelete: Cascade)
   parent       MoneyCategory?     @relation("MoneyCategoryTree", fields: [parentId], references: [id], onDelete: Cascade)

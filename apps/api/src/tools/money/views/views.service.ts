@@ -20,6 +20,7 @@ import { CommoditiesService } from '../reference/commodities.service';
 import {
   AllocationResponse,
   CategoryValue,
+  LeftOutValue,
   HistoryPoint,
   HistoryResponse,
   HomeResponse,
@@ -52,7 +53,15 @@ interface Converted extends Item {
   base: bigint | null;
 }
 
-const TYPE_NAMES: Record<string, string> = { bank: 'Bank and cash', investment: 'Investments', bonds: 'Bonds', debt: 'Debt' };
+const TYPE_NAMES: Record<string, string> = { bank: 'Bank and cash', investment: 'Investments', bonds: 'Bonds', debt: 'Debt', lent: 'Lent out' };
+
+/** Money you owe and money others owe you: in what you own, never in the allocation. */
+const OUTSIDE_ALLOCATION = new Set(['debt', 'lent']);
+
+/** An account's class, whole: everything it holds counts there unless the asset has classes of its own. */
+function accountShares(classId: string | null): { classId: string; percent: string }[] {
+  return classId ? [{ classId, percent: '100' }] : [];
+}
 
 /**
  * The three answers: what you own (net worth by account, currency, type and
@@ -109,7 +118,7 @@ export class ViewsService {
         native: t.minor,
         units: null,
         valuedBy: 'balance',
-        shares: account.cashClassId ? [{ classId: account.cashClassId, percent: '100' }] : [],
+        shares: accountShares(account.classId),
       });
     }
     const holdings = await this.positions.holdings(userId, at);
@@ -118,7 +127,8 @@ export class ViewsService {
     });
     for (const h of holdings) {
       const account = byId.get(h.accountId)!;
-      const shares = splits.filter((s) => s.assetId === h.asset.commodityId).map((s) => ({ classId: s.classId, percent: s.percent.toFixed() }));
+      const own = splits.filter((s) => s.assetId === h.asset.commodityId).map((s) => ({ classId: s.classId, percent: s.percent.toFixed() }));
+      const shares = own.length > 0 ? own : accountShares(account.classId);
       const v = await this.valuation.value(h.asset, h.units, h.lots, at);
       if (v.value !== null) {
         items.push({ account, kind: 'asset', code: h.asset.commodity.code, currency: v.currency, native: v.value, units: h.units, valuedBy: v.valuedBy === 'none' ? 'none' : v.valuedBy, shares });
@@ -183,7 +193,7 @@ export class ViewsService {
       cur.base += c.base;
       currencies.set(c.currency, cur);
       types.set(c.account.type, (types.get(c.account.type) ?? 0n) + c.base);
-      if (c.account.type !== 'debt') {
+      if (!OUTSIDE_ALLOCATION.has(c.account.type)) {
         for (const [classId, part] of splitByShares(c.base, c.shares)) classes.set(classId, (classes.get(classId) ?? 0n) + part);
       }
     }
@@ -235,7 +245,7 @@ export class ViewsService {
   async allocation(userId: string, q: { base?: string; asOf?: Date } = {}): Promise<AllocationResponse> {
     const base = await this.baseOf(userId, q.base);
     const at = q.asOf ?? this.today();
-    const items = (await this.collect(userId, at)).filter((i) => i.account.type !== 'debt');
+    const items = (await this.collect(userId, at)).filter((i) => !OUTSIDE_ALLOCATION.has(i.account.type));
     const book = await this.rates.latestBook([...items.map((i) => i.currency), base], at);
     const { converted, missing } = await this.convertAll(items, base, book, at);
     const values = new Map<string | null, bigint>();
@@ -288,11 +298,13 @@ export class ViewsService {
         commodityKind: string;
         minor: string | null;
         categoryId: string | null;
+        leftOut: boolean;
       }[]
     >(Prisma.sql`
       SELECT e."transactionId", t.kind::text AS kind, to_char(t.date, 'YYYY-MM-DD') AS date, a.type::text AS "accountType",
              a."systemRole"::text AS "systemRole", s."commodityId", c.kind::text AS "commodityKind",
-             e."amountMinor"::text AS minor, COALESCE(cat."mergedIntoId", e."categoryId") AS "categoryId"
+             e."amountMinor"::text AS minor, COALESCE(cat."mergedIntoId", e."categoryId") AS "categoryId",
+             COALESCE(target."leftOutOfTotals", cat."leftOutOfTotals", false) AS "leftOut"
         FROM "money_entry" e
         JOIN "money_transaction" t ON t."id" = e."transactionId"
         JOIN "money_sub_account" s ON s."id" = e."subAccountId"
@@ -300,6 +312,7 @@ export class ViewsService {
         JOIN "money_commodity" c ON c."id" = s."commodityId"
         -- a merged category counts as the one it was merged into
         LEFT JOIN "money_category" cat ON cat."id" = e."categoryId"
+        LEFT JOIN "money_category" target ON target."id" = cat."mergedIntoId"
        WHERE t."userId" = ${userId} AND t."status" = 'posted' AND t."kind" <> 'opening_balance'
          AND t."date" >= ${formatDate(from)}::date AND t."date" <= ${formatDate(to)}::date
     `);
@@ -326,6 +339,7 @@ export class ViewsService {
         systemRole: r.systemRole as FlowEntry['systemRole'],
         base: value,
         categoryId: r.categoryId,
+        leftOut: r.leftOut,
       });
       byMonth.set(month, list);
     }
@@ -396,7 +410,12 @@ export class ViewsService {
     };
   }
 
-  private async byCategory(userId: string, t: MonthTotals, base: string, dec: number): Promise<{ expensesByCategory: CategoryValue[]; incomeByCategory: CategoryValue[] }> {
+  private async byCategory(
+    userId: string,
+    t: MonthTotals,
+    base: string,
+    dec: number,
+  ): Promise<{ expensesByCategory: CategoryValue[]; incomeByCategory: CategoryValue[]; leftOutByCategory: LeftOutValue[] }> {
     const categories = await this.prisma.moneyCategory.findMany({ where: { userId } });
     const name = (id: string | null, fallback: string) => {
       const c = categories.find((k) => k.id === id);
@@ -409,9 +428,15 @@ export class ViewsService {
         .filter(([, v]) => v !== 0n)
         .sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0))
         .map(([categoryId, v]) => ({ categoryId, name: name(categoryId, fallback), value: amountJson(v, base, dec), percent: percentOf(v, whole) }));
+    const leftOut = (map: Map<string | null, bigint>, kind: 'income' | 'expense'): LeftOutValue[] =>
+      [...map.entries()]
+        .filter(([, v]) => v !== 0n)
+        .sort((a, b) => (b[1] > a[1] ? 1 : b[1] < a[1] ? -1 : 0))
+        .map(([categoryId, v]) => ({ categoryId, name: name(categoryId, 'Uncategorised'), kind, value: amountJson(v, base, dec) }));
     return {
       expensesByCategory: list(t.expensesByCategory, t.expenses, 'Uncategorised'),
       incomeByCategory: list(t.incomeByCategory, t.income, 'Uncategorised'),
+      leftOutByCategory: [...leftOut(t.leftOutIncomeByCategory, 'income'), ...leftOut(t.leftOutExpensesByCategory, 'expense')],
     };
   }
 

@@ -118,7 +118,7 @@ export class AccountsService {
   async create(userId: string, dto: CreateAccountDto, actor = 'user'): Promise<AccountResponse> {
     await this.ledger.ensureSetup(userId);
     if (dto.institutionId) await this.institutionOf(userId, dto.institutionId);
-    if (dto.cashClassId) await this.classOf(userId, dto.cashClassId);
+    if (dto.classId) await this.classOf(userId, dto.classId);
     const currencies = [...new Set(dto.currencies.map((c) => c.toUpperCase()))];
     for (const code of currencies) await this.commodities.currency(code);
     const openings: { currency: string; amount: bigint; value: string; date: Date }[] = [];
@@ -152,7 +152,7 @@ export class AccountsService {
           type: dto.type,
           taxWrapper: dto.taxWrapper ?? 'taxable',
           costBasisMethod: dto.costBasisMethod ?? null,
-          cashClassId: dto.cashClassId ?? null,
+          classId: dto.classId ?? null,
           importProfile: dto.importProfile ?? null,
         },
       });
@@ -183,9 +183,13 @@ export class AccountsService {
   async update(userId: string, id: string, dto: UpdateAccountDto, actor = 'user'): Promise<AccountResponse> {
     const account = await this.accountOf(userId, id);
     if (dto.institutionId) await this.institutionOf(userId, dto.institutionId);
-    if (dto.cashClassId) await this.classOf(userId, dto.cashClassId);
+    if (dto.classId) await this.classOf(userId, dto.classId);
     if (dto.type && dto.type !== account.type && (dto.type === 'debt' || account.type === 'debt')) {
       throw new BadRequestException('an account cannot turn into a debt or back; open a new account');
+    }
+    if (dto.type === 'lent' && account.type !== 'lent') {
+      const units = await this.prisma.moneySubAccount.count({ where: { accountId: id, commodity: { kind: 'asset' } } });
+      if (units > 0) throw new BadRequestException(`${account.name} holds units; money lent out holds money only`);
     }
     await this.prisma.$transaction(async (db) => {
       await db.moneyAccount.update({
@@ -196,7 +200,7 @@ export class AccountsService {
           type: dto.type,
           taxWrapper: dto.taxWrapper,
           costBasisMethod: dto.costBasisMethod,
-          cashClassId: dto.cashClassId,
+          classId: dto.classId,
           importProfile: dto.importProfile,
         },
       });
@@ -322,7 +326,7 @@ export class AccountsService {
       institution: account.institution ? institutionResponse(account.institution) : null,
       taxWrapper: account.taxWrapper,
       costBasisMethod: account.costBasisMethod,
-      cashClassId: account.cashClassId,
+      classId: account.classId,
       importProfile: account.importProfile,
       archivedAt: account.archivedAt?.toISOString() ?? null,
       balances,

@@ -12,7 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { moneyApi } from "../api";
-import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_SHORT_LABELS, GroupField, resolveGroup } from "../components/AccountForm";
+import { ACCOUNT_TYPE_LABELS, ACCOUNT_TYPE_SHORT_LABELS, GroupField, resolveGroup, TYPE_HINTS } from "../components/AccountForm";
 import { accountCurrencies, AmountInput, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
 import { mergeBlocker, mergeCandidates, mergeNameGuess, pickableInstitutions } from "../lib/accounts";
 import { MoneyPage, PageHeader } from "../components/PageHeader";
@@ -65,7 +65,7 @@ export default function AccountDetailPage() {
         description={
           <span className="flex flex-wrap items-center gap-2">
             {account.institution?.name}
-            <Badge variant="secondary">{ACCOUNT_TYPE_LABELS[account.type]}</Badge>
+            <Badge variant="secondary">{ACCOUNT_TYPE_SHORT_LABELS[account.type]}</Badge>
             {account.taxWrapper === "tax_advantaged" ? <Badge variant="outline">Tax-advantaged</Badge> : null}
             {account.archivedAt ? <Badge variant="outline">Archived</Badge> : null}
           </span>
@@ -411,8 +411,11 @@ function EditAccountForm({ account, onDone }: { account: AccountResponse; onDone
     },
     { success: "Saved", onSuccess: onDone }
   );
+  // a debt stays a debt; money lent out holds money only, never units
+  const holdsAssets = account.balances.some((b) => b.kind === "asset");
   const typeOptions = (Object.keys(ACCOUNT_TYPE_LABELS) as AccountType[])
     .filter((t) => (account.type === "debt" ? t === "debt" : t !== "debt"))
+    .filter((t) => !(t === "lent" && holdsAssets))
     .map((t) => ({ value: t, label: ACCOUNT_TYPE_LABELS[t] }));
   return (
     <form
@@ -427,7 +430,7 @@ function EditAccountForm({ account, onDone }: { account: AccountResponse; onDone
       <Field label="Name" htmlFor="edit-name">
         <Input id="edit-name" value={name} onChange={(e) => setName(e.target.value)} />
       </Field>
-      <Field label="Type">
+      <Field label="Type" hint={TYPE_HINTS[type]}>
         <SimpleSelect value={type} onChange={setType} options={typeOptions} />
       </Field>
       <GroupField groups={groups} value={groupId} onChange={setGroupId} newName={newGroupName} onNewName={setNewGroupName} />

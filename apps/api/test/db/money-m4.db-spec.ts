@@ -78,7 +78,7 @@ describe('M4 views', () => {
       name: 'ZEN',
       type: 'bank',
       currencies: ['EUR'],
-      cashClassId: emergency.id,
+      classId: emergency.id,
       openingBalances: [{ currency: 'EUR', amount: '1000.00', date: on }],
     });
     const ibkr = await accounts.create(userId, { institutionId: broker.id, name: 'IBKR', type: 'investment', currencies: ['EUR'], openingBalances: [{ currency: 'EUR', amount: '500.00', date: on }] });

@@ -16,7 +16,8 @@ export interface Holding {
   accountId: string;
   accountName: string;
   accountType: string;
-  cashClassId: string | null;
+  /** the class everything the account holds counts in */
+  classId: string | null;
   asset: AssetWithCommodity;
   units: bigint;
   /** cost of the units held, by the currency paid */
@@ -69,7 +70,7 @@ export class PositionsService {
         accountId: account.id,
         accountName: account.name,
         accountType: account.type,
-        cashClassId: account.cashClassId,
+        classId: account.classId,
         asset,
         units: h.units,
         cost,

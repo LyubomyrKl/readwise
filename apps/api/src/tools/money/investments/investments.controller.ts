@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req } from '@nestjs/common';
 import { ApiParam, ApiProperty, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
-import { UserModel } from '@platform/common/models';
+import { SuccessEmptyResponse, UserModel } from '@platform/common/models';
 import { toDate } from '../common/parse';
 import { MovementsService } from '../movements/movements.service';
 import { TransactionResponse } from '../transactions/transaction.models';
@@ -94,6 +94,14 @@ export class InvestmentsController {
   @ApiEndpoint({ summary: 'Rename or reorder an asset class', response: AssetClassResponse })
   updateClass(@Req() req: UserModel, @Param('id') id: string, @Body() dto: UpdateAssetClassDto) {
     return this.assets.updateClass(req.user.userId, id, dto);
+  }
+
+  @Delete('asset-classes/:id')
+  @ApiParam({ name: 'id' })
+  @ApiEndpoint({ summary: 'Remove an asset class with its targets; its accounts and assets are in no class afterwards', response: SuccessEmptyResponse })
+  async deleteClass(@Req() req: UserModel, @Param('id') id: string): Promise<SuccessEmptyResponse> {
+    await this.assets.deleteClass(req.user.userId, id);
+    return { status: 'success' };
   }
 
   @Put('asset-classes/:id/target')

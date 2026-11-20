@@ -3,6 +3,7 @@ import {
   balancesFor,
   groupAccounts,
   holdsUnits,
+  inAllocation,
   mergeBlocker,
   mergeCandidates,
   mergeNameGuess,
@@ -137,5 +138,13 @@ describe("account order and balances in the forms", () => {
     expect(balancesFor(mbank, "PLN").map((b) => b.code)).toEqual(["PLN", "USD"]);
     expect(balancesFor(mbank).map((b) => b.code)).toEqual(["PLN", "USD"]);
     expect(balancesFor(undefined, "PLN")).toEqual([]);
+  });
+});
+
+describe("what the allocation counts", () => {
+  it("leaves debt and money lent out out of the allocation", () => {
+    expect((["bank", "investment", "bonds"] as const).every((t) => inAllocation(t))).toBe(true);
+    expect(inAllocation("debt")).toBe(false);
+    expect(inAllocation("lent")).toBe(false);
   });
 });

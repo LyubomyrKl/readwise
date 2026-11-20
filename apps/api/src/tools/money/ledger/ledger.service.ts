@@ -18,8 +18,10 @@ const SYSTEM_NAMES: Record<MoneySystemRole, string> = {
 };
 
 /** Categories the ledger itself books to; the user may rename them. */
-export const DEFAULT_CATEGORIES: { name: string; kind: 'income' | 'expense'; key?: string }[] = [
+export const DEFAULT_CATEGORIES: { name: string; kind: 'income' | 'expense'; key?: string; leftOutOfTotals?: boolean }[] = [
   { name: 'Salary', kind: 'income' },
+  // selling something you own is not income: kept out of the month's totals and the savings rate
+  { name: 'Sold belongings', kind: 'income', leftOutOfTotals: true },
   { name: 'Interest', kind: 'income', key: 'interest' },
   { name: 'Dividends', kind: 'income', key: 'dividends' },
   { name: 'Other income', kind: 'income', key: 'other_income' },
@@ -105,7 +107,7 @@ export class LedgerService {
     }
     if ((await this.prisma.moneyCategory.count({ where: { userId } })) === 0) {
       await this.prisma.moneyCategory.createMany({
-        data: DEFAULT_CATEGORIES.map((c) => ({ userId, name: c.name, kind: c.kind, key: c.key ?? null })),
+        data: DEFAULT_CATEGORIES.map((c) => ({ userId, name: c.name, kind: c.kind, key: c.key ?? null, leftOutOfTotals: c.leftOutOfTotals ?? false })),
         skipDuplicates: true,
       });
     }

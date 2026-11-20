@@ -12,7 +12,7 @@ import { TransactionList } from "../components/TransactionList";
 import { useQueryParam } from "../components/useQueryParam";
 import { AllocationRows } from "../components/views/AllocationView";
 import { BasePicker } from "../components/views/BasePicker";
-import { CategoryBreakdown, FLOW_SERIES, MonthFigures } from "../components/views/MonthlyView";
+import { CategoryBreakdown, FLOW_SERIES, LeftOutNote, MonthFigures } from "../components/views/MonthlyView";
 import { MissingRates, NetWorthHeadline } from "../components/views/NetWorthView";
 import { formatMonth } from "../lib/format";
 import { suggestBases } from "../lib/views";
@@ -116,6 +116,7 @@ export default function MoneyHomePage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <MonthFigures month={data.month} />
+              <LeftOutNote items={data.month.leftOutByCategory} />
               <MissingRates currencies={data.month.missingRates} base={data.base} />
               <div className="grid gap-6 md:grid-cols-2">
                 <CategoryBreakdown title="Top expenses" items={data.month.expensesByCategory} span={{ from: data.month.month, to: data.month.month }} color={FLOW_SERIES[1].color} top={5} />

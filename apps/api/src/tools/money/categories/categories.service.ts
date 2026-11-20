@@ -54,6 +54,7 @@ export class CategoriesService {
           name: dto.name?.trim(),
           parentId: dto.parentId,
           archivedAt: dto.archived === undefined ? undefined : dto.archived ? new Date() : null,
+          leftOutOfTotals: dto.leftOutOfTotals,
         },
       });
       await this.audit.record(db, { userId, actor, action: 'category.update', subjectId: id, details: { ...dto } });
@@ -118,6 +119,7 @@ export function categoryResponse(row: MoneyCategory): CategoryResponse {
     kind: row.kind,
     parentId: row.parentId,
     key: row.key,
+    leftOutOfTotals: row.leftOutOfTotals,
     archived: row.archivedAt !== null,
   };
 }

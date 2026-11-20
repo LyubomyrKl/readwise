@@ -18,7 +18,8 @@ export interface CurrencyResponse {
 }
 
 export type InstitutionKind = "bank" | "broker" | "bond_registry" | "lender" | "cash";
-export type AccountType = "bank" | "investment" | "bonds" | "debt";
+/** debt: money you owe; lent: money others owe you; both stay out of the allocation */
+export type AccountType = "bank" | "investment" | "bonds" | "debt" | "lent";
 export type TaxWrapper = "taxable" | "tax_advantaged";
 export type CostBasisMethod = "fifo" | "average";
 
@@ -46,7 +47,8 @@ export interface AccountResponse {
   institution: InstitutionResponse | null;
   taxWrapper: TaxWrapper;
   costBasisMethod: CostBasisMethod | null;
-  cashClassId: string | null;
+  /** the asset class everything the account holds counts in */
+  classId: string | null;
   importProfile: string | null;
   archivedAt: string | null;
   balances: SubAccountBalance[];
@@ -63,16 +65,17 @@ export interface CreateAccountInput {
   openingBalances?: { currency: string; amount: string; date: string }[];
   /** IBAN or account number per currency; each currency must be one of `currencies` */
   numbers?: { currency: string; number: string }[];
-  cashClassId?: string;
+  /** the asset class everything the account holds counts in */
+  classId?: string;
   importProfile?: string;
 }
 
 export type UpdateAccountInput = Partial<
-  Omit<CreateAccountInput, "institutionId" | "currencies" | "openingBalances" | "numbers" | "cashClassId" | "importProfile">
+  Omit<CreateAccountInput, "institutionId" | "currencies" | "openingBalances" | "numbers" | "classId" | "importProfile">
 > & {
   /** null takes the account out of its group */
   institutionId?: string | null;
-  cashClassId?: string | null;
+  classId?: string | null;
   importProfile?: string | null;
 };
 
@@ -82,6 +85,8 @@ export interface CategoryResponse {
   kind: "income" | "expense";
   parentId: string | null;
   key: string | null;
+  /** left out of the month's income and expenses and the savings rate (one-offs) */
+  leftOutOfTotals: boolean;
   archived: boolean;
 }
 
@@ -446,10 +451,20 @@ export interface CategoryValue {
   percent: string | null;
 }
 
+/** Income or expenses in a category left out of the totals (a one-off such as selling a car). */
+export interface LeftOutValue {
+  categoryId: string | null;
+  name: string;
+  kind: "income" | "expense";
+  value: AmountJson;
+}
+
 export interface MonthDetail extends MonthFlow {
   base: string;
   expensesByCategory: CategoryValue[];
   incomeByCategory: CategoryValue[];
+  /** categories left out of income, expenses and the savings rate */
+  leftOutByCategory: LeftOutValue[];
   missingRates: string[];
 }
 

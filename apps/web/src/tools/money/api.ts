@@ -91,7 +91,7 @@ export const moneyApi = {
     list: (archived = false) => apiFetch<CategoryResponse[]>("/money/categories", { query: { archived } }),
     create: (input: { name: string; kind: "income" | "expense"; parentId?: string | null }) =>
       post<CategoryResponse>("/money/categories", input),
-    update: (id: string, input: { name?: string; parentId?: string | null; archived?: boolean }) =>
+    update: (id: string, input: { name?: string; parentId?: string | null; archived?: boolean; leftOutOfTotals?: boolean }) =>
       patch<CategoryResponse>(`/money/categories/${enc(id)}`, input),
     /** `id` goes away: its history shows and counts under `intoId`; returns the category it went into */
     merge: (id: string, intoId: string) => post<CategoryResponse>(`/money/categories/${enc(id)}/merge`, { intoId }),
@@ -156,6 +156,8 @@ export const moneyApi = {
       patch<AssetClassResponse>(`/money/asset-classes/${enc(id)}`, input),
     setTarget: (id: string, percent: string, validFrom: string) =>
       apiFetch<AssetClassResponse>(`/money/asset-classes/${enc(id)}/target`, { method: "PUT", json: { percent, validFrom } }),
+    /** removes the class and its targets; its accounts and assets are in no class afterwards */
+    remove: (id: string) => apiFetch<{ status: string }>(`/money/asset-classes/${enc(id)}`, { method: "DELETE" }),
   },
 
   prices: {

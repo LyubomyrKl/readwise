@@ -11,7 +11,7 @@ import { formatAmount, formatMonth, formatMonthSpan, percent } from "../../lib/f
 import { RANGE_TITLES, type RangeKey } from "../../lib/views";
 import { useMonth, useMonthly, usePeriod } from "../../queries";
 import { MONEY_ROUTES } from "../../routes";
-import type { CategoryValue, MonthDetail, MonthFlow } from "../../types";
+import type { CategoryValue, LeftOutValue, MonthDetail, MonthFlow } from "../../types";
 import { Amount } from "../Amount";
 import { BarList, TooltipRows } from "../charts/Bars";
 import { BarChart } from "../charts/BarChart";
@@ -195,6 +195,7 @@ export function MonthCard({
       </CardHeader>
       <CardContent className="space-y-6">
         <MonthFigures month={detail} />
+        <LeftOutNote items={detail.leftOutByCategory} />
         <MissingRates currencies={detail.missingRates} base={detail.base} />
         <div className="grid gap-6 md:grid-cols-2">
           <CategoryBreakdown title="Expenses by category" items={detail.expensesByCategory} span={span} color={FLOW_SERIES[1].color} top={top} />
@@ -226,6 +227,25 @@ export function MonthFigures({ month }: { month: Omit<MonthFlow, "month"> }) {
         </div>
       ))}
     </dl>
+  );
+}
+
+/**
+ * Income and expenses in categories left out of the totals (a one-off such as selling a car):
+ * shown here, counted in neither the totals nor the savings rate.
+ */
+export function LeftOutNote({ items }: { items: LeftOutValue[] | undefined }) {
+  if (!items || items.length === 0) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      Not counted in these totals:{" "}
+      {items.map((i, n) => (
+        <span key={`${i.kind}-${i.categoryId ?? "none"}`} className="whitespace-nowrap">
+          {n > 0 ? " · " : ""}
+          {i.name} <span className="tabular-nums">{i.kind === "income" ? "+" : "−"}{formatAmount(i.value)}</span>
+        </span>
+      ))}
+    </p>
   );
 }
 

@@ -15,7 +15,8 @@ export const ACCOUNT_TYPE_LABELS: Record<AccountType, string> = {
   bank: "Bank or cash",
   investment: "Investment",
   bonds: "Bonds",
-  debt: "Debt",
+  debt: "Debt (money you owe)",
+  lent: "Lent out (money owed to you)",
 };
 
 /** The same, short enough for a table column. */
@@ -24,6 +25,13 @@ export const ACCOUNT_TYPE_SHORT_LABELS: Record<AccountType, string> = {
   investment: "Investment",
   bonds: "Bonds",
   debt: "Debt",
+  lent: "Lent out",
+};
+
+/** What a type does, under its picker. */
+export const TYPE_HINTS: Partial<Record<AccountType, string>> = {
+  debt: "Counts as negative in net worth; not in the allocation",
+  lent: "Its own line of what you own; not in the allocation",
 };
 
 /** A group is an institution on the API, which still asks for a kind; it changes nothing, so every new one is a "bank". */
@@ -149,7 +157,7 @@ export function NewAccountForm({ onDone }: { onDone: (account: AccountResponse) 
         <Field label="Name" htmlFor="acc-name">
           <Input id="acc-name" placeholder="eKonto, Wallet, Borrowed USD…" value={name} onChange={(e) => setName(e.target.value)} />
         </Field>
-        <Field label="Type" hint={type === "debt" ? "Counts as negative in net worth" : undefined}>
+        <Field label="Type" hint={TYPE_HINTS[type]}>
           <SimpleSelect
             value={type}
             onChange={setType}

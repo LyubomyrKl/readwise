@@ -16,7 +16,8 @@ import { AmountJson } from '../common/amounts';
 import { CURRENCY_PATTERN, DATE_MESSAGE, DATE_PATTERN, SIGNED_AMOUNT_PATTERN, AMOUNT_MESSAGE } from '../common/validation';
 
 export const INSTITUTION_KINDS = ['bank', 'broker', 'bond_registry', 'lender', 'cash'] as const;
-export const ACCOUNT_TYPES = ['bank', 'investment', 'bonds', 'debt'] as const;
+/** debt: money you owe (negative); lent: money others owe you; both stay out of the allocation */
+export const ACCOUNT_TYPES = ['bank', 'investment', 'bonds', 'debt', 'lent'] as const;
 export const TAX_WRAPPERS = ['taxable', 'tax_advantaged'] as const;
 export const COST_BASIS_METHODS = ['fifo', 'average'] as const;
 
@@ -123,10 +124,10 @@ export class CreateAccountDto {
   @Type(() => SubAccountNumberInput)
   numbers?: SubAccountNumberInput[];
 
-  @ApiProperty({ required: false, description: 'asset class the cash counts in' })
+  @ApiProperty({ required: false, description: 'asset class everything the account holds counts in (cash and units)' })
   @IsOptional()
   @IsString()
-  cashClassId?: string;
+  classId?: string;
 
   @ApiProperty({ required: false, example: 'mbank' })
   @IsOptional()
@@ -163,10 +164,10 @@ export class UpdateAccountDto {
   @IsIn([...COST_BASIS_METHODS, null])
   costBasisMethod?: (typeof COST_BASIS_METHODS)[number] | null;
 
-  @ApiProperty({ required: false, nullable: true })
+  @ApiProperty({ required: false, nullable: true, description: 'asset class everything the account holds counts in' })
   @IsOptional()
   @IsString()
-  cashClassId?: string | null;
+  classId?: string | null;
 
   @ApiProperty({ required: false, nullable: true })
   @IsOptional()
@@ -240,7 +241,7 @@ export class AccountResponse {
   @ApiProperty({ type: InstitutionResponse, nullable: true }) institution!: InstitutionResponse | null;
   @ApiProperty({ enum: TAX_WRAPPERS }) taxWrapper!: string;
   @ApiProperty({ enum: COST_BASIS_METHODS, nullable: true }) costBasisMethod!: string | null;
-  @ApiProperty({ nullable: true }) cashClassId!: string | null;
+  @ApiProperty({ nullable: true, description: 'asset class everything the account holds counts in' }) classId!: string | null;
   @ApiProperty({ nullable: true }) importProfile!: string | null;
   @ApiProperty({ nullable: true }) archivedAt!: string | null;
   @ApiProperty({ type: [SubAccountBalance] }) balances!: SubAccountBalance[];

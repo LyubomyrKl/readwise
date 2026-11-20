@@ -8,6 +8,8 @@ export class CategoryResponse {
   @ApiProperty({ nullable: true }) parentId!: string | null;
   @ApiProperty({ nullable: true, description: 'set on categories the ledger books to: fees, taxes, dividends, interest, other_income, other_expense' })
   key!: string | null;
+  @ApiProperty({ description: "left out of the month's income and expenses and the savings rate (one-offs)" })
+  leftOutOfTotals!: boolean;
   @ApiProperty() archived!: boolean;
 }
 
@@ -46,6 +48,11 @@ export class UpdateCategoryDto {
   @IsOptional()
   @IsBoolean()
   archived?: boolean;
+
+  @ApiProperty({ required: false, description: "leave it out of the month's income and expenses and the savings rate" })
+  @IsOptional()
+  @IsBoolean()
+  leftOutOfTotals?: boolean;
 }
 
 export class MergeCategoryDto {

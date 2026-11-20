@@ -15,6 +15,7 @@ import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
 import { formatDate, formatValue, normalizePercentInput, percent, today } from "../lib/format";
 import { errorMessage, useAccounts, useAssetClasses, useAssets, useMoneyMutation } from "../queries";
 import { MONEY_ROUTES } from "../routes";
+import { inAllocation } from "../lib/accounts";
 import type { AssetResponse, Valuation } from "../types";
 
 const VALUATION_LABELS: Record<Valuation, string> = {
@@ -71,6 +72,11 @@ export default function AssetsPage() {
                         </span>
                       ) : null}
                       <span className="flex flex-wrap justify-end gap-1">
+                        {a.classes.length === 0 ? (
+                          <Badge variant="outline" className="font-normal text-muted-foreground">
+                            Class of its account
+                          </Badge>
+                        ) : null}
                         {a.classes.map((c) => (
                           <Badge key={c.classId} variant="secondary">
                             {classes?.find((k) => k.id === c.classId)?.name ?? "?"} {percent(c.percent, 0)}
@@ -87,7 +93,7 @@ export default function AssetsPage() {
       </Card>
 
       <ClassesCard />
-      <CashClassesCard />
+      <AccountClassesCard />
 
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
@@ -281,7 +287,10 @@ function AssetForm({ asset, onDone }: { asset: AssetResponse | null; onDone: () 
 
       <div className="space-y-2">
         <div className="text-sm font-medium">Asset classes</div>
-        <p className="text-xs text-muted-foreground">One asset can sit in several classes; the shares add up to at most 100%.</p>
+        <p className="text-xs text-muted-foreground">
+          Leave this empty and the asset counts in the class of the account that holds it. Give it classes of its own to count
+          it there wherever it is held (a balanced fund split between equity and bonds); the shares add up to at most 100%.
+        </p>
         {shares.map((s, i) => (
           <div key={i} className="grid grid-cols-[1fr_6rem_auto] gap-2">
             <SimpleSelect
@@ -377,6 +386,9 @@ function ClassesCard() {
   );
 }
 
+/** The first target of a class applies from this day: shown without a date. */
+const FROM_THE_START = "2000-01-01";
+
 function ClassRow({
   classId,
   name,
@@ -397,12 +409,18 @@ function ClassRow({
     success: "Target saved",
     onSuccess: () => setError(null),
   });
+  const [removing, setRemoving] = useState(false);
+  const remove = useMoneyMutation(() => moneyApi.classes.remove(classId), { success: `${name} removed` });
   return (
     <div className="grid gap-2 rounded-md border p-3 sm:grid-cols-[1fr_6rem_10rem_auto] sm:items-end">
       <div className="text-sm">
         <div className="font-medium">{name}</div>
         <div className="text-xs text-muted-foreground">
-          {targetPercent ? `Target ${percent(targetPercent, 0)} since ${formatDate(validFrom!)}` : "No target yet"}
+          {targetPercent
+            ? validFrom && validFrom > FROM_THE_START
+              ? `Target ${percent(targetPercent, 0)} since ${formatDate(validFrom)}`
+              : `Target ${percent(targetPercent, 0)}`
+            : "No target yet"}
           {history.length > 1 ? ` · ${history.length - 1} earlier` : ""}
         </div>
       </div>
@@ -415,6 +433,23 @@ function ClassRow({
       >
         Set target
       </Button>
+      <div className="flex items-center gap-2 text-xs text-muted-foreground sm:col-span-4">
+        {removing ? (
+          <>
+            <span>Remove {name}? Its targets go; its accounts and assets are in no class until you give them another.</span>
+            <Button size="sm" variant="destructive" onClick={() => remove.mutate(undefined)} disabled={remove.isPending}>
+              Remove
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => setRemoving(false)}>
+              Keep
+            </Button>
+          </>
+        ) : (
+          <button type="button" className="hover:text-foreground hover:underline" onClick={() => setRemoving(true)}>
+            Remove this class
+          </button>
+        )}
+      </div>
       {error ? (
         <div className="sm:col-span-4">
           <FormError message={error} />
@@ -428,31 +463,41 @@ function FormError({ message }: { message: string }) {
   return <div className="rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 text-sm text-destructive">{message}</div>;
 }
 
-function CashClassesCard() {
+/** The class of each account, whole: what it holds counts there, cash and units alike. */
+function AccountClassesCard() {
   const { data: accounts } = useAccounts();
   const { data: classes } = useAssetClasses();
-  const update = useMoneyMutation(({ id, cashClassId }: { id: string; cashClassId: string | null }) => moneyApi.accounts.update(id, { cashClassId }), {
+  const update = useMoneyMutation(({ id, classId }: { id: string; classId: string | null }) => moneyApi.accounts.update(id, { classId }), {
     success: "Saved",
   });
-  const list = (accounts ?? []).filter((a) => a.type !== "debt");
+  const outside = (accounts ?? []).filter((a) => !inAllocation(a.type));
+  const list = (accounts ?? []).filter((a) => inAllocation(a.type));
   if ((classes ?? []).length === 0 || list.length === 0) return null;
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Cash in the allocation</CardTitle>
-        <CardDescription>Cash held in an account can count towards a class (a savings account as the emergency fund).</CardDescription>
+        <CardTitle>Accounts in the allocation</CardTitle>
+        <CardDescription>
+          Everything an account holds counts in its class, cash and investments alike: a broker as equity, bonds as the emergency
+          fund. An asset with classes of its own counts there instead.
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-2">
         {list.map((a) => (
           <div key={a.id} className="grid items-center gap-2 sm:grid-cols-[1fr_16rem]">
             <span className="truncate text-sm">{accountLabel(a)}</span>
             <SimpleSelect
-              value={a.cashClassId ?? NONE}
-              onChange={(v) => update.mutate({ id: a.id, cashClassId: v === NONE ? null : v })}
+              value={a.classId ?? NONE}
+              onChange={(v) => update.mutate({ id: a.id, classId: v === NONE ? null : v })}
               options={[{ value: NONE, label: "Not in a class" }, ...(classes ?? []).map((c) => ({ value: c.id, label: c.name }))]}
             />
           </div>
         ))}
+        {outside.length > 0 ? (
+          <p className="pt-2 text-xs text-muted-foreground">
+            Not in the allocation, as debt or money lent out: {outside.map((a) => a.name).join(", ")}.
+          </p>
+        ) : null}
       </CardContent>
     </Card>
   );
