@@ -14,6 +14,9 @@ const nextConfig: NextConfig = {
       { source: "/reader/book/:id/summary", destination: "/apps/reader/book/:id/edition", permanent: true },
       // the old summaries page became the abridged edition's
       { source: "/apps/reader/book/:id/summary", destination: "/apps/reader/book/:id/edition", permanent: true },
+      // money's Investments page went into the accounts: an investment account shows what it holds
+      { source: "/apps/money/investments", destination: "/apps/money/accounts", permanent: false },
+      { source: "/apps/money/investments/assets", destination: "/apps/money/accounts/assets", permanent: false },
     ];
   },
   // ESM-only dependencies that jest (next/jest) has to transform too.

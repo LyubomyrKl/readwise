@@ -18,6 +18,7 @@ import { holdsUnits, mergeBlocker, mergeCandidates, mergeNameGuess, pickableInst
 import { addHoldingHref } from "../lib/assets";
 import { AddHoldingTile, PositionCard } from "../components/PositionCard";
 import { MoneyPage, PageHeader } from "../components/PageHeader";
+import { PricesSheet } from "../components/PricesSheet";
 import { TransactionList } from "../components/TransactionList";
 import { formatNumber, formatUnits, isNegative, isZero, normalizeAmountInput, today } from "../lib/format";
 import { errorMessage, useAccount, useAccounts, useInstitutions, useMoneyMutation, usePositions, useTransactions } from "../queries";
@@ -37,6 +38,7 @@ export default function AccountDetailPage() {
   /** the currency whose account number is being edited */
   const [numbering, setNumbering] = useState<SubAccountBalance | null>(null);
   const [merging, setMerging] = useState(false);
+  const [pricing, setPricing] = useState(false);
 
   const archive = useMoneyMutation(
     () => (account?.archivedAt ? moneyApi.accounts.unarchive(id) : moneyApi.accounts.archive(id)),
@@ -60,6 +62,8 @@ export default function AccountDetailPage() {
   // an investment or bonds account: its cash under Balances, what it holds under Holdings
   const holder = holdsUnits(account);
   const holdings = (positions ?? []).filter((p) => p.accountId === account.id);
+  // a bond is valued by its formula; everything else it holds can take a price entered by hand
+  const priceable = holdings.filter((p) => p.valuedBy !== "bond_formula").map((p) => p.assetId);
   const tiles = holder ? account.balances.filter((b) => b.kind === "currency") : account.balances;
   const addHolding = addHoldingHref(MONEY_ROUTES.newMovement("buy"), account.id);
 
@@ -174,15 +178,22 @@ export default function AccountDetailPage() {
 
       {holder ? (
         <section className="space-y-3" aria-labelledby="holdings-heading">
-          <h2 id="holdings-heading" className="text-lg font-semibold">
-            Holdings
-          </h2>
+          <div className="flex items-center justify-between gap-2">
+            <h2 id="holdings-heading" className="text-lg font-semibold">
+              Holdings
+            </h2>
+            {account.archivedAt || priceable.length === 0 ? null : (
+              <Button variant="outline" size="sm" onClick={() => setPricing(true)}>
+                Update prices
+              </Button>
+            )}
+          </div>
           {holdings.length === 0 && account.archivedAt ? (
             <p className="text-sm text-muted-foreground">Nothing held.</p>
           ) : (
             <div className="grid grid-cols-1 items-stretch gap-3 md:grid-cols-2 xl:grid-cols-3">
               {holdings.map((p) => (
-                <PositionCard key={p.assetId} position={p} showAccount={false} />
+                <PositionCard key={p.assetId} position={p} />
               ))}
               {account.archivedAt ? null : <AddHoldingTile href={addHolding} />}
             </div>
@@ -256,6 +267,8 @@ export default function AccountDetailPage() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <PricesSheet open={pricing} onOpenChange={setPricing} assetIds={priceable} />
     </MoneyPage>
   );
 }

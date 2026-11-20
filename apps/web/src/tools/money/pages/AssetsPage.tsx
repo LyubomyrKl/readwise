@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { moneyApi } from "../api";
 import { accountLabel, CurrencySelect, DateInput, Field, NONE, SimpleSelect } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
+import { PricesSheet } from "../components/PricesSheet";
 import { formatDate, formatUnits, formatValue, normalizePercentInput, percent, today } from "../lib/format";
 import { errorMessage, useAccounts, useAssetClasses, useAssets, useMoneyMutation, usePositions } from "../queries";
 import { MONEY_ROUTES } from "../routes";
@@ -31,20 +32,26 @@ export default function AssetsPage() {
     setEditingState(next);
   };
   const { data: positions } = usePositions();
+  const [pricing, setPricing] = useState(false);
 
   return (
     <MoneyPage>
-      <Link href={MONEY_ROUTES.investments} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-        <ArrowLeft className="h-4 w-4" /> Investments
+      <Link href={MONEY_ROUTES.accounts} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
+        <ArrowLeft className="h-4 w-4" /> Accounts
       </Link>
       <PageHeader
         icon={Tag}
         title="Assets and classes"
         description="Any instrument, how it is valued, and the classes your allocation targets."
         actions={
-          <Button onClick={() => setEditing("new")}>
-            <Plus className="mr-1 h-4 w-4" /> New asset
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setPricing(true)}>
+              Update prices
+            </Button>
+            <Button onClick={() => setEditing("new")}>
+              <Plus className="mr-1 h-4 w-4" /> New asset
+            </Button>
+          </>
         }
       />
 
@@ -115,6 +122,8 @@ export default function AssetsPage() {
       <ClassesCard />
       <AccountClassesCard />
 
+      <PricesSheet open={pricing} onOpenChange={setPricing} />
+
       <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
         <SheetContent className="w-full overflow-y-auto sm:max-w-lg">
           <SheetHeader>
@@ -122,7 +131,7 @@ export default function AssetsPage() {
             <SheetDescription>
               {editing === "new"
                 ? "Something you can own units of: an ETF, a share, a bond. Saving it does not put it in an account; add a holding to do that (the Add a holding form can also create the asset for you)."
-                : "How the asset is named and valued; where it is held shows on the Investments page."}
+                : "How the asset is named and valued; the list shows where it is held."}
             </SheetDescription>
           </SheetHeader>
           <div className="px-4 pb-6">

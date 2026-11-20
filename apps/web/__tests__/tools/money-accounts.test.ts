@@ -12,7 +12,7 @@ import {
 import { add, subtract } from "@tools/money/lib/decimal";
 import { CASH_KINDS, CASH_TABS } from "@tools/money/components/MovementForm";
 import { TRADE_KINDS, tradeMoney } from "@tools/money/components/TradeForm";
-import { addHoldingHref, heldIn, holdingsByAccount, newAssetInput, newAssetProblem, type NewAssetFields } from "@tools/money/lib/assets";
+import { addHoldingHref, heldIn, newAssetInput, newAssetProblem, type NewAssetFields } from "@tools/money/lib/assets";
 import type { AccountResponse, InstitutionResponse, PositionResponse, SubAccountBalance } from "@tools/money/types";
 
 const inst = (id: string, name = id): InstitutionResponse => ({ id, name, kind: "bank" });
@@ -170,14 +170,7 @@ describe("holding an asset in an account", () => {
     expect(newAssetInput({ ...fields, pricing: "manual" })).toEqual({ code: "VWCE", name: "All-World", quoteCurrency: "EUR", valuation: "manual" });
   });
 
-  it("lists every account that can hold units, the empty ones too, with what each holds", () => {
-    const accounts = [account("ibkr", null, false, "investment"), account("edo", null, false, "bonds"), account("mbank", null), account("old", null, true, "investment")];
-    const groups = holdingsByAccount(accounts, [position("ibkr", "vwce"), position("old", "spy")]);
-    expect(groups.map((g) => [g.account.id, g.positions.map((p) => p.assetId)])).toEqual([
-      ["ibkr", ["vwce"]],
-      ["edo", []],
-      ["old", ["spy"]], // archived, still holding
-    ]);
+  it("says where an asset is held, and links the form that adds a holding", () => {
     expect(heldIn("vwce", [position("ibkr", "vwce", "129"), position("xtb", "vwce", "3")])).toEqual([
       { accountId: "ibkr", accountName: "IBKR", units: "129" },
       { accountId: "xtb", accountName: "XTB", units: "3" },

@@ -21,15 +21,14 @@ const VALUED_BY: Record<PositionResponse["valuedBy"], string> = {
   none: "no value",
 };
 
-/** One holding: what an account holds of an asset, at cost and at value, with its lots. */
-export function PositionCard({ position: p, showAccount = true }: { position: PositionResponse; showAccount?: boolean }) {
+/** One holding on its account's page: what the account holds of an asset, at cost and at value, with its lots. */
+export function PositionCard({ position: p }: { position: PositionResponse }) {
   const [open, setOpen] = useState(false);
   const { data: lots } = useLots(p.accountId, p.assetId, open);
   const gainNegative = p.gain?.value.startsWith("-");
   return (
     <Card className="h-full min-w-0 gap-4">
       <CardHeader>
-        {showAccount ? <div className="truncate text-xs text-muted-foreground">{p.accountName}</div> : null}
         <CardTitle className="flex items-start justify-between gap-4 text-base">
           <span className="min-w-0">
             <span className="block truncate">{p.code}</span>

@@ -3,8 +3,9 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
 /**
  * Money in a real browser, on the test stack's own account (docs/document-architecture.md,
  * Testing): the account's balance under the movement form's picker, the history showing what
- * stands, cards dragged into an order that stays, and a category merged away. Every run makes its
- * own accounts and categories, so the spec runs again on the same stack.
+ * stands, cards dragged into an order that stays, a holding added and priced on its account's
+ * page, and a category merged away. Every run makes its own accounts and categories, so the spec
+ * runs again on the same stack.
  */
 const run = Date.now().toString(36);
 const day = "2026-11-02";
@@ -122,7 +123,7 @@ test.describe("Money", () => {
     await expect(page.getByText("Not counted in these totals:")).toContainText(/Sold belongings \+PLN\s[\d,]+\.\d\d/); // the currency formatter puts a no-break space
   });
 
-  test("an investment account adds a holding of a new asset, already owned, in one form", async ({ page, request }) => {
+  test("an investment account adds a holding of a new asset, already owned, in one form, and prices it", async ({ page, request }) => {
     const holder = await call<{ id: string }>(request, "post", "/money/accounts", {
       name: `Holder ${run}`,
       type: "investment",
@@ -153,6 +154,22 @@ test.describe("Money", () => {
     await expect(holdings).toContainText("5");
     // already owned: no money left the account
     await expect(page.getByRole("region", { name: "Balances" })).toContainText("2,000.00");
+
+    // its price entered on the account's page, where the sheet offers only what the account holds
+    await holdings.getByRole("button", { name: "Update prices" }).click();
+    const sheet = page.getByRole("dialog", { name: "Update prices" });
+    await expect(sheet.locator('input[id^="price-"]')).toHaveCount(1); // this asset, none of the stack's others
+    await sheet.getByLabel(code, { exact: true }).fill("120");
+    await sheet.getByRole("button", { name: "Save prices" }).click();
+    await expect(holdings).toContainText("600.00"); // 5 units at 120
+  });
+
+  test("the old Investments address opens the accounts, which hold the investments now", async ({ page }) => {
+    await page.goto("/apps/money/investments");
+    await expect(page).toHaveURL(/\/apps\/money\/accounts$/);
+    await page.getByRole("link", { name: "Assets and classes" }).click();
+    await expect(page.getByRole("heading", { name: "Assets and classes" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Update prices" })).toBeVisible();
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

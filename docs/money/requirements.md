@@ -79,10 +79,12 @@ What you see: an asset is something you can own units of; you hold it in an
 investment or bonds account by adding a holding there. One form does it: buying now
 (units, amount and fee, paid from this or another account) or already owned (units
 and what they cost, no money moves), for an asset picked or created right in the
-form. Each investment or bonds account shows its holdings, one card per asset (units,
-cost, average cost, value, gain, buy more, sell), and the Investments page lists
-them account by account, empty ones with a way to add a holding. Fields you don't
-use stay hidden (the amount the broker charged in another currency, ISIN).
+form. Each investment or bonds account shows its holdings on its own page, one card
+per asset (units, cost, average cost, value, gain, buy more, sell), and takes prices
+entered by hand for what it holds; there is no separate investments page. Assets and
+classes, a page reached from Accounts, lists every asset with where it is held, its
+last price and its classes. Fields you don't use stay hidden (the amount the broker
+charged in another currency, ISIN).
 
 ## Out of scope for v1, and open questions
 

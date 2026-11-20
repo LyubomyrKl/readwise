@@ -246,3 +246,11 @@ entries of posted transactions cannot be updated or deleted.
   (short name, price currency, its price; ISIN and exchange ticker under More details) and, for a new
   asset, offers to add a holding of it. Tests: helpers in `money-accounts.test.ts`; in the browser,
   an investment account adds a holding of a new asset already owned, in one form, and no money moves.
+- **No Investments tab, Nov 20** — with the holdings on each investment account's page, the
+  Investments page only repeated them. It is gone from the navigation; what was only there moved:
+  Update prices to the Holdings of an account (for what it holds) and to Assets and classes (every
+  asset), and Assets and classes, now at `/apps/money/accounts/assets`, is a button on Accounts
+  (the Overview's allocation links to it as before). The old addresses redirect. The sidebar now
+  lights only the most specific link (Overview stayed lit on every money page, Library on the
+  reader's Upload). Tests: `activeNavHref` in `registry.test.ts`; in the browser, a holding is
+  priced from its account's page and the old address opens Accounts.

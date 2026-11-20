@@ -121,15 +121,18 @@ If it stops:
 
 ## 5. Money
 
-- **Overview**: net worth, this month, where the money went.
+- **Overview**: net worth, this month, where the money went, the allocation against your targets.
 - **Accounts**: bank accounts, cards, cash, brokerage; open one to see its movements and balance.
+  An investment or bonds account also shows what it holds, at cost and at value: **Add a holding**
+  buys something or records what you already own, and **Update prices** takes prices you enter
+  yourself. **Assets and classes** (at the top of Accounts) lists every asset with where it is held
+  and its last price, and the classes your allocation targets.
 - **New movement** (the button at the top): income, expense, transfer between your accounts,
   currency exchange or a trade. Amounts are exact; nothing is rounded.
 - **Transactions**: the full list; open one to see it or to correct it. A posted movement is never
   edited in place: a correction or a reversal is added next to it, so the history stays complete.
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
-- **Investments**: positions, prices and the allocation against your targets.
 - **Reports**: month by month, by category.
 - **Settings → Money**: base currency, categories, automation (exchange rates and prices are fetched
   daily, recurring movements are posted on their day).

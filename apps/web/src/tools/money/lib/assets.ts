@@ -1,5 +1,4 @@
-import type { AccountResponse, CreateAssetInput, PositionResponse, Valuation } from "../types";
-import { holdsUnits } from "./accounts";
+import type { CreateAssetInput, PositionResponse, Valuation } from "../types";
 
 /**
  * How an asset gets into an account, in plain words: an asset is something you can own units of
@@ -49,23 +48,6 @@ export function newAssetInput(f: NewAssetFields): CreateAssetInput {
       ? { valuation: "price_feed" as const, valuationConfig: { provider: "yahoo", symbol: f.symbol.trim() }, ticker: f.symbol.trim() }
       : { valuation: "manual" as const }),
   };
-}
-
-/** The accounts that can hold units, each with what it holds: the Investments page, account by account. */
-export function holdingsByAccount<A extends Pick<AccountResponse, "id" | "type" | "archivedAt">>(
-  accounts: A[],
-  positions: PositionResponse[]
-): { account: A; positions: PositionResponse[] }[] {
-  const holders = accounts.filter((a) => holdsUnits(a) && !a.archivedAt);
-  const out = holders.map((account) => ({ account, positions: positions.filter((p) => p.accountId === account.id) }));
-  // an archived account that still holds something stays visible
-  for (const p of positions) {
-    if (!out.some((g) => g.account.id === p.accountId)) {
-      const account = accounts.find((a) => a.id === p.accountId);
-      if (account) out.push({ account, positions: positions.filter((x) => x.accountId === account.id) });
-    }
-  }
-  return out;
 }
 
 /** Where an asset is held: "IBKR 129" per account, for the assets list. */

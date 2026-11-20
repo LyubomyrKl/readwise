@@ -15,7 +15,7 @@ import {
 } from "@dnd-kit/core";
 import { arrayMove, rectSortingStrategy, SortableContext, sortableKeyboardCoordinates, useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ChevronRight, GripVertical, Landmark, Plus } from "lucide-react";
+import { ChevronRight, GripVertical, Landmark, Plus, Tag } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -58,9 +58,16 @@ export default function AccountsPage() {
         title="Accounts"
         description="Every account with one balance per currency. Drag a card by its handle to put it in its place."
         actions={
-          <Button onClick={() => setCreating(true)}>
-            <Plus className="mr-1 h-4 w-4" /> New account
-          </Button>
+          <>
+            <Button variant="outline" asChild>
+              <Link href={MONEY_ROUTES.assets}>
+                <Tag className="mr-1 h-4 w-4" /> Assets and classes
+              </Link>
+            </Button>
+            <Button onClick={() => setCreating(true)}>
+              <Plus className="mr-1 h-4 w-4" /> New account
+            </Button>
+          </>
         }
       />
 

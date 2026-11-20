@@ -22,7 +22,8 @@ export function PageHeader({
         </h1>
         {description ? <p className="mt-1 text-sm text-muted-foreground">{description}</p> : null}
       </div>
-      {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
+      {/* the buttons keep their width beside a long description; on a phone they wrap below it */}
+      {actions ? <div className="flex flex-wrap gap-2 sm:shrink-0">{actions}</div> : null}
     </div>
   );
 }
