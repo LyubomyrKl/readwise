@@ -162,3 +162,9 @@
     font-size: 0.925rem;
   }
 }
+
+/* A modal sheet turns pointer events off outside it (Radix); its toasts stay clickable, e.g. the
+   Undo of a movement saved while the quick entry sheet stays open for the next one. */
+[data-sonner-toast] {
+  pointer-events: auto;
+}

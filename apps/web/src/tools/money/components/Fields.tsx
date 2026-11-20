@@ -193,6 +193,8 @@ export function CategorySelect({
   onChange,
   allowNone = true,
   placeholder = "Category",
+  label,
+  disabled = false,
 }: {
   id?: string;
   kind: "income" | "expense";
@@ -200,6 +202,9 @@ export function CategorySelect({
   onChange: (value: string) => void;
   allowNone?: boolean;
   placeholder?: string;
+  /** its name when no label points at it */
+  label?: string;
+  disabled?: boolean;
 }) {
   const { data: categories } = useCategories();
   const all = categories ?? [];
@@ -208,8 +213,8 @@ export function CategorySelect({
     .map((c) => ({ id: c.id, label: categoryPath(c, all) }))
     .sort((a, b) => a.label.localeCompare(b.label));
   return (
-    <Select value={value || NONE} onValueChange={(v) => onChange(v === NONE ? "" : v)}>
-      <SelectTrigger id={id} className="w-full">
+    <Select value={value || (allowNone ? NONE : "")} onValueChange={(v) => onChange(v === NONE ? "" : v)} disabled={disabled}>
+      <SelectTrigger id={id} className="w-full" aria-label={label}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
       <SelectContent className="max-h-80">

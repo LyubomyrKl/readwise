@@ -28,9 +28,9 @@ export function PageHeader({
   );
 }
 
-/** The page frame: width, padding and vertical rhythm shared by all money pages. */
+/** The page frame: width, padding and vertical rhythm shared by all money pages; room at the bottom for the + button. */
 export function MoneyPage({ children }: { children: ReactNode }) {
-  return <div className="mx-auto w-full max-w-5xl space-y-6 p-4 pt-14 sm:p-6 md:p-8">{children}</div>;
+  return <div className="mx-auto w-full max-w-5xl space-y-6 p-4 pb-24 pt-14 sm:p-6 sm:pb-24 md:p-8 md:pb-24">{children}</div>;
 }
 
 export function EmptyState({ title, children }: { title: string; children?: ReactNode }) {

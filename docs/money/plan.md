@@ -273,3 +273,20 @@ entries of posted transactions cannot be updated or deleted.
   saved, goes back where the form was opened instead of to its page. Tests: in the browser, a
   movement saved unchanged posts nothing, changed it shows once with the new amount, deleted it
   leaves the list, and its first version opens read-only.
+- **Logging made quick, Nov 20** — logging took a page of its own: two rows of tabs, an empty
+  account, a currency, a category list sorted by name, a fee and the note last, nothing
+  remembered. Now quick entry opens over any money page (the + button, N, a page's New button):
+  the amount first with the cursor in it, "What for" suggesting the notes used before with what
+  they were last time (picking one brings back its category and account; typing one exactly does
+  too unless chosen by hand), the categories and accounts used most as chips with the last
+  account picked, Today / Yesterday, the fee folded, Enter to save, Save and add another, and an
+  Undo on every save (a reversal, rule 4). It learns from `GET /money/movements/habits?kind=`
+  (read-only, only what stands; merged categories count as the one they went into, archived
+  accounts are never offered). The sidebar's own New movement went: it opened the old page. Also:
+  several movements at once from Transactions (Select, All shown; one category for all, each its
+  own correction; or delete them, each reversed); the filters fold behind a button on a phone; an
+  expense with a fee opens in its form with the fee apart (it was folded into the amount, so a
+  correction moved it into the category). Tests: `money-habits.db-spec.ts`; `money-quick.test.ts`,
+  `money-bulk.test.ts`, the fee in `money-lib.test.ts`; in the browser, N then a note bringing back
+  Groceries and the wallet, Save and add another with Undo, and a category for two movements then
+  deleting them.

@@ -14,6 +14,7 @@ import { AllocationRows } from "../components/views/AllocationView";
 import { BasePicker } from "../components/views/BasePicker";
 import { CategoryBreakdown, FLOW_SERIES, LeftOutNote, MonthFigures } from "../components/views/MonthlyView";
 import { MissingRates, NetWorthHeadline } from "../components/views/NetWorthView";
+import { useQuickEntry } from "../components/QuickEntry";
 import { formatMonth } from "../lib/format";
 import { suggestBases } from "../lib/views";
 import { useHome, useMoneySettings, useTransactions } from "../queries";
@@ -30,6 +31,7 @@ function More({ href, children }: { href: string; children: string }) {
 /** The three answers: what you own, where the money went this month, how it is allocated. */
 export default function MoneyHomePage() {
   const [base, setBase] = useQueryParam<string>("base", "");
+  const quick = useQuickEntry();
   const { data: settings } = useMoneySettings();
   const home = useHome(base || undefined);
   const recent = useTransactions({ limit: 8 });
@@ -45,10 +47,8 @@ export default function MoneyHomePage() {
         title="Money"
         description="What you own, where the money went, how it is allocated."
         actions={
-          <Button asChild>
-            <Link href={MONEY_ROUTES.newMovement()}>
-              <Plus className="mr-1 h-4 w-4" /> New movement
-            </Link>
+          <Button onClick={() => quick.open()}>
+            <Plus className="mr-1 h-4 w-4" /> New movement
           </Button>
         }
       />

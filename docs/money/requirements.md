@@ -24,6 +24,8 @@ Version 1 is accounts, money movements, history import and three views.
 | Accounts | Mark an account as bank, investment, bonds, debt or lent out. Debt (money I owe) counts as negative in net worth; money lent out (owed to me) is its own line. Neither is part of the allocation. | v1 |
 | Accounts | Archive an account without losing its history. | v1 |
 | Movements | Record income and expenses with a date, a category and a note. | v1 |
+| Movements | Log one in a few keys from any page: the amount first, a note that brings back its category and account from last time, the categories and accounts I use most one click away, save and add another, undo. | v1 |
+| Movements | Set the category of several movements at once, or delete several at once. | v1 |
 | Movements | Money sent to an investment account is a transfer at cost, never an expense. | v1 |
 | Movements | Set recurring movements (rent, the monthly index-fund buy). | v1 |
 | Investments | Record a buy or sell: asset, units, all-in cost, date. A buy opens a lot. | v1 |

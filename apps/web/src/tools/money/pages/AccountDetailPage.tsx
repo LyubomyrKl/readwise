@@ -25,10 +25,12 @@ import { errorMessage, useAccount, useAccounts, useInstitutions, useMoneyMutatio
 import { MONEY_ROUTES } from "../routes";
 import type { AccountResponse, AccountType, SubAccountBalance } from "../types";
 import { BackLink } from "@platform/ui/BackLink";
+import { useQuickEntry } from "../components/QuickEntry";
 
 export default function AccountDetailPage() {
   const { id } = useParams<{ id: string }>();
   const { data: account, isLoading } = useAccount(id);
+  const quick = useQuickEntry();
   const txs = useTransactions({ accountId: id });
   const { data: positions } = usePositions();
   const [editing, setEditing] = useState(false);
@@ -91,10 +93,8 @@ export default function AccountDetailPage() {
               </Button>
             )}
             {account.archivedAt ? null : (
-              <Button variant={holder ? "outline" : "default"} asChild>
-                <Link href={`${MONEY_ROUTES.newMovement()}?account=${account.id}`}>
-                  <Plus className="mr-1 h-4 w-4" /> Movement
-                </Link>
+              <Button variant={holder ? "outline" : "default"} onClick={() => quick.open({ accountId: account.id })}>
+                <Plus className="mr-1 h-4 w-4" /> Movement
               </Button>
             )}
             <Button variant="outline" onClick={() => setEditing(true)}>

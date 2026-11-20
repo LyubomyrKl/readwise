@@ -127,13 +127,20 @@ If it stops:
   buys something or records what you already own, and **Update prices** takes prices you enter
   yourself. **Assets and classes** (at the top of Accounts) lists every asset with where it is held
   and its last price, and the classes your allocation targets.
-- **New movement** (the button at the top): income, expense, transfer between your accounts,
-  currency exchange or a trade. Amounts are exact; nothing is rounded. Saved, it goes back to where
-  you opened it.
+- **Logging a movement**: the **+** button at the bottom right of every money page, the **N** key,
+  or **New movement** / **Movement** on a page opens the quick form over the page. Type the amount
+  (the cursor is already there), then what it was for: the notes you used before show up as you
+  type, and picking one brings back its category and account from last time. Your most used
+  categories and accounts are one click away, the account you used last is already picked, and
+  **Enter** saves. **Save and add another** keeps the form open for the next one; every save says so
+  with an **Undo**. Expense, income and transfers; a trade (buy, sell) has the investments form.
+  Amounts are exact; nothing is rounded.
 - **Transactions**: the full list. Open a movement to change it (its form, filled in: **Save
   changes**) or to **Delete** it. A posted movement is never edited in place: a change posts a
   correction and a delete a reversal, so the history stays complete (**Show corrections and
-  reversals** lists them; they open read-only).
+  reversals** lists them; they open read-only). **Select** picks several movements (or **All
+  shown**, after filtering) to give them one category or delete them together. On a phone the
+  filters fold behind **Filters**.
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
 - **Reports**: month by month, by category.

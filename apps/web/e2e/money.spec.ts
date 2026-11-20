@@ -4,7 +4,8 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
  * Money in a real browser, on the test stack's own account (docs/document-architecture.md,
  * Testing): the account's balance under the movement form's picker, the history showing what
  * stands, cards dragged into an order that stays, a holding added and priced on its account's
- * page, the back arrow going back, a movement changed and deleted on its own page, and a category
+ * page, the back arrow going back, a movement changed and deleted on its own page, quick entry
+ * (learning from the history, saving another, undo), several movements at once, and a category
  * merged away. Every run makes its own accounts and categories, so the spec runs again on the same
  * stack.
  */
@@ -186,12 +187,14 @@ test.describe("Money", () => {
     await back(page);
     await page.waitForURL(onAccount);
 
-    // a movement saved from the account: the form goes back there, and the account shows it
-    await page.getByRole("link", { name: "Movement", exact: true }).click();
-    await page.locator("#mv-amount").fill("7.00");
-    await page.locator("#mv-note").fill(`tea ${run}`);
-    await page.getByRole("button", { name: "Save" }).click();
-    await page.waitForURL(onAccount);
+    // a movement logged from the account: quick entry over the page, which shows it once saved
+    await page.getByRole("button", { name: "Movement", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "New movement" });
+    await sheet.getByLabel("Amount", { exact: true }).fill("7.00");
+    await sheet.getByLabel("What for").fill(`tea ${run}`);
+    await sheet.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(sheet).toBeHidden();
+    expect(page.url()).toMatch(onAccount);
     await expect(page.getByRole("link").filter({ hasText: `tea ${run}` })).toBeVisible();
 
     // opened directly, in a tab of its own: up to the list of movements
@@ -237,6 +240,85 @@ test.describe("Money", () => {
     await row().filter({ hasText: "Expense" }).filter({ hasText: "5.00" }).click();
     await expect(page.getByText("Changed later: this version no longer counts.")).toBeVisible();
     await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
+  });
+
+  test("quick entry: N on any money page, the amount first, a note brings back its category and account", async ({ page, request }) => {
+    const wallet = (await account(request, `Wallet ${run}`, "200.00")).id;
+    const card = (await account(request, `Card ${run}`, "500.00")).id;
+    const groceries = (await call<{ id: string; name: string }[]>(request, "get", "/money/categories")).find((c) => c.name === "Groceries")!;
+    await expense(request, wallet, "8.00", `Bakery ${run}`, groceries.id);
+    await expense(request, card, "1.00", `gum ${run}`);
+
+    await page.goto(`/apps/money/accounts/${card}`);
+    await page.keyboard.press("n");
+    const sheet = page.getByRole("dialog", { name: "New movement" });
+    await expect(sheet.getByLabel("Amount", { exact: true })).toBeFocused();
+    await page.keyboard.type("6.50");
+    await sheet.getByLabel("What for").fill(`Bakery ${run}`.slice(0, -1));
+    await sheet.getByRole("option", { name: new RegExp(`Bakery ${run}`) }).click();
+    // what it was last time: Groceries, from the wallet; the amount typed stays
+    await expect(sheet.getByRole("group", { name: "Category" }).getByRole("button", { name: "Groceries" })).toHaveAttribute("aria-pressed", "true");
+    await expect(sheet.getByRole("group", { name: "Account" }).getByRole("button", { name: `Wallet ${run}` })).toHaveAttribute("aria-pressed", "true");
+    await expect(sheet.getByLabel("Amount", { exact: true })).toHaveValue("6.50");
+    await sheet.getByLabel("What for").press("Enter");
+    await expect(sheet).toBeHidden();
+    await expect(page.getByText(`Saved: Bakery ${run}`)).toBeVisible();
+
+    const saved = await call<{ items: { category: { name: string } | null }[] }>(
+      request,
+      "get",
+      `/money/transactions?accountId=${wallet}&q=${encodeURIComponent(`Bakery ${run}`)}`
+    );
+    expect(saved.items.map((t) => t.category?.name)).toEqual(["Groceries", "Groceries"]);
+  });
+
+  test("quick entry saves another and keeps the form; undo takes a saved one back", async ({ page, request }) => {
+    const wallet = (await account(request, `Tram ${run}`, "50.00")).id;
+    const tram = () => call<{ items: unknown[] }>(request, "get", `/money/transactions?accountId=${wallet}&q=${encodeURIComponent(`tram ${run}`)}`);
+
+    await page.goto(`/apps/money/accounts/${wallet}`);
+    await page.getByRole("button", { name: "Movement", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "New movement" });
+    await sheet.getByLabel("Amount", { exact: true }).fill("3.40");
+    await sheet.getByLabel("What for").fill(`tram ${run}`);
+    await sheet.getByRole("button", { name: "Save and add another" }).click();
+    await expect(sheet.getByLabel("Amount", { exact: true })).toHaveValue("");
+    await expect(sheet.getByLabel("Amount", { exact: true })).toBeFocused();
+    await expect(sheet.getByRole("group", { name: "Account" }).getByRole("button", { name: `Tram ${run}` })).toHaveAttribute("aria-pressed", "true");
+    expect((await tram()).items).toHaveLength(1);
+
+    // the toast's Undo, with the form still open for the next one
+    await page.getByRole("button", { name: "Undo" }).click();
+    await expect(page.getByText("Undone: it no longer counts")).toBeVisible();
+    await expect(sheet).toBeVisible();
+    expect((await tram()).items).toHaveLength(0);
+  });
+
+  test("several movements at once: a category for all of them, then deleting them", async ({ page, request }) => {
+    const wallet = (await account(request, `Bulk ${run}`, "100.00")).id;
+    for (const n of ["one", "two", "three"]) await expense(request, wallet, "1.00", `${n} ${run}`);
+    const row = (n: string) => page.getByRole("listitem").filter({ hasText: `${n} ${run}` });
+    const pick = (n: string) => page.getByRole("checkbox", { name: `Pick ${n} ${run}` }).check();
+
+    await page.goto(`/apps/money/transactions?account=${wallet}`);
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    await pick("one");
+    await pick("two");
+    await page.getByRole("combobox", { name: "Set category" }).click();
+    await page.getByRole("option", { name: "Leisure", exact: true }).click();
+    await expect(page.getByText("2 movements moved to Leisure")).toBeVisible();
+    await expect(row("one")).toContainText("Leisure");
+    await expect(row("two")).toContainText("Leisure");
+    await expect(row("three")).toContainText("Other expenses");
+
+    await pick("one");
+    await pick("two");
+    await page.getByRole("toolbar", { name: "Picked movements" }).getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+    await expect(page.getByText("2 movements deleted")).toBeVisible();
+    await expect(row("one")).toHaveCount(0);
+    await expect(row("two")).toHaveCount(0);
+    await expect(row("three")).toHaveCount(1);
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {
