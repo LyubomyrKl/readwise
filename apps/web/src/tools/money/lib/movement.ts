@@ -1,6 +1,8 @@
-import type { Movement, MovementKind, TransactionResponse } from "../types";
+import type { EntryResponse, Movement, MovementKind, TransactionResponse } from "../types";
 
 const abs = (value: string) => value.replace(/^-/, "");
+/** the larger amount first */
+const larger = (a: EntryResponse, b: EntryResponse) => (BigInt(b.amount!.minor) > BigInt(a.amount!.minor) ? 1 : -1);
 
 /**
  * The movement a posted transaction came from, for the correction form: the
@@ -28,10 +30,22 @@ export function movementFromTransaction(tx: TransactionResponse): Movement | und
     case "fee": {
       const leg = own[0];
       if (!leg?.amount) return undefined;
-      return {
-        kind,
-        input: { ...base, accountId: leg.accountId, currency: leg.amount.currency, amount: abs(leg.amount.value), categoryId: expense?.categoryId ?? undefined },
+      // with a fee an expense books two lines: the amount in its category (the movement's), the fee in its own
+      const lines = tx.entries.filter((e) => e.systemRole === "expense" && e.amount);
+      const main = lines.find((e) => e.categoryId && e.categoryId === tx.category?.id) ?? [...lines].sort(larger)[0];
+      const fee = tx.kind === "expense" && lines.length === 2 ? lines.find((e) => e !== main) : undefined;
+      const input: Record<string, unknown> = {
+        ...base,
+        accountId: leg.accountId,
+        currency: leg.amount.currency,
+        amount: abs((fee && main?.amount ? main.amount : leg.amount).value),
+        categoryId: main?.categoryId ?? undefined,
       };
+      if (fee?.amount) {
+        input.fee = abs(fee.amount.value);
+        if (fee.categoryId) input.feeCategoryId = fee.categoryId;
+      }
+      return { kind, input };
     }
     case "opening_balance": {
       const leg = own[0];

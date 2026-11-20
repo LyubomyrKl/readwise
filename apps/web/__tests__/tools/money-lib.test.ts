@@ -81,6 +81,41 @@ describe("money web helpers", () => {
   });
 });
 
+describe("a posted expense back in its form", () => {
+  const entry = (id: string, systemRole: string | null, value: string, categoryId: string | null = null) => ({
+    id,
+    accountId: systemRole ? "sys" : "mbank",
+    accountType: systemRole ? "system" : "bank",
+    systemRole,
+    code: "PLN",
+    amount: { currency: "PLN", value, minor: value.replace(/[-.]/g, "") },
+    units: null,
+    categoryId,
+  });
+  const expense = (entries: unknown[]) =>
+    ({ kind: "expense", date: "2026-11-02", note: "Card in Prague", draft: null, category: { id: "trips", name: "Trips" }, entries }) as unknown as TransactionResponse;
+
+  it("keeps a fee apart from the amount, each in its category", () => {
+    const tx = expense([entry("a", null, "-47.00"), entry("b", "expense", "2.00", "fees"), entry("c", "expense", "45.00", "trips")]);
+    expect(movementFromTransaction(tx)?.input).toEqual({
+      date: "2026-11-02",
+      note: "Card in Prague",
+      accountId: "mbank",
+      currency: "PLN",
+      amount: "45.00",
+      categoryId: "trips",
+      fee: "2.00",
+      feeCategoryId: "fees",
+    });
+  });
+
+  it("gives a plain expense its whole amount", () => {
+    const tx = expense([entry("a", null, "-45.00"), entry("c", "expense", "45.00", "trips")]);
+    expect(movementFromTransaction(tx)?.input).toMatchObject({ amount: "45.00", categoryId: "trips" });
+    expect(movementFromTransaction(tx)?.input).not.toHaveProperty("fee");
+  });
+});
+
 describe("import proposals", () => {
   it("describes each kind in one line", () => {
     const { describeProposal } = jest.requireActual<typeof import("@tools/money/lib/proposal")>("@tools/money/lib/proposal");
