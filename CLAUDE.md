@@ -16,9 +16,9 @@ Skills for the recurring work live in `.claude/skills/` (`/checks`, `/new-tool`,
 `/migration`, `/money-session`); `/new-skill` makes or revises one.
 
 A page's back arrow is `BackLink` (or `useBack`) from `apps/web/src/platform/ui/BackLink.tsx`: back
-to the page the user came from when it is the app's, up to a fallback route otherwise. After a form
-saves, or a page's own object is deleted or merged away, move on with `router.replace`, so going
-back never lands on the spent form or a page that is gone.
+to the page the user came from when it is the app's, up to a fallback route otherwise. A form that
+saves goes back the same way; a page whose own object is deleted or merged away moves on with
+`router.replace`, so going back never lands on a spent form or a page that is gone.
 
 ## Readers
 

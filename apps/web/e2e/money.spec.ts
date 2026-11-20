@@ -4,8 +4,9 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
  * Money in a real browser, on the test stack's own account (docs/document-architecture.md,
  * Testing): the account's balance under the movement form's picker, the history showing what
  * stands, cards dragged into an order that stays, a holding added and priced on its account's
- * page, the back arrow going back, and a category merged away. Every run makes its own accounts and
- * categories, so the spec runs again on the same stack.
+ * page, the back arrow going back, a movement changed and deleted on its own page, and a category
+ * merged away. Every run makes its own accounts and categories, so the spec runs again on the same
+ * stack.
  */
 const run = Date.now().toString(36);
 const day = "2026-11-02";
@@ -146,9 +147,9 @@ test.describe("Money", () => {
     await page.getByLabel("Units").fill("5");
     await page.getByLabel("What they cost").fill("500");
     await page.getByRole("button", { name: "Save" }).click();
-    await page.waitForURL(/\/apps\/money\/transactions\/[^/]+$/);
+    // saved, the form goes back where it was opened
+    await page.waitForURL(new RegExp(`/apps/money/accounts/${holder.id}$`));
 
-    await page.goto(`/apps/money/accounts/${holder.id}`);
     const holdings = page.getByRole("region", { name: "Holdings" });
     await expect(holdings).toContainText(code);
     await expect(holdings).toContainText("5");
@@ -185,13 +186,13 @@ test.describe("Money", () => {
     await back(page);
     await page.waitForURL(onAccount);
 
-    // a movement saved from the account: back from what it saved skips the form
+    // a movement saved from the account: the form goes back there, and the account shows it
     await page.getByRole("link", { name: "Movement", exact: true }).click();
     await page.locator("#mv-amount").fill("7.00");
+    await page.locator("#mv-note").fill(`tea ${run}`);
     await page.getByRole("button", { name: "Save" }).click();
-    await page.waitForURL((url) => /^\/apps\/money\/transactions\/[^/]+$/.test(url.pathname) && !url.pathname.endsWith("/new"));
-    await back(page);
     await page.waitForURL(onAccount);
+    await expect(page.getByRole("link").filter({ hasText: `tea ${run}` })).toBeVisible();
 
     // opened directly, in a tab of its own: up to the list of movements
     const fresh = await context.newPage();
@@ -199,6 +200,43 @@ test.describe("Money", () => {
     await back(fresh);
     await fresh.waitForURL(/\/apps\/money\/transactions$/);
     await fresh.close();
+  });
+
+  test("a movement opens in its own form: saved unchanged it stays, changed it is corrected, deleted it goes", async ({ page, request }) => {
+    const wallet = (await account(request, `Edit ${run}`, "100.00")).id;
+    await expense(request, wallet, "5.00", `latte ${run}`);
+    const row = () => page.getByRole("link").filter({ hasText: `latte ${run}` });
+    const trail = async () =>
+      (await call<{ items: unknown[] }>(request, "get", `/money/transactions?accountId=${wallet}&all=true`)).items.length;
+    const onList = (url: URL) => url.pathname === "/apps/money/transactions";
+
+    await page.goto(`/apps/money/transactions?account=${wallet}`);
+    await row().click();
+    await expect(page.locator("#mv-amount")).toHaveValue("5.00");
+    const before = await trail();
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(onList);
+    expect(await trail()).toBe(before); // nothing changed, nothing posted
+
+    await row().click();
+    await page.locator("#mv-amount").fill("6.50");
+    await page.getByRole("button", { name: "Save changes" }).click();
+    await page.waitForURL(onList);
+    await expect(row()).toHaveCount(1);
+    await expect(row()).toContainText("6.50");
+
+    await row().click();
+    await page.getByRole("button", { name: "Delete" }).click();
+    await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+    await page.waitForURL(onList);
+    await expect(row()).toHaveCount(0);
+
+    // the history keeps the first version, read-only, with the way to what replaced it
+    await page.getByLabel("Show corrections and reversals (the whole trail)").check();
+    // the first version: an expense of 5.00 (its reversal, on the same day, is a correction)
+    await row().filter({ hasText: "Expense" }).filter({ hasText: "5.00" }).click();
+    await expect(page.getByText("Changed later: this version no longer counts.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save changes" })).toHaveCount(0);
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

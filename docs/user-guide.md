@@ -128,9 +128,12 @@ If it stops:
   yourself. **Assets and classes** (at the top of Accounts) lists every asset with where it is held
   and its last price, and the classes your allocation targets.
 - **New movement** (the button at the top): income, expense, transfer between your accounts,
-  currency exchange or a trade. Amounts are exact; nothing is rounded.
-- **Transactions**: the full list; open one to see it or to correct it. A posted movement is never
-  edited in place: a correction or a reversal is added next to it, so the history stays complete.
+  currency exchange or a trade. Amounts are exact; nothing is rounded. Saved, it goes back to where
+  you opened it.
+- **Transactions**: the full list. Open a movement to change it (its form, filled in: **Save
+  changes**) or to **Delete** it. A posted movement is never edited in place: a change posts a
+  correction and a delete a reversal, so the history stays complete (**Show corrections and
+  reversals** lists them; they open read-only).
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
 - **Reports**: month by month, by category.

@@ -263,3 +263,13 @@ entries of posted transactions cannot be updated or deleted.
   replace the page in the history, so back skips the spent form or the page that is gone. Tests:
   `back.test.ts`; in the browser, an account's movement and back, a movement saved from an account
   and back, and a movement opened in a new tab going up to the list.
+- **A movement's own page, Nov 20** — it showed what the list row already says (a transfer: two
+  accounts, two amounts) plus the bookkeeping side, and changing anything took another page. Now
+  opening a movement opens its form, filled in: Save changes posts the correction (as Correct
+  did), Delete posts the reversal (as Reverse did), and both go back where you came from; saved
+  unchanged, nothing is posted (the form compares with what it first built). What the history
+  keeps but no longer counts (a changed or deleted version, a reversal) opens read-only with the
+  way to what took its place; the double entry is folded under the small print. A new movement,
+  saved, goes back where the form was opened instead of to its page. Tests: in the browser, a
+  movement saved unchanged posts nothing, changed it shows once with the new amount, deleted it
+  leaves the list, and its first version opens read-only.

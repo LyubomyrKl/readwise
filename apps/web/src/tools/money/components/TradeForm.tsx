@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -137,6 +137,7 @@ export function TradeForm<T = TransactionResponse>({
   submitLabel = "Save",
   onSubmit,
   onDone,
+  onUnchanged,
 }: {
   initial?: Movement;
   initialKind?: TradeKind;
@@ -148,6 +149,8 @@ export function TradeForm<T = TransactionResponse>({
   submitLabel?: string;
   onSubmit: (movement: Movement) => Promise<T>;
   onDone?: (result: T) => void;
+  /** opened on a posted movement: called instead of onSubmit when Save would post it unchanged */
+  onUnchanged?: () => void;
 }) {
   const i = initial?.input ?? {};
   const [kind, setKind] = useState<TradeKind>((initial?.kind as TradeKind | undefined) ?? initialKind);
@@ -285,6 +288,13 @@ export function TradeForm<T = TransactionResponse>({
     }
   }
 
+  // the movement as first built from `initial` (once the accounts are in), in the form's own spelling
+  const pristine = useRef<string | null>(null);
+  if (initial && pristine.current === null) {
+    const first = build();
+    if (typeof first !== "string") pristine.current = JSON.stringify(first);
+  }
+
   async function submit() {
     setError(null);
     // a new asset is created only once the rest of the form is right, then the buy posts with it
@@ -299,6 +309,10 @@ export function TradeForm<T = TransactionResponse>({
     const checked = build(creating ? "pending" : asset);
     if (typeof checked === "string") {
       setError(checked);
+      return;
+    }
+    if (onUnchanged && JSON.stringify(checked) === pristine.current) {
+      onUnchanged();
       return;
     }
     setPending(true);

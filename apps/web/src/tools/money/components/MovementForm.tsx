@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -94,6 +94,7 @@ export function MovementForm<T = TransactionResponse>({
   submitLabel = "Save",
   onSubmit,
   onDone,
+  onUnchanged,
 }: {
   initial?: Movement;
   initialKind?: CashKind;
@@ -104,6 +105,8 @@ export function MovementForm<T = TransactionResponse>({
   submitLabel?: string;
   onSubmit: (movement: Movement) => Promise<T>;
   onDone?: (result: T) => void;
+  /** opened on a posted movement: called instead of onSubmit when Save would post it unchanged */
+  onUnchanged?: () => void;
 }) {
   const [kind, setKind] = useState<CashKind>(
     (initial?.kind as CashKind | undefined) && CASH_KINDS.some((k) => k.value === initial?.kind)
@@ -187,11 +190,22 @@ export function MovementForm<T = TransactionResponse>({
     return { kind: kind as MovementKind, input };
   }
 
+  // the movement as first built from `initial`, in the form's own spelling of every field
+  const pristine = useRef<string | null>(null);
+  if (initial && pristine.current === null) {
+    const first = build();
+    if (typeof first !== "string") pristine.current = JSON.stringify(first);
+  }
+
   async function submit() {
     setError(null);
     const movement = build();
     if (typeof movement === "string") {
       setError(movement);
+      return;
+    }
+    if (onUnchanged && JSON.stringify(movement) === pristine.current) {
+      onUnchanged();
       return;
     }
     setPending(true);
