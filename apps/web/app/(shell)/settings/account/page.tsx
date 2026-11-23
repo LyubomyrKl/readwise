@@ -11,6 +11,7 @@ import { authApi } from "@platform/api/auth";
 import { clearAppCaches } from "@platform/pwa/caches";
 
 import { PLATFORM_ROUTES } from "@platform/routes";
+import { PasswordSettings } from "@platform/auth/PasswordSettings";
 import { SecuritySettings } from "@platform/auth/SecuritySettings";
 import { BackLink } from "@platform/ui/BackLink";
 const container: Variants = {
@@ -113,6 +114,7 @@ export default function AccountSettingsPage() {
         </Card>
       </Wrapper>
 
+      <PasswordSettings />
       <SecuritySettings />
     </div>
   );

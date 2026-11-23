@@ -6,7 +6,7 @@ describe("route guard", () => {
     (pathname) => expect(needsAuth(pathname)).toBe(true)
   );
 
-  it.each(["/auth/login", "/auth/register", "/offline", "/application", "/settingsx", "/manifest.json"])(
+  it.each(["/auth/login", "/auth/register", "/auth/forgot-password", "/auth/reset-password", "/offline", "/application", "/settingsx", "/manifest.json"])(
     "leaves %s public",
     (pathname) => expect(needsAuth(pathname)).toBe(false)
   );
@@ -15,6 +15,9 @@ describe("route guard", () => {
     expect(isAuthRoute("/auth/login")).toBe(true);
     expect(isAuthRoute("/auth/register")).toBe(true);
     expect(isAuthRoute("/auth")).toBe(false);
+    // a link to set a new password opens on a device that is still signed in, too
+    expect(isAuthRoute("/auth/reset-password")).toBe(false);
+    expect(isAuthRoute("/auth/forgot-password")).toBe(false);
     expect(isAuthRoute("/apps/reader")).toBe(false);
   });
 

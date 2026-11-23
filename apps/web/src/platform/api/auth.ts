@@ -1,6 +1,7 @@
 /**
- * The four auth calls go to the web app's own routes (app/api/auth/*), which
- * talk to the API and set the httpOnly session cookies. Everything else goes
+ * The auth calls without a session go to the web app's own routes (app/api/auth/*),
+ * which talk to the API and set the httpOnly session cookies (sign-in, sign-up,
+ * refresh, sign-out; forgot and reset password set none). Everything else goes
  * through the proxy (see http.ts).
  */
 
@@ -36,4 +37,7 @@ export const authApi = {
     post<PublicKeyCredentialRequestOptionsJSON>("/api/auth/passkey/options", email ? { email } : {}),
   passkeyLogin: (response: AuthenticationResponseJSON) =>
     post<{ user: SafeUser }>("/api/auth/passkey/login", { response }),
+  /** email: a link is on its way if the account exists; server: this server sends no email, its owner prints a link */
+  forgotPassword: (email: string) => post<{ delivery: "email" | "server" }>("/api/auth/password/forgot", { email }),
+  resetPassword: (token: string, newPassword: string) => post<{ success: true }>("/api/auth/password/reset", { token, newPassword }),
 };

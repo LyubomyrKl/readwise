@@ -62,6 +62,62 @@ export class LoginDto {
   code?: string;
 }
 
+const TOTP_CODE = /^\s*\d{3}\s?\d{3}\s*$/;
+
+/** A new password for the signed-in user: the current one first, and the app's code when it is on. */
+export class ChangePasswordDto {
+  @ApiProperty({ example: 'S3curePass1' })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(200)
+  currentPassword!: string;
+
+  @ApiProperty({ minLength: 8, example: 'An0ther-pass' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  newPassword!: string;
+
+  @ApiProperty({ required: false, example: '123456', description: 'authenticator app code, when the second factor is on' })
+  @IsOptional()
+  @Matches(TOTP_CODE)
+  code?: string;
+}
+
+export class PasswordChanged {
+  @ApiProperty({ example: true }) success!: true;
+  @ApiProperty({ example: 1, description: 'sessions on other devices that were ended' }) signedOut!: number;
+}
+
+export class ForgotPasswordDto {
+  @ApiProperty({ example: 'anna@example.com' })
+  @IsEmail()
+  email!: string;
+}
+
+export class ForgotPasswordResult {
+  @ApiProperty({
+    enum: ['email', 'server'],
+    description: 'email: a link is on its way if the account exists; server: this server sends no email, its owner prints a link',
+  })
+  delivery!: 'email' | 'server';
+}
+
+/** A new password through a one-time link. */
+export class ResetPasswordDto {
+  @ApiProperty({ description: 'the token from the link' })
+  @IsString()
+  @MinLength(20)
+  @MaxLength(200)
+  token!: string;
+
+  @ApiProperty({ minLength: 8, example: 'An0ther-pass' })
+  @IsString()
+  @MinLength(8)
+  @MaxLength(200)
+  newPassword!: string;
+}
+
 export class TotpCodeDto {
   @ApiProperty({ example: '123456' })
   @Matches(/^\s*\d{3}\s?\d{3}\s*$/)

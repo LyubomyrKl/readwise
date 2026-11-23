@@ -144,6 +144,10 @@ If it stops:
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
 - **Reports**: month by month, by category.
+- **Settings → Account**: change your password (the current one first; your other devices sign in
+  again with the new one), the authenticator app, passkeys. Forgot it? **Forgot password?** on the
+  sign-in page gives a one-time link to set a new one: by email when the server sends email,
+  otherwise from the server (docs/deploy.md, Passwords).
 - **Settings → Money**: base currency, categories, automation (exchange rates and prices are fetched
   daily, recurring movements are posted on their day).
 

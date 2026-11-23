@@ -15,14 +15,15 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  refreshTokens RefreshToken[]
-  passkeys      PasskeyCredential[]
-  challenges    AuthChallenge[]
-  jobs          Job[]
-  books         Book[]
-  notes         Note[]
-  highlights    Highlight[]
-  editions      Edition[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordReset[]
+  passkeys       PasskeyCredential[]
+  challenges     AuthChallenge[]
+  jobs           Job[]
+  books          Book[]
+  notes          Note[]
+  highlights     Highlight[]
+  editions       Edition[]
 
   moneySettings      MoneySettings?
   moneyCommodities   MoneyCommodity[]
@@ -78,6 +79,21 @@ model RefreshToken {
   expiresAt DateTime
   createdAt DateTime  @default(now())
   revokedAt DateTime?
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+/// A one-time link to set a new password ("forgot password"): sent by email, or printed on the
+/// server by the reset-password command. Only the token's SHA-256 is kept; it works once, for a
+/// short while, and a newer link replaces it.
+model PasswordReset {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
   user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])

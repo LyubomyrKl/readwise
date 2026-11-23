@@ -9,6 +9,9 @@ export const PLATFORM_ROUTES = Object.freeze({
   auth: {
     login: "/auth/login",
     register: "/auth/register",
+    forgotPassword: "/auth/forgot-password",
+    /** where a one-time link (?token=) sets a new password */
+    resetPassword: "/auth/reset-password",
   },
   settings: {
     root: "/settings",

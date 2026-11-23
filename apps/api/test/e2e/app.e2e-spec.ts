@@ -75,6 +75,15 @@ describe('AppModule (boot, infrastructure mocked)', () => {
     await request(server).post('/api/auth/logout-all').expect(401);
   });
 
+  it('changes a password only in a session, and sets a forgotten one without', async () => {
+    const server = app.getHttpServer();
+    await request(server).post('/api/auth/password').send({ currentPassword: 'old one', newPassword: 'a new one' }).expect(401);
+    // no SMTP_URL here: the link comes from the server's own command, whatever the email
+    await request(server).post('/api/auth/password/forgot').send({ email: 'anna@example.com' }).expect(201, { delivery: 'server' });
+    await request(server).post('/api/auth/password/forgot').send({ email: 'not an email' }).expect(400);
+    await request(server).post('/api/auth/password/reset').send({ token: 'too short', newPassword: 'a new one' }).expect(400);
+  });
+
   it('no longer answers at the pre-Phase-5 paths', async () => {
     const server = app.getHttpServer();
     await request(server).get('/api/books').expect(404);

@@ -10,7 +10,13 @@ import {
   Tokens,
   MePayload,
   LogoutResult,
+  ChangePasswordDto,
+  PasswordChanged,
+  ForgotPasswordDto,
+  ForgotPasswordResult,
+  ResetPasswordDto,
 } from './auth.models';
+import { PasswordService } from './password.service';
 import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 
@@ -24,7 +30,10 @@ const CREDENTIAL_LIMITS = {
 @ApiTags('auth')
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly passwords: PasswordService,
+  ) {}
 
   @Post('register')
   @Throttle(CREDENTIAL_LIMITS)
@@ -63,5 +72,33 @@ export class AuthController {
   @ApiEndpoint({ summary: 'End every session of the user (all devices)', response: LogoutResult })
   async logoutAll(@Req() req: UserModel): Promise<LogoutResult> {
     return await this.auth.logoutAll(req.user.userId);
+  }
+
+  @Post('password')
+  @Throttle(CREDENTIAL_LIMITS)
+  @ApiEndpoint({
+    summary: 'Change the password: the current one first (and the app code when on); the sessions on other devices end',
+    response: PasswordChanged,
+  })
+  async changePassword(@Req() req: UserModel, @Body() dto: ChangePasswordDto): Promise<PasswordChanged> {
+    return await this.passwords.change(req.user.userId, req.user.sid, dto);
+  }
+
+  @Post('password/forgot')
+  @Throttle(CREDENTIAL_LIMITS)
+  @ApiEndpoint({
+    summary: 'Forgot password: a one-time link by email when the server sends email; the answer never says whether the account exists',
+    response: ForgotPasswordResult,
+    auth: false,
+  })
+  async forgotPassword(@Body() dto: ForgotPasswordDto): Promise<ForgotPasswordResult> {
+    return await this.passwords.forgot(dto.email);
+  }
+
+  @Post('password/reset')
+  @Throttle(CREDENTIAL_LIMITS)
+  @ApiEndpoint({ summary: 'Set a new password with a one-time link; every session ends', response: LogoutResult, auth: false })
+  async resetPassword(@Body() dto: ResetPasswordDto): Promise<{ success: true }> {
+    return await this.passwords.reset(dto);
   }
 }

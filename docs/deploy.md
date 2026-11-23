@@ -300,6 +300,26 @@ OLLAMA_CONTEXT_LENGTH=32768 OLLAMA_FLASH_ATTENTION=1 OLLAMA_HOST=0.0.0.0:11434 o
 - After a migration ran: the old code does not know the new schema. Restore the dump taken in
   step 2 (`infra/README.md`, Money data: durability), then roll the code back as above.
 
+## Passwords
+
+**Change** it in Settings → Account with the current one (and the authenticator app's code when it
+is on); the other devices are signed out. **Forgotten**: "Forgot password?" on the sign-in page sets
+a new one through a one-time link (it works once, for 30 minutes; using it signs out every device;
+the authenticator app is still asked for at sign-in). The link comes:
+
+- **by email** when `SMTP_URL` is set in `.env` (then `docker compose up -d api`). For Gmail:
+  turn on 2-Step Verification, create an app password (myaccount.google.com/apppasswords), and set
+  `SMTP_URL=smtps://you%40gmail.com:<app password>@smtp.gmail.com:465` (the `@` of the address
+  written `%40`). Rule 8 applies: the owner types it into `.env`, it is never pasted elsewhere.
+- **from the server** otherwise (and always works):
+
+  ```bash
+  cd /opt/workbench && docker compose exec api node dist/platform/auth/reset-password.cli.js <email>
+  ```
+
+  It prints the link (on `WEBAUTHN_ORIGIN`, or `APP_URL` when set); open it on a device on the
+  tailnet. An unknown email prints "No account has the email …" and changes nothing.
+
 ## Backups
 
 `docker compose --profile backup up -d` starts the nightly dump into the `workbench_backups`

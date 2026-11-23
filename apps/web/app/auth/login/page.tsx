@@ -313,7 +313,7 @@ function LoginContent() {
               >
                 Create account
               </Link>
-              <Link className="hover:text-foreground" href="/forgot-password">
+              <Link className="hover:text-foreground" href={PLATFORM_ROUTES.auth.forgotPassword}>
                 Forgot password?
               </Link>
             </div>

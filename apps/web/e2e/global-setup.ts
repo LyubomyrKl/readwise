@@ -3,8 +3,8 @@ import { join } from "path";
 import { request, type FullConfig } from "@playwright/test";
 import { BOOKS, STATE_DIR, bookPath, hasBook, type BookKey } from "./books";
 
-const EMAIL = process.env.READER_EMAIL ?? "reader-tests@example.com";
-const PASSWORD = process.env.READER_PASSWORD ?? "reader-tests-password";
+export const EMAIL = process.env.READER_EMAIL ?? "reader-tests@example.com";
+export const PASSWORD = process.env.READER_PASSWORD ?? "reader-tests-password";
 
 /** Signs in (registering the first account on a fresh stack) and uploads the test books once. */
 export default async function globalSetup(config: FullConfig): Promise<void> {

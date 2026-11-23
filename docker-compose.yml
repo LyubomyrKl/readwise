@@ -170,6 +170,10 @@ services:
       # passkeys: the site as the browser sees it (host name and origin)
       WEBAUTHN_RP_ID: ${WEBAUTHN_RP_ID:-localhost}
       WEBAUTHN_ORIGIN: ${WEBAUTHN_ORIGIN:-http://localhost}
+      # "Forgot password?" links: by email when SMTP_URL is set, else from the reset-password command
+      SMTP_URL: ${SMTP_URL:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+      APP_URL: ${APP_URL:-}
       # money tool: daily rates, prices, recurring movements and quarterly snapshots
       MONEY_TIMEZONE: ${MONEY_TIMEZONE:-Europe/Warsaw}
       MONEY_SCHEDULER: ${MONEY_SCHEDULER:-on}
