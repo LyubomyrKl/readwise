@@ -269,6 +269,8 @@ export class ForecastResponse {
   @ApiProperty({ example: '2026-11' }) month!: string;
   @ApiProperty({ example: 28 }) day!: number;
   @ApiProperty({ example: 30 }) daysInMonth!: number;
+  @ApiProperty({ example: 12, description: 'the last day of this month with anything recorded, which the month is projected from; 0: nothing yet' })
+  recordedThrough!: number;
   @ApiProperty({ enum: ['history', 'pace'], description: 'history: against the months before; pace: a straight line (under three months of history)' })
   method!: 'history' | 'pace';
   @ApiProperty({ example: 12, description: 'months before this one the forecast compares with' }) basisMonths!: number;

@@ -65,7 +65,8 @@ export default function InsightsPage() {
           ) : null}
           <ThisMonth f={f} />
           <Categories f={f} />
-          <div className="grid gap-6 lg:grid-cols-2">
+          {/* the year's table needs the room: three amounts a row */}
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
             <Year f={f} />
             <SafetyNet f={f} />
           </div>
@@ -109,9 +110,14 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
         <CardTitle>{formatMonth(f.month)} on pace</CardTitle>
         <CardDescription>
           Day {f.day} of {f.daysInMonth}.{" "}
-          {history
-            ? `Projected as spent so far plus what usually follows after the ${ordinal(f.day)} in your last ${f.basisMonths} months.`
-            : "Projected in a straight line from the pace so far."}
+          {!history
+            ? "Projected in a straight line from the pace so far."
+            : f.recordedThrough === 0
+              ? `Nothing recorded this month yet, so it shows as a usual month of your last ${f.basisMonths}.`
+              : `Projected as recorded so far plus what usually follows after the ${ordinal(f.recordedThrough)} in your last ${f.basisMonths} months${
+                  f.recordedThrough < f.day ? ` (nothing recorded after the ${ordinal(f.recordedThrough)} yet)` : ""
+                }.`}
+          {" "}One-offs such as selling something you own are left out.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -120,7 +126,11 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
             title="Spending this month"
             figure={f.expenses}
             kind="expense"
-            note={f.expenses.typicalByNow ? <> · by the {ordinal(f.day)} you usually had spent {formatAmount(f.expenses.typicalByNow)}</> : null}
+            note={
+              f.expenses.typicalByNow && f.recordedThrough > 0 ? (
+                <> · by the {ordinal(f.recordedThrough)} you usually had spent {formatAmount(f.expenses.typicalByNow)}</>
+              ) : null
+            }
           />
           <Figure title="Income this month" figure={f.income} kind="income" />
           <div className="space-y-1.5 rounded-lg border p-4">
@@ -316,8 +326,9 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
         <CardDescription>
           {f.netWorth.monthlyChange ? (
             <>
-              At the last year&apos;s pace, <Amount amount={f.netWorth.monthlyChange} signed /> a month (market moves and one-offs
-              included).
+              At the last year&apos;s pace, <Amount amount={f.netWorth.monthlyChange} signed />
+              {/* a string: SWC drops the leading space of JSX text that spans lines and holds an entity */}
+              {" a month: savings and market moves, without one-offs such as selling something you own (those stay in today's net worth, not in the pace)."}
             </>
           ) : (
             "Four month ends show a pace; until then only the months behind."

@@ -56,6 +56,12 @@ describe('forecast', () => {
     expect([p.soFar, p.projected, p.low, p.high]).toEqual([1050_00n, 1300_00n, 1225_00n, 1375_00n]);
   });
 
+  it('projects a month with nothing recorded yet as a usual month', () => {
+    const past = [2300_00n, 2300_00n, 2500_00n].map((total) => month(30, { 1: 2000_00n, 15: total - 2000_00n }));
+    expect(pace([], 0, 30, past)).toMatchObject({ soFar: 0n, typicalByNow: 0n, projected: 2300_00n, typicalMonth: 2300_00n, method: 'history' });
+    expect(pace([], 0, 30, [])).toMatchObject({ soFar: 0n, projected: 0n, method: 'pace' });
+  });
+
   it('draws a straight line while there are fewer than three months before', () => {
     const p = pace(month(30, { 1: 300_00n }), 10, 30, [month(31, { 1: 999_00n })]);
     expect(p).toMatchObject({ method: 'pace', projected: 900_00n, typicalByNow: null, typicalMonth: null });
@@ -100,6 +106,17 @@ describe('forecast', () => {
     expect(bumpy.monthlyChange).toBe(50n);
     expect(bumpy.projection[1]).toEqual({ value: 1300n, low: 1050n, high: 1550n });
     expect(netWorthOutlook([1n, 2n, 3n], 12)).toBeNull();
+  });
+
+  it('keeps a one-off out of the pace: a car sold stays in net worth, not in the monthly change', () => {
+    // +100 a month, and a car sold for 1000 in the third month
+    const ends = [0n, 100n, 200n, 1300n, 1400n, 1500n];
+    const oneOffs = [0n, 0n, 0n, 1000n, 0n, 0n];
+    expect(netWorthOutlook(ends, 1)!.monthlyChange).toBe(300n); // as if selling were saving
+    const kept = netWorthOutlook(ends, 2, oneOffs)!;
+    expect(kept.monthlyChange).toBe(100n);
+    expect(kept.projection.map((p) => p.value)).toEqual([1600n, 1700n]);
+    expect(kept.projection[1].low).toBe(1700n); // the sale's month is no outlier either
   });
 
   it('counts the months of usual spending an amount covers', () => {

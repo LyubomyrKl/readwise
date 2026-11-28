@@ -32,6 +32,8 @@ interface Day {
   income: bigint;
   expenses: bigint;
   byCategory: Map<string | null, bigint>;
+  /** what categories left out of the totals moved (a car sold: +), apart from income and expenses */
+  oneOff: bigint;
 }
 
 /**
@@ -84,8 +86,18 @@ export class ForecastService {
     const daily = new Map<string, Day>();
     for (const [date, list] of byDate) {
       const t = monthTotals(list);
-      daily.set(date, { income: t.income, expenses: t.expenses, byCategory: t.expensesByCategory });
+      const total = (map: Map<string | null, bigint>) => [...map.values()].reduce((a, b) => a + b, 0n);
+      daily.set(date, {
+        income: t.income,
+        expenses: t.expenses,
+        byCategory: t.expensesByCategory,
+        oneOff: total(t.leftOutIncomeByCategory) - total(t.leftOutExpensesByCategory),
+      });
     }
+    // the last day of this month with anything recorded: a statement imported up to the 12th
+    // projects from the 12th; a month with nothing in it yet, as a usual month
+    const monthPrefix = monthKey(today);
+    const recorded = Math.max(0, ...[...daily.keys()].filter((date) => date.startsWith(monthPrefix)).map((date) => Number(date.slice(8, 10))));
     /** a month's running total of one figure, up to `upTo` days */
     const running = (month: Date, pick: (d: Day) => bigint, upTo = endOfMonth(month).getUTCDate()) =>
       runningTotals(
@@ -96,10 +108,11 @@ export class ForecastService {
       );
     const onPace = (pick: (d: Day) => bigint): Pace =>
       pace(
-        running(thisMonth, pick, day),
-        day,
+        running(thisMonth, pick, recorded),
+        recorded,
         days,
         past.map((m) => running(m, pick)),
+        day,
       );
     const paceJson = (p: Pace): PaceResponse => ({
       soFar: money(p.soFar),
@@ -118,7 +131,7 @@ export class ForecastService {
       past.map((m) => running(m, (d) => d.expenses)),
       days,
     );
-    const spent = running(thisMonth, (d) => d.expenses, day);
+    const spent = running(thisMonth, (d) => d.expenses, recorded);
 
     // each expense category on pace, the furthest from its usual month first
     const names = await this.categoryNames(userId);
@@ -178,6 +191,12 @@ export class ForecastService {
     const outlook = netWorthOutlook(
       history.points.map((p) => BigInt(p.total.minor)),
       NET_WORTH_AHEAD,
+      // each month end's one-offs, taken out of its change (in today's net worth, not in the pace)
+      history.points.map((p) => {
+        let sum = 0n;
+        for (const [date, d] of daily) if (date.startsWith(p.date.slice(0, 7)) && date <= p.date) sum += d.oneOff;
+        return sum;
+      }),
     );
 
     // the months of usual spending that the bank and cash cover
@@ -192,6 +211,7 @@ export class ForecastService {
       month: monthKey(today),
       day,
       daysInMonth: days,
+      recordedThrough: recorded,
       method: expenses.method,
       basisMonths: past.length,
       expenses: paceJson(expenses),
@@ -200,7 +220,7 @@ export class ForecastService {
       savingsRate: income.projected > 0n ? percentOf(savings, income.projected) : null,
       days: Array.from({ length: days }, (_, i) => ({
         day: i + 1,
-        actual: i < day ? money(spent[i]) : null,
+        actual: i < recorded ? money(spent[i]) : null,
         typical: usual[i] ? money(usual[i].typical) : null,
         low: usual[i] ? money(usual[i].low) : null,
         high: usual[i] ? money(usual[i].high) : null,

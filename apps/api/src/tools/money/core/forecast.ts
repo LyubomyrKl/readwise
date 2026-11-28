@@ -8,7 +8,8 @@ import { divRound, formatScaled } from './decimal';
  * same day of the month (their median; the range is their quartiles). A month whose rent leaves on
  * the 1st and whose salary comes on the 10th therefore projects right on the 2nd, where a straight
  * line from the pace so far would not. Without three months of history the straight line is all
- * there is.
+ * there is. "The same day" is the last day with anything recorded: a statement imported up to the
+ * 12th projects from the 12th, and a month with nothing in it yet as a usual month.
  */
 
 /** Months of history before a projection leans on it rather than on a straight line. */
@@ -56,13 +57,14 @@ export interface Pace {
 }
 
 /**
- * This month's running total (up to today) against the running totals of the months before.
- * `day` is today's day of the month, `days` the length of this month.
+ * This month's running total against the running totals of the months before. `day` is the day it
+ * is read at (the last recorded), `days` the length of this month; `elapsed`, the days gone (today),
+ * is what a straight line divides by, since a quiet stretch may simply be a quiet stretch.
  */
-export function pace(current: readonly bigint[], day: number, days: number, past: readonly (readonly bigint[])[]): Pace {
+export function pace(current: readonly bigint[], day: number, days: number, past: readonly (readonly bigint[])[], elapsed = day): Pace {
   const soFar = runningAt(current, day);
   if (past.length < MIN_HISTORY) {
-    const projected = day >= days ? soFar : divRound(soFar * BigInt(days), BigInt(day));
+    const projected = elapsed < 1 || elapsed >= days ? soFar : divRound(soFar * BigInt(days), BigInt(elapsed));
     return { soFar, typicalByNow: null, projected, low: projected, high: projected, typicalMonth: null, method: 'pace' };
   }
   const after = past.map((month) => runningAt(month, month.length) - runningAt(month, day));
@@ -115,14 +117,18 @@ export interface NetWorthOutlook {
 }
 
 /**
- * Net worth ahead at the pace of the last twelve months (or fewer, from four month ends on). The
- * range widens by half the spread of the middle months' changes for every month ahead.
+ * Net worth ahead at the pace of the last twelve months (or fewer, from four month ends on). A
+ * month's one-offs (`oneOffs[i]`, what categories left out of the totals moved in the month ending
+ * at `monthEnds[i]`, such as a car sold) are taken out of its change: they stay in today's net worth
+ * but are not a pace to carry forward. The range widens by half the spread of the middle months'
+ * changes for every month ahead.
  */
-export function netWorthOutlook(monthEnds: readonly bigint[], ahead: number): NetWorthOutlook | null {
-  const window = monthEnds.slice(-13);
+export function netWorthOutlook(monthEnds: readonly bigint[], ahead: number, oneOffs: readonly bigint[] = []): NetWorthOutlook | null {
+  const start = Math.max(0, monthEnds.length - 13);
+  const window = monthEnds.slice(start);
   if (window.length < 4) return null;
-  const changes = window.slice(1).map((v, i) => v - window[i]);
-  const monthlyChange = divRound(window[window.length - 1] - window[0], BigInt(changes.length));
+  const changes = window.slice(1).map((v, i) => v - window[i] - (oneOffs[start + i + 1] ?? 0n));
+  const monthlyChange = divRound(changes.reduce((a, b) => a + b, 0n), BigInt(changes.length));
   const spread = divRound(quantile(changes, 3n, 4n)! - quantile(changes, 1n, 4n)!, 2n);
   const now = window[window.length - 1];
   return {

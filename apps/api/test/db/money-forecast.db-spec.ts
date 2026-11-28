@@ -12,7 +12,8 @@ import { moneyHarness } from './money-harness';
  * 5th, 15th and 25th and salary on the 10th, then June so far. This month projects as spent so far
  * plus what usually follows after the 20th, not as a straight line; each category the same way; the
  * year as so far, the rest of June and a usual month for each month left; net worth at the pace of
- * its month ends; a one-off sale stays out of income, as in the month's totals.
+ * its month ends. A one-off sale stays out of income, as in the month's totals, and out of net
+ * worth's pace (it is in today's net worth). The month is read at its last recorded day.
  */
 describe('the forecast', () => {
   let app: TestingModule;
@@ -64,9 +65,10 @@ describe('the forecast', () => {
 
   it('projects the month as spent so far plus what usually follows after this day', async () => {
     const f = await forecasts.forecast(users[0], { base: 'PLN', asOf });
-    expect([f.month, f.day, f.daysInMonth, f.method, f.basisMonths]).toEqual(['2026-06', 20, 30, 'history', 6]);
+    // nothing recorded after the 15th: the month is read there
+    expect([f.month, f.day, f.daysInMonth, f.recordedThrough, f.method, f.basisMonths]).toEqual(['2026-06', 20, 30, 15, 'history', 6]);
     const values = (p: typeof f.expenses) => [p.soFar, p.typicalByNow, p.projected, p.low, p.high, p.typicalMonth].map((a) => a?.value ?? null);
-    // 2400 so far, 2200 usual by the 20th; what follows the 20th is usually the last 100 of groceries
+    // 2400 so far, 2200 usual by the 15th; what follows the 15th is usually the last 100 of groceries
     expect(values(f.expenses)).toEqual(['2400.00', '2200.00', '2500.00', '2500.00', '2500.00', '2300.00']);
     // the salary is in; the sale of a car is not income
     expect(values(f.income)).toEqual(['5000.00', '5000.00', '5000.00', '5000.00', '5000.00', '5000.00']);
@@ -77,8 +79,8 @@ describe('the forecast', () => {
     const { days } = await forecasts.forecast(users[0], { base: 'PLN', asOf });
     expect(days).toHaveLength(30);
     expect(days[0]).toMatchObject({ day: 1, actual: { value: '2000.00' }, typical: { value: '2000.00' } });
-    expect(days[19]).toMatchObject({ day: 20, actual: { value: '2400.00' }, typical: { value: '2200.00' } });
-    expect(days[20].actual).toBeNull();
+    expect(days[14]).toMatchObject({ day: 15, actual: { value: '2400.00' }, typical: { value: '2200.00' } });
+    expect(days[15].actual).toBeNull(); // recorded through the 15th
     expect(days[29].typical?.value).toBe('2300.00');
   });
 
@@ -100,15 +102,35 @@ describe('the forecast', () => {
     expect(year.lastYear).toMatchObject({ months: 1, income: { value: '5000.00' }, expenses: { value: '2300.00' }, savingsRate: '54.0' });
   });
 
-  it("projects net worth at the pace of its month ends, and counts the months the bank covers", async () => {
+  it("projects net worth at the pace of its month ends, the sale in today's worth but not in the pace", async () => {
     const { netWorth, runway } = await forecasts.forecast(users[0], { base: 'PLN', asOf });
     // month ends from December (2700) to today (28 800, the sale included)
     expect(netWorth.history.map((p) => p.total.value)).toEqual(['2700.00', '5400.00', '8100.00', '10800.00', '13500.00', '16200.00', '28800.00']);
-    expect(netWorth.monthlyChange?.value).toBe('4350.00');
+    // 2700 a month, June 2600 once the 10 000 sale is taken out (not 4350 with it)
+    expect(netWorth.monthlyChange?.value).toBe('2683.33');
     expect(netWorth.projection).toHaveLength(12);
-    expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '33150.00' } });
-    expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '81000.00' } });
+    expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '31483.33' } });
+    expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '60999.96' } });
     expect([runway.liquid.value, runway.monthlyExpenses?.value, runway.months]).toEqual(['28800.00', '2300.00', '12.5']);
+  });
+
+  it('reads the month at its last recorded day, so a late import is not a quiet month', async () => {
+    // the 28th, nothing recorded since the 15th: what usually follows the 15th still counts (groceries on the 25th)
+    const f = await forecasts.forecast(users[0], { base: 'PLN', asOf: new Date('2026-06-28T00:00:00Z') });
+    expect([f.day, f.recordedThrough, f.expenses.soFar.value, f.expenses.projected.value]).toEqual([28, 15, '2400.00', '2500.00']);
+  });
+
+  it('shows a month with nothing in it yet as a usual month', async () => {
+    const f = await forecasts.forecast(users[0], { base: 'PLN', asOf: new Date('2026-07-20T00:00:00Z') });
+    expect([f.recordedThrough, f.expenses.soFar.value, f.expenses.projected.value, f.expenses.typicalMonth?.value, f.expenses.change]).toEqual([
+      0,
+      '0.00',
+      '2300.00',
+      '2300.00',
+      '0.0',
+    ]);
+    expect(f.income.projected.value).toBe('5000.00');
+    expect(f.days.every((d) => d.actual === null)).toBe(true);
   });
 
   it('lists what is still scheduled this month', async () => {

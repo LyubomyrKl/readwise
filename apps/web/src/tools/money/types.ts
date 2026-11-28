@@ -670,6 +670,8 @@ export interface ForecastResponse {
   month: string;
   day: number;
   daysInMonth: number;
+  /** the last day of this month with anything recorded, which the month is projected from; 0: nothing yet */
+  recordedThrough: number;
   /** history: against the months before; pace: a straight line (under three months of history) */
   method: "history" | "pace";
   basisMonths: number;

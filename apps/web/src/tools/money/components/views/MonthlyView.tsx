@@ -207,10 +207,10 @@ export function MonthCard({
 }
 
 /** Income, expenses, invested, savings rate: the figures, each beside its series swatch. */
-export function MonthFigures({ month }: { month: Omit<MonthFlow, "month"> }) {
-  const figures = [
+export function MonthFigures({ month, expensesNote }: { month: Omit<MonthFlow, "month">; expensesNote?: ReactNode }) {
+  const figures: { label: string; value: string; color: string; note?: ReactNode }[] = [
     { label: "Income", value: formatAmount(month.income), color: FLOW_SERIES[0].color },
-    { label: "Expenses", value: formatAmount(month.expenses), color: FLOW_SERIES[1].color },
+    { label: "Expenses", value: formatAmount(month.expenses), color: FLOW_SERIES[1].color, note: expensesNote },
     { label: "Invested", value: formatAmount(month.invested), color: FLOW_SERIES[2].color },
     { label: "Savings rate", value: rate(month.savingsRate), color: RATE_COLOR, note: `${formatAmount(month.savings)} saved` },
   ];

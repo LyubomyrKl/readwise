@@ -321,7 +321,7 @@ test.describe("Money", () => {
     await expect(row("three")).toHaveCount(1);
   });
 
-  test("insights: from the Overview's pace note to this month on pace, as the forecast says", async ({ page, request }) => {
+  test("insights: from the pace under the Overview's expenses to this month on pace, as the forecast says", async ({ page, request }) => {
     const wallet = (await account(request, `Pace ${run}`, "1000.00")).id;
     const today = new Date().toISOString().slice(0, 10);
     await call(request, "post", "/money/movements", { kind: "expense", input: { date: today, accountId: wallet, currency: "PLN", amount: "12.34", note: `pace ${run}` } });
@@ -329,9 +329,9 @@ test.describe("Money", () => {
     const shown = (value: string) => Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     await page.goto("/apps/money");
-    const note = page.getByText("Spending is on pace for").locator("xpath=ancestor::div[1]");
+    const note = page.getByRole("link", { name: /^on pace for/ });
     await expect(note).toContainText(shown(forecast.expenses.projected.value));
-    await note.getByRole("link", { name: "Insights" }).click();
+    await note.click();
     await page.waitForURL(/\/apps\/money\/insights/);
     await expect(page.getByText("Spending this month").locator("..")).toContainText(shown(forecast.expenses.projected.value));
 

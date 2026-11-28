@@ -291,8 +291,8 @@ entries of posted transactions cannot be updated or deleted.
   Groceries and the wallet, Save and add another with Undo, and a category for two movements then
   deleting them.
 - **Insights, Nov 28** — where the money is heading, on a page of its own (Insights, beside
-  Transactions) and in one line on the Overview. This month on pace: spending and income projected
-  as what is in so far plus what usually followed after the same day in the months before (the
+  Transactions) and under the Overview's expenses. This month on pace: spending and income projected
+  as what is in so far plus what usually followed after its last recorded day in the months before (the
   median of up to twelve; the likely range their quartiles; under three months of history, a
   straight line from the pace so far), against a usual month, and as running totals day by day
   against the usual month's (a dashed median over a shaded middle half). Each expense category
@@ -303,7 +303,13 @@ entries of posted transactions cannot be updated or deleted.
   recurring movements still due this month. `GET /money/views/forecast` (read-only; `ForecastService`
   over the views' dated flows, `core/forecast.ts` all integers; one-offs out, merged categories as
   the one they went into); Claude reads it too (`get_forecast`, `GET /money/claude/forecast`).
+  Then, the same day: net worth's pace leaves one-offs out too (a car sold is in today's net worth,
+  not in the monthly change: it had counted as a month's saving and steepened the whole line); the
+  month is read at its last recorded day (`recordedThrough`), so a statement imported up to the
+  12th projects from the 12th and a month with nothing in it yet is a usual month, not one far
+  below usual; the pace moved from a line of its own on the Overview to under its Expenses.
   Tests: `core/forecast.spec.ts`; `money-forecast.db-spec.ts` (a known half year: the projection,
-  the day by day, the categories, the year, net worth, the safety net, a straight line for a first
-  month); `get_forecast` in `money-m6.db-spec.ts`; `money-insights.test.ts`; in the browser, the
-  Overview's pace note to Insights, showing what the forecast says.
+  the day by day, the categories, the year, net worth with a sale out of its pace, the safety net,
+  a late import, an empty month, a straight line for a first month); `get_forecast` in
+  `money-m6.db-spec.ts`; `money-insights.test.ts`; in the browser, the pace under the Overview's
+  expenses to Insights, showing what the forecast says.
