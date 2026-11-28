@@ -45,6 +45,7 @@ import { TransactionsController } from './transactions/transactions.controller';
 import { SnapshotsService } from './views/snapshots.service';
 import { ViewsController } from './views/views.controller';
 import { ViewsService } from './views/views.service';
+import { ForecastService } from './views/forecast.service';
 import { TransactionsService } from './transactions/transactions.service';
 
 /**
@@ -93,6 +94,7 @@ import { TransactionsService } from './transactions/transactions.service';
     PositionsService,
     TradesService,
     ViewsService,
+    ForecastService,
     SnapshotsService,
     MoneyHttp,
     RateFeedService,

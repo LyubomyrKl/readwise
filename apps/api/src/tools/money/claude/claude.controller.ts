@@ -22,6 +22,12 @@ export class ClaudeController {
     return this.claude.summary(req.moneyToken.userId, q.base);
   }
 
+  @Get('forecast')
+  @ApiOperation({ summary: 'Where it is heading: this month on pace, the year, net worth in twelve months, the safety net' })
+  forecast(@Req() req: TokenRequest, @Query() q: ClaudeBaseQuery) {
+    return this.claude.forecast(req.moneyToken.userId, q.base);
+  }
+
   @Get('net-worth')
   @ApiOperation({ summary: 'Net worth by account, currency and class' })
   netWorth(@Req() req: TokenRequest, @Query() q: ClaudeNetWorthQuery) {

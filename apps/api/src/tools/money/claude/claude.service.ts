@@ -8,6 +8,8 @@ import { DraftsService } from '../drafts/drafts.service';
 import { PositionsService } from '../investments/positions.service';
 import { TransactionsService } from '../transactions/transactions.service';
 import type { TransactionResponse } from '../transactions/transaction.models';
+import { ForecastService } from '../views/forecast.service';
+import type { PaceResponse } from '../views/view.models';
 import { ViewsService } from '../views/views.service';
 import type { ClaudeTransactionsQuery, ProposeMovementDto } from './claude.models';
 import type { VerifiedToken } from './tokens.service';
@@ -29,7 +31,43 @@ export class ClaudeService {
     private readonly transactions: TransactionsService,
     private readonly positions: PositionsService,
     private readonly drafts: DraftsService,
+    private readonly forecasts: ForecastService,
   ) {}
+
+  /** Where the money is heading: this month on pace, the year, net worth in twelve months, the safety net. */
+  async forecast(userId: string, base?: string) {
+    const f = await this.forecasts.forecast(userId, { base });
+    const pace = (p: PaceResponse) => ({
+      soFar: money(p.soFar),
+      usualByToday: money(p.typicalByNow),
+      projected: money(p.projected),
+      likely: { from: money(p.low), to: money(p.high) },
+      usualMonth: money(p.typicalMonth),
+      vsUsualPercent: p.change,
+    });
+    const year = (y: typeof f.year.soFar) => ({ income: money(y.income), expenses: money(y.expenses), saved: money(y.savings), savingsRatePercent: y.savingsRate });
+    const inAYear = f.netWorth.projection.at(-1);
+    return {
+      base: f.base,
+      today: f.asOf,
+      month: f.month,
+      // how the month is projected: so far plus what usually follows in the months before, or a straight line
+      method: f.method === 'history' ? `so far plus what usually followed this day in the last ${f.basisMonths} months` : 'a straight line from the pace so far',
+      expenses: pace(f.expenses),
+      income: pace(f.income),
+      projectedSaved: money(f.savings),
+      projectedSavingsRatePercent: f.savingsRate,
+      categories: f.categories.slice(0, 12).map((c) => ({ category: c.name, ...pace(c) })),
+      year: { year: f.year.year, soFar: year(f.year.soFar), projected: year(f.year.projected), lastYear: f.year.lastYear ? { ...year(f.year.lastYear), months: f.year.lastYear.months } : null },
+      netWorth: {
+        monthlyChange: money(f.netWorth.monthlyChange),
+        inTwelveMonths: inAYear ? { date: inAYear.date, value: money(inAYear.value), likely: { from: money(inAYear.low), to: money(inAYear.high) } } : null,
+      },
+      safetyNet: { bankAndCash: money(f.runway.liquid), usualMonthOfSpending: money(f.runway.monthlyExpenses), months: f.runway.months },
+      stillScheduledThisMonth: f.upcoming.map((u) => ({ date: u.date, name: u.name, kind: u.kind, amount: money(u.amount) })),
+      missingRates: f.missingRates,
+    };
+  }
 
   /** The three answers at once: net worth, this month, allocation; and the drafts waiting. */
   async summary(userId: string, base?: string) {

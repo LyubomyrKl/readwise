@@ -290,3 +290,20 @@ entries of posted transactions cannot be updated or deleted.
   `money-bulk.test.ts`, the fee in `money-lib.test.ts`; in the browser, N then a note bringing back
   Groceries and the wallet, Save and add another with Undo, and a category for two movements then
   deleting them.
+- **Insights, Nov 28** — where the money is heading, on a page of its own (Insights, beside
+  Transactions) and in one line on the Overview. This month on pace: spending and income projected
+  as what is in so far plus what usually followed after the same day in the months before (the
+  median of up to twelve; the likely range their quartiles; under three months of history, a
+  straight line from the pace so far), against a usual month, and as running totals day by day
+  against the usual month's (a dashed median over a shaded middle half). Each expense category
+  the same way, the furthest from usual first. The year: so far, the rest of this month as
+  projected and a usual month for each month left, against last year. Net worth: the month ends
+  behind, and twelve ahead at the last year's average monthly change, widening by half the spread
+  of the middle months' changes. The months of usual spending that bank and cash cover, and the
+  recurring movements still due this month. `GET /money/views/forecast` (read-only; `ForecastService`
+  over the views' dated flows, `core/forecast.ts` all integers; one-offs out, merged categories as
+  the one they went into); Claude reads it too (`get_forecast`, `GET /money/claude/forecast`).
+  Tests: `core/forecast.spec.ts`; `money-forecast.db-spec.ts` (a known half year: the projection,
+  the day by day, the categories, the year, net worth, the safety net, a straight line for a first
+  month); `get_forecast` in `money-m6.db-spec.ts`; `money-insights.test.ts`; in the browser, the
+  Overview's pace note to Insights, showing what the forecast says.

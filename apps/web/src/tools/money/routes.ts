@@ -11,6 +11,8 @@ export const MONEY_ROUTES = Object.freeze({
   transactions: `${BASE}/transactions`,
   newMovement: (kind?: string) => `${BASE}/transactions/new${kind ? `?kind=${kind}` : ""}`,
   transaction: (id: string) => `${BASE}/transactions/${id}`,
+  /** where the money is heading: this month on pace, the year, net worth ahead */
+  insights: `${BASE}/insights`,
   /** assets, their prices and the allocation's classes; holdings are on each account's page */
   assets: `${BASE}/accounts/assets`,
   reports: `${BASE}/reports`,

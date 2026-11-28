@@ -35,6 +35,7 @@ Version 1 is accounts, money movements, history import and three views.
 | Views | See net worth in a base currency I can switch at any time (all major currencies supported, not only mine), by account, currency and asset class. | v1 |
 | Views | See allocation against my target, with the drift for each part. Each account belongs to a class and everything it holds counts there, cash and units alike (the broker as equity, the bond account as the emergency fund); an asset can have classes of its own, which win. | v1 |
 | Views | See each month's income, expenses, amount invested and savings rate. A category can be left out of these totals (selling something I own is not income); what it holds still shows under the month. | v1 |
+| Views | See where the money is heading: this month's spending and income on pace against my own months before (spent so far plus what usually follows after this day; a likely range), each category the same way, the year as projected against last year, net worth in a year at last year's pace, and how many months of usual spending my bank and cash cover. | v1 |
 | Data | Import the full history from my current money-manager export. | v1 |
 | Data | Give Claude read-only access to accounts, movements and positions. | v1 |
 | Data | Import statements from each bank, with duplicates detected. | v1 |

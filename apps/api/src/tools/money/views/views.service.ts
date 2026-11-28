@@ -287,6 +287,19 @@ export class ViewsService {
   // ---- where the money went ------------------------------------------------------------------------
 
   private async flows(userId: string, base: string, from: Date, to: Date): Promise<{ byMonth: Map<string, FlowEntry[]>; missing: string[] }> {
+    const { entries, missing } = await this.flowEntries(userId, base, from, to);
+    const byMonth = new Map<string, FlowEntry[]>();
+    for (const e of entries) {
+      const month = e.date!.slice(0, 7);
+      const list = byMonth.get(month);
+      if (list) list.push(e);
+      else byMonth.set(month, [e]);
+    }
+    return { byMonth, missing };
+  }
+
+  /** Every posted entry from `from` to `to` (opening balances aside), dated and in the base currency at its day's rate. */
+  async flowEntries(userId: string, base: string, from: Date, to: Date): Promise<{ entries: FlowEntry[]; missing: string[] }> {
     const rows = await this.prisma.$queryRaw<
       {
         transactionId: string;
@@ -320,7 +333,7 @@ export class ViewsService {
     const book = await this.rates.rangeBook([...currencies, base], from, to);
     const baseDecimals = await this.commodities.decimalsOf(base);
     const missing = new Set<string>();
-    const byMonth = new Map<string, FlowEntry[]>();
+    const entries: FlowEntry[] = [];
     for (const r of rows) {
       let value: bigint | null = null;
       if (r.commodityKind === 'currency' && r.minor !== null) {
@@ -330,9 +343,7 @@ export class ViewsService {
           continue;
         }
       }
-      const month = r.date.slice(0, 7);
-      const list = byMonth.get(month) ?? [];
-      list.push({
+      entries.push({
         transactionId: r.transactionId,
         kind: r.kind,
         accountType: r.accountType as FlowEntry['accountType'],
@@ -340,15 +351,15 @@ export class ViewsService {
         base: value,
         categoryId: r.categoryId,
         leftOut: r.leftOut,
+        date: r.date,
       });
-      byMonth.set(month, list);
     }
-    return { byMonth, missing: [...missing].sort() };
+    return { entries, missing: [...missing].sort() };
   }
 
   /** `from: 'start'` begins at the month of the first posted transaction. */
-  private async range(userId: string, q: { from?: string; to?: string }): Promise<{ months: Date[]; from: Date; to: Date }> {
-    const today = this.today();
+  private async range(userId: string, q: { from?: string; to?: string; asOf?: Date }): Promise<{ months: Date[]; from: Date; to: Date }> {
+    const today = q.asOf ?? this.today();
     const toMonth = q.to ? toDate(`${q.to}-01`, 'to') : startOfMonth(today);
     let fromMonth = q.from && q.from !== 'start' ? toDate(`${q.from}-01`, 'from') : addMonths(toMonth, -11, 1);
     if (q.from === 'start') {
@@ -442,9 +453,9 @@ export class ViewsService {
 
   // ---- net worth over time ------------------------------------------------------------------------
 
-  async history(userId: string, q: { base?: string; from?: string; to?: string } = {}): Promise<HistoryResponse> {
+  async history(userId: string, q: { base?: string; from?: string; to?: string; asOf?: Date } = {}): Promise<HistoryResponse> {
     const base = await this.baseOf(userId, q.base);
-    const today = this.today();
+    const today = q.asOf ?? this.today();
     const { months } = await this.range(userId, q);
     // month ends; the current month ends today
     const points = months.map((m) => {

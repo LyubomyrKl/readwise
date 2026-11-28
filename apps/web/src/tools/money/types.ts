@@ -624,3 +624,68 @@ export interface HabitsResponse {
   /** each note once, most used first, then most recent */
   notes: HabitNote[];
 }
+
+// ---- forecast --------------------------------------------------------------------------------
+
+/** One figure of this month against the months before: so far, the usual, and where it is heading. */
+export interface PaceFigure {
+  soFar: AmountJson;
+  /** where the months before usually stood by this day (median); null without history */
+  typicalByNow: AmountJson | null;
+  /** so far plus what usually follows after this day */
+  projected: AmountJson;
+  /** the likely range: the quartiles of what followed */
+  low: AmountJson;
+  high: AmountJson;
+  /** the median whole month; null without history */
+  typicalMonth: AmountJson | null;
+  /** projected against the usual month, percent; null without a usual month */
+  change: string | null;
+}
+
+export interface PaceDay {
+  day: number;
+  /** this month's running total; null after today */
+  actual: AmountJson | null;
+  typical: AmountJson | null;
+  low: AmountJson | null;
+  high: AmountJson | null;
+}
+
+export interface CategoryPace extends PaceFigure {
+  categoryId: string | null;
+  name: string;
+}
+
+export interface YearFigures {
+  income: AmountJson;
+  expenses: AmountJson;
+  savings: AmountJson;
+  savingsRate: string | null;
+}
+
+export interface ForecastResponse {
+  base: string;
+  asOf: string;
+  month: string;
+  day: number;
+  daysInMonth: number;
+  /** history: against the months before; pace: a straight line (under three months of history) */
+  method: "history" | "pace";
+  basisMonths: number;
+  expenses: PaceFigure;
+  income: PaceFigure;
+  savings: AmountJson;
+  savingsRate: string | null;
+  days: PaceDay[];
+  categories: CategoryPace[];
+  year: { year: number; soFar: YearFigures; projected: YearFigures; lastYear: (YearFigures & { months: number }) | null };
+  netWorth: {
+    history: HistoryPoint[];
+    monthlyChange: AmountJson | null;
+    projection: { date: string; value: AmountJson; low: AmountJson; high: AmountJson }[];
+  };
+  runway: { liquid: AmountJson; monthlyExpenses: AmountJson | null; months: string | null };
+  upcoming: { date: string; name: string; kind: string; amount: AmountJson | null }[];
+  missingRates: string[];
+}

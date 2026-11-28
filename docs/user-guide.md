@@ -143,6 +143,13 @@ If it stops:
   filters fold behind **Filters**.
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
+- **Insights**: where the money is heading. This month on pace: spending and income projected
+  as what is in so far plus what usually follows after today's date in your own months before
+  (with a likely range), against a usual month, and day by day on a chart; each category the same
+  way, the furthest from usual first; the year so far and as projected, against last year; net
+  worth in twelve months at the last year's pace; how many months of usual spending your bank and
+  cash would cover; recurring movements still due this month. Under three months of history the
+  month is projected in a straight line. The Overview shows the pace in one line.
 - **Reports**: month by month, by category.
 - **Settings → Account**: change your password (the current one first; your other devices sign in
   again with the new one), the authenticator app, passkeys. Forgot it? **Forgot password?** on the

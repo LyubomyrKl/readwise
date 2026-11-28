@@ -28,6 +28,7 @@ export const moneyKeys = {
   positions: (accountId?: string) => ["money", "positions", accountId ?? "all"] as const,
   lots: (accountId: string, assetId: string) => ["money", "lots", accountId, assetId] as const,
   home: (base: string) => ["money", "views", "home", base] as const,
+  forecast: (base: string) => ["money", "views", "forecast", base] as const,
   netWorth: (base: string, asOf: string) => ["money", "views", "net-worth", base, asOf] as const,
   allocation: (base: string, asOf: string) => ["money", "views", "allocation", base, asOf] as const,
   monthly: (base: string, from: string) => ["money", "views", "monthly", base, from] as const,
@@ -172,6 +173,11 @@ export function useLots(accountId: string, assetId: string, enabled = true) {
 
 export function useHome(base?: string) {
   return useQuery({ queryKey: moneyKeys.home(base ?? ""), queryFn: () => moneyApi.views.home(base), placeholderData: keepPreviousData });
+}
+
+/** Where the money is heading; refreshed with everything else after a write. */
+export function useForecast(base?: string) {
+  return useQuery({ queryKey: moneyKeys.forecast(base ?? ""), queryFn: () => moneyApi.views.forecast(base), placeholderData: keepPreviousData });
 }
 
 export function useNetWorth(base?: string, asOf?: string) {

@@ -4,9 +4,11 @@ import { ApiEndpoint } from '@platform/common/api-endpoint.decorator';
 import { UserModel } from '@platform/common/models';
 import { toDate } from '../common/parse';
 import { SnapshotsService } from './snapshots.service';
+import { ForecastService } from './forecast.service';
 import {
   AllocationResponse,
   CreateSnapshotDto,
+  ForecastResponse,
   HistoryResponse,
   HomeResponse,
   MonthDetail,
@@ -25,7 +27,18 @@ export class ViewsController {
   constructor(
     private readonly views: ViewsService,
     private readonly snapshots: SnapshotsService,
+    private readonly forecasts: ForecastService,
   ) {}
+
+  @Get('views/forecast')
+  @ApiQuery({ name: 'base', required: false })
+  @ApiEndpoint({
+    summary: "Where it is heading: this month on pace against the months before, the year, net worth's outlook, the months the bank covers",
+    response: ForecastResponse,
+  })
+  forecast(@Req() req: UserModel, @Query('base') base?: string) {
+    return this.forecasts.forecast(req.user.userId, { base });
+  }
 
   @Get('views/home')
   @ApiQuery({ name: 'base', required: false })

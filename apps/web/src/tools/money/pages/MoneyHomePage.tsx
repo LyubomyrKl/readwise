@@ -14,6 +14,7 @@ import { AllocationRows } from "../components/views/AllocationView";
 import { BasePicker } from "../components/views/BasePicker";
 import { CategoryBreakdown, FLOW_SERIES, LeftOutNote, MonthFigures } from "../components/views/MonthlyView";
 import { MissingRates, NetWorthHeadline } from "../components/views/NetWorthView";
+import { PaceNote } from "../components/views/PaceNote";
 import { useQuickEntry } from "../components/QuickEntry";
 import { formatMonth } from "../lib/format";
 import { suggestBases } from "../lib/views";
@@ -116,6 +117,7 @@ export default function MoneyHomePage() {
             </CardHeader>
             <CardContent className="space-y-6">
               <MonthFigures month={data.month} />
+              <PaceNote base={base || undefined} />
               <LeftOutNote items={data.month.leftOutByCategory} />
               <MissingRates currencies={data.month.missingRates} base={data.base} />
               <div className="grid gap-6 md:grid-cols-2">

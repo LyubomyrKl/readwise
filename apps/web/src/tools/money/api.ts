@@ -5,6 +5,7 @@
 import { apiFetch } from "@platform/api/http";
 import type {
   ApiToken,
+  ForecastResponse,
   HabitKind,
   HabitsResponse,
   CreatedApiToken,
@@ -187,6 +188,8 @@ export const moneyApi = {
     period: (query: { base?: string; from?: string; to?: string } = {}) => apiFetch<PeriodDetail>("/money/views/period", { query }),
     history: (query: { base?: string; from?: string; to?: string } = {}) =>
       apiFetch<HistoryResponse>("/money/views/history", { query }),
+    /** this month on pace, the year, net worth ahead, the months the bank covers */
+    forecast: (base?: string) => apiFetch<ForecastResponse>("/money/views/forecast", { query: { base } }),
   },
 
   snapshots: {

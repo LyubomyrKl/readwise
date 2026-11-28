@@ -5,8 +5,8 @@ import { test, expect, type APIRequestContext, type Page } from "@playwright/tes
  * Testing): the account's balance under the movement form's picker, the history showing what
  * stands, cards dragged into an order that stays, a holding added and priced on its account's
  * page, the back arrow going back, a movement changed and deleted on its own page, quick entry
- * (learning from the history, saving another, undo), several movements at once, and a category
- * merged away. Every run makes its own accounts and categories, so the spec runs again on the same
+ * (learning from the history, saving another, undo), several movements at once, Insights (where the
+ * money is heading), and a category merged away. Every run makes its own accounts and categories, so the spec runs again on the same
  * stack.
  */
 const run = Date.now().toString(36);
@@ -319,6 +319,26 @@ test.describe("Money", () => {
     await expect(row("one")).toHaveCount(0);
     await expect(row("two")).toHaveCount(0);
     await expect(row("three")).toHaveCount(1);
+  });
+
+  test("insights: from the Overview's pace note to this month on pace, as the forecast says", async ({ page, request }) => {
+    const wallet = (await account(request, `Pace ${run}`, "1000.00")).id;
+    const today = new Date().toISOString().slice(0, 10);
+    await call(request, "post", "/money/movements", { kind: "expense", input: { date: today, accountId: wallet, currency: "PLN", amount: "12.34", note: `pace ${run}` } });
+    const forecast = await call<{ daysInMonth: number; expenses: { projected: { value: string } } }>(request, "get", "/money/views/forecast");
+    const shown = (value: string) => Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+    await page.goto("/apps/money");
+    const note = page.getByText("Spending is on pace for").locator("xpath=ancestor::div[1]");
+    await expect(note).toContainText(shown(forecast.expenses.projected.value));
+    await note.getByRole("link", { name: "Insights" }).click();
+    await page.waitForURL(/\/apps\/money\/insights/);
+    await expect(page.getByText("Spending this month").locator("..")).toContainText(shown(forecast.expenses.projected.value));
+
+    // the chart's table: a row for every day of the month, and its header
+    const chart = page.locator("figure").filter({ hasText: "Spending, day by day" });
+    await chart.getByRole("button", { name: "Table" }).click();
+    await expect(chart.getByRole("row")).toHaveCount(forecast.daysInMonth + 1);
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

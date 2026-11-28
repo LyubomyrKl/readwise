@@ -65,6 +65,18 @@ export function buildMcpServer(claude: ClaudeService, token: VerifiedToken): Mcp
   );
 
   server.registerTool(
+    'get_forecast',
+    {
+      title: 'Forecast',
+      description:
+        "Where the money is heading: this month's spending and income on pace (so far, the usual by today, the projected month end with a likely range, percent against a usual month), each expense category the same way, the year so far and as projected against last year, net worth in twelve months at the last year's pace, how many months of usual spending the bank and cash cover, and the recurring movements still due this month. One-offs are kept out, as in the month's totals.",
+      inputSchema: { base: BASE },
+      annotations: READ,
+    },
+    async ({ base }) => json(await claude.forecast(userId, base)),
+  );
+
+  server.registerTool(
     'get_net_worth',
     {
       title: 'Net worth',

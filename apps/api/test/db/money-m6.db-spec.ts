@@ -97,6 +97,16 @@ describe('M6 Claude access', () => {
     ]);
   });
 
+  it('tells where the money is heading, through the tool and its REST twin', async () => {
+    const claude = await mcp(readToken.token);
+    expect((await claude.listTools()).tools.map((t) => t.name)).toContain('get_forecast');
+    const forecast = await call(claude, 'get_forecast', {});
+    expect(forecast).toMatchObject({ base: 'PLN', expenses: { soFar: expect.stringMatching(/ PLN$/) }, safetyNet: { bankAndCash: expect.stringMatching(/ PLN$/) } });
+    const rest = await fetch(`${base}/money/claude/forecast`, { headers: { authorization: `Bearer ${readToken.token}` } });
+    expect(rest.status).toBe(200);
+    expect(((await rest.json()) as { month: string }).month).toBe(forecast.month);
+  });
+
   it('turns away requests without a live token', async () => {
     const post = (headers: Record<string, string>) =>
       fetch(`${base}/money/claude/mcp`, {

@@ -33,6 +33,8 @@ export interface FlowEntry {
   categoryId: string | null;
   /** the category is left out of the month's income and expenses */
   leftOut?: boolean;
+  /** the transaction's day, YYYY-MM-DD (the forecast reads days, not only months) */
+  date?: string;
 }
 
 export interface MonthTotals {
