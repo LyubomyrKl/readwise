@@ -334,3 +334,15 @@ entries of posted transactions cannot be updated or deleted.
   each month apart to the cent, the projection, the year and the safety net on the average month,
   a lumpy category); `money-insights.test.ts`; in the browser, the breakdown's table and the
   return chosen on the card kept in the settings.
+- **Insights: learn from, Nov 28** — the owner's months change (a tax begins, a new job), and twelve
+  months behind a change keep projecting the old life. **Learn from** on Insights picks the first
+  month every figure learns from (a setting, `forecastSince`, migration `money_forecast_since`;
+  cleared, the last twelve months): the usual month and its range, the categories, the year's months
+  left, the safety net, what an average month saves; never before the first movement, at most
+  twelve months, and under three full months a straight line as before. Anchored, so the months
+  after it join as they pass until it is the last twelve again. The texts name the months
+  ("your 5 months since June 2026"); Claude's `get_forecast` says them (`learningFrom`). Tests:
+  `money-forecast.db-spec.ts` (a tax from April: over the half year it comes now and then, since
+  April it is the usual month, 2500 a month and 3500 saved; since June a straight line; before the
+  first movement the first movement; cleared, the half year again); `money-insights.test.ts` (the
+  words, the options); in the browser, a start chosen on the page, kept, named, and cleared.

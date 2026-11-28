@@ -157,7 +157,10 @@ If it stops:
   of history the month is projected in a straight line; a month with nothing recorded yet shows as
   a usual month. One-offs (a category left out of the totals, such as Sold belongings) are in none
   of the projections, the savings rate or what you save: a sale counts once in today's net worth.
-  On the Overview the pace is under Expenses: **on pace for …** opens Insights.
+  **Learn from** (top of the page) picks the months every projection learns from: your last 12, or
+  since the month something changed (you started paying a tax, a new job), so the months before it
+  stop pulling the usual month back; it is kept, and the months after it join as they pass. On the
+  Overview the pace is under Expenses: **on pace for …** opens Insights.
 - **Reports**: month by month, by category.
 - **Settings → Account**: change your password (the current one first; your other devices sign in
   again with the new one), the authenticator app, passkeys. Forgot it? **Forgot password?** on the

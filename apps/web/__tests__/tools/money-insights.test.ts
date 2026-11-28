@@ -1,10 +1,30 @@
-import { categoryBar, categoryScale, changeLabel, outlookSeries, paceSeries, worthSeries } from "@tools/money/lib/insights";
+import { basisLabel, categoryBar, categoryScale, changeLabel, LAST_12, outlookSeries, paceSeries, sinceOptions, worthSeries } from "@tools/money/lib/insights";
 import type { CategoryPace, ForecastResponse, WorthMonth } from "@tools/money/types";
 
 const amount = (value: string) => ({ currency: "PLN", value, minor: value.replace(".", "") });
 const point = (date: string, total: string) => ({ date, total: amount(total), assets: amount(total), liabilities: amount("0.00") });
 
 describe("insights", () => {
+  it("says which months the projections learn from", () => {
+    expect(basisLabel({ basisMonths: 12, basisFrom: "2025-11", since: null })).toBe("your last 12 months");
+    expect(basisLabel({ basisMonths: 5, basisFrom: "2026-06", since: "2026-06" })).toBe("your 5 months since June 2026");
+    expect(basisLabel({ basisMonths: 1, basisFrom: "2026-10", since: "2026-10" })).toBe("your 1 month since October 2026");
+    // chosen before the first movement, or more than a year ago: the last months it has
+    expect(basisLabel({ basisMonths: 6, basisFrom: "2026-01", since: "2025-09" })).toBe("your last 6 months");
+  });
+
+  it("offers the last twelve months, or since one of them, with the full months each leaves", () => {
+    const options = sinceOptions("2026-11", null);
+    expect(options).toHaveLength(13);
+    expect(options[0]).toEqual({ value: LAST_12, label: "Your last 12 months" });
+    expect(options[1]).toEqual({ value: "2025-12", label: "Since December 2025 · 11 months" });
+    expect(options.find((o) => o.value === "2026-06")?.label).toBe("Since June 2026 · 5 months");
+    expect(options.find((o) => o.value === "2026-10")?.label).toBe("Since October 2026 · 1 month, a straight line");
+    expect(options.at(-1)).toEqual({ value: "2026-11", label: "Since November 2026 · this month only, a straight line" });
+    // a start chosen long ago stays visible: it is the last twelve months by now
+    expect(sinceOptions("2026-11", "2025-03")[1]).toEqual({ value: "2025-03", label: "Since March 2025 · your last 12 months" });
+  });
+
   it("draws this month's running total against the usual one, nothing after today", () => {
     const s = paceSeries([
       { day: 1, actual: amount("10.00"), typical: amount("8.00"), low: amount("5.00"), high: amount("9.00") },

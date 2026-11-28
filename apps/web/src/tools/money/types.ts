@@ -96,6 +96,8 @@ export interface MoneySettings {
   taxResidence: string;
   /** what investments are expected to earn a year, percent ("5"); Insights grows what is invested at it */
   expectedReturn: string;
+  /** YYYY-MM: the first month Insights learns from (things changed then: a tax began); null: the last twelve */
+  forecastSince: string | null;
 }
 
 export type MovementKind =
@@ -697,6 +699,10 @@ export interface ForecastResponse {
   /** history: against the months before; pace: a straight line (under three months of history) */
   method: "history" | "pace";
   basisMonths: number;
+  /** the first of the months learned from; null without any */
+  basisFrom: string | null;
+  /** the month the person chose to learn from (settings); null: the last twelve */
+  since: string | null;
   expenses: PaceFigure;
   income: PaceFigure;
   savings: AmountJson;

@@ -19,7 +19,8 @@ import { moneyHarness } from './money-harness';
  * and out of what is saved (it is in today's net worth). The month is read at its last recorded day.
  * Then a second history: each month's change of net worth told apart (saved, a price, an account
  * added, a sale), investments at the expected return of the settings, and a holiday that makes
- * the average month dearer than the usual one.
+ * the average month dearer than the usual one. Last, a tax paid from April on: over the whole half
+ * year it is "now and then", learning only from the months since April it is the usual month.
  */
 describe('the forecast', () => {
   let app: TestingModule;
@@ -33,7 +34,7 @@ describe('the forecast', () => {
     app = h.app;
     prisma = h.prisma;
     forecasts = app.get(ForecastService);
-    for (const tag of ['history', 'new', 'worth']) users.push(await h.newUser(`forecast-${tag}`));
+    for (const tag of ['history', 'new', 'worth', 'taxes']) users.push(await h.newUser(`forecast-${tag}`));
 
     const accounts = app.get(AccountsService);
     const movements = app.get(MovementsService);
@@ -257,6 +258,65 @@ describe('the forecast', () => {
         true,
         null,
       ]);
+    });
+  });
+
+  describe('learning only from the months since a change', () => {
+    const july = new Date('2026-07-05T00:00:00Z');
+    const settings = () => app.get(MoneySettingsService);
+
+    beforeAll(async () => {
+      const userId = users[3];
+      const mbank = (await app.get(AccountsService).create(userId, { name: 'mBank', type: 'bank', currencies: ['PLN'] })).id;
+      const all = await app.get(CategoriesService).list(userId);
+      const flow = (kind: 'income' | 'expense', date: string, amount: string, name: string) =>
+        app
+          .get(MovementsService)
+          .post(userId, { kind, input: { date, accountId: mbank, currency: 'PLN', amount, categoryId: all.find((c) => c.name === name)!.id } }, { actor: 'user' });
+      for (const month of ['01', '02', '03', '04', '05', '06']) {
+        await flow('income', `2026-${month}-10`, '6000.00', 'Salary');
+        await flow('expense', `2026-${month}-15`, '1000.00', 'Groceries');
+        // taxes from April on
+        if (month >= '04') await flow('expense', `2026-${month}-25`, '1500.00', 'Taxes');
+      }
+    });
+
+    it('takes the half year by default: the tax looks like it comes now and then', async () => {
+      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+      expect([f.basisMonths, f.basisFrom, f.since, f.method]).toEqual([6, '2026-01', null, 'history']);
+      // months of 1000 and of 2500: usually 1750
+      expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['1750.00', '1750.00']);
+      const taxes = f.categories.find((c) => c.name === 'Taxes')!;
+      expect([taxes.monthsWith, taxes.lumpy, taxes.averageMonth?.value]).toEqual([3, true, '750.00']);
+      expect(f.netWorth.monthlySaving?.value).toBe('4250.00');
+    });
+
+    it('learns from April on once told so: the tax is part of the usual month', async () => {
+      expect((await settings().update(users[3], { forecastSince: '2026-04' })).forecastSince).toBe('2026-04');
+      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+      expect([f.basisMonths, f.basisFrom, f.since, f.method]).toEqual([3, '2026-04', '2026-04', 'history']);
+      expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['2500.00', '2500.00']);
+      const taxes = f.categories.find((c) => c.name === 'Taxes')!;
+      expect([taxes.projected.value, taxes.typicalMonth?.value, taxes.lumpy, taxes.change]).toEqual(['1500.00', '1500.00', false, '0.0']);
+      // 6000 in, 2500 out since April
+      expect([f.netWorth.monthlySaving?.value, f.runway.monthlyExpenses?.value]).toEqual(['3500.00', '2500.00']);
+      expect(f.netWorth.months.map((m) => m.month)).toEqual(['2026-04', '2026-05', '2026-06', '2026-07']);
+    });
+
+    it('draws a straight line while fewer than three months have passed since, and never starts before the first movement', async () => {
+      await settings().update(users[3], { forecastSince: '2026-06' });
+      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+      expect([f.basisMonths, f.method]).toEqual([1, 'pace']);
+
+      await settings().update(users[3], { forecastSince: '2025-09' });
+      const g = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+      expect([g.basisMonths, g.basisFrom, g.since]).toEqual([6, '2026-01', '2025-09']);
+    });
+
+    it('goes back to the last twelve months when the start is cleared', async () => {
+      expect((await settings().update(users[3], { forecastSince: null })).forecastSince).toBeNull();
+      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+      expect([f.basisMonths, f.since]).toEqual([6, null]);
     });
   });
 });

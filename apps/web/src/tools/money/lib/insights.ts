@@ -1,10 +1,35 @@
 import type { AmountJson, CategoryPace, ForecastResponse, PaceDay, WorthMonth } from "../types";
-import { shortMonth } from "./chart";
+import { shiftMonth, shortMonth } from "./chart";
+import { formatMonth } from "./format";
 
 /**
  * The forecast as the Insights page draws it. Amount strings become numbers only to place marks;
  * every figure a person reads stays the exact string.
  */
+
+/** The months every projection learns from, in words: "your last 12 months", "your 5 months since June 2026". */
+export function basisLabel(f: Pick<ForecastResponse, "basisMonths" | "basisFrom" | "since">): string {
+  const months = `${f.basisMonths} ${f.basisMonths === 1 ? "month" : "months"}`;
+  return f.since && f.basisFrom === f.since ? `your ${months} since ${formatMonth(f.since)}` : `your last ${months}`;
+}
+
+/** Learn from's value for the last twelve months (the setting cleared). */
+export const LAST_12 = "last-12";
+
+/**
+ * What Learn from offers: the last twelve months, or since one of the last twelve (things changed
+ * then), each with the full months it leaves; under three, the month is a straight line.
+ */
+export function sinceOptions(month: string, current: string | null): { value: string; label: string }[] {
+  const options = [{ value: LAST_12, label: "Your last 12 months" }];
+  if (current && current < shiftMonth(month, -11)) options.push({ value: current, label: `Since ${formatMonth(current)} · your last 12 months` });
+  for (let k = 11; k >= 0; k--) {
+    const since = shiftMonth(month, -k);
+    const left = k === 0 ? "this month only, a straight line" : `${k} ${k === 1 ? "month" : "months"}${k < 3 ? ", a straight line" : ""}`;
+    options.push({ value: since, label: `Since ${formatMonth(since)} · ${left}` });
+  }
+  return options;
+}
 
 /** A position on the chart, not a figure to read. */
 export const num = (a: AmountJson | null | undefined): number | null => (a ? Number(a.value) : null);

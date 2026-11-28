@@ -360,6 +360,18 @@ test.describe("Money", () => {
     await page.getByRole("option", { name: `${rate}% a year` }).click();
     await expect(page.getByText(`Investments now grow at ${rate}% a year`)).toBeVisible();
     expect((await call<{ expectedReturn: string }>(request, "get", "/money/settings")).expectedReturn).toBe(rate);
+
+    // learning only from the months since a change (a tax began): chosen on the page, kept in the
+    // settings, named in the projections; then back to the last twelve months
+    await page.getByLabel("Learn from").click();
+    await page.getByRole("option", { name: /· 3 months$/ }).click();
+    await expect(page.getByText(/^Insights now learn from .* on$/)).toBeVisible();
+    expect((await call<{ forecastSince: string | null }>(request, "get", "/money/settings")).forecastSince).toBe(before.slice(0, 7));
+    await expect(page.getByText(/your 3 months since/).first()).toBeVisible();
+    await page.getByLabel("Learn from").click();
+    await page.getByRole("option", { name: "Your last 12 months" }).click();
+    await expect(page.getByText("Insights now learn from your last 12 months")).toBeVisible();
+    expect((await call<{ forecastSince: string | null }>(request, "get", "/money/settings")).forecastSince).toBeNull();
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@platform/db/prisma.service';
+import { monthKey, parseDate } from '../core/dates';
 import { AuditService } from '../ledger/audit.service';
 import { LedgerService } from '../ledger/ledger.service';
 import { CommoditiesService } from '../reference/commodities.service';
@@ -17,7 +18,13 @@ export class MoneySettingsService {
   async get(userId: string): Promise<MoneySettingsResponse> {
     await this.ledger.ensureSetup(userId);
     const s = await this.prisma.moneySettings.findUniqueOrThrow({ where: { userId } });
-    return { baseCurrency: s.baseCurrencyId, defaultCostBasis: s.defaultCostBasis, taxResidence: s.taxResidence, expectedReturn: s.expectedReturn.toFixed() };
+    return {
+      baseCurrency: s.baseCurrencyId,
+      defaultCostBasis: s.defaultCostBasis,
+      taxResidence: s.taxResidence,
+      expectedReturn: s.expectedReturn.toFixed(),
+      forecastSince: s.forecastSince ? monthKey(s.forecastSince) : null,
+    };
   }
 
   /** Switching the base currency changes how totals are shown, never what is stored (rule 5). */
@@ -27,7 +34,14 @@ export class MoneySettingsService {
     await this.prisma.$transaction(async (db) => {
       await db.moneySettings.update({
         where: { userId },
-        data: { baseCurrencyId, defaultCostBasis: dto.defaultCostBasis, taxResidence: dto.taxResidence, expectedReturn: dto.expectedReturn },
+        data: {
+          baseCurrencyId,
+          defaultCostBasis: dto.defaultCostBasis,
+          taxResidence: dto.taxResidence,
+          expectedReturn: dto.expectedReturn,
+          // null clears it: back to the last twelve months
+          forecastSince: dto.forecastSince === undefined ? undefined : dto.forecastSince === null ? null : parseDate(`${dto.forecastSince}-01`),
+        },
       });
       await this.audit.record(db, { userId, actor, action: 'settings.update', details: { ...dto } });
     });

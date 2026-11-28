@@ -297,6 +297,9 @@ export class ForecastResponse {
   @ApiProperty({ enum: ['history', 'pace'], description: 'history: against the months before; pace: a straight line (under three months of history)' })
   method!: 'history' | 'pace';
   @ApiProperty({ example: 12, description: 'months before this one the forecast compares with' }) basisMonths!: number;
+  @ApiProperty({ nullable: true, example: '2025-11', description: 'the first of them; null without any' }) basisFrom!: string | null;
+  @ApiProperty({ nullable: true, example: '2026-06', description: 'the month the person chose to learn from (settings); null: the last twelve' })
+  since!: string | null;
   @ApiProperty({ type: PaceResponse }) expenses!: PaceResponse;
   @ApiProperty({ type: PaceResponse }) income!: PaceResponse;
   @ApiProperty({ type: AmountJson, description: 'projected income minus projected expenses' }) savings!: AmountJson;

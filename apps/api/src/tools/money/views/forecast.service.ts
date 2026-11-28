@@ -67,7 +67,9 @@ export class ForecastService {
     const day = today.getUTCDate();
     const days = endOfMonth(today).getUTCDate();
 
-    // the history: up to twelve months before this one, never before the first movement
+    // the history: up to twelve months before this one, never before the first movement, nor before
+    // the month the person says things changed (a tax began, a new job)
+    const settings = await this.prisma.moneySettings.findUniqueOrThrow({ where: { userId } });
     const first = await this.prisma.moneyTransaction.findFirst({
       where: { userId, status: 'posted', kind: { not: 'opening_balance' } },
       orderBy: { date: 'asc' },
@@ -76,7 +78,8 @@ export class ForecastService {
     const firstMonth = first ? startOfMonth(first.date) : thisMonth;
     const lookback = addMonths(thisMonth, -LOOKBACK, 1);
     const previous = addMonths(thisMonth, -1, 1);
-    const past = monthsBetween(lookback > firstMonth ? lookback : firstMonth, previous).filter((m) => m <= previous);
+    const start = [lookback, firstMonth, ...(settings.forecastSince ? [startOfMonth(settings.forecastSince)] : [])].reduce((a, b) => (a > b ? a : b));
+    const past = monthsBetween(start, previous).filter((m) => m <= previous);
     // and last year whole, for the year's comparison
     const yearStart = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
     const lastYearStart = new Date(Date.UTC(today.getUTCFullYear() - 1, 0, 1));
@@ -222,7 +225,6 @@ export class ForecastService {
     );
 
     // what is invested today (holdings at their value), growing at the rate the person expects
-    const settings = await this.prisma.moneySettings.findUniqueOrThrow({ where: { userId } });
     const worth = await this.views.netWorth(userId, { base, asOf: today });
     let invested = 0n;
     for (const item of worth.accounts.flatMap((a) => a.items)) if (item.kind === 'asset' && item.value) invested += BigInt(item.value.minor);
@@ -249,6 +251,8 @@ export class ForecastService {
       recordedThrough: recorded,
       method: expenses.method,
       basisMonths: past.length,
+      basisFrom: past.length ? monthKey(past[0]) : null,
+      since: settings.forecastSince ? monthKey(settings.forecastSince) : null,
       expenses: paceJson(expenses),
       income: paceJson(income),
       savings: money(savings),
