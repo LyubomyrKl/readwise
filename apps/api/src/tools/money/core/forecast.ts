@@ -16,7 +16,7 @@ import { divRound, formatScaled } from './decimal';
  * or a tax that comes a few times a year is usually missing from the median and never from a year.
  */
 
-/** Months of history before a projection leans on it rather than on a straight line. */
+/** Months of history before a projection leans on it rather than on a straight line (one, when the person chose the months). */
 export const MIN_HISTORY = 3;
 
 /** The quantile num/den of the values, linear between ranks (as spreadsheets do); null without values. */
@@ -92,9 +92,9 @@ export interface Pace {
  * is read at (the last recorded), `days` the length of this month; `elapsed`, the days gone (today),
  * is what a straight line divides by, since a quiet stretch may simply be a quiet stretch.
  */
-export function pace(current: readonly bigint[], day: number, days: number, past: readonly (readonly bigint[])[], elapsed = day): Pace {
+export function pace(current: readonly bigint[], day: number, days: number, past: readonly (readonly bigint[])[], elapsed = day, minMonths = MIN_HISTORY): Pace {
   const soFar = runningAt(current, day);
-  if (past.length < MIN_HISTORY) {
+  if (past.length < Math.max(1, minMonths)) {
     const projected = elapsed < 1 || elapsed >= days ? soFar : divRound(soFar * BigInt(days), BigInt(elapsed));
     return { soFar, typicalByNow: null, projected, low: projected, high: projected, typicalMonth: null, method: 'pace' };
   }
@@ -112,8 +112,8 @@ export function pace(current: readonly bigint[], day: number, days: number, past
 }
 
 /** The usual running total for each day of a month of `days` days: the median, and the quartiles around it. */
-export function usualCurve(past: readonly (readonly bigint[])[], days: number): { typical: bigint; low: bigint; high: bigint }[] {
-  if (past.length < MIN_HISTORY) return [];
+export function usualCurve(past: readonly (readonly bigint[])[], days: number, minMonths = MIN_HISTORY): { typical: bigint; low: bigint; high: bigint }[] {
+  if (past.length < Math.max(1, minMonths)) return [];
   return Array.from({ length: days }, (_, i) => {
     const at = past.map((month) => runningAt(month, i + 1));
     return { typical: median(at)!, low: quantile(at, 1n, 4n)!, high: quantile(at, 3n, 4n)! };
@@ -182,8 +182,9 @@ export function netWorthOutlook(p: {
   restOfMonth?: bigint;
   invested?: bigint;
   returnBp?: bigint;
+  minMonths?: number;
 }): NetWorthOutlook | null {
-  if (p.savings.length < MIN_HISTORY) return null;
+  if (p.savings.length < Math.max(1, p.minMonths ?? MIN_HISTORY)) return null;
   const monthlySaving = mean(p.savings)!;
   const spread = divRound(quantile(p.savings, 3n, 4n)! - quantile(p.savings, 1n, 4n)!, 2n);
   const start = p.now + (p.restOfMonth ?? 0n);

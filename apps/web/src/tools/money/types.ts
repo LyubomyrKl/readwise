@@ -96,9 +96,16 @@ export interface MoneySettings {
   taxResidence: string;
   /** what investments are expected to earn a year, percent ("5"); Insights grows what is invested at it */
   expectedReturn: string;
-  /** YYYY-MM: the first month Insights learns from (things changed then: a tax began); null: the last twelve */
+  /** the months Insights learns from; custom: forecastSince to forecastUntil */
+  forecastRange: ForecastRange;
+  /** YYYY-MM: a custom range's first month (things changed then: a tax began) */
   forecastSince: string | null;
+  /** YYYY-MM: a custom range's last month; null: up to last month */
+  forecastUntil: string | null;
 }
+
+/** The months Insights learns from: rolling ranges before this month, or a custom one. */
+export type ForecastRange = "last_month" | "last_3_months" | "last_6_months" | "last_12_months" | "this_year" | "custom";
 
 export type MovementKind =
   | "income"
@@ -699,10 +706,14 @@ export interface ForecastResponse {
   /** history: against the months before; pace: a straight line (under three months of history) */
   method: "history" | "pace";
   basisMonths: number;
-  /** the first of the months learned from; null without any */
+  /** the first and last of the months learned from; null without any */
   basisFrom: string | null;
-  /** the month the person chose to learn from (settings); null: the last twelve */
+  basisTo: string | null;
+  /** the months the person chose to learn from (settings) */
+  range: ForecastRange;
+  /** a custom range's first and last month (null: up to last month) */
   since: string | null;
+  until: string | null;
   expenses: PaceFigure;
   income: PaceFigure;
   savings: AmountJson;

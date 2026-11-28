@@ -19,8 +19,8 @@ import { useQueryParam } from "../components/useQueryParam";
 import { BasePicker } from "../components/views/BasePicker";
 import { Change } from "../components/views/Change";
 import { MissingRates } from "../components/views/NetWorthView";
-import { formatAmount, formatDate, formatMonth, isZero } from "../lib/format";
-import { basisLabel, categoryBar, categoryScale, LAST_12, outlookSeries, paceSeries, sinceOptions, worthSeries } from "../lib/insights";
+import { formatAmount, formatDate, formatMonth, formatMonthSpan, isZero } from "../lib/format";
+import { basisLabel, categoryBar, categoryScale, outlookSeries, paceSeries, RANGE_OPTIONS, rangeMonths, rangeWords, worthSeries } from "../lib/insights";
 import { suggestBases } from "../lib/views";
 import { useForecast, useMoneyMutation, useMoneySettings } from "../queries";
 import { MONEY_ROUTES } from "../routes";
@@ -68,9 +68,9 @@ export default function InsightsPage() {
       {isLoading || !f ? (
         <Skeleton className="h-96" />
       ) : f.basisMonths === 0 && isZero(f.expenses.soFar.value) && isZero(f.income.soFar.value) ? (
-        f.since ? (
-          <EmptyState title={`Nothing since ${formatMonth(f.since)} to look ahead from yet`}>
-            Record this month&apos;s movements, or learn from an earlier month.
+        f.range !== "last_12_months" ? (
+          <EmptyState title="Nothing in the months you chose to look ahead from yet">
+            Choose other months to learn from, or record this month&apos;s movements.
           </EmptyState>
         ) : (
           <EmptyState title="Nothing to look ahead from yet">Record or import a few movements: projections start from your own months.</EmptyState>
@@ -80,8 +80,8 @@ export default function InsightsPage() {
           <MissingRates currencies={f.missingRates} base={f.base} />
           {f.method === "pace" ? (
             <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              {f.since
-                ? `Under three full months since ${formatMonth(f.since)}, where you chose to learn from: this month is projected in a straight line from its pace, and the year from this month. With more months since, projections lean on what usually happens.`
+              {f.range !== "last_12_months"
+                ? "No full month in the months you chose to learn from yet: this month is projected in a straight line from its pace, and the year from this month."
                 : "Under three months of history so far: this month is projected in a straight line from its pace, and the year from this month. With more months, projections lean on what usually happens."}
             </p>
           ) : null}
@@ -428,21 +428,50 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
   );
 }
 
-/** Where every projection learns from: the last twelve months, or the months since things changed (a setting). */
+/** "to" a custom range's end: now, up to last month */
+const NOW = "now";
+
+/**
+ * Where every projection learns from: the last month, 3, 6 or 12 months, this year, or a custom
+ * range of months (things changed: a tax began). A setting, so the Overview and Claude follow it.
+ */
 function LearnFrom({ f }: { f: ForecastResponse }) {
-  const save = useMoneyMutation(moneyApi.settings.update, {
-    success: (s) => (s.forecastSince ? `Insights now learn from ${formatMonth(s.forecastSince)} on` : "Insights now learn from your last 12 months"),
-  });
+  const save = useMoneyMutation(moneyApi.settings.update, { success: (s) => `Insights now learn from ${rangeWords(s)}` });
+  const recent = rangeMonths(f.month);
+  // a start older than three years stays in the list
+  const months = !f.since || recent.some((m) => m.value === f.since) ? recent : [...recent, { value: f.since, label: formatMonth(f.since) }];
+  const since = f.since ?? f.basisFrom ?? recent[2].value;
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
       <label htmlFor="learn-from">Learn from</label>
       <SimpleSelect
         id="learn-from"
-        value={f.since ?? LAST_12}
-        onChange={(v) => save.mutate({ forecastSince: v === LAST_12 ? null : v })}
-        options={sinceOptions(f.month, f.since)}
-        className="h-8 w-auto min-w-52"
+        value={f.range}
+        onChange={(range) => save.mutate(range === "custom" ? { forecastRange: "custom", forecastSince: since, forecastUntil: f.until } : { forecastRange: range })}
+        options={RANGE_OPTIONS}
+        className="h-8 w-auto min-w-36"
       />
+      {f.range === "custom" && f.since ? (
+        <>
+          <label htmlFor="learn-from-since">from</label>
+          <SimpleSelect
+            id="learn-from-since"
+            value={f.since}
+            onChange={(start) => save.mutate({ forecastRange: "custom", forecastSince: start, forecastUntil: f.until && f.until < start ? null : f.until })}
+            options={months}
+            className="h-8 w-auto min-w-36"
+          />
+          <label htmlFor="learn-from-until">to</label>
+          <SimpleSelect
+            id="learn-from-until"
+            value={f.until ?? NOW}
+            onChange={(end) => save.mutate({ forecastRange: "custom", forecastUntil: end === NOW ? null : end })}
+            options={[{ value: NOW, label: "now" }, ...months.filter((m) => m.value >= f.since!)]}
+            className="h-8 w-auto min-w-32"
+          />
+        </>
+      ) : null}
+      <span className="text-xs">{f.basisFrom && f.basisTo ? formatMonthSpan(f.basisFrom, f.basisTo) : "no full month yet"}</span>
     </div>
   );
 }
@@ -473,10 +502,14 @@ function WorthMonths({ f }: { f: ForecastResponse }) {
   const months = f.netWorth.months;
   const s = worthSeries(months);
   const title = (month: string) => `${formatMonth(month)}${month === f.month ? ", so far" : ""}`;
+  // the full months outside the ones every projection learns from, faded
+  const muted = months.map((m) => m.month !== f.month && !(f.basisFrom && f.basisTo && m.month >= f.basisFrom && m.month <= f.basisTo));
   return (
     <ChartFrame
       title="Where each month's change came from"
-      description="Saved: income less spending. Markets and exchange rates: what prices and rates did to what you own (and anything not recorded). One-offs: something sold, or an account added with money you already had. The dot is the month's net change."
+      description={`Saved: income less spending. Markets and exchange rates: what prices and rates did to what you own (and anything not recorded). One-offs: something sold, or an account added with money you already had. The dot is the month's net change.${
+        muted.some(Boolean) ? " Faded: months the projections do not learn from." : ""
+      }`}
       legend={[
         { name: "Saved", color: SAVED },
         { name: "Markets and exchange rates", color: MARKETS },
@@ -509,6 +542,7 @@ function WorthMonths({ f }: { f: ForecastResponse }) {
           { key: "one-offs", color: ONE_OFFS, values: s.oneOffs },
         ]}
         net={s.net}
+        muted={muted}
         tooltip={(i) => {
           const m = months[i];
           return (

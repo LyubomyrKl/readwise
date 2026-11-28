@@ -335,14 +335,20 @@ entries of posted transactions cannot be updated or deleted.
   a lumpy category); `money-insights.test.ts`; in the browser, the breakdown's table and the
   return chosen on the card kept in the settings.
 - **Insights: learn from, Nov 28** — the owner's months change (a tax begins, a new job), and twelve
-  months behind a change keep projecting the old life. **Learn from** on Insights picks the first
-  month every figure learns from (a setting, `forecastSince`, migration `money_forecast_since`;
-  cleared, the last twelve months): the usual month and its range, the categories, the year's months
-  left, the safety net, what an average month saves; never before the first movement, at most
-  twelve months, and under three full months a straight line as before. Anchored, so the months
-  after it join as they pass until it is the last twelve again. The texts name the months
-  ("your 5 months since June 2026"); Claude's `get_forecast` says them (`learningFrom`). Tests:
-  `money-forecast.db-spec.ts` (a tax from April: over the half year it comes now and then, since
-  April it is the usual month, 2500 a month and 3500 saved; since June a straight line; before the
-  first movement the first movement; cleared, the half year again); `money-insights.test.ts` (the
-  words, the options); in the browser, a start chosen on the page, kept, named, and cleared.
+  months behind a change keep projecting the old life. **Learn from** on Insights picks the months
+  every figure learns from: the last month, 3, 6 or 12 months (rolling; the last twelve by default),
+  this year, or a custom range of months (from a month to another, or to now). Settings
+  `forecastRange`, `forecastSince`, `forecastUntil` (migrations `money_forecast_since`,
+  `money_forecast_range`; a start set before the ranges became a custom range). It moves the usual
+  month and its range, the categories, the year's months left, the safety net and what an average
+  month saves; never before the first movement. A range the owner chose counts from one month (last
+  month alone: this month like last month); the default still needs three, a straight line below.
+  No week: every projection works in whole months (rent, salary and taxes come once a month), so a
+  week cannot say what a usual month costs. Net worth's months show the year behind, the months not
+  learned from faded. The texts name the months ("your 5 months since June 2026"); Claude's
+  `get_forecast` says them (`learningFrom`). Tests: `core/forecast.spec.ts` (one chosen month);
+  `money-forecast.db-spec.ts` (a tax from April: over the half year it comes now and then; the last
+  3 months, since April, make it the usual month, 2500 a month and 3500 saved; last month alone;
+  this year; the first quarter before the tax; never before the first movement; a custom range
+  without its start or ending before it refused); `money-insights.test.ts` (the words, the options,
+  the months); in the browser, a common range, a custom one, kept, named, and back.

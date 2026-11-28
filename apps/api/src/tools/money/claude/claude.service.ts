@@ -52,9 +52,9 @@ export class ClaudeService {
       today: f.asOf,
       month: f.month,
       // how the month is projected: so far plus what usually follows in the months before, or a straight line
-      method: f.method === 'history' ? `so far plus what usually followed this day in the ${f.basisMonths} months from ${f.basisFrom}` : 'a straight line from the pace so far',
-      // the months every figure learns from: the last twelve, or since the month the owner chose (things changed then)
-      learningFrom: { firstMonth: f.basisFrom, months: f.basisMonths, chosenStart: f.since },
+      method: f.method === 'history' ? `so far plus what usually followed this day in the ${f.basisMonths} months ${f.basisFrom} to ${f.basisTo}` : 'a straight line from the pace so far',
+      // the months every figure learns from, as the owner chose them in Insights (the last twelve by default)
+      learningFrom: { range: f.range, firstMonth: f.basisFrom, lastMonth: f.basisTo, months: f.basisMonths },
       expenses: pace(f.expenses),
       income: pace(f.income),
       projectedSaved: money(f.savings),

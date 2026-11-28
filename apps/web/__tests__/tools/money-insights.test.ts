@@ -1,28 +1,31 @@
-import { basisLabel, categoryBar, categoryScale, changeLabel, LAST_12, outlookSeries, paceSeries, sinceOptions, worthSeries } from "@tools/money/lib/insights";
-import type { CategoryPace, ForecastResponse, WorthMonth } from "@tools/money/types";
+import { basisLabel, categoryBar, categoryScale, changeLabel, outlookSeries, paceSeries, RANGE_OPTIONS, rangeMonths, rangeWords, worthSeries } from "@tools/money/lib/insights";
+import type { CategoryPace, ForecastRange, ForecastResponse, WorthMonth } from "@tools/money/types";
 
 const amount = (value: string) => ({ currency: "PLN", value, minor: value.replace(".", "") });
 const point = (date: string, total: string) => ({ date, total: amount(total), assets: amount(total), liabilities: amount("0.00") });
 
 describe("insights", () => {
   it("says which months the projections learn from", () => {
-    expect(basisLabel({ basisMonths: 12, basisFrom: "2025-11", since: null })).toBe("your last 12 months");
-    expect(basisLabel({ basisMonths: 5, basisFrom: "2026-06", since: "2026-06" })).toBe("your 5 months since June 2026");
-    expect(basisLabel({ basisMonths: 1, basisFrom: "2026-10", since: "2026-10" })).toBe("your 1 month since October 2026");
-    // chosen before the first movement, or more than a year ago: the last months it has
-    expect(basisLabel({ basisMonths: 6, basisFrom: "2026-01", since: "2025-09" })).toBe("your last 6 months");
+    const f = (range: ForecastRange, basisMonths: number, basisFrom: string, basisTo: string, until: string | null = null) => ({ range, basisMonths, basisFrom, basisTo, until });
+    expect(basisLabel(f("last_12_months", 12, "2025-11", "2026-10"))).toBe("your last 12 months");
+    expect(basisLabel(f("last_3_months", 3, "2026-08", "2026-10"))).toBe("your last 3 months");
+    expect(basisLabel(f("this_year", 10, "2026-01", "2026-10"))).toBe("your 10 months this year");
+    expect(basisLabel(f("custom", 5, "2026-06", "2026-10"))).toBe("your 5 months since June 2026");
+    expect(basisLabel(f("custom", 3, "2026-01", "2026-03", "2026-03"))).toBe("your 3 months, Jan 2026 – Mar 2026");
+    // one month: the month itself
+    expect(basisLabel(f("last_month", 1, "2026-10", "2026-10"))).toBe("October 2026");
   });
 
-  it("offers the last twelve months, or since one of them, with the full months each leaves", () => {
-    const options = sinceOptions("2026-11", null);
-    expect(options).toHaveLength(13);
-    expect(options[0]).toEqual({ value: LAST_12, label: "Your last 12 months" });
-    expect(options[1]).toEqual({ value: "2025-12", label: "Since December 2025 · 11 months" });
-    expect(options.find((o) => o.value === "2026-06")?.label).toBe("Since June 2026 · 5 months");
-    expect(options.find((o) => o.value === "2026-10")?.label).toBe("Since October 2026 · 1 month, a straight line");
-    expect(options.at(-1)).toEqual({ value: "2026-11", label: "Since November 2026 · this month only, a straight line" });
-    // a start chosen long ago stays visible: it is the last twelve months by now
-    expect(sinceOptions("2026-11", "2025-03")[1]).toEqual({ value: "2025-03", label: "Since March 2025 · your last 12 months" });
+  it("names a chosen range, and the months a custom one can take", () => {
+    const words = (forecastRange: ForecastRange, forecastSince: string | null = null, forecastUntil: string | null = null) => rangeWords({ forecastRange, forecastSince, forecastUntil });
+    expect(words("last_3_months")).toBe("your last 3 months");
+    expect(words("last_month")).toBe("last month");
+    expect(words("this_year")).toBe("this year");
+    expect(words("custom", "2026-06")).toBe("June 2026 to now");
+    expect(words("custom", "2026-01", "2026-03")).toBe("Jan 2026 – Mar 2026");
+    expect(RANGE_OPTIONS.map((o) => o.label)).toEqual(["Last month", "Last 3 months", "Last 6 months", "Last 12 months", "This year", "Custom range"]);
+    const months = rangeMonths("2026-11");
+    expect([months.length, months[0], months.at(-1)?.value]).toEqual([36, { value: "2026-10", label: "October 2026" }, "2023-11"]);
   });
 
   it("draws this month's running total against the usual one, nothing after today", () => {

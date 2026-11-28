@@ -24,8 +24,10 @@ import { CommoditiesService } from '../reference/commodities.service';
 import type { ForecastResponse, PaceResponse, UpcomingMovement, YearFigures } from './view.models';
 import { ViewsService } from './views.service';
 
-/** The months before this one that it is compared with. */
+/** The months before this one that it is compared with, unless the person chose others. */
 const LOOKBACK = 12;
+/** The rolling ranges, in months before this one. */
+const ROLLING: Partial<Record<string, number>> = { last_month: 1, last_3_months: 3, last_6_months: 6, last_12_months: 12 };
 /** Month ends of net worth behind, and ahead. */
 const NET_WORTH_BEHIND = 24;
 const NET_WORTH_AHEAD = 12;
@@ -67,8 +69,8 @@ export class ForecastService {
     const day = today.getUTCDate();
     const days = endOfMonth(today).getUTCDate();
 
-    // the history: up to twelve months before this one, never before the first movement, nor before
-    // the month the person says things changed (a tax began, a new job)
+    // the history: the months the person chose to learn from (the last twelve unless they chose; things
+    // change: a tax begins, a new job), never before the first movement
     const settings = await this.prisma.moneySettings.findUniqueOrThrow({ where: { userId } });
     const first = await this.prisma.moneyTransaction.findFirst({
       where: { userId, status: 'posted', kind: { not: 'opening_balance' } },
@@ -78,12 +80,22 @@ export class ForecastService {
     const firstMonth = first ? startOfMonth(first.date) : thisMonth;
     const lookback = addMonths(thisMonth, -LOOKBACK, 1);
     const previous = addMonths(thisMonth, -1, 1);
-    const start = [lookback, firstMonth, ...(settings.forecastSince ? [startOfMonth(settings.forecastSince)] : [])].reduce((a, b) => (a > b ? a : b));
-    const past = monthsBetween(start, previous).filter((m) => m <= previous);
-    // and last year whole, for the year's comparison
     const yearStart = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
+    const range = settings.forecastRange;
+    let from = range === 'this_year' ? yearStart : addMonths(thisMonth, -(ROLLING[range] ?? LOOKBACK), 1);
+    let to = previous;
+    if (range === 'custom' && settings.forecastSince) {
+      from = startOfMonth(settings.forecastSince);
+      if (settings.forecastUntil && startOfMonth(settings.forecastUntil) < previous) to = startOfMonth(settings.forecastUntil);
+    }
+    if (firstMonth > from) from = firstMonth;
+    const past = from <= to ? monthsBetween(from, to) : [];
+    // months the person chose are enough from one on; the last twelve by default need three
+    const minMonths = range === 'last_12_months' ? MIN_HISTORY : 1;
+    // and last year whole, for the year's comparison; the year behind, for net worth's months
     const lastYearStart = new Date(Date.UTC(today.getUTCFullYear() - 1, 0, 1));
-    const { entries, missing } = await this.views.flowEntries(userId, base, lookback < lastYearStart ? lookback : lastYearStart, today, { openings: true });
+    const fetchFrom = [lookback, lastYearStart, from].reduce((a, b) => (a < b ? a : b));
+    const { entries, missing } = await this.views.flowEntries(userId, base, fetchFrom, today, { openings: true });
 
     // day by day, as the month's totals count it (transfers aside, one-offs and opening balances apart)
     const byDate = new Map<string, FlowEntry[]>();
@@ -126,6 +138,7 @@ export class ForecastService {
         days,
         past.map((m) => running(m, pick)),
         day,
+        minMonths,
       );
     /** a past month's whole total of one figure */
     const whole = (month: Date, pick: (d: Day) => bigint) => sumMonth(running(month, pick));
@@ -145,6 +158,7 @@ export class ForecastService {
     const usual = usualCurve(
       past.map((m) => running(m, (d) => d.expenses)),
       days,
+      minMonths,
     );
     const spent = running(thisMonth, (d) => d.expenses, recorded);
 
@@ -192,7 +206,7 @@ export class ForecastService {
     });
     // the average month, not the usual one: a total over months has its lumps (a holiday, a tax)
     const averageMonth =
-      past.length >= MIN_HISTORY
+      past.length >= minMonths
         ? { income: mean(past.map((m) => whole(m, (d) => d.income)))!, expenses: mean(past.map((m) => whole(m, (d) => d.expenses)))! }
         : { income: income.projected, expenses: expenses.projected };
     const ytd = sum(yearStart, today);
@@ -210,8 +224,8 @@ export class ForecastService {
     const nwFrom = anyFirst && startOfMonth(anyFirst.date) > behind ? startOfMonth(anyFirst.date) : behind;
     const history = await this.views.history(userId, { base, from: monthKey(nwFrom), to: monthKey(thisMonth), asOf: today });
     const ends = new Map(history.points.map((p) => [p.date.slice(0, 7), BigInt(p.total.minor)]));
-    // the months the pace reads, and this one so far; before the very first month there was nothing
-    const told = [...past, thisMonth].filter((m) => ends.has(monthKey(m)));
+    // the year behind and this month so far; before the very first month there was nothing
+    const told = monthsBetween(lookback, thisMonth).filter((m) => ends.has(monthKey(m)));
     const before = told.length ? (ends.get(monthKey(addMonths(told[0], -1, 1))) ?? 0n) : 0n;
     const inMonth = (month: Date, pick: (d: Day) => bigint) => {
       const [key, upTo] = [monthKey(month), formatDate(month < thisMonth ? endOfMonth(month) : today)];
@@ -235,12 +249,13 @@ export class ForecastService {
       restOfMonth: income.projected - income.soFar - (expenses.projected - expenses.soFar),
       invested,
       returnBp: BigInt(settings.expectedReturn.times(100).toFixed(0)),
+      minMonths,
     });
 
     // the months of average spending that the bank and cash cover
     const bank = worth.types.find((t) => t.key === 'bank');
     const liquid = bank ? BigInt(bank.value.minor) : 0n;
-    const monthlyExpenses = past.length >= MIN_HISTORY ? averageMonth.expenses : null;
+    const monthlyExpenses = past.length >= minMonths ? averageMonth.expenses : null;
 
     return {
       base,
@@ -252,7 +267,10 @@ export class ForecastService {
       method: expenses.method,
       basisMonths: past.length,
       basisFrom: past.length ? monthKey(past[0]) : null,
+      basisTo: past.length ? monthKey(past[past.length - 1]) : null,
+      range,
       since: settings.forecastSince ? monthKey(settings.forecastSince) : null,
+      until: settings.forecastUntil ? monthKey(settings.forecastUntil) : null,
       expenses: paceJson(expenses),
       income: paceJson(income),
       savings: money(savings),

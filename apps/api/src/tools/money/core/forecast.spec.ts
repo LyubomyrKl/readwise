@@ -103,6 +103,21 @@ describe('forecast', () => {
     expect(pace([], 0, 30, [])).toMatchObject({ soFar: 0n, projected: 0n, method: 'pace' });
   });
 
+  it('follows even one month before when the person chose it', () => {
+    // last month: 1000 by the 10th, 1500 in all; this month 100 so far
+    const p = pace(month(30, { 1: 100_00n }), 10, 30, [month(30, { 1: 1000_00n, 20: 500_00n })], 10, 1);
+    expect(p).toMatchObject({ method: 'history', soFar: 100_00n, projected: 600_00n, low: 600_00n, high: 600_00n, typicalMonth: 1500_00n });
+    expect(usualCurve([month(3, { 2: 10n })], 3, 1)).toEqual([
+      { typical: 0n, low: 0n, high: 0n },
+      { typical: 10n, low: 10n, high: 10n },
+      { typical: 10n, low: 10n, high: 10n },
+    ]);
+    expect(netWorthOutlook({ now: 0n, savings: [500n], ahead: 2, minMonths: 1 })!.projection).toEqual([
+      { value: 500n, low: 500n, high: 500n },
+      { value: 1000n, low: 1000n, high: 1000n },
+    ]);
+  });
+
   it('draws a straight line while there are fewer than three months before', () => {
     const p = pace(month(30, { 1: 300_00n }), 10, 30, [month(31, { 1: 999_00n })]);
     expect(p).toMatchObject({ method: 'pace', projected: 900_00n, typicalByNow: null, typicalMonth: null });

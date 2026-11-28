@@ -1,34 +1,50 @@
-import type { AmountJson, CategoryPace, ForecastResponse, PaceDay, WorthMonth } from "../types";
+import type { AmountJson, CategoryPace, ForecastRange, ForecastResponse, MoneySettings, PaceDay, WorthMonth } from "../types";
 import { shiftMonth, shortMonth } from "./chart";
-import { formatMonth } from "./format";
+import { formatMonth, formatMonthSpan } from "./format";
 
 /**
  * The forecast as the Insights page draws it. Amount strings become numbers only to place marks;
  * every figure a person reads stays the exact string.
  */
 
-/** The months every projection learns from, in words: "your last 12 months", "your 5 months since June 2026". */
-export function basisLabel(f: Pick<ForecastResponse, "basisMonths" | "basisFrom" | "since">): string {
-  const months = `${f.basisMonths} ${f.basisMonths === 1 ? "month" : "months"}`;
-  return f.since && f.basisFrom === f.since ? `your ${months} since ${formatMonth(f.since)}` : `your last ${months}`;
+/**
+ * The months every projection learns from, in words: "your last 12 months", "your 5 months this
+ * year", "your 5 months since June 2026", "your 3 months, Jan – Mar 2026", or the month alone.
+ */
+export function basisLabel(f: Pick<ForecastResponse, "basisMonths" | "basisFrom" | "basisTo" | "range" | "until">): string {
+  const n = f.basisMonths;
+  if (n === 1 && f.basisFrom) return formatMonth(f.basisFrom);
+  if (f.range === "this_year") return `your ${n} months this year`;
+  if (f.range === "custom" && f.basisFrom && f.basisTo)
+    return f.until ? `your ${n} months, ${formatMonthSpan(f.basisFrom, f.basisTo)}` : `your ${n} months since ${formatMonth(f.basisFrom)}`;
+  return `your last ${n} months`;
 }
 
-/** Learn from's value for the last twelve months (the setting cleared). */
-export const LAST_12 = "last-12";
+/** What Learn from offers. */
+export const RANGE_OPTIONS: { value: ForecastRange; label: string }[] = [
+  { value: "last_month", label: "Last month" },
+  { value: "last_3_months", label: "Last 3 months" },
+  { value: "last_6_months", label: "Last 6 months" },
+  { value: "last_12_months", label: "Last 12 months" },
+  { value: "this_year", label: "This year" },
+  { value: "custom", label: "Custom range" },
+];
 
-/**
- * What Learn from offers: the last twelve months, or since one of the last twelve (things changed
- * then), each with the full months it leaves; under three, the month is a straight line.
- */
-export function sinceOptions(month: string, current: string | null): { value: string; label: string }[] {
-  const options = [{ value: LAST_12, label: "Your last 12 months" }];
-  if (current && current < shiftMonth(month, -11)) options.push({ value: current, label: `Since ${formatMonth(current)} · your last 12 months` });
-  for (let k = 11; k >= 0; k--) {
-    const since = shiftMonth(month, -k);
-    const left = k === 0 ? "this month only, a straight line" : `${k} ${k === 1 ? "month" : "months"}${k < 3 ? ", a straight line" : ""}`;
-    options.push({ value: since, label: `Since ${formatMonth(since)} · ${left}` });
-  }
-  return options;
+/** A chosen range in words: "your last 3 months", "this year", "June 2026 to now", "Jan – Mar 2026". */
+export function rangeWords(s: Pick<MoneySettings, "forecastRange" | "forecastSince" | "forecastUntil">): string {
+  if (s.forecastRange === "custom" && s.forecastSince)
+    return s.forecastUntil ? formatMonthSpan(s.forecastSince, s.forecastUntil) : `${formatMonth(s.forecastSince)} to now`;
+  if (s.forecastRange === "this_year") return "this year";
+  if (s.forecastRange === "last_month") return "last month";
+  return `your ${RANGE_OPTIONS.find((o) => o.value === s.forecastRange)?.label.toLowerCase() ?? "last 12 months"}`;
+}
+
+/** The months a custom range can start or end on: the three years before this month, newest first. */
+export function rangeMonths(month: string, count = 36): { value: string; label: string }[] {
+  return Array.from({ length: count }, (_, i) => {
+    const m = shiftMonth(month, -(i + 1));
+    return { value: m, label: formatMonth(m) };
+  });
 }
 
 /** A position on the chart, not a figure to read. */

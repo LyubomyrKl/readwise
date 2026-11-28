@@ -261,9 +261,13 @@ describe('the forecast', () => {
     });
   });
 
-  describe('learning only from the months since a change', () => {
+  describe('learning from the months the person chooses', () => {
     const july = new Date('2026-07-05T00:00:00Z');
     const settings = () => app.get(MoneySettingsService);
+    const learn = async (range: Record<string, string | null>) => {
+      await settings().update(users[3], range);
+      return forecasts.forecast(users[3], { base: 'PLN', asOf: july });
+    };
 
     beforeAll(async () => {
       const userId = users[3];
@@ -281,9 +285,9 @@ describe('the forecast', () => {
       }
     });
 
-    it('takes the half year by default: the tax looks like it comes now and then', async () => {
+    it('takes the last twelve months by default: the tax looks like it comes now and then', async () => {
       const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([f.basisMonths, f.basisFrom, f.since, f.method]).toEqual([6, '2026-01', null, 'history']);
+      expect([f.range, f.basisMonths, f.basisFrom, f.basisTo, f.method]).toEqual(['last_12_months', 6, '2026-01', '2026-06', 'history']);
       // months of 1000 and of 2500: usually 1750
       expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['1750.00', '1750.00']);
       const taxes = f.categories.find((c) => c.name === 'Taxes')!;
@@ -291,32 +295,42 @@ describe('the forecast', () => {
       expect(f.netWorth.monthlySaving?.value).toBe('4250.00');
     });
 
-    it('learns from April on once told so: the tax is part of the usual month', async () => {
-      expect((await settings().update(users[3], { forecastSince: '2026-04' })).forecastSince).toBe('2026-04');
-      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([f.basisMonths, f.basisFrom, f.since, f.method]).toEqual([3, '2026-04', '2026-04', 'history']);
+    it('learns from the last three months: the tax is part of the usual month', async () => {
+      const f = await learn({ forecastRange: 'last_3_months' });
+      expect([f.range, f.basisMonths, f.basisFrom, f.basisTo]).toEqual(['last_3_months', 3, '2026-04', '2026-06']);
       expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['2500.00', '2500.00']);
       const taxes = f.categories.find((c) => c.name === 'Taxes')!;
       expect([taxes.projected.value, taxes.typicalMonth?.value, taxes.lumpy, taxes.change]).toEqual(['1500.00', '1500.00', false, '0.0']);
-      // 6000 in, 2500 out since April
+      // 6000 in, 2500 out
       expect([f.netWorth.monthlySaving?.value, f.runway.monthlyExpenses?.value]).toEqual(['3500.00', '2500.00']);
-      expect(f.netWorth.months.map((m) => m.month)).toEqual(['2026-04', '2026-05', '2026-06', '2026-07']);
+      // where net worth's change came from still shows the year behind
+      expect(f.netWorth.months.map((m) => m.month)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07']);
     });
 
-    it('draws a straight line while fewer than three months have passed since, and never starts before the first movement', async () => {
-      await settings().update(users[3], { forecastSince: '2026-06' });
-      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([f.basisMonths, f.method]).toEqual([1, 'pace']);
-
-      await settings().update(users[3], { forecastSince: '2025-09' });
-      const g = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([g.basisMonths, g.basisFrom, g.since]).toEqual([6, '2026-01', '2025-09']);
+    it('follows last month alone when that is the choice, and this year from January', async () => {
+      const last = await learn({ forecastRange: 'last_month' });
+      expect([last.basisMonths, last.basisFrom, last.method, last.expenses.projected.value]).toEqual([1, '2026-06', 'history', '2500.00']);
+      const year = await learn({ forecastRange: 'this_year' });
+      expect([year.basisMonths, year.basisFrom, year.basisTo]).toEqual([6, '2026-01', '2026-06']);
     });
 
-    it('goes back to the last twelve months when the start is cleared', async () => {
-      expect((await settings().update(users[3], { forecastSince: null })).forecastSince).toBeNull();
-      const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([f.basisMonths, f.since]).toEqual([6, null]);
+    it('takes a custom range: open since a month, or between two', async () => {
+      const since = await learn({ forecastRange: 'custom', forecastSince: '2026-04', forecastUntil: null });
+      expect([since.range, since.since, since.until, since.basisMonths, since.expenses.projected.value]).toEqual(['custom', '2026-04', null, 3, '2500.00']);
+      // the first quarter, before the tax: groceries only
+      const quarter = await learn({ forecastRange: 'custom', forecastSince: '2026-01', forecastUntil: '2026-03' });
+      expect([quarter.basisFrom, quarter.basisTo, quarter.expenses.projected.value]).toEqual(['2026-01', '2026-03', '1000.00']);
+      expect(quarter.categories.map((c) => c.name)).toEqual(['Groceries']);
+      // never before the first movement
+      const early = await learn({ forecastRange: 'custom', forecastSince: '2025-09', forecastUntil: null });
+      expect([early.basisMonths, early.basisFrom, early.since]).toEqual([6, '2026-01', '2025-09']);
+    });
+
+    it('refuses a custom range without its start, or ending before it', async () => {
+      await settings().update(users[3], { forecastSince: null, forecastUntil: null, forecastRange: 'last_12_months' });
+      await expect(settings().update(users[3], { forecastRange: 'custom' })).rejects.toThrow(/start/);
+      await expect(settings().update(users[3], { forecastRange: 'custom', forecastSince: '2026-05', forecastUntil: '2026-03' })).rejects.toThrow(/before/);
+      expect((await settings().get(users[3])).forecastRange).toBe('last_12_months');
     });
   });
 });

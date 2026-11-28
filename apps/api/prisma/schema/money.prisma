@@ -15,6 +15,18 @@ enum MoneyCommodityKind {
   @@map("money_commodity_kind")
 }
 
+/// The months the forecasts learn from: rolling ranges before this month, or a custom one.
+enum MoneyForecastRange {
+  last_month
+  last_3_months
+  last_6_months
+  last_12_months
+  this_year
+  custom
+
+  @@map("money_forecast_range")
+}
+
 enum MoneyCostBasisMethod {
   fifo
   average
@@ -165,8 +177,12 @@ model MoneySettings {
   taxResidence     String               @default("PL")
   /// what investments are expected to earn a year, in percent; only the forecast's net worth ahead reads it
   expectedReturn   Decimal              @default(0) @db.Decimal(4, 2)
-  /// the first month the forecasts learn from (things changed: a tax began, a new job); null: the last twelve
+  /// the months the forecasts learn from; custom: forecastSince to forecastUntil
+  forecastRange    MoneyForecastRange   @default(last_12_months)
+  /// a custom range's first month (things changed then: a tax began, a new job)
   forecastSince    DateTime?            @db.Date
+  /// a custom range's last month; null: up to last month
+  forecastUntil    DateTime?            @db.Date
   updatedAt        DateTime             @updatedAt
 
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
