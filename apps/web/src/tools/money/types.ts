@@ -709,6 +709,8 @@ export interface ForecastResponse {
   /** the first and last of the months learned from; null without any */
   basisFrom: string | null;
   basisTo: string | null;
+  /** the month of the first movement; null without any */
+  firstMonth: string | null;
   /** the months the person chose to learn from (settings) */
   range: ForecastRange;
   /** a custom range's first and last month (null: up to last month) */
@@ -725,8 +727,10 @@ export interface ForecastResponse {
     history: HistoryPoint[];
     /** the months the pace reads, and this one so far */
     months: WorthMonth[];
-    /** what an average month saved, one-offs out; null under three months */
+    /** what an average month of the last twelve saved, one-offs out (whatever the range); null under three months */
     monthlySaving: AmountJson | null;
+    /** the months that average is of */
+    savingMonths: number;
     /** holdings at their value today */
     invested: AmountJson;
     /** percent a year, from the settings */

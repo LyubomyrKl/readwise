@@ -39,12 +39,58 @@ export function rangeWords(s: Pick<MoneySettings, "forecastRange" | "forecastSin
   return `your ${RANGE_OPTIONS.find((o) => o.value === s.forecastRange)?.label.toLowerCase() ?? "last 12 months"}`;
 }
 
-/** The months a custom range can start or end on: the three years before this month, newest first. */
-export function rangeMonths(month: string, count = 36): { value: string; label: string }[] {
-  return Array.from({ length: count }, (_, i) => {
-    const m = shiftMonth(month, -(i + 1));
-    return { value: m, label: formatMonth(m) };
+/** What the range button says: the common range, or the custom months ("Jun 2026 – now"). */
+export function rangeTitle(f: Pick<ForecastResponse, "range" | "since" | "until">): string {
+  if (f.range === "custom" && f.since) return f.until ? formatMonthSpan(f.since, f.until) : `${formatMonthSpan(f.since, f.since)} – now`;
+  return RANGE_OPTIONS.find((o) => o.value === f.range)?.label ?? "Last 12 months";
+}
+
+const monthShort = new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" });
+
+/**
+ * The months the range picker offers, a year a row, this year first and back to the first
+ * movement's (at most five years); a month can be learned from once it is over and when it has
+ * movements.
+ */
+export function monthGrid(month: string, firstMonth: string | null): { year: number; months: { value: string; label: string; disabled: boolean }[] }[] {
+  const thisYear = Number(month.slice(0, 4));
+  const from = Math.max(thisYear - 4, Number((firstMonth ?? month).slice(0, 4)));
+  return Array.from({ length: thisYear - from + 1 }, (_, i) => {
+    const year = thisYear - i;
+    return {
+      year,
+      months: Array.from({ length: 12 }, (_, k) => {
+        const value = `${year}-${String(k + 1).padStart(2, "0")}`;
+        return { value, label: monthShort.format(new Date(`${value}-01T00:00:00Z`)), disabled: value >= month || (firstMonth !== null && value < firstMonth) };
+      }),
+    };
   });
+}
+
+/** A custom range from two picked months, in either order; ending at last month it stays open, so new months join. */
+export function pickedRange(a: string, b: string, month: string): { since: string; until: string | null } {
+  const [since, end] = a <= b ? [a, b] : [b, a];
+  return { since, until: end >= shiftMonth(month, -1) ? null : end };
+}
+
+/**
+ * The next round figure net worth reaches at this pace (half a power of ten: 200 000 after 183 000,
+ * 1 500 000 after 1 200 000; above zero again when below it), and the month end it gets there, null
+ * when that is beyond the projection. Nothing when net worth is not rising.
+ */
+export function nextMilestone(now: number, ahead: { date: string; value: number }[]): { target: number; date: string | null } | null {
+  const last = ahead.at(-1);
+  if (!last || last.value <= now) return null;
+  const step = now <= 0 ? 0 : 10 ** Math.floor(Math.log10(Math.max(now, 1))) / 2;
+  const target = step === 0 ? 0 : (Math.floor(now / step) + 1) * step;
+  return { target, date: ahead.find((p) => p.value >= target)?.date ?? null };
+}
+
+/** The safety net against the three to six months of spending often advised. */
+export function safetyLevel(months: string | null): "below" | "within" | "beyond" | null {
+  if (months === null) return null;
+  const m = Number(months);
+  return m < 3 ? "below" : m <= 6 ? "within" : "beyond";
 }
 
 /** A position on the chart, not a figure to read. */

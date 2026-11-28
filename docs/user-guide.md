@@ -143,7 +143,9 @@ If it stops:
   filters fold behind **Filters**.
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
-- **Insights**: where the money is heading. This month on pace: spending and income projected
+- **Insights**: where the money is heading. Four answers open the page (this month's spending, what
+  you keep this year, net worth in a year, the safety net); each leads to its section, and **How
+  it's worked out** on a card explains its figures. This month on pace: spending and income projected
   as what is in so far plus what usually follows after the last day you have recorded, in your
   own months before (with a likely range), against a usual month, and day by day on a chart; each
   category the same way, the furthest from usual first (one that comes now and then, like a
@@ -157,11 +159,12 @@ If it stops:
   of history the month is projected in a straight line; a month with nothing recorded yet shows as
   a usual month. One-offs (a category left out of the totals, such as Sold belongings) are in none
   of the projections, the savings rate or what you save: a sale counts once in today's net worth.
-  **Learn from** (top of the page) picks the months every projection learns from: last month, the
-  last 3, 6 or 12 months (the default), this year, or a **Custom range** (from a month, to another
-  or to now). When something changed (you started paying a tax, a new job), learn from the months
-  since, so the ones before stop pulling the usual month back. It is kept, and the Overview and
-  Claude follow it. On the Overview the pace is under Expenses: **on pace for …** opens Insights.
+  **Learn from** (top right) picks the months this month's pace, the year and the safety net learn
+  from: last month, the last 3, 6 or 12 months (the default), this year, or months you pick in its
+  panel, the first and then the last (ending at last month, new months join as they pass). When
+  something changed (you started paying a tax, a new job), learn from the months since. It is kept,
+  and the Overview and Claude follow it; net worth ahead always learns from your last 12 months.
+  On the Overview the pace is under Expenses: **on pace for …** opens Insights.
 - **Reports**: month by month, by category.
 - **Settings → Account**: change your password (the current one first; your other devices sign in
   again with the new one), the authenticator app, passkeys. Forgot it? **Forgot password?** on the

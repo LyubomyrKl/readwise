@@ -287,7 +287,7 @@ describe('the forecast', () => {
 
     it('takes the last twelve months by default: the tax looks like it comes now and then', async () => {
       const f = await forecasts.forecast(users[3], { base: 'PLN', asOf: july });
-      expect([f.range, f.basisMonths, f.basisFrom, f.basisTo, f.method]).toEqual(['last_12_months', 6, '2026-01', '2026-06', 'history']);
+      expect([f.range, f.basisMonths, f.basisFrom, f.basisTo, f.method, f.firstMonth]).toEqual(['last_12_months', 6, '2026-01', '2026-06', 'history', '2026-01']);
       // months of 1000 and of 2500: usually 1750
       expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['1750.00', '1750.00']);
       const taxes = f.categories.find((c) => c.name === 'Taxes')!;
@@ -301,9 +301,10 @@ describe('the forecast', () => {
       expect([f.expenses.projected.value, f.expenses.typicalMonth?.value]).toEqual(['2500.00', '2500.00']);
       const taxes = f.categories.find((c) => c.name === 'Taxes')!;
       expect([taxes.projected.value, taxes.typicalMonth?.value, taxes.lumpy, taxes.change]).toEqual(['1500.00', '1500.00', false, '0.0']);
-      // 6000 in, 2500 out
-      expect([f.netWorth.monthlySaving?.value, f.runway.monthlyExpenses?.value]).toEqual(['3500.00', '2500.00']);
-      // where net worth's change came from still shows the year behind
+      // the safety net follows: 2500 out a month
+      expect(f.runway.monthlyExpenses?.value).toBe('2500.00');
+      // net worth ahead does not: what the last twelve months saved, 4250 over the six there are
+      expect([f.netWorth.monthlySaving?.value, f.netWorth.savingMonths]).toEqual(['4250.00', 6]);
       expect(f.netWorth.months.map((m) => m.month)).toEqual(['2026-01', '2026-02', '2026-03', '2026-04', '2026-05', '2026-06', '2026-07']);
     });
 

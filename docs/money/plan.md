@@ -352,3 +352,14 @@ entries of posted transactions cannot be updated or deleted.
   this year; the first quarter before the tax; never before the first movement; a custom range
   without its start or ending before it refused); `money-insights.test.ts` (the words, the options,
   the months); in the browser, a common range, a custom one, kept, named, and back.
+  Then, at the owner's word (a picker where a range could not be picked again whole, a custom range
+  that rebuilt the row, net worth following the range, and a page to make more inspiring): Learn
+  from is one button and a panel (`@radix-ui/react-popover` 1.1.20, the release of the installed
+  dialog, so the Radix internals are shared): the common ranges, and the months a year a row, this
+  year first, where two clicks pick a custom range with a preview and the panel opens again for
+  another; nothing below it moves. Net worth ahead learns from the last twelve months whatever the
+  range (`savingMonths`), and what moved it is a card of its own. The page opens with four answers
+  (this month's spending, kept this year, net worth in a year, the safety net), each the way to its
+  section; how a figure is worked out sits behind its card's note instead of under its title; the
+  year says what it is on track to keep, the safety net has a meter with the 3 and 6 months often
+  advised, net worth its next round figure and about when.

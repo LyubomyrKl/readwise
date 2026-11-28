@@ -262,8 +262,9 @@ export class NetWorthOutlookResponse {
   @ApiProperty({ type: [HistoryPoint], description: 'month ends up to today' }) history!: HistoryPoint[];
   @ApiProperty({ type: [WorthMonth], description: 'the months the pace reads, and this one so far, each change told apart' })
   months!: WorthMonth[];
-  @ApiProperty({ type: AmountJson, nullable: true, description: 'what an average month saved, one-offs out; null under three months' })
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'what an average month of the last twelve saved, one-offs out (whatever range the rest learns from); null under three months' })
   monthlySaving!: AmountJson | null;
+  @ApiProperty({ example: 12, description: 'the months that average is of' }) savingMonths!: number;
   @ApiProperty({ type: AmountJson, description: 'holdings at their value today' }) invested!: AmountJson;
   @ApiProperty({ example: '5', description: 'the expected yearly return of the settings, percent' }) expectedReturn!: string;
   @ApiProperty({
@@ -299,6 +300,7 @@ export class ForecastResponse {
   @ApiProperty({ example: 12, description: 'months before this one the forecast compares with' }) basisMonths!: number;
   @ApiProperty({ nullable: true, example: '2025-11', description: 'the first of them; null without any' }) basisFrom!: string | null;
   @ApiProperty({ nullable: true, example: '2026-10', description: 'the last of them; null without any' }) basisTo!: string | null;
+  @ApiProperty({ nullable: true, example: '2024-05', description: 'the month of the first movement; null without any' }) firstMonth!: string | null;
   @ApiProperty({
     enum: ['last_month', 'last_3_months', 'last_6_months', 'last_12_months', 'this_year', 'custom'],
     description: 'the months the person chose to learn from (settings)',

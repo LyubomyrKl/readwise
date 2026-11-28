@@ -349,8 +349,8 @@ test.describe("Money", () => {
     await chart.getByRole("button", { name: "Table" }).click();
     await expect(chart.getByRole("row")).toHaveCount(forecast.daysInMonth + 1);
 
-    // where each month's change of net worth came from: a row a month
-    const months = page.locator("figure").filter({ hasText: "Where each month's change came from" });
+    // what moved net worth, month by month: a row a month
+    const months = page.locator("figure").filter({ hasText: "Month by month" });
     await months.getByRole("button", { name: "Table" }).click();
     await expect(months.getByRole("row")).toHaveCount(forecast.netWorth.months.length + 1);
 
@@ -361,25 +361,32 @@ test.describe("Money", () => {
     await expect(page.getByText(`Investments now grow at ${rate}% a year`)).toBeVisible();
     expect((await call<{ expectedReturn: string }>(request, "get", "/money/settings")).expectedReturn).toBe(rate);
 
-    // the months every projection learns from (things change: a tax begins): a common range, then a
-    // custom one starting where it began, kept in the settings and named in the projections; then back
+    // the months every projection learns from (things change: a tax begins): a common range from the
+    // panel, then a custom one picked as its first and last month, kept and named; then back
     type Learning = { forecastRange: string; forecastSince: string | null; forecastUntil: string | null };
     const learning = () => call<Learning>(request, "get", "/money/settings");
-    await page.getByLabel("Learn from").click();
-    await page.getByRole("option", { name: "Last 3 months" }).click();
+    const learnFrom = page.getByRole("button", { name: /^Learn from/ });
+    await learnFrom.click();
+    await page.getByRole("button", { name: "Last 3 months", exact: true }).click();
     await expect(page.getByText("Insights now learn from your last 3 months")).toBeVisible();
     expect((await learning()).forecastRange).toBe("last_3_months");
+    await expect(learnFrom).toContainText("Last 3 months");
     await expect(page.getByText(/your last 3 months/).first()).toBeVisible();
 
-    await page.getByLabel("Learn from").click();
-    await page.getByRole("option", { name: "Custom range" }).click();
+    // from the month three months back to last month: open at its end, so new months join
+    const monthName = (d: Date) => d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
+    const lastMonth = new Date();
+    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1, 1);
+    await learnFrom.click();
+    await page.getByRole("button", { name: monthName(back), exact: true }).click();
+    await page.getByRole("button", { name: monthName(lastMonth), exact: true }).click();
     await expect(page.getByText(/^Insights now learn from .* to now$/)).toBeVisible();
     expect(await learning()).toMatchObject({ forecastRange: "custom", forecastSince: before.slice(0, 7), forecastUntil: null });
-    await expect(page.getByLabel("from", { exact: true })).toBeVisible();
+    await expect(learnFrom).toContainText("now");
     await expect(page.getByText(/your 3 months since/).first()).toBeVisible();
 
-    await page.getByLabel("Learn from").click();
-    await page.getByRole("option", { name: "Last 12 months" }).click();
+    await learnFrom.click();
+    await page.getByRole("button", { name: "Last 12 months", exact: true }).click();
     await expect(page.getByText("Insights now learn from your last 12 months")).toBeVisible();
     expect((await learning()).forecastRange).toBe("last_12_months");
   });

@@ -2,9 +2,9 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CalendarClock, LifeBuoy, TrendingUp } from "lucide-react";
+import { CalendarClock, CalendarDays, Flag, LifeBuoy, PiggyBank, Sprout, TrendingUp, type LucideIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { moneyApi } from "../api";
@@ -18,13 +18,15 @@ import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
 import { useQueryParam } from "../components/useQueryParam";
 import { BasePicker } from "../components/views/BasePicker";
 import { Change } from "../components/views/Change";
+import { HowItWorks } from "../components/views/HowItWorks";
+import { LearnFromPicker } from "../components/views/LearnFromPicker";
 import { MissingRates } from "../components/views/NetWorthView";
-import { formatAmount, formatDate, formatMonth, formatMonthSpan, isZero } from "../lib/format";
-import { basisLabel, categoryBar, categoryScale, outlookSeries, paceSeries, RANGE_OPTIONS, rangeMonths, rangeWords, worthSeries } from "../lib/insights";
+import { formatAmount, formatDate, formatMonth, isNegative, isZero } from "../lib/format";
+import { basisLabel, categoryBar, categoryScale, nextMilestone, num, outlookSeries, paceSeries, safetyLevel, worthSeries } from "../lib/insights";
 import { suggestBases } from "../lib/views";
 import { useForecast, useMoneyMutation, useMoneySettings } from "../queries";
 import { MONEY_ROUTES } from "../routes";
-import type { ForecastResponse, PaceFigure } from "../types";
+import type { AmountJson, ForecastResponse, PaceFigure } from "../types";
 
 /** Spending is the expenses series everywhere (Reports' monthly flow); net worth the first color. */
 const SPENDING = "var(--viz-2)";
@@ -39,13 +41,17 @@ const ONE_OFFS = "var(--viz-5)";
 const NET = "var(--foreground)";
 /** the yearly returns offered for investments, percent */
 const RETURNS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
+/** the safety net is no series: ink */
+const SAFETY = "var(--muted-foreground)";
+/** the sections the summary leads to sit clear of the page's top bar */
+const SECTION = "scroll-mt-20";
 
 /**
- * Where the money is heading: this month on pace against the months before (each category too, one
- * that comes in lumps said so), the year so far and as projected, net worth ahead from what an
- * average month saves and where each month's change came from, the months of average spending the
- * bank covers, and what is still scheduled. Every projection leans on the person's own months; with
- * too few of them, on the pace so far.
+ * Where the money is heading: the four answers at a glance, then this month on pace against the
+ * months before (each category too), the year so far and as projected, the months of spending the
+ * bank covers, net worth ahead (always from the last twelve months) and what moved it, and what is
+ * still scheduled. The months learned from are the person's choice (Learn from); how each figure is
+ * worked out sits behind its card's note, not under its title.
  */
 export default function InsightsPage() {
   const [base, setBase] = useQueryParam<string>("base", "");
@@ -58,11 +64,11 @@ export default function InsightsPage() {
       <PageHeader
         icon={TrendingUp}
         title="Insights"
-        description="Where the money is heading: this month on pace, the year, net worth ahead. Each projection leans on your own months before it; if something changed (a tax you now pay, a new job), learn only from the months since."
+        description="Where your money is heading, worked out from your own months."
       />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <BasePicker value={shownBase} onChange={(c) => setBase(c === settings?.baseCurrency ? "" : c)} suggestions={suggestBases(settings?.baseCurrency, [])} />
-        {f ? <LearnFrom f={f} /> : null}
+        {f ? <LearnFromPicker f={f} /> : null}
       </div>
 
       {isLoading || !f ? (
@@ -85,6 +91,7 @@ export default function InsightsPage() {
                 : "Under three months of history so far: this month is projected in a straight line from its pace, and the year from this month. With more months, projections lean on what usually happens."}
             </p>
           ) : null}
+          <Summary f={f} />
           <ThisMonth f={f} />
           <Categories f={f} />
           {/* the year's table needs the room: three amounts a row */}
@@ -93,10 +100,55 @@ export default function InsightsPage() {
             <SafetyNet f={f} />
           </div>
           <NetWorthAhead f={f} />
+          {f.netWorth.months.length > 0 ? <WorthMonths f={f} /> : null}
           {f.upcoming.length > 0 ? <Upcoming f={f} /> : null}
         </div>
       )}
     </MoneyPage>
+  );
+}
+
+/** The four answers at a glance, each the way to its section. */
+function Summary({ f }: { f: ForecastResponse }) {
+  const last = f.netWorth.projection.at(-1);
+  const today = f.netWorth.history.at(-1)?.total;
+  const rate = f.year.projected.savingsRate;
+  const level = safetyLevel(f.runway.months);
+  return (
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Tile href="#this-month" icon={CalendarDays} color={SPENDING} label="This month's spending" value={formatAmount(f.expenses.projected)}>
+        {f.expenses.change !== null ? <Change change={f.expenses.change} kind="expense" /> : "on pace"}
+      </Tile>
+      <Tile href="#year" icon={PiggyBank} color={SAVED} label={`Kept in ${f.year.year}`} value={<Amount amount={f.year.projected.savings} />}>
+        {rate !== null ? `${rate}% of what you earn` : null}
+      </Tile>
+      <Tile href="#net-worth" icon={Sprout} color={NET_WORTH} label="Net worth in a year" value={last ? formatAmount(last.value) : "—"}>
+        {today ? `from ${formatAmount(today)} today` : null}
+      </Tile>
+      <Tile href="#safety-net" icon={LifeBuoy} color={SAFETY} label="Safety net" value={f.runway.months === null ? "—" : `${f.runway.months} months`}>
+        {level ? `${level === "beyond" ? "more than" : level === "within" ? "within" : "under"} the 3–6 often advised` : "of average spending"}
+      </Tile>
+    </div>
+  );
+}
+
+function Tile({ href, icon: Icon, color, label, value, children }: { href: string; icon: LucideIcon; color: string; label: string; value: ReactNode; children?: ReactNode }) {
+  return (
+    <a
+      href={href}
+      className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+    >
+      <span className="flex items-center gap-2 text-xs text-muted-foreground">
+        {/* a tint of the figure's series color: the mark carries identity, the words stay in ink */}
+        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in oklab, ${color} 18%, transparent)`, color }}>
+          <Icon className="h-3.5 w-3.5" />
+        </span>
+        {label}
+      </span>
+      {/* one line: an amount never breaks inside its digits; smaller on a phone's half width */}
+      <span className="whitespace-nowrap text-base font-semibold tabular-nums sm:text-xl">{value}</span>
+      {children ? <span className="text-xs text-muted-foreground">{children}</span> : null}
+    </a>
   );
 }
 
@@ -127,20 +179,24 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
   const s = paceSeries(f.days);
   const history = f.method === "history";
   return (
-    <Card>
+    <Card id="this-month" className={SECTION}>
       <CardHeader>
         <CardTitle>{formatMonth(f.month)} on pace</CardTitle>
-        <CardDescription>
-          Day {f.day} of {f.daysInMonth}.{" "}
-          {!history
-            ? "Projected in a straight line from the pace so far."
-            : f.recordedThrough === 0
-              ? `Nothing recorded this month yet, so it shows as a usual month of ${basisLabel(f)}.`
-              : `Projected as recorded so far plus what usually follows after the ${ordinal(f.recordedThrough)} in ${basisLabel(f)}${
-                  f.recordedThrough < f.day ? ` (nothing recorded after the ${ordinal(f.recordedThrough)} yet)` : ""
-                }.`}
-          {" "}One-offs such as selling something you own are left out.
-        </CardDescription>
+        <CardDescription>{`Day ${f.day} of ${f.daysInMonth}, ${history ? `against ${basisLabel(f)}` : "a straight line from the pace so far"}.`}</CardDescription>
+        <CardAction>
+          <HowItWorks>
+            <p>
+              {!history
+                ? "Projected in a straight line from the pace so far: there are not yet enough months behind to lean on."
+                : f.recordedThrough === 0
+                  ? `Nothing recorded this month yet, so it shows as a usual month of ${basisLabel(f)}.`
+                  : `As recorded so far, plus what usually followed the ${ordinal(f.recordedThrough)} in ${basisLabel(f)}${
+                      f.recordedThrough < f.day ? ` (nothing is recorded after the ${ordinal(f.recordedThrough)} yet)` : ""
+                    }. The likely range spans the middle half of those months.`}
+            </p>
+            <p>One-offs such as selling something you own are left out, as in the month&apos;s totals.</p>
+          </HowItWorks>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-6">
         <div className="grid gap-3 md:grid-cols-3">
@@ -170,8 +226,8 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
           title="Spending, day by day"
           description={
             history
-              ? `The running total this month against your usual month: the median of ${basisLabel(f)}, shaded across their middle half.`
-              : "The running total this month."
+              ? "This month's running total against your usual month; shaded, the middle half of your months."
+              : "This month's running total."
           }
           legend={[
             { name: "This month", color: SPENDING },
@@ -231,10 +287,16 @@ function Categories({ f }: { f: ForecastResponse }) {
     <Card>
       <CardHeader>
         <CardTitle>Categories this month</CardTitle>
-        <CardDescription>
-          Each as projected, the furthest from its usual month first. In the bar: spent so far, then still expected; the tick is a usual
-          month, or the average month for one that comes now and then (a holiday, a yearly bill).
-        </CardDescription>
+        <CardDescription>Where this month&apos;s spending is heading, the furthest from usual first.</CardDescription>
+        <CardAction>
+          <HowItWorks>
+            <p>Each category the way the month is: spent so far, plus what usually follows, against {basisLabel(f)}.</p>
+            <p>
+              In each bar: spent so far, then still expected. The tick is a usual month, or the average month for a category that comes
+              now and then (a holiday, a yearly bill): its month is not called unusual.
+            </p>
+          </HowItWorks>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-1">
         <ul className="divide-y">
@@ -294,15 +356,32 @@ function Year({ f }: { f: ForecastResponse }) {
     { label: "Of the income", pick: (y) => (y.savingsRate === null ? "—" : `${y.savingsRate}%`) },
   ];
   return (
-    <Card className="min-w-0">
+    <Card id="year" className={cn("min-w-0", SECTION)}>
       <CardHeader>
         <CardTitle>{f.year.year} so far and ahead</CardTitle>
-        <CardDescription>
-          Ahead: so far, the rest of this month as projected, and{" "}
-          {f.method === "history" ? "an average month (a holiday or a tax included)" : "a month like this one"} for each month left.
-        </CardDescription>
+        <CardDescription>What the year adds up to if the months left go the way yours usually do.</CardDescription>
+        <CardAction>
+          <HowItWorks>
+            <p>
+              {`Ahead: what is in so far, the rest of this month as projected, and ${
+                f.method === "history" ? `an average month of ${basisLabel(f)} (a holiday or a tax included)` : "a month like this one"
+              } for each month left.`}
+            </p>
+          </HowItWorks>
+        </CardAction>
       </CardHeader>
-      <CardContent className="overflow-x-auto">
+      <CardContent className="space-y-4 overflow-x-auto">
+        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+          <span className="text-sm text-muted-foreground">{isNegative(projected.savings.value) ? "Heading to spend more than you earn by" : "On track to keep"}</span>
+          <span className="text-2xl font-semibold tabular-nums">
+            <Amount amount={projected.savings} muted />
+          </span>
+          {projected.savingsRate !== null && !isNegative(projected.savings.value) ? (
+            <span className="text-sm text-muted-foreground">
+              {`${projected.savingsRate}% of what you earn${lastYear?.savingsRate != null ? `, against ${lastYear.savingsRate}% last year` : ""}`}
+            </span>
+          ) : null}
+        </div>
         <DataTable
           head={[
             "",
@@ -323,15 +402,16 @@ function Year({ f }: { f: ForecastResponse }) {
 function SafetyNet({ f }: { f: ForecastResponse }) {
   const { liquid, monthlyExpenses, months } = f.runway;
   return (
-    <Card className="min-w-0">
+    <Card id="safety-net" className={cn("min-w-0", SECTION)}>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <LifeBuoy className="h-4 w-4" /> Safety net
         </CardTitle>
         <CardDescription>How long bank and cash would last at your average spending, with no income.</CardDescription>
       </CardHeader>
-      <CardContent className="space-y-1">
+      <CardContent className="space-y-3">
         <div className="text-3xl font-semibold tabular-nums">{months === null ? "—" : `${months} months`}</div>
+        {months !== null ? <SafetyMeter months={months} /> : null}
         <p className="text-sm text-muted-foreground">
           {monthlyExpenses ? (
             <>
@@ -346,28 +426,95 @@ function SafetyNet({ f }: { f: ForecastResponse }) {
   );
 }
 
+/** The months covered on a scale with the three and six months often advised marked. */
+function SafetyMeter({ months }: { months: string }) {
+  const m = Number(months);
+  const max = Math.max(12, Math.ceil(m));
+  const at = (v: number) => `${Math.min(100, (v / max) * 100)}%`;
+  const level = safetyLevel(months);
+  return (
+    <div className="space-y-1.5">
+      <div className="relative h-2 rounded-full bg-muted" aria-hidden>
+        <div className="absolute inset-y-0 left-0 rounded-full bg-foreground/70" style={{ width: at(m) }} />
+        {[3, 6].map((v) => (
+          <div key={v} className="absolute -inset-y-1 w-0.5 rounded bg-background" style={{ left: `calc(${at(v)} - 1px)` }} />
+        ))}
+      </div>
+      <div className="relative h-3.5 text-[11px] tabular-nums text-muted-foreground" aria-hidden>
+        {[3, 6].map((v) => (
+          <span key={v} className="absolute -translate-x-1/2" style={{ left: at(v) }}>
+            {v}
+          </span>
+        ))}
+        <span className="absolute right-0">{max}</span>
+      </div>
+      <p className="text-xs text-muted-foreground">
+        {level === "beyond"
+          ? "More than the 3 to 6 months of spending often advised."
+          : level === "within"
+            ? "Within the 3 to 6 months of spending often advised."
+            : "Under the 3 to 6 months of spending often advised."}
+      </p>
+    </div>
+  );
+}
+
+/** A round amount to read, such as a milestone: no minor units to keep exact. */
+const round = (currency: string, value: number): AmountJson => ({ currency, value: String(value), minor: String(value) });
+
+/** The next round figure net worth reaches at this pace, and about when. */
+function Milestone({ f }: { f: ForecastResponse }) {
+  const now = num(f.netWorth.history.at(-1)?.total);
+  const m = now === null ? null : nextMilestone(now, f.netWorth.projection.map((p) => ({ date: p.date, value: num(p.value) ?? 0 })));
+  if (!m) return null;
+  return (
+    <p className="flex items-center gap-2 text-sm">
+      <Flag className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+      <span>
+        {m.target === 0 ? "Back above zero" : "Next milestone: "}
+        {m.target === 0 ? null : <strong className="tabular-nums">{formatAmount(round(f.base, m.target))}</strong>}
+        {m.date ? `, around ${formatMonth(m.date.slice(0, 7))}` : ", more than a year away at this pace"}
+      </span>
+    </p>
+  );
+}
+
 function NetWorthAhead({ f }: { f: ForecastResponse }) {
   const nw = f.netWorth;
   const o = outlookSeries(nw);
   const last = nw.projection.at(-1);
   return (
-    <Card>
+    <Card id="net-worth" className={SECTION}>
       <CardHeader>
         <CardTitle>Net worth ahead</CardTitle>
         <CardDescription>
           {nw.monthlySaving ? (
             <>
-              From what you save: <Amount amount={nw.monthlySaving} signed />
-              {` in an average month of ${basisLabel(f)}, income less spending. One-offs (something sold, an account added) count once, in today's net worth; markets grow only at the rate you choose.`}
+              {`From what you save in an average month of your last ${nw.savingMonths} months, `}
+              <Amount amount={nw.monthlySaving} signed />
+              {", and investments at the rate you choose."}
             </>
           ) : (
             "Three months of history tell what you save in a month; until then only the months behind."
           )}
         </CardDescription>
+        <CardAction>
+          <HowItWorks>
+            <p>
+              Today&apos;s net worth, the rest of this month as projected, then the average month saved (income less spending) for every
+              month ahead. It always learns from your last 12 months, whatever the rest of the page learns from: a long view.
+            </p>
+            <p>
+              One-offs (something sold, an account added) count once, in today&apos;s net worth, never as a month saved. Past moves of
+              markets and exchange rates are not carried forward: investments grow only at the rate you choose.
+            </p>
+            <p>The shaded range widens by how much a month&apos;s saving usually varies, month by month.</p>
+          </HowItWorks>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-6">
         {last ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
               <span className="text-sm text-muted-foreground">In 12 months, {formatDate(last.date)}</span>
               <span className="text-2xl font-semibold tabular-nums">about {formatAmount(last.value)}</span>
@@ -377,12 +524,13 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
                 </span>
               ) : null}
             </div>
+            <Milestone f={f} />
             <ExpectedReturn f={f} />
           </div>
         ) : null}
         <ChartFrame
           title="Net worth by month end"
-          description="Solid: what it was. Dashed: today, plus the average month saved and investments at the rate you chose; shaded by how much a month's saving usually varies, adding up."
+          description="Solid: what it was. Dashed: ahead; shaded: the likely range."
           table={
             <DataTable
               head={["Month end", "Net worth", "Likely from", "Likely to"]}
@@ -422,57 +570,8 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
             }}
           />
         </ChartFrame>
-        {nw.months.length > 0 ? <WorthMonths f={f} /> : null}
       </CardContent>
     </Card>
-  );
-}
-
-/** "to" a custom range's end: now, up to last month */
-const NOW = "now";
-
-/**
- * Where every projection learns from: the last month, 3, 6 or 12 months, this year, or a custom
- * range of months (things changed: a tax began). A setting, so the Overview and Claude follow it.
- */
-function LearnFrom({ f }: { f: ForecastResponse }) {
-  const save = useMoneyMutation(moneyApi.settings.update, { success: (s) => `Insights now learn from ${rangeWords(s)}` });
-  const recent = rangeMonths(f.month);
-  // a start older than three years stays in the list
-  const months = !f.since || recent.some((m) => m.value === f.since) ? recent : [...recent, { value: f.since, label: formatMonth(f.since) }];
-  const since = f.since ?? f.basisFrom ?? recent[2].value;
-  return (
-    <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-      <label htmlFor="learn-from">Learn from</label>
-      <SimpleSelect
-        id="learn-from"
-        value={f.range}
-        onChange={(range) => save.mutate(range === "custom" ? { forecastRange: "custom", forecastSince: since, forecastUntil: f.until } : { forecastRange: range })}
-        options={RANGE_OPTIONS}
-        className="h-8 w-auto min-w-36"
-      />
-      {f.range === "custom" && f.since ? (
-        <>
-          <label htmlFor="learn-from-since">from</label>
-          <SimpleSelect
-            id="learn-from-since"
-            value={f.since}
-            onChange={(start) => save.mutate({ forecastRange: "custom", forecastSince: start, forecastUntil: f.until && f.until < start ? null : f.until })}
-            options={months}
-            className="h-8 w-auto min-w-36"
-          />
-          <label htmlFor="learn-from-until">to</label>
-          <SimpleSelect
-            id="learn-from-until"
-            value={f.until ?? NOW}
-            onChange={(end) => save.mutate({ forecastRange: "custom", forecastUntil: end === NOW ? null : end })}
-            options={[{ value: NOW, label: "now" }, ...months.filter((m) => m.value >= f.since!)]}
-            className="h-8 w-auto min-w-32"
-          />
-        </>
-      ) : null}
-      <span className="text-xs">{f.basisFrom && f.basisTo ? formatMonthSpan(f.basisFrom, f.basisTo) : "no full month yet"}</span>
-    </div>
   );
 }
 
@@ -502,64 +601,72 @@ function WorthMonths({ f }: { f: ForecastResponse }) {
   const months = f.netWorth.months;
   const s = worthSeries(months);
   const title = (month: string) => `${formatMonth(month)}${month === f.month ? ", so far" : ""}`;
-  // the full months outside the ones every projection learns from, faded
-  const muted = months.map((m) => m.month !== f.month && !(f.basisFrom && f.basisTo && m.month >= f.basisFrom && m.month <= f.basisTo));
   return (
-    <ChartFrame
-      title="Where each month's change came from"
-      description={`Saved: income less spending. Markets and exchange rates: what prices and rates did to what you own (and anything not recorded). One-offs: something sold, or an account added with money you already had. The dot is the month's net change.${
-        muted.some(Boolean) ? " Faded: months the projections do not learn from." : ""
-      }`}
-      legend={[
-        { name: "Saved", color: SAVED },
-        { name: "Markets and exchange rates", color: MARKETS },
-        { name: "One-offs and accounts added", color: ONE_OFFS },
-        { name: "Net change", color: NET, shape: "dot" },
-      ]}
-      table={
-        <DataTable
-          head={["Month", "Net change", "Saved", "Markets and exchange rates", "One-offs", "Accounts added"]}
-          rows={months.map((m) => ({
-            key: m.month,
-            cells: [
-              title(m.month),
-              <Amount key="c" amount={m.change} signed />,
-              <Amount key="s" amount={m.saved} signed />,
-              <Amount key="m" amount={m.markets} signed />,
-              <Amount key="o" amount={m.oneOffs} signed />,
-              <Amount key="a" amount={m.added} signed />,
-            ],
-          }))}
-        />
-      }
-    >
-      <StackedBars
-        label={`Each month's change of net worth in ${f.base}: saved, markets and exchange rates, one-offs`}
-        categories={months.map((m, i) => ({ key: m.month, label: s.labels[i] }))}
-        series={[
-          { key: "saved", color: SAVED, values: s.saved },
-          { key: "markets", color: MARKETS, values: s.markets },
-          { key: "one-offs", color: ONE_OFFS, values: s.oneOffs },
-        ]}
-        net={s.net}
-        muted={muted}
-        tooltip={(i) => {
-          const m = months[i];
-          return (
-            <TooltipRows
-              title={title(m.month)}
-              rows={[
-                { label: "Net change", value: formatAmount(m.change, { signed: true }), strong: true },
-                { label: "Saved", value: formatAmount(m.saved, { signed: true }), color: SAVED },
-                { label: "Markets and exchange rates", value: formatAmount(m.markets, { signed: true }), color: MARKETS },
-                ...(isZero(m.oneOffs.value) ? [] : [{ label: "One-offs", value: formatAmount(m.oneOffs, { signed: true }), color: ONE_OFFS }]),
-                ...(isZero(m.added.value) ? [] : [{ label: "Accounts added", value: formatAmount(m.added, { signed: true }), color: ONE_OFFS }]),
-              ]}
+    <Card>
+      <CardHeader>
+        <CardTitle>What moved your net worth</CardTitle>
+        <CardDescription>Month by month: what you saved, what markets and exchange rates did, and one-offs.</CardDescription>
+        <CardAction>
+          <HowItWorks>
+            <p>Saved: income less spending. Markets and exchange rates: what prices and rates did to what you own, and anything not recorded as income or spending.</p>
+            <p>One-offs: something sold, or an account added with money you already had. The dot is the month&apos;s net change.</p>
+          </HowItWorks>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <ChartFrame
+          title="Month by month"
+          legend={[
+            { name: "Saved", color: SAVED },
+            { name: "Markets and exchange rates", color: MARKETS },
+            { name: "One-offs and accounts added", color: ONE_OFFS },
+            { name: "Net change", color: NET, shape: "dot" },
+          ]}
+          table={
+            <DataTable
+              head={["Month", "Net change", "Saved", "Markets and exchange rates", "One-offs", "Accounts added"]}
+              rows={months.map((m) => ({
+                key: m.month,
+                cells: [
+                  title(m.month),
+                  <Amount key="c" amount={m.change} signed />,
+                  <Amount key="s" amount={m.saved} signed />,
+                  <Amount key="m" amount={m.markets} signed />,
+                  <Amount key="o" amount={m.oneOffs} signed />,
+                  <Amount key="a" amount={m.added} signed />,
+                ],
+              }))}
             />
-          );
-        }}
-      />
-    </ChartFrame>
+          }
+        >
+          <StackedBars
+            label={`Each month's change of net worth in ${f.base}: saved, markets and exchange rates, one-offs`}
+            categories={months.map((m, i) => ({ key: m.month, label: s.labels[i] }))}
+            series={[
+              { key: "saved", color: SAVED, values: s.saved },
+              { key: "markets", color: MARKETS, values: s.markets },
+              { key: "one-offs", color: ONE_OFFS, values: s.oneOffs },
+            ]}
+            net={s.net}
+            tooltip={(i) => {
+              const m = months[i];
+              return (
+                <TooltipRows
+                  title={title(m.month)}
+                  rows={[
+                    { label: "Net change", value: formatAmount(m.change, { signed: true }), strong: true },
+                    { label: "Saved", value: formatAmount(m.saved, { signed: true }), color: SAVED },
+                    { label: "Markets and exchange rates", value: formatAmount(m.markets, { signed: true }), color: MARKETS },
+                    ...(isZero(m.oneOffs.value) ? [] : [{ label: "One-offs", value: formatAmount(m.oneOffs, { signed: true }), color: ONE_OFFS }]),
+                    ...(isZero(m.added.value) ? [] : [{ label: "Accounts added", value: formatAmount(m.added, { signed: true }), color: ONE_OFFS }]),
+                  ]}
+                />
+              );
+            }}
+          />
+        </ChartFrame>
+      </CardContent>
+    </Card>
   );
 }
 

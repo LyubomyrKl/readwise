@@ -1,4 +1,19 @@
-import { basisLabel, categoryBar, categoryScale, changeLabel, outlookSeries, paceSeries, RANGE_OPTIONS, rangeMonths, rangeWords, worthSeries } from "@tools/money/lib/insights";
+import {
+  basisLabel,
+  categoryBar,
+  categoryScale,
+  changeLabel,
+  monthGrid,
+  nextMilestone,
+  outlookSeries,
+  paceSeries,
+  pickedRange,
+  RANGE_OPTIONS,
+  rangeTitle,
+  rangeWords,
+  safetyLevel,
+  worthSeries,
+} from "@tools/money/lib/insights";
 import type { CategoryPace, ForecastRange, ForecastResponse, WorthMonth } from "@tools/money/types";
 
 const amount = (value: string) => ({ currency: "PLN", value, minor: value.replace(".", "") });
@@ -24,8 +39,42 @@ describe("insights", () => {
     expect(words("custom", "2026-06")).toBe("June 2026 to now");
     expect(words("custom", "2026-01", "2026-03")).toBe("Jan 2026 – Mar 2026");
     expect(RANGE_OPTIONS.map((o) => o.label)).toEqual(["Last month", "Last 3 months", "Last 6 months", "Last 12 months", "This year", "Custom range"]);
-    const months = rangeMonths("2026-11");
-    expect([months.length, months[0], months.at(-1)?.value]).toEqual([36, { value: "2026-10", label: "October 2026" }, "2023-11"]);
+    expect(rangeTitle({ range: "last_6_months", since: null, until: null })).toBe("Last 6 months");
+    expect(rangeTitle({ range: "custom", since: "2026-06", until: null })).toBe("Jun 2026 – now");
+    expect(rangeTitle({ range: "custom", since: "2026-01", until: "2026-03" })).toBe("Jan 2026 – Mar 2026");
+  });
+
+  it("lays the months out a year a row, this year first, those not over or without movements out of reach", () => {
+    const grid = monthGrid("2026-11", "2025-05");
+    expect(grid.map((y) => y.year)).toEqual([2026, 2025]);
+    expect(grid[0].months.map((m) => m.disabled).slice(9)).toEqual([false, true, true]); // October yes; November, December not yet
+    expect(grid[1].months[0]).toEqual({ value: "2025-01", label: "Jan", disabled: true }); // before the first movement
+    expect(grid[1].months[4].disabled).toBe(false); // May 2025, the first
+    // at most five years back
+    expect(monthGrid("2026-11", "2015-01").map((y) => y.year)).toEqual([2026, 2025, 2024, 2023, 2022]);
+  });
+
+  it("makes a range of two picked months, either way round, open when it ends at last month", () => {
+    expect(pickedRange("2026-06", "2026-10", "2026-11")).toEqual({ since: "2026-06", until: null });
+    expect(pickedRange("2026-03", "2026-01", "2026-11")).toEqual({ since: "2026-01", until: "2026-03" });
+    expect(pickedRange("2026-04", "2026-04", "2026-11")).toEqual({ since: "2026-04", until: "2026-04" });
+  });
+
+  it("finds the next round figure net worth reaches at this pace", () => {
+    const ahead = [
+      { date: "2026-12-31", value: 196_000 },
+      { date: "2027-01-31", value: 203_000 },
+      { date: "2027-02-28", value: 210_000 },
+    ];
+    expect(nextMilestone(183_339, ahead)).toEqual({ target: 200_000, date: "2027-01-31" });
+    expect(nextMilestone(183_339, ahead.slice(0, 1))).toEqual({ target: 200_000, date: null });
+    expect(nextMilestone(1_200_000, [{ date: "2027-01-31", value: 1_600_000 }])).toEqual({ target: 1_500_000, date: "2027-01-31" });
+    expect(nextMilestone(-5_000, [{ date: "2027-01-31", value: 1_000 }])).toEqual({ target: 0, date: "2027-01-31" });
+    expect(nextMilestone(200_000, [{ date: "2027-01-31", value: 190_000 }])).toBeNull();
+  });
+
+  it("puts the safety net against three to six months", () => {
+    expect([safetyLevel("2.5"), safetyLevel("4.0"), safetyLevel("11.5"), safetyLevel(null)]).toEqual(["below", "within", "beyond", null]);
   });
 
   it("draws this month's running total against the usual one, nothing after today", () => {
@@ -41,6 +90,7 @@ describe("insights", () => {
       history: [point("2026-09-30", "100.00"), point("2026-10-31", "150.00")],
       months: [],
       monthlySaving: amount("50.00"),
+      savingMonths: 12,
       invested: amount("0.00"),
       expectedReturn: "0",
       projection: [{ date: "2026-11-30", value: amount("200.00"), low: amount("180.00"), high: amount("220.00") }],

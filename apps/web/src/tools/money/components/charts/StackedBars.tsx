@@ -27,7 +27,6 @@ export function StackedBars({
   categories,
   series,
   net,
-  muted,
   label,
   tooltip,
   height = 200,
@@ -37,8 +36,6 @@ export function StackedBars({
   series: StackSeries[];
   /** the net of each column, as a dot */
   net?: number[];
-  /** columns drawn faded (outside what the rest of the page reads) */
-  muted?: boolean[];
   label: string;
   tooltip: (index: number) => ReactNode;
   height?: number;
@@ -104,7 +101,7 @@ export function StackedBars({
             </g>
           ))}
           {categories.map((c, i) => (
-            <g key={c.key} opacity={muted?.[i] ? 0.35 : 1}>
+            <g key={c.key}>
               {stacks[i].map((part, j) => {
                 if (part.from === part.to) return null;
                 const up = part.to > part.from;

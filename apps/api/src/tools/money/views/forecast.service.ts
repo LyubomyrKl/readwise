@@ -90,6 +90,8 @@ export class ForecastService {
     }
     if (firstMonth > from) from = firstMonth;
     const past = from <= to ? monthsBetween(from, to) : [];
+    // net worth ahead keeps its own: the last twelve months, whatever the range (a long view)
+    const year = monthsBetween(lookback > firstMonth ? lookback : firstMonth, previous).filter((m) => m <= previous);
     // months the person chose are enough from one on; the last twelve by default need three
     const minMonths = range === 'last_12_months' ? MIN_HISTORY : 1;
     // and last year whole, for the year's comparison; the year behind, for net worth's months
@@ -244,12 +246,11 @@ export class ForecastService {
     for (const item of worth.accounts.flatMap((a) => a.items)) if (item.kind === 'asset' && item.value) invested += BigInt(item.value.minor);
     const outlook = netWorthOutlook({
       now: history.points.length ? BigInt(history.points[history.points.length - 1].total.minor) : 0n,
-      savings: past.map((m) => whole(m, (d) => d.income) - whole(m, (d) => d.expenses)),
+      savings: year.map((m) => whole(m, (d) => d.income) - whole(m, (d) => d.expenses)),
       ahead: NET_WORTH_AHEAD,
       restOfMonth: income.projected - income.soFar - (expenses.projected - expenses.soFar),
       invested,
       returnBp: BigInt(settings.expectedReturn.times(100).toFixed(0)),
-      minMonths,
     });
 
     // the months of average spending that the bank and cash cover
@@ -268,6 +269,7 @@ export class ForecastService {
       basisMonths: past.length,
       basisFrom: past.length ? monthKey(past[0]) : null,
       basisTo: past.length ? monthKey(past[past.length - 1]) : null,
+      firstMonth: first ? monthKey(firstMonth) : null,
       range,
       since: settings.forecastSince ? monthKey(settings.forecastSince) : null,
       until: settings.forecastUntil ? monthKey(settings.forecastUntil) : null,
@@ -300,6 +302,7 @@ export class ForecastService {
           added: money(c.added),
         })),
         monthlySaving: outlook ? money(outlook.monthlySaving) : null,
+        savingMonths: year.length,
         invested: money(invested),
         expectedReturn: settings.expectedReturn.toFixed(),
         projection: (outlook?.projection ?? []).map((p, i) => ({
