@@ -41,8 +41,9 @@ with `Authorization: Bearer mny_…`.
 
 Tools: `get_summary` (start here: the three answers at once), `get_month`, `get_monthly`,
 `get_forecast` (where it is heading: this month on pace, the year, net worth in a year from what an
-average month saves, each month's change of net worth told apart; learning from the months the
-owner chose in Insights, the last twelve by default),
+average month saves, each month's change of net worth told apart, the owner's finish lines and
+when the pace reaches them; learning from the months the owner chose in Insights, the last twelve
+by default),
 `get_net_worth`, `get_allocation`, `list_accounts`, `list_categories`, `list_transactions`,
 `get_positions`, `list_drafts`; with a draft token also `propose_movement`.
 

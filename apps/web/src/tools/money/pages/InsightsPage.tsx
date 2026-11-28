@@ -2,35 +2,33 @@
 
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
-import { CalendarClock, CalendarDays, Flag, LifeBuoy, PiggyBank, Sprout, TrendingUp, type LucideIcon } from "lucide-react";
+import { CalendarClock, LifeBuoy, TrendingUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { moneyApi } from "../api";
 import { Amount } from "../components/Amount";
 import { BandChart } from "../components/charts/BandChart";
 import { TooltipRows } from "../components/charts/Bars";
 import { ChartFrame, DataTable } from "../components/charts/ChartFrame";
 import { StackedBars } from "../components/charts/StackedBars";
-import { SimpleSelect } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
 import { useQueryParam } from "../components/useQueryParam";
 import { BasePicker } from "../components/views/BasePicker";
 import { Change } from "../components/views/Change";
+import { GrowthCard } from "../components/views/GrowthCard";
 import { HowItWorks } from "../components/views/HowItWorks";
 import { LearnFromPicker } from "../components/views/LearnFromPicker";
 import { MissingRates } from "../components/views/NetWorthView";
 import { formatAmount, formatDate, formatMonth, isNegative, isZero } from "../lib/format";
-import { basisLabel, categoryBar, categoryScale, nextMilestone, num, outlookSeries, paceSeries, safetyLevel, worthSeries } from "../lib/insights";
+import { basisLabel, categoryBar, categoryScale, paceSeries, safetyLevel, worthSeries } from "../lib/insights";
 import { suggestBases } from "../lib/views";
-import { useForecast, useMoneyMutation, useMoneySettings } from "../queries";
+import { useForecast, useMoneySettings } from "../queries";
 import { MONEY_ROUTES } from "../routes";
-import type { AmountJson, ForecastResponse, PaceFigure } from "../types";
+import type { ForecastResponse, PaceFigure } from "../types";
 
-/** Spending is the expenses series everywhere (Reports' monthly flow); net worth the first color. */
+/** Spending is the expenses series everywhere (Reports' monthly flow). */
 const SPENDING = "var(--viz-2)";
-const NET_WORTH = "var(--viz-1)";
 /** the usual month: a reference, in ink rather than a series color */
 const USUAL = "var(--muted-foreground)";
 /** what moved net worth: saved keeps the Overview's savings color, the other two the next free slots */
@@ -39,19 +37,15 @@ const MARKETS = "var(--viz-4)";
 const ONE_OFFS = "var(--viz-5)";
 /** a month's net change: a marker in ink */
 const NET = "var(--foreground)";
-/** the yearly returns offered for investments, percent */
-const RETURNS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
-/** the safety net is no series: ink */
-const SAFETY = "var(--muted-foreground)";
 /** the sections the summary leads to sit clear of the page's top bar */
 const SECTION = "scroll-mt-20";
 
 /**
- * Where the money is heading: the four answers at a glance, then this month on pace against the
- * months before (each category too), the year so far and as projected, the months of spending the
- * bank covers, net worth ahead (always from the last twelve months) and what moved it, and what is
- * still scheduled. The months learned from are the person's choice (Learn from); how each figure is
- * worked out sits behind its card's note, not under its title.
+ * Where the money is heading: first the way ahead for net worth with the person's finish lines on
+ * it (always from the last twelve months), then this month and the year from the months the person
+ * chose to learn from (Learn from, beside their heading): this month on pace, each category, the year
+ * so far and as projected, the months of spending the bank covers; then what moved net worth, and
+ * what is still scheduled. How each figure is worked out sits behind its card's note.
  */
 export default function InsightsPage() {
   const [base, setBase] = useQueryParam<string>("base", "");
@@ -66,10 +60,7 @@ export default function InsightsPage() {
         title="Insights"
         description="Where your money is heading, worked out from your own months."
       />
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <BasePicker value={shownBase} onChange={(c) => setBase(c === settings?.baseCurrency ? "" : c)} suggestions={suggestBases(settings?.baseCurrency, [])} />
-        {f ? <LearnFromPicker f={f} /> : null}
-      </div>
+      <BasePicker value={shownBase} onChange={(c) => setBase(c === settings?.baseCurrency ? "" : c)} suggestions={suggestBases(settings?.baseCurrency, [])} />
 
       {isLoading || !f ? (
         <Skeleton className="h-96" />
@@ -91,7 +82,15 @@ export default function InsightsPage() {
                 : "Under three months of history so far: this month is projected in a straight line from its pace, and the year from this month. With more months, projections lean on what usually happens."}
             </p>
           ) : null}
-          <Summary f={f} />
+          <GrowthCard f={f} />
+          {/* the months these learn from are the person's choice, set where they begin */}
+          <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
+            <div>
+              <h2 className="text-lg font-semibold tracking-tight">This month and the year</h2>
+              <p className="text-sm text-muted-foreground">{`Learning from ${basisLabel(f)}.`}</p>
+            </div>
+            <LearnFromPicker f={f} />
+          </div>
           <ThisMonth f={f} />
           <Categories f={f} />
           {/* the year's table needs the room: three amounts a row */}
@@ -99,56 +98,11 @@ export default function InsightsPage() {
             <Year f={f} />
             <SafetyNet f={f} />
           </div>
-          <NetWorthAhead f={f} />
           {f.netWorth.months.length > 0 ? <WorthMonths f={f} /> : null}
           {f.upcoming.length > 0 ? <Upcoming f={f} /> : null}
         </div>
       )}
     </MoneyPage>
-  );
-}
-
-/** The four answers at a glance, each the way to its section. */
-function Summary({ f }: { f: ForecastResponse }) {
-  const last = f.netWorth.projection.at(-1);
-  const today = f.netWorth.history.at(-1)?.total;
-  const rate = f.year.projected.savingsRate;
-  const level = safetyLevel(f.runway.months);
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <Tile href="#this-month" icon={CalendarDays} color={SPENDING} label="This month's spending" value={formatAmount(f.expenses.projected)}>
-        {f.expenses.change !== null ? <Change change={f.expenses.change} kind="expense" /> : "on pace"}
-      </Tile>
-      <Tile href="#year" icon={PiggyBank} color={SAVED} label={`Kept in ${f.year.year}`} value={<Amount amount={f.year.projected.savings} />}>
-        {rate !== null ? `${rate}% of what you earn` : null}
-      </Tile>
-      <Tile href="#net-worth" icon={Sprout} color={NET_WORTH} label="Net worth in a year" value={last ? formatAmount(last.value) : "—"}>
-        {today ? `from ${formatAmount(today)} today` : null}
-      </Tile>
-      <Tile href="#safety-net" icon={LifeBuoy} color={SAFETY} label="Safety net" value={f.runway.months === null ? "—" : `${f.runway.months} months`}>
-        {level ? `${level === "beyond" ? "more than" : level === "within" ? "within" : "under"} the 3–6 often advised` : "of average spending"}
-      </Tile>
-    </div>
-  );
-}
-
-function Tile({ href, icon: Icon, color, label, value, children }: { href: string; icon: LucideIcon; color: string; label: string; value: ReactNode; children?: ReactNode }) {
-  return (
-    <a
-      href={href}
-      className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 transition-colors hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-    >
-      <span className="flex items-center gap-2 text-xs text-muted-foreground">
-        {/* a tint of the figure's series color: the mark carries identity, the words stay in ink */}
-        <span aria-hidden className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: `color-mix(in oklab, ${color} 18%, transparent)`, color }}>
-          <Icon className="h-3.5 w-3.5" />
-        </span>
-        {label}
-      </span>
-      {/* one line: an amount never breaks inside its digits; smaller on a phone's half width */}
-      <span className="whitespace-nowrap text-base font-semibold tabular-nums sm:text-xl">{value}</span>
-      {children ? <span className="text-xs text-muted-foreground">{children}</span> : null}
-    </a>
   );
 }
 
@@ -182,7 +136,7 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
     <Card id="this-month" className={SECTION}>
       <CardHeader>
         <CardTitle>{formatMonth(f.month)} on pace</CardTitle>
-        <CardDescription>{`Day ${f.day} of ${f.daysInMonth}, ${history ? `against ${basisLabel(f)}` : "a straight line from the pace so far"}.`}</CardDescription>
+        <CardDescription>{`Day ${f.day} of ${f.daysInMonth}${history ? "" : ", a straight line from the pace so far"}.`}</CardDescription>
         <CardAction>
           <HowItWorks>
             <p>
@@ -455,143 +409,6 @@ function SafetyMeter({ months }: { months: string }) {
             ? "Within the 3 to 6 months of spending often advised."
             : "Under the 3 to 6 months of spending often advised."}
       </p>
-    </div>
-  );
-}
-
-/** A round amount to read, such as a milestone: no minor units to keep exact. */
-const round = (currency: string, value: number): AmountJson => ({ currency, value: String(value), minor: String(value) });
-
-/** The next round figure net worth reaches at this pace, and about when. */
-function Milestone({ f }: { f: ForecastResponse }) {
-  const now = num(f.netWorth.history.at(-1)?.total);
-  const m = now === null ? null : nextMilestone(now, f.netWorth.projection.map((p) => ({ date: p.date, value: num(p.value) ?? 0 })));
-  if (!m) return null;
-  return (
-    <p className="flex items-center gap-2 text-sm">
-      <Flag className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
-      <span>
-        {m.target === 0 ? "Back above zero" : "Next milestone: "}
-        {m.target === 0 ? null : <strong className="tabular-nums">{formatAmount(round(f.base, m.target))}</strong>}
-        {m.date ? `, around ${formatMonth(m.date.slice(0, 7))}` : ", more than a year away at this pace"}
-      </span>
-    </p>
-  );
-}
-
-function NetWorthAhead({ f }: { f: ForecastResponse }) {
-  const nw = f.netWorth;
-  const o = outlookSeries(nw);
-  const last = nw.projection.at(-1);
-  return (
-    <Card id="net-worth" className={SECTION}>
-      <CardHeader>
-        <CardTitle>Net worth ahead</CardTitle>
-        <CardDescription>
-          {nw.monthlySaving ? (
-            <>
-              {`From what you save in an average month of your last ${nw.savingMonths} months, `}
-              <Amount amount={nw.monthlySaving} signed />
-              {", and investments at the rate you choose."}
-            </>
-          ) : (
-            "Three months of history tell what you save in a month; until then only the months behind."
-          )}
-        </CardDescription>
-        <CardAction>
-          <HowItWorks>
-            <p>
-              Today&apos;s net worth, the rest of this month as projected, then the average month saved (income less spending) for every
-              month ahead. It always learns from your last 12 months, whatever the rest of the page learns from: a long view.
-            </p>
-            <p>
-              One-offs (something sold, an account added) count once, in today&apos;s net worth, never as a month saved. Past moves of
-              markets and exchange rates are not carried forward: investments grow only at the rate you choose.
-            </p>
-            <p>The shaded range widens by how much a month&apos;s saving usually varies, month by month.</p>
-          </HowItWorks>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        {last ? (
-          <div className="space-y-3">
-            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-              <span className="text-sm text-muted-foreground">In 12 months, {formatDate(last.date)}</span>
-              <span className="text-2xl font-semibold tabular-nums">about {formatAmount(last.value)}</span>
-              {last.low.value !== last.high.value ? (
-                <span className="text-xs text-muted-foreground">
-                  likely {formatAmount(last.low)} to {formatAmount(last.high)}
-                </span>
-              ) : null}
-            </div>
-            <Milestone f={f} />
-            <ExpectedReturn f={f} />
-          </div>
-        ) : null}
-        <ChartFrame
-          title="Net worth by month end"
-          description="Solid: what it was. Dashed: ahead; shaded: the likely range."
-          table={
-            <DataTable
-              head={["Month end", "Net worth", "Likely from", "Likely to"]}
-              rows={[
-                ...nw.history.map((p) => ({ key: p.date, cells: [formatDate(p.date), formatAmount(p.total), "—", "—"] })),
-                ...nw.projection.map((p) => ({
-                  key: p.date,
-                  cells: [formatDate(p.date), `about ${formatAmount(p.value)}`, formatAmount(p.low), formatAmount(p.high)],
-                })),
-              ]}
-            />
-          }
-        >
-          <BandChart
-            label="Net worth by month end, behind and ahead"
-            labels={o.labels}
-            series={[
-              { key: "behind", color: NET_WORTH, values: o.history },
-              { key: "ahead", color: NET_WORTH, values: o.projection, dashed: true, endLabel: last ? "Ahead" : undefined },
-            ]}
-            band={{ low: o.low, high: o.high, color: NET_WORTH }}
-            marker={o.history.length > 0 && nw.projection.length > 0 ? { index: o.today, label: "Today" } : undefined}
-            tooltip={(i) => {
-              const behind = nw.history[i];
-              const ahead = nw.projection[i - nw.history.length];
-              return behind ? (
-                <TooltipRows title={formatDate(behind.date)} rows={[{ label: "Net worth", value: formatAmount(behind.total), color: NET_WORTH, strong: true }]} />
-              ) : ahead ? (
-                <TooltipRows
-                  title={formatDate(ahead.date)}
-                  rows={[
-                    { label: "Ahead", value: formatAmount(ahead.value), color: NET_WORTH, strong: true },
-                    { label: "Likely", value: `${formatAmount(ahead.low)} – ${formatAmount(ahead.high)}` },
-                  ]}
-                />
-              ) : null;
-            }}
-          />
-        </ChartFrame>
-      </CardContent>
-    </Card>
-  );
-}
-
-/** The yearly return investments are expected to earn: a setting, chosen where it shows. */
-function ExpectedReturn({ f }: { f: ForecastResponse }) {
-  const save = useMoneyMutation(moneyApi.settings.update, { success: (s) => `Investments now grow at ${s.expectedReturn}% a year` });
-  const current = f.netWorth.expectedReturn;
-  const values = RETURNS.includes(current) ? RETURNS : [...RETURNS, current].sort((a, b) => Number(a) - Number(b));
-  return (
-    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
-      <label htmlFor="expected-return">
-        Investments, <Amount amount={f.netWorth.invested} /> today, grow at
-      </label>
-      <SimpleSelect
-        id="expected-return"
-        value={current}
-        onChange={(expectedReturn) => save.mutate({ expectedReturn })}
-        options={values.map((v) => ({ value: v, label: `${v}% a year` }))}
-        className="h-8 w-32"
-      />
     </div>
   );
 }

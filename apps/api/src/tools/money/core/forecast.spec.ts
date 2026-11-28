@@ -1,6 +1,7 @@
 import {
   changePercent,
   habit,
+  isqrt,
   mean,
   median,
   monthsCovered,
@@ -27,6 +28,11 @@ describe('forecast', () => {
     expect(quantile([10n, 20n, 30n, 40n, 50n], 1n, 4n)).toBe(20n);
     expect(quantile([10n, 20n, 30n, 40n], 3n, 4n)).toBe(33n); // 32.5
     expect(quantile([-4n, -1n], 1n, 2n)).toBe(-3n); // -2.5 away from zero
+  });
+
+  it('takes the integer square root, exactly', () => {
+    expect([isqrt(0n), isqrt(1n), isqrt(15n), isqrt(16n), isqrt(2_000_000_000_000n)]).toEqual([0n, 1n, 3n, 4n, 1_414_213n]);
+    expect(isqrt(10n ** 24n)).toBe(10n ** 12n);
   });
 
   it('takes the average of minor units, rounded once', () => {
@@ -148,13 +154,14 @@ describe('forecast', () => {
     expect(yearProjection({ income: 1n, expenses: 2n }, { income: 0n, expenses: 0n }, 3, null)).toEqual({ income: 1n, expenses: 2n });
   });
 
-  it('projects net worth from the average month saved, the range widening by how much a month varies', () => {
+  it('projects net worth from the average month saved, the range widening as the months and the doubt about their average add up', () => {
     // saved 2000, 3000 and 4000: 3000 a month; quartiles 2500 and 3500, half the spread 500
     const o = netWorthOutlook({ now: 50_000_00n, savings: [2000_00n, 3000_00n, 4000_00n], ahead: 12 })!;
     expect(o.monthlySaving).toBe(3000_00n);
     expect(o.projection).toHaveLength(12);
-    expect(o.projection[0]).toEqual({ value: 53_000_00n, low: 52_500_00n, high: 53_500_00n });
-    expect(o.projection[11]).toEqual({ value: 86_000_00n, low: 80_000_00n, high: 92_000_00n });
+    // 500 × √(1 + 1/3) a month ahead, 500 × √(12 + 144/3) a year ahead: not 500 × 12
+    expect(o.projection[0]).toEqual({ value: 53_000_00n, low: 52_422_65n, high: 53_577_35n });
+    expect(o.projection[11]).toEqual({ value: 86_000_00n, low: 82_127_02n, high: 89_872_98n });
     // under three months saved, no pace
     expect(netWorthOutlook({ now: 1n, savings: [1n, 2n], ahead: 12 })).toBeNull();
   });
@@ -164,13 +171,15 @@ describe('forecast', () => {
     const o = netWorthOutlook({
       now: 50_000_00n,
       savings: [3000_00n, 3000_00n, 3000_00n],
-      ahead: 12,
+      ahead: 24,
       restOfMonth: 500_00n,
       invested: 100_000_00n,
       returnBp: 500n,
     })!;
     expect(o.projection[0].value).toBe(50_000_00n + 500_00n + 3000_00n + 416_67n);
     expect(o.projection[11].value).toBe(50_000_00n + 500_00n + 36_000_00n + 5000_00n);
+    // compounded each year: 5% on 105 000 the second year, 10 250 in two
+    expect(o.projection[23].value).toBe(50_000_00n + 500_00n + 72_000_00n + 10_250_00n);
     // markets are not a pace: nothing invested or no return, no growth
     expect(netWorthOutlook({ now: 0n, savings: [1n, 1n, 1n], ahead: 1, invested: 100_000_00n })!.projection[0].value).toBe(1n);
   });

@@ -363,3 +363,23 @@ entries of posted transactions cannot be updated or deleted.
   section; how a figure is worked out sits behind its card's note instead of under its title; the
   year says what it is on track to keep, the safety net has a meter with the 3 and 6 months often
   advised, net worth its next round figure and about when.
+- **Insights: finish lines, Nov 28** — the owner found the month card broken on a custom range
+  from December 2022 (likely from 0.00, the usual line under its band): the months with nothing
+  recorded (before tracking began, holdings written down on their old dates) counted as months of
+  nothing spent. A month is now learned from only with income or spending recorded in it (31 of 47
+  on the owner's data), for the range and for net worth alike. And "inspiring" meant potential, not
+  bigger figures: finish lines (`money_goal`, migration `money_goals`, a CHECK above zero;
+  `GET/POST/DELETE /money/goals`), net worths to reach in their own currency, come with the
+  forecast in the base currency. Insights opens with where net worth is heading: in a sentence how
+  much it grew (`grown`) and the next line the pace crosses; 1, 5 or 10 years ahead (the projection
+  is 120 month ends now, investments compounded each year), the lines across the chart; each line's
+  progress, when the pace gets there and how much sooner spending a tenth less would (`lever`, a
+  tenth of the average month, whole units); with none set, the next round figure is offered. The
+  range is half the spread of the months saved times √(k + k²/n) instead of k: each month varies,
+  and the average itself is a little unsure, which is what matters years ahead (12 months ahead
+  ±1 597 instead of ±3 000 in the spec's history). Learn from moved beside "This month and the
+  year", the sections it changes; the four tiles went. Tests: `core/forecast.spec.ts` (the
+  square root, the range, compounding); `money-forecast.db-spec.ts` (ten years ahead, grown, the
+  lever, a gap and a holding-only month skipped); `money-goals.db-spec.ts` (set, smallest first,
+  refused at zero, removed by its owner only, in the forecast); `money-insights.test.ts` (when a
+  line is reached, how much sooner, the horizon); in the browser, a finish line set and removed.

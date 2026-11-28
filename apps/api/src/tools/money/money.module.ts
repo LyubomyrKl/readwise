@@ -3,6 +3,8 @@ import { AccountsController } from './accounts/accounts.controller';
 import { AccountsService } from './accounts/accounts.service';
 import { BalancesService } from './accounts/balances.service';
 import { CategoriesController } from './categories/categories.controller';
+import { GoalsController } from './goals/goals.controller';
+import { GoalsService } from './goals/goals.service';
 import { CategoriesService } from './categories/categories.service';
 import { DraftsController } from './drafts/drafts.controller';
 import { DraftsService } from './drafts/drafts.service';
@@ -59,6 +61,7 @@ import { TransactionsService } from './transactions/transactions.service';
     MoneySettingsController,
     AccountsController,
     CategoriesController,
+    GoalsController,
     MovementsController,
     TransactionsController,
     DraftsController,
@@ -81,6 +84,7 @@ import { TransactionsService } from './transactions/transactions.service';
     MoneySettingsService,
     AccountsService,
     CategoriesService,
+    GoalsService,
     TransactionsService,
     MovementsService,
     HabitsService,

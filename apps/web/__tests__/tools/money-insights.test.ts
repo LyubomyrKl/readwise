@@ -3,6 +3,8 @@ import {
   categoryBar,
   categoryScale,
   changeLabel,
+  finishLines,
+  horizon,
   monthGrid,
   nextMilestone,
   outlookSeries,
@@ -10,6 +12,7 @@ import {
   pickedRange,
   RANGE_OPTIONS,
   rangeTitle,
+  reachedAt,
   rangeWords,
   safetyLevel,
   worthSeries,
@@ -73,6 +76,47 @@ describe("insights", () => {
     expect(nextMilestone(200_000, [{ date: "2027-01-31", value: 190_000 }])).toBeNull();
   });
 
+  it("finds when the way ahead reaches a figure, and with more saved each month", () => {
+    const ahead = [
+      { date: "2026-12-31", value: 190 },
+      { date: "2027-01-31", value: 197 },
+      { date: "2027-02-28", value: 204 },
+    ];
+    expect(reachedAt(200, ahead)).toEqual({ date: "2027-02-28", months: 3 });
+    expect(reachedAt(200, ahead, 5)).toEqual({ date: "2027-01-31", months: 2 }); // 197 + 2 × 5
+    expect(reachedAt(500, ahead)).toBeNull();
+  });
+
+  it("puts the finish lines on the way ahead: how far along, when, and how much sooner a tenth less spending gets there", () => {
+    const at = (date: string, value: string) => ({ date, value: amount(value), low: amount(value), high: amount(value) });
+    const nw = {
+      history: [point("2026-10-31", "150.00")],
+      months: [],
+      monthlySaving: amount("10.00"),
+      savingMonths: 12,
+      grown: null,
+      lever: amount("10.00"),
+      goals: [
+        { id: "a", name: null, target: amount("100.00") },
+        { id: "b", name: "Flat", target: amount("170.00") },
+        { id: "c", name: null, target: amount("999.00") },
+      ],
+      invested: amount("0.00"),
+      expectedReturn: "0",
+      projection: [at("2026-11-30", "160.00"), at("2026-12-31", "170.00"), at("2027-01-31", "180.00")],
+    } as ForecastResponse["netWorth"];
+    const [reached, flat, far] = finishLines(nw);
+    expect(reached).toMatchObject({ reached: true, progress: 1, at: null, sooner: null });
+    // 150 of 170: there in two months at this pace, in one with 10 more saved a month (160 + 10)
+    expect(flat).toMatchObject({ reached: false, at: { date: "2026-12-31", months: 2 }, sooner: { date: "2026-11-30", months: 1 } });
+    // no sooner to tell when the extra crosses it in the same month
+    expect(finishLines({ ...nw, lever: amount("5.00") })[1].sooner).toBeNull();
+    expect(flat.progress).toBeCloseTo(150 / 170);
+    expect(far).toMatchObject({ reached: false, at: null, sooner: null });
+    expect(horizon(nw, 1).projection).toHaveLength(3);
+    expect(horizon({ ...nw, projection: Array.from({ length: 120 }, (_, i) => at(`d${i}`, "1.00")) }, 5).projection).toHaveLength(60);
+  });
+
   it("puts the safety net against three to six months", () => {
     expect([safetyLevel("2.5"), safetyLevel("4.0"), safetyLevel("11.5"), safetyLevel(null)]).toEqual(["below", "within", "beyond", null]);
   });
@@ -91,6 +135,9 @@ describe("insights", () => {
       months: [],
       monthlySaving: amount("50.00"),
       savingMonths: 12,
+      grown: null,
+      lever: null,
+      goals: [],
       invested: amount("0.00"),
       expectedReturn: "0",
       projection: [{ date: "2026-11-30", value: amount("200.00"), low: amount("180.00"), high: amount("220.00") }],

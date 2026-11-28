@@ -50,6 +50,8 @@ import type {
   TransactionPage,
   TransactionResponse,
   UpdateAccountInput,
+  CreateGoalInput,
+  GoalResponse,
 } from "./types";
 
 const enc = encodeURIComponent;
@@ -62,6 +64,12 @@ export const moneyApi = {
   settings: {
     get: () => apiFetch<MoneySettings>("/money/settings"),
     update: (input: Partial<MoneySettings>) => patch<MoneySettings>("/money/settings", input),
+  },
+
+  goals: {
+    list: () => apiFetch<GoalResponse[]>("/money/goals"),
+    create: (input: CreateGoalInput) => post<GoalResponse>("/money/goals", input),
+    remove: (id: string) => apiFetch<{ removed: true }>(`/money/goals/${enc(id)}`, { method: "DELETE" }),
   },
 
   institutions: {

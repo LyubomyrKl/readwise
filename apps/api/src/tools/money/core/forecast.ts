@@ -33,6 +33,19 @@ export function quantile(values: readonly bigint[], num: bigint, den: bigint): b
 
 export const median = (values: readonly bigint[]): bigint | null => quantile(values, 1n, 2n);
 
+/** The integer square root (rounded down) of a non-negative integer: Newton's method, no floating point. */
+export function isqrt(n: bigint): bigint {
+  if (n < 0n) throw new RangeError('no square root of a negative');
+  if (n < 2n) return n;
+  let x = n;
+  let y = (x + 1n) / 2n;
+  while (y < x) {
+    x = y;
+    y = (x + n / x) / 2n;
+  }
+  return x;
+}
+
 /** The average, rounded once; null without values. */
 export function mean(values: readonly bigint[]): bigint | null {
   if (values.length === 0) return null;
@@ -167,13 +180,24 @@ export interface NetWorthOutlook {
   projection: { value: bigint; low: bigint; high: bigint }[];
 }
 
+/** What is invested now, `k` months on at `returnBp` basis points a year: compounded each year, simple within it. */
+export function investedAfter(invested: bigint, returnBp: bigint, k: number): bigint {
+  let value = invested;
+  for (let year = 0; year < Math.floor(k / 12); year++) value += divRound(value * returnBp, 10_000n);
+  return value + divRound(value * returnBp * BigInt(k % 12), 120_000n);
+}
+
+const SQRT_SCALE = 1_000_000n;
+
 /**
  * Net worth ahead from what is saved, not from how net worth moved: today's worth, the rest of this
  * month as projected, then the average month saved (`savings`, the months before) for every month
- * ahead, and what is invested today growing at `returnBp` basis points a year (simple within the
- * year, so a year ahead is exactly the rate). One-offs and accounts added are in today's worth and
- * in no month saved; past moves of prices and exchange rates are not carried forward, only the rate
- * the person sets. The range widens by half the spread of the middle months saved, month by month.
+ * ahead, and what is invested today growing at `returnBp` basis points a year (compounded each year,
+ * simple within it, so a year ahead is exactly the rate). One-offs and accounts added are in today's
+ * worth and in no month saved; past moves of prices and exchange rates are not carried forward, only
+ * the rate the person sets. The range is half the spread of the middle months saved, times
+ * √(k + k²/n) k months ahead: each month varies on its own (k), and the average itself, read from n
+ * months, may be off by a little every month (k²/n), which is what dominates years ahead.
  */
 export function netWorthOutlook(p: {
   now: bigint;
@@ -188,13 +212,15 @@ export function netWorthOutlook(p: {
   const monthlySaving = mean(p.savings)!;
   const spread = divRound(quantile(p.savings, 3n, 4n)! - quantile(p.savings, 1n, 4n)!, 2n);
   const start = p.now + (p.restOfMonth ?? 0n);
-  const yearly = (p.invested ?? 0n) * (p.returnBp ?? 0n);
+  const invested = p.invested ?? 0n;
+  const n = BigInt(p.savings.length);
   return {
     monthlySaving,
     projection: Array.from({ length: p.ahead }, (_, i) => {
       const k = BigInt(i + 1);
-      const value = start + k * monthlySaving + divRound(yearly * k, 12n * 10_000n);
-      return { value, low: value - k * spread, high: value + k * spread };
+      const value = start + k * monthlySaving + investedAfter(invested, p.returnBp ?? 0n, i + 1) - invested;
+      const width = divRound(spread * isqrt(((k * n + k * k) * SQRT_SCALE * SQRT_SCALE) / n), SQRT_SCALE);
+      return { value, low: value - width, high: value + width };
     }),
   };
 }

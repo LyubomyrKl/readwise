@@ -215,6 +215,7 @@ model MoneyCommodity {
   ratesFrom    MoneyExchangeRate[] @relation("MoneyRateFrom")
   ratesTo      MoneyExchangeRate[] @relation("MoneyRateTo")
   snapshots    MoneySnapshot[]
+  goals        MoneyGoal[]         @relation("MoneyGoalCurrency")
 
   @@index([kind, code])
   @@index([userId])
@@ -705,4 +706,22 @@ model MoneyAuditLog {
 
   @@index([userId, createdAt])
   @@map("money_audit_log")
+}
+
+/// A finish line: a net worth the person wants to reach, in its own currency. Insights draws it
+/// across the way ahead and says when the pace gets there; nothing in the ledger depends on it.
+model MoneyGoal {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String?
+  currencyId  String
+  /// in minor units of currencyId, above zero
+  targetMinor BigInt
+  createdAt   DateTime @default(now())
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  currency MoneyCommodity @relation("MoneyGoalCurrency", fields: [currencyId], references: [id])
+
+  @@index([userId])
+  @@map("money_goal")
 }

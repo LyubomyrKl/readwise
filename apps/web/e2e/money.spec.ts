@@ -389,6 +389,18 @@ test.describe("Money", () => {
     await page.getByRole("button", { name: "Last 12 months", exact: true }).click();
     await expect(page.getByText("Insights now learn from your last 12 months")).toBeVisible();
     expect((await learning()).forecastRange).toBe("last_12_months");
+
+    // a finish line: set, shown on the way ahead with how far along it is, then removed
+    await page.getByLabel(/^Net worth to reach/).fill("9000000");
+    await page.getByLabel("Name (optional)").fill(`Goal ${run}`);
+    await page.getByRole("button", { name: "Set", exact: true }).click();
+    await expect(page.getByText("Finish line set")).toBeVisible();
+    const line = page.getByRole("listitem").filter({ hasText: `Goal ${run}` });
+    await expect(line).toContainText("9,000,000.00");
+    await expect(line).toContainText("of the way");
+    await line.getByRole("button", { name: `Remove the finish line Goal ${run}` }).click();
+    await expect(page.getByText("Finish line removed")).toBeVisible();
+    await expect(page.getByRole("listitem").filter({ hasText: `Goal ${run}` })).toHaveCount(0);
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

@@ -38,6 +38,7 @@ model User {
   moneyOauthCodes    MoneyOauthCode[]
   moneyAuditLog      MoneyAuditLog[]
   moneySnapshots     MoneySnapshot[]
+  moneyGoals         MoneyGoal[]
 }
 
 /// A WebAuthn credential (passkey). id is the credential id, base64url.

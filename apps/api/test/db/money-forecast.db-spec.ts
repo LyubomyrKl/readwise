@@ -34,7 +34,7 @@ describe('the forecast', () => {
     app = h.app;
     prisma = h.prisma;
     forecasts = app.get(ForecastService);
-    for (const tag of ['history', 'new', 'worth', 'taxes']) users.push(await h.newUser(`forecast-${tag}`));
+    for (const tag of ['history', 'new', 'worth', 'taxes', 'gap']) users.push(await h.newUser(`forecast-${tag}`));
 
     const accounts = app.get(AccountsService);
     const movements = app.get(MovementsService);
@@ -115,7 +115,8 @@ describe('the forecast', () => {
     expect(netWorth.history.map((p) => p.total.value)).toEqual(['2700.00', '5400.00', '8100.00', '10800.00', '13500.00', '16200.00', '28800.00']);
     // 5000 in, 2300 out in each of the six months before June; nothing invested, no return set
     expect([netWorth.monthlySaving?.value, netWorth.invested.value, netWorth.expectedReturn]).toEqual(['2700.00', '0.00', '0']);
-    expect(netWorth.projection).toHaveLength(12);
+    // ten years of month ends ahead
+    expect(netWorth.projection).toHaveLength(120);
     // today, then the 100 of June's groceries still to come, then 2700 a month
     expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '31400.00' } });
     expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '61100.00' } });
@@ -229,10 +230,15 @@ describe('the forecast', () => {
       const { netWorth } = await forecasts.forecast(users[2], { base: 'PLN', asOf: at });
       // saved 3000, 3500, 1500, 2500 and 3000: 2700 on average, quartiles 2500 and 3000
       expect([netWorth.monthlySaving?.value, netWorth.invested.value, netWorth.expectedReturn]).toEqual(['2700.00', '1300.00', '6']);
-      // 24 200 today + 2700 + 6% of 1300 for a month (6.50); the range: half the spread, 250 a month
-      expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '26906.50' }, low: { value: '26656.50' }, high: { value: '27156.50' } });
-      // + 12 months of 2700 + 6% of 1300 for a year (78)
-      expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '56678.00' }, low: { value: '53678.00' }, high: { value: '59678.00' } });
+      // 24 200 today + 2700 + 6% of 1300 for a month (6.50); the range: 250 (half the spread) × √(1 + 1/5)
+      expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '26906.50' }, low: { value: '26632.64' }, high: { value: '27180.36' } });
+      // + 12 months of 2700 + 6% of 1300 for a year (78); 250 × √(12 + 144/5)
+      expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '56678.00' }, low: { value: '55081.13' }, high: { value: '58274.87' } });
+      // two years: 6% again on 1378 (160.68 in all); ten
+      expect(netWorth.projection[23]).toMatchObject({ date: '2028-06-30', value: { value: '89160.68' } });
+      expect(netWorth.projection[119]).toMatchObject({ date: '2036-06-30', value: { value: '349228.09' } });
+      // grown since the first month end (3000); spending 10% less: 130 a month (1300 on average)
+      expect([netWorth.grown?.since, netWorth.grown?.change.value, netWorth.lever?.value]).toEqual(['2026-01-31', '21200.00', '130.00']);
     });
 
     it('counts the lumps in totals: the year and the safety net take the average month, not the usual one', async () => {
@@ -333,5 +339,30 @@ describe('the forecast', () => {
       await expect(settings().update(users[3], { forecastRange: 'custom', forecastSince: '2026-05', forecastUntil: '2026-03' })).rejects.toThrow(/before/);
       expect((await settings().get(users[3])).forecastRange).toBe('last_12_months');
     });
+  });
+
+  it('learns only from months with something recorded: a month without is not a month of nothing spent', async () => {
+    const userId = users[4];
+    const accounts = app.get(AccountsService);
+    const mbank = (await accounts.create(userId, { name: 'mBank', type: 'bank', currencies: ['PLN'] })).id;
+    const all = await app.get(CategoriesService).list(userId);
+    const post = (kind: Parameters<MovementsService['post']>[1]['kind'], input: Record<string, unknown>) =>
+      app.get(MovementsService).post(userId, { kind, input }, { actor: 'user' });
+    for (const month of ['01', '02', '03', '06']) {
+      await post('income', { date: `2026-${month}-10`, accountId: mbank, currency: 'PLN', amount: '5000.00', categoryId: all.find((c) => c.name === 'Salary')!.id });
+      await post('expense', { date: `2026-${month}-15`, accountId: mbank, currency: 'PLN', amount: '1000.00', categoryId: all.find((c) => c.name === 'Groceries')!.id });
+    }
+    // April: only a holding owned from before, written down on the day it was bought; May: nothing
+    const ibkr = (await accounts.create(userId, { name: 'IBKR', type: 'investment', currencies: ['PLN'] })).id;
+    const etf = (await app.get(AssetsService).create(userId, { code: 'ETF', name: 'World ETF', quoteCurrency: 'PLN' })).id;
+    await post('buy', { date: '2026-04-20', accountId: ibkr, assetId: etf, units: '1', total: '100.00', currency: 'PLN', heldBefore: true });
+    const july = new Date('2026-07-05T00:00:00Z');
+    const f = await forecasts.forecast(userId, { base: 'PLN', asOf: july });
+    expect([f.basisMonths, f.basisFrom, f.basisTo, f.expenses.typicalMonth?.value, f.expenses.low.value]).toEqual([4, '2026-01', '2026-06', '1000.00', '1000.00']);
+    expect([f.netWorth.savingMonths, f.netWorth.monthlySaving?.value]).toEqual([4, '4000.00']);
+    // a custom range reaching far back the same
+    await app.get(MoneySettingsService).update(userId, { forecastRange: 'custom', forecastSince: '2024-12' });
+    const g = await forecasts.forecast(userId, { base: 'PLN', asOf: july });
+    expect([g.basisMonths, g.basisFrom, g.expenses.low.value]).toEqual([4, '2026-01', '1000.00']);
   });
 });

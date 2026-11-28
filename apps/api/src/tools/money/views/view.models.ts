@@ -258,6 +258,17 @@ export class WorthMonth {
   added!: AmountJson;
 }
 
+export class WorthGrowth {
+  @ApiProperty({ example: '2025-11-30', description: 'the month end it is measured from: a year back, or the first there is' }) since!: string;
+  @ApiProperty({ type: AmountJson, description: 'net worth today less then' }) change!: AmountJson;
+}
+
+export class GoalTarget {
+  @ApiProperty() id!: string;
+  @ApiProperty({ nullable: true }) name!: string | null;
+  @ApiProperty({ type: AmountJson, description: 'in the base currency, at the latest rate' }) target!: AmountJson;
+}
+
 export class NetWorthOutlookResponse {
   @ApiProperty({ type: [HistoryPoint], description: 'month ends up to today' }) history!: HistoryPoint[];
   @ApiProperty({ type: [WorthMonth], description: 'the months the pace reads, and this one so far, each change told apart' })
@@ -265,11 +276,15 @@ export class NetWorthOutlookResponse {
   @ApiProperty({ type: AmountJson, nullable: true, description: 'what an average month of the last twelve saved, one-offs out (whatever range the rest learns from); null under three months' })
   monthlySaving!: AmountJson | null;
   @ApiProperty({ example: 12, description: 'the months that average is of' }) savingMonths!: number;
+  @ApiProperty({ type: WorthGrowth, nullable: true }) grown!: WorthGrowth | null;
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'a tenth of the average month of spending, in whole units: the extra a month that would bring the finish lines closer' })
+  lever!: AmountJson | null;
+  @ApiProperty({ type: [GoalTarget], description: 'the finish lines, smallest first' }) goals!: GoalTarget[];
   @ApiProperty({ type: AmountJson, description: 'holdings at their value today' }) invested!: AmountJson;
   @ApiProperty({ example: '5', description: 'the expected yearly return of the settings, percent' }) expectedReturn!: string;
   @ApiProperty({
     type: [OutlookPoint],
-    description: 'the next twelve month ends: today, the rest of this month, the average month saved, investments at the expected return; empty under three months',
+    description: 'the next 120 month ends: today, the rest of this month, the average month saved, investments at the expected return; empty under three months',
   })
   projection!: OutlookPoint[];
 }

@@ -17,9 +17,11 @@ import {
   type Pace,
   type Totals,
 } from '../core/forecast';
+import { divRound } from '../core/decimal';
 import { parseMinor } from '../core/money';
 import { occurrences, parseSchedule } from '../core/schedule';
 import { monthTotals, percentOf, type FlowEntry } from '../core/views';
+import { RatesService } from '../rates/rates.service';
 import { CommoditiesService } from '../reference/commodities.service';
 import type { ForecastResponse, PaceResponse, UpcomingMovement, YearFigures } from './view.models';
 import { ViewsService } from './views.service';
@@ -28,9 +30,9 @@ import { ViewsService } from './views.service';
 const LOOKBACK = 12;
 /** The rolling ranges, in months before this one. */
 const ROLLING: Partial<Record<string, number>> = { last_month: 1, last_3_months: 3, last_6_months: 6, last_12_months: 12 };
-/** Month ends of net worth behind, and ahead. */
+/** Month ends of net worth behind, and ahead (ten years: the way to the finish lines). */
 const NET_WORTH_BEHIND = 24;
-const NET_WORTH_AHEAD = 12;
+const NET_WORTH_AHEAD = 120;
 
 interface Day {
   income: bigint;
@@ -56,6 +58,7 @@ export class ForecastService {
     private readonly views: ViewsService,
     private readonly prisma: PrismaService,
     private readonly commodities: CommoditiesService,
+    private readonly rates: RatesService,
   ) {}
 
   async forecast(userId: string, q: { base?: string; asOf?: Date } = {}): Promise<ForecastResponse> {
@@ -89,9 +92,9 @@ export class ForecastService {
       if (settings.forecastUntil && startOfMonth(settings.forecastUntil) < previous) to = startOfMonth(settings.forecastUntil);
     }
     if (firstMonth > from) from = firstMonth;
-    const past = from <= to ? monthsBetween(from, to) : [];
+    const window = from <= to ? monthsBetween(from, to) : [];
     // net worth ahead keeps its own: the last twelve months, whatever the range (a long view)
-    const year = monthsBetween(lookback > firstMonth ? lookback : firstMonth, previous).filter((m) => m <= previous);
+    const yearWindow = monthsBetween(lookback > firstMonth ? lookback : firstMonth, previous).filter((m) => m <= previous);
     // months the person chose are enough from one on; the last twelve by default need three
     const minMonths = range === 'last_12_months' ? MIN_HISTORY : 1;
     // and last year whole, for the year's comparison; the year behind, for net worth's months
@@ -121,6 +124,12 @@ export class ForecastService {
         added: -list.filter((e) => e.systemRole === 'opening_balance').reduce((a, e) => a + (e.base ?? 0n), 0n),
       });
     }
+    // a month learned from has income or spending recorded in it: one without (before tracking began,
+    // a gap between imports, only a holding written down) is not a month of nothing spent
+    const tracked = new Set<string>();
+    for (const [date, d] of daily) if (d.income !== 0n || d.expenses !== 0n) tracked.add(date.slice(0, 7));
+    const past = window.filter((m) => tracked.has(monthKey(m)));
+    const year = yearWindow.filter((m) => tracked.has(monthKey(m)));
     // the last day of this month with anything recorded: a statement imported up to the 12th
     // projects from the 12th; a month with nothing in it yet, as a usual month
     const monthPrefix = monthKey(today);
@@ -253,6 +262,29 @@ export class ForecastService {
       returnBp: BigInt(settings.expectedReturn.times(100).toFixed(0)),
     });
 
+    // grown: today against the month end a year back, or the first there is
+    const points = history.points;
+    const yearBack = formatDate(endOfMonth(addMonths(thisMonth, -12, 1)));
+    const grownFrom = points.length > 1 ? (points.find((p) => p.date >= yearBack) ?? points[0]) : null;
+    const grown =
+      grownFrom && grownFrom !== points[points.length - 1]
+        ? { since: grownFrom.date, change: money(BigInt(points[points.length - 1].total.minor) - BigInt(grownFrom.total.minor)) }
+        : null;
+    // a way to the finish lines sooner: spending a tenth less than the average month, in whole units
+    const unit = 10n ** BigInt(dec);
+    const lever = year.length >= MIN_HISTORY ? divRound(divRound(mean(year.map((m) => whole(m, (d) => d.expenses)))!, 10n), unit) * unit : null;
+    // the finish lines, in the base currency at the latest rates (shown only, rule 5)
+    const goalRows = await this.prisma.moneyGoal.findMany({ where: { userId } });
+    const book = await this.rates.latestBook([...goalRows.map((g) => g.currencyId), base], today);
+    const goalMissing = new Set<string>();
+    const goals: { id: string; name: string | null; minor: bigint }[] = [];
+    for (const g of goalRows) {
+      const minor = g.currencyId === base ? g.targetMinor : book.convert(g.targetMinor, g.currencyId, await this.commodities.decimalsOf(g.currencyId), base, dec, formatDate(today));
+      if (minor === null) goalMissing.add(g.currencyId);
+      else goals.push({ id: g.id, name: g.name, minor });
+    }
+    goals.sort((a, b) => (a.minor < b.minor ? -1 : a.minor > b.minor ? 1 : 0));
+
     // the months of average spending that the bank and cash cover
     const bank = worth.types.find((t) => t.key === 'bank');
     const liquid = bank ? BigInt(bank.value.minor) : 0n;
@@ -303,6 +335,9 @@ export class ForecastService {
         })),
         monthlySaving: outlook ? money(outlook.monthlySaving) : null,
         savingMonths: year.length,
+        grown,
+        lever: lever === null ? null : money(lever),
+        goals: goals.map((g) => ({ id: g.id, name: g.name, target: money(g.minor) })),
         invested: money(invested),
         expectedReturn: settings.expectedReturn.toFixed(),
         projection: (outlook?.projection ?? []).map((p, i) => ({
@@ -314,7 +349,7 @@ export class ForecastService {
       },
       runway: { liquid: money(liquid), monthlyExpenses: maybe(monthlyExpenses), months: monthsCovered(liquid, monthlyExpenses) },
       upcoming: await this.upcoming(userId, today),
-      missingRates: [...new Set([...missing, ...history.missingRates, ...worth.missingRates])].sort(),
+      missingRates: [...new Set([...missing, ...history.missingRates, ...worth.missingRates, ...goalMissing])].sort(),
     };
   }
 

@@ -143,9 +143,11 @@ If it stops:
   filters fold behind **Filters**.
 - **Import**: bank statement exports of one account (mBank, PKO BP, ZEN). Check the preview, then
   post. Transfers between your own accounts are recognised by account number.
-- **Insights**: where the money is heading. Four answers open the page (this month's spending, what
-  you keep this year, net worth in a year, the safety net); each leads to its section, and **How
-  it's worked out** on a card explains its figures. This month on pace: spending and income projected
+- **Insights**: where the money is heading. It opens with net worth: how much it grew, and where it
+  is heading over 1, 5 or 10 years. **Finish lines** are net worths you want to reach: each shows
+  how far along you are, when your pace gets you there, and how much sooner spending a tenth less
+  would; without any, the next round figure is offered (**Aim for …**). **How it's worked out** on a
+  card explains its figures. This month on pace: spending and income projected
   as what is in so far plus what usually follows after the last day you have recorded, in your
   own months before (with a likely range), against a usual month, and day by day on a chart; each
   category the same way, the furthest from usual first (one that comes now and then, like a

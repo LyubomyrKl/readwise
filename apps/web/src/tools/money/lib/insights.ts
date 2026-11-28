@@ -176,3 +176,49 @@ export function worthSeries(months: WorthMonth[]) {
     net: months.map((m) => num(m.change) ?? 0),
   };
 }
+
+/** The first month end the way ahead reaches a figure (with `extra` more saved each month), and how many months away; null beyond it. */
+export function reachedAt(target: number, ahead: { date: string; value: number }[], extra = 0): { date: string; months: number } | null {
+  const i = ahead.findIndex((p, k) => p.value + extra * (k + 1) >= target);
+  return i < 0 ? null : { date: ahead[i].date, months: i + 1 };
+}
+
+export interface FinishLine {
+  id: string;
+  name: string | null;
+  target: AmountJson;
+  /** of the way there today, 0 to 1 */
+  progress: number;
+  reached: boolean;
+  /** when the pace gets there; null beyond the way ahead */
+  at: { date: string; months: number } | null;
+  /** spending a tenth less: when, and how many months sooner (null when the pace alone never gets there) */
+  sooner: { date: string; months: number | null } | null;
+}
+
+/** The finish lines on the way ahead: how far along today, when the pace reaches each, and how much sooner a tenth less spending would. */
+export function finishLines(nw: ForecastResponse["netWorth"]): FinishLine[] {
+  const now = num(nw.history.at(-1)?.total) ?? 0;
+  const ahead = nw.projection.map((p) => ({ date: p.date, value: num(p.value) ?? 0 }));
+  const lever = num(nw.lever) ?? 0;
+  return nw.goals.map((g) => {
+    const target = num(g.target) ?? 0;
+    const reached = now >= target;
+    const at = reached ? null : reachedAt(target, ahead);
+    const faster = reached || lever <= 0 ? null : reachedAt(target, ahead, lever);
+    return {
+      id: g.id,
+      name: g.name,
+      target: g.target,
+      progress: target > 0 ? Math.max(0, Math.min(1, now / target)) : 0,
+      reached,
+      at,
+      sooner: faster && (!at || faster.months < at.months) ? { date: faster.date, months: at ? at.months - faster.months : null } : null,
+    };
+  });
+}
+
+/** The way ahead cut to `years`: what is behind, and that many years of month ends. */
+export function horizon(nw: ForecastResponse["netWorth"], years: number): ForecastResponse["netWorth"] {
+  return { ...nw, projection: nw.projection.slice(0, years * 12) };
+}

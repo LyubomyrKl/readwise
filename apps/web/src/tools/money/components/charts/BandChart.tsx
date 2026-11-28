@@ -34,14 +34,17 @@ function runs(values: readonly (number | null)[]): number[][] {
 
 /**
  * What happened against what is usual or projected: solid lines for what happened, dashed ones for
- * the usual or the projection, the likely range (low to high) as a faint wash, and a mark for today.
- * Hairline grid, one axis; the crosshair and its tooltip follow the pointer or the arrow keys.
+ * the usual or the projection, the likely range (low to high) as a faint wash, a mark for today, and
+ * finish lines across the plot (dotted, labelled at the left; one far above what is drawn is left to
+ * the list beside the chart rather than flattening it). Hairline grid, one axis; the crosshair and
+ * its tooltip follow the pointer or the arrow keys.
  */
 export function BandChart({
   labels,
   series,
   band,
   marker,
+  references,
   label,
   tooltip,
   height = 220,
@@ -52,6 +55,8 @@ export function BandChart({
   series: BandSeries[];
   band?: { low: (number | null)[]; high: (number | null)[]; color: string };
   marker?: { index: number; label: string };
+  /** finish lines: a value to reach, drawn across */
+  references?: { value: number; label: string }[];
   /** what the chart shows, for screen readers */
   label: string;
   tooltip: (index: number) => ReactNode;
@@ -62,7 +67,9 @@ export function BandChart({
   const [active, setActive] = useState<number | null>(null);
   const n = labels.length;
   const all = [...series.flatMap((s) => s.values), ...(band ? [...band.low, ...band.high] : [])].filter((v): v is number => v !== null);
-  const scale = niceScale(all);
+  const top = Math.max(0, ...all);
+  const lines = (references ?? []).filter((r) => r.value <= Math.max(top * 1.5, 1));
+  const scale = niceScale([...all, ...lines.map((r) => r.value)]);
   const plotW = Math.max(0, width - MARGIN.left - MARGIN.right);
   const x = (i: number) => MARGIN.left + (n <= 1 ? plotW / 2 : (i * plotW) / (n - 1));
   const y = (v: number) => MARGIN.top + height - ((v - scale.min) / (scale.max - scale.min)) * height;
@@ -71,7 +78,8 @@ export function BandChart({
   const bandPath = (run: number[]) =>
     `${path(band!.high, run)}${[...run].reverse().map((i) => `L${x(i)},${y(band!.low[i]!)}`).join("")}Z`;
 
-  const every = labelEvery(n, Math.floor(plotW / 48));
+  // room for a label each, the last one anchored at its end ("Nov 31") clear of the one before
+  const every = labelEvery(n, Math.floor(plotW / 56));
   const indexAt = (e: PointerEvent<SVGSVGElement>) => {
     const px = e.clientX - e.currentTarget.getBoundingClientRect().left;
     const i = n <= 1 ? 0 : Math.round(((px - MARGIN.left) / plotW) * (n - 1));
@@ -122,6 +130,23 @@ export function BandChart({
             ) : null
           )}
           {band ? bandRuns.map((run) => <path key={run[0]} d={bandPath(run)} style={{ fill: band.color, fillOpacity: 0.12 }} />) : null}
+          {lines.map((r) => (
+            <g key={`ref-${r.value}`}>
+              <line
+                x1={MARGIN.left}
+                x2={width - MARGIN.right}
+                y1={y(r.value)}
+                y2={y(r.value)}
+                style={{ stroke: "var(--muted-foreground)" }}
+                strokeWidth={1.5}
+                strokeDasharray="1 4"
+                strokeLinecap="round"
+              />
+              <text x={MARGIN.left + 4} y={y(r.value) - 6} style={{ fill: "var(--muted-foreground)", fontSize: 11 }}>
+                {r.label}
+              </text>
+            </g>
+          ))}
           {marker ? (
             <g>
               <line

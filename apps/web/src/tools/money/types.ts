@@ -731,6 +731,12 @@ export interface ForecastResponse {
     monthlySaving: AmountJson | null;
     /** the months that average is of */
     savingMonths: number;
+    /** net worth today against a year back (or the first month end there is) */
+    grown: { since: string; change: AmountJson } | null;
+    /** a tenth of the average month of spending, in whole units: the extra a month that brings the finish lines closer */
+    lever: AmountJson | null;
+    /** the finish lines, smallest first, in the base currency */
+    goals: { id: string; name: string | null; target: AmountJson }[];
     /** holdings at their value today */
     invested: AmountJson;
     /** percent a year, from the settings */
@@ -741,4 +747,19 @@ export interface ForecastResponse {
   runway: { liquid: AmountJson; monthlyExpenses: AmountJson | null; months: string | null };
   upcoming: { date: string; name: string; kind: string; amount: AmountJson | null }[];
   missingRates: string[];
+}
+
+/** A finish line: a net worth to reach, in its own currency. */
+export interface GoalResponse {
+  id: string;
+  name: string | null;
+  target: AmountJson;
+  createdAt: string;
+}
+
+export interface CreateGoalInput {
+  name?: string;
+  /** a decimal string, above zero */
+  target: string;
+  currency: string;
 }

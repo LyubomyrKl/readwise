@@ -46,7 +46,7 @@ export class ClaudeService {
       vsUsualPercent: p.change,
     });
     const year = (y: typeof f.year.soFar) => ({ income: money(y.income), expenses: money(y.expenses), saved: money(y.savings), savingsRatePercent: y.savingsRate });
-    const inAYear = f.netWorth.projection.at(-1);
+    const inAYear = f.netWorth.projection[11];
     return {
       base: f.base,
       today: f.asOf,
@@ -67,6 +67,17 @@ export class ClaudeService {
         savedInAnAverageMonth: money(f.netWorth.monthlySaving),
         invested: money(f.netWorth.invested),
         expectedReturnPercent: f.netWorth.expectedReturn,
+        grown: f.netWorth.grown ? { since: f.netWorth.grown.since, change: money(f.netWorth.grown.change) } : null,
+        // the owner's finish lines, and when the pace reaches each: 'reached', a month end, or null beyond ten years
+        finishLines: f.netWorth.goals.map((g) => {
+          const now = f.netWorth.history.at(-1);
+          const reached = now !== undefined && BigInt(now.total.minor) >= BigInt(g.target.minor);
+          return {
+            name: g.name,
+            target: money(g.target),
+            reachedAround: reached ? 'reached' : (f.netWorth.projection.find((p) => BigInt(p.value.minor) >= BigInt(g.target.minor))?.date ?? null),
+          };
+        }),
         inTwelveMonths: inAYear ? { date: inAYear.date, value: money(inAYear.value), likely: { from: money(inAYear.low), to: money(inAYear.high) } } : null,
         // each month's change told apart: saved, prices and exchange rates, one-offs, accounts added
         months: f.netWorth.months.map((m) => ({
