@@ -373,13 +373,14 @@ test.describe("Money", () => {
     await expect(learnFrom).toContainText("Last 3 months");
     await expect(page.getByText(/your last 3 months/).first()).toBeVisible();
 
-    // from the month three months back to last month: open at its end, so new months join
+    // a custom range: From the month three months back (the panel opens on its year), To kept at Now
+    // so new months join, then Apply
     const monthName = (d: Date) => d.toLocaleString("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
-    const lastMonth = new Date();
-    lastMonth.setUTCMonth(lastMonth.getUTCMonth() - 1, 1);
     await learnFrom.click();
+    await expect(page.getByRole("button", { name: /^From: / })).toHaveAttribute("aria-pressed", "true");
     await page.getByRole("button", { name: monthName(back), exact: true }).click();
-    await page.getByRole("button", { name: monthName(lastMonth), exact: true }).click();
+    await expect(page.getByRole("button", { name: "To: Now" })).toHaveAttribute("aria-pressed", "true");
+    await page.getByRole("button", { name: "Apply", exact: true }).click();
     await expect(page.getByText(/^Insights now learn from .* to now$/)).toBeVisible();
     expect(await learning()).toMatchObject({ forecastRange: "custom", forecastSince: before.slice(0, 7), forecastUntil: null });
     await expect(learnFrom).toContainText("now");

@@ -162,8 +162,8 @@ If it stops:
   a usual month. One-offs (a category left out of the totals, such as Sold belongings) are in none
   of the projections, the savings rate or what you save: a sale counts once in today's net worth.
   **Learn from** (top right) picks the months this month's pace, the year and the safety net learn
-  from: last month, the last 3, 6 or 12 months (the default), this year, or months you pick in its
-  panel, the first and then the last (ending at last month, new months join as they pass). When
+  from: last month, the last 3, 6 or 12 months (the default), this year, or a **Custom range**: pick
+  its From month, then its To (or keep **Now**, so new months join as they pass), and **Apply**. When
   something changed (you started paying a tax, a new job), learn from the months since. It is kept,
   and the Overview and Claude follow it; net worth ahead always learns from your last 12 months.
   On the Overview the pace is under Expenses: **on pace for …** opens Insights.

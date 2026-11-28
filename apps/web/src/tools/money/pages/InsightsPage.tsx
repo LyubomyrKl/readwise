@@ -41,11 +41,11 @@ const NET = "var(--foreground)";
 const SECTION = "scroll-mt-20";
 
 /**
- * Where the money is heading: first the way ahead for net worth with the person's finish lines on
- * it (always from the last twelve months), then this month and the year from the months the person
- * chose to learn from (Learn from, beside their heading): this month on pace, each category, the year
- * so far and as projected, the months of spending the bank covers; then what moved net worth, and
- * what is still scheduled. How each figure is worked out sits behind its card's note.
+ * Where the money is heading: this month on pace, each category, the year so far and as projected
+ * and the months of spending the bank covers, all from the months the person chose to learn from
+ * (Learn from); then where net worth is heading with the person's finish lines on it (always from
+ * the last twelve months), what moved it, and what is still scheduled. How each figure is worked
+ * out sits behind its card's note.
  */
 export default function InsightsPage() {
   const [base, setBase] = useQueryParam<string>("base", "");
@@ -60,7 +60,10 @@ export default function InsightsPage() {
         title="Insights"
         description="Where your money is heading, worked out from your own months."
       />
-      <BasePicker value={shownBase} onChange={(c) => setBase(c === settings?.baseCurrency ? "" : c)} suggestions={suggestBases(settings?.baseCurrency, [])} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <BasePicker value={shownBase} onChange={(c) => setBase(c === settings?.baseCurrency ? "" : c)} suggestions={suggestBases(settings?.baseCurrency, [])} />
+        {f ? <LearnFromPicker f={f} /> : null}
+      </div>
 
       {isLoading || !f ? (
         <Skeleton className="h-96" />
@@ -82,15 +85,6 @@ export default function InsightsPage() {
                 : "Under three months of history so far: this month is projected in a straight line from its pace, and the year from this month. With more months, projections lean on what usually happens."}
             </p>
           ) : null}
-          <GrowthCard f={f} />
-          {/* the months these learn from are the person's choice, set where they begin */}
-          <div className="flex flex-wrap items-end justify-between gap-3 pt-2">
-            <div>
-              <h2 className="text-lg font-semibold tracking-tight">This month and the year</h2>
-              <p className="text-sm text-muted-foreground">{`Learning from ${basisLabel(f)}.`}</p>
-            </div>
-            <LearnFromPicker f={f} />
-          </div>
           <ThisMonth f={f} />
           <Categories f={f} />
           {/* the year's table needs the room: three amounts a row */}
@@ -98,6 +92,7 @@ export default function InsightsPage() {
             <Year f={f} />
             <SafetyNet f={f} />
           </div>
+          <GrowthCard f={f} />
           {f.netWorth.months.length > 0 ? <WorthMonths f={f} /> : null}
           {f.upcoming.length > 0 ? <Upcoming f={f} /> : null}
         </div>
@@ -136,7 +131,7 @@ function ThisMonth({ f }: { f: ForecastResponse }) {
     <Card id="this-month" className={SECTION}>
       <CardHeader>
         <CardTitle>{formatMonth(f.month)} on pace</CardTitle>
-        <CardDescription>{`Day ${f.day} of ${f.daysInMonth}${history ? "" : ", a straight line from the pace so far"}.`}</CardDescription>
+        <CardDescription>{`Day ${f.day} of ${f.daysInMonth}, ${history ? `against ${basisLabel(f)}` : "a straight line from the pace so far"}.`}</CardDescription>
         <CardAction>
           <HowItWorks>
             <p>

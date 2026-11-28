@@ -1,55 +1,59 @@
 "use client";
 
 import { useState } from "react";
-import { CalendarRange, Check } from "lucide-react";
+import { CalendarRange, Check, ChevronLeft, ChevronRight, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { moneyApi } from "../../api";
-import { formatMonth } from "../../lib/format";
-import { monthGrid, pickedRange, RANGE_OPTIONS, rangeTitle, rangeWords } from "../../lib/insights";
+import { shiftMonth } from "../../lib/chart";
+import { formatMonth, formatMonthShort } from "../../lib/format";
+import { initialDraft, pickMonth, RANGE_OPTIONS, rangeTitle, rangeWords, yearMonths, type RangeDraft, type RangeEnd } from "../../lib/insights";
 import { useMoneyMutation } from "../../queries";
 import type { ForecastRange, ForecastResponse } from "../../types";
 
 /**
  * Learn from: the months this month's pace, the categories, the year and the safety net learn from.
- * One button; its panel has the common ranges, and the months a year a row, where two clicks pick a
- * custom range (the same month twice: that month alone) and the panel can be opened again to pick
- * another. A range ending at last month stays open: new months join it as they pass.
+ * One button; its panel has the common ranges (a click applies one) and a custom range the way date
+ * pickers do it: a From and a To that say what is being set, one year of months at a time with
+ * arrows between years, and Apply. To is "Now" until a last month is picked: new months join.
  */
 export function LearnFromPicker({ f }: { f: ForecastResponse }) {
   const [open, setOpen] = useState(false);
-  /** the first month of a custom range being picked */
-  const [start, setStart] = useState<string | null>(null);
+  const [draft, setDraft] = useState<RangeDraft>(() => initialDraft(f));
+  const [end, setEnd] = useState<RangeEnd>("from");
+  const [year, setYear] = useState(() => Number(initialDraft(f).from.slice(0, 4)));
   const [hover, setHover] = useState<string | null>(null);
   const save = useMoneyMutation(moneyApi.settings.update, {
     success: (s) => `Insights now learn from ${rangeWords(s)}`,
     onSuccess: () => setOpen(false),
   });
+  const lastMonth = shiftMonth(f.month, -1);
+  const firstYear = Number((f.firstMonth ?? f.month).slice(0, 4));
+  const thisYear = Number(f.month.slice(0, 4));
+
+  const start = () => {
+    const d = initialDraft(f);
+    setDraft(d);
+    setEnd("from");
+    setYear(Number(d.from.slice(0, 4)));
+    setHover(null);
+  };
   const choose = (range: ForecastRange) => save.mutate({ forecastRange: range });
   const pick = (month: string) => {
-    if (!start) {
-      setStart(month);
-      return;
-    }
-    const range = pickedRange(start, month, f.month);
-    setStart(null);
-    save.mutate({ forecastRange: "custom", forecastSince: range.since, forecastUntil: range.until });
+    const next = pickMonth(draft, end, month);
+    setDraft(next.draft);
+    setEnd(next.end);
   };
-  // lit: the range being picked (its first month to the one under the pointer), else the months learned from
-  const [from, to] = start ? [start, hover ?? start].sort() : [f.basisFrom, f.basisTo];
-  const lit = (month: string) => from !== null && to !== null && month >= from && month <= to;
-  const end = (month: string) => month === from || month === to;
-  /** in the range chosen now (pressed), apart from what a pick in progress lights up */
-  const chosen = (month: string) => (start ? month === start : f.basisFrom !== null && f.basisTo !== null && month >= f.basisFrom && month <= f.basisTo);
+  // lit: the draft, or while its last month is being picked, up to the month under the pointer
+  const upTo = end === "to" && hover !== null && hover >= draft.from ? hover : (draft.to ?? lastMonth);
 
   return (
     <Popover
       open={open}
       onOpenChange={(next) => {
         setOpen(next);
-        setStart(null);
-        setHover(null);
+        if (next) start();
       }}
     >
       <PopoverTrigger asChild>
@@ -59,11 +63,16 @@ export function LearnFromPicker({ f }: { f: ForecastResponse }) {
           <span className="font-medium">{rangeTitle(f)}</span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent align="end" collisionPadding={16} className="w-[min(22rem,calc(100vw-2rem))] space-y-4">
+      {/* never taller than the room there is: on a phone it scrolls */}
+      <PopoverContent
+        align="end"
+        collisionPadding={16}
+        className="max-h-(--radix-popover-content-available-height) w-[min(22rem,calc(100vw-2rem))] space-y-4 overflow-y-auto"
+      >
         <div className="space-y-1">
           <p className="text-sm font-medium">Learn from</p>
           <p className="text-xs text-muted-foreground">
-            {"The months this month's pace, the year and the safety net are worked out from. Something changed, like a tax you now pay? Pick the months since."}
+            {"The months this month's pace, the year and the safety net are worked out from. Something changed, like a tax you now pay? Learn from the months since."}
           </p>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -85,45 +94,104 @@ export function LearnFromPicker({ f }: { f: ForecastResponse }) {
             );
           })}
         </div>
-        <div className="space-y-2 border-t pt-3">
+
+        <div className="space-y-3 border-t pt-3">
+          <p className="text-sm font-medium">Custom range</p>
+          <div className="grid grid-cols-2 gap-2">
+            <EndBox
+              label="From"
+              value={formatMonthShort(draft.from)}
+              active={end === "from"}
+              onSelect={() => {
+                setEnd("from");
+                setYear(Number(draft.from.slice(0, 4)));
+              }}
+            />
+            <EndBox
+              label="To"
+              value={draft.to ? formatMonthShort(draft.to) : "Now"}
+              active={end === "to"}
+              onSelect={() => {
+                setEnd("to");
+                setYear(Number((draft.to ?? lastMonth).slice(0, 4)));
+              }}
+              onClear={draft.to ? () => setDraft({ ...draft, to: null }) : undefined}
+            />
+          </div>
           <p className="text-xs text-muted-foreground" aria-live="polite">
-            {start ? `From ${formatMonth(start)}. Now the last month, or the same one again for it alone.` : "Or pick months: the first, then the last."}
+            {end === "from" ? "Pick the first month." : draft.to ? "Pick the last month." : "Pick the last month, or keep Now: new months join as they pass."}
           </p>
-          {/* this year first; earlier years scroll, so the panel fits a phone */}
-          <div className="max-h-56 space-y-2 overflow-y-auto pr-1" onPointerLeave={() => setHover(null)}>
-            {monthGrid(f.month, f.firstMonth).map((y) => (
-              <div key={y.year} className="grid grid-cols-[2.75rem_1fr] items-start gap-2">
-                <span className="pt-1.5 text-xs tabular-nums text-muted-foreground">{y.year}</span>
-                <div className="grid grid-cols-6 gap-1">
-                  {y.months.map((m) => (
-                    <button
-                      key={m.value}
-                      type="button"
-                      disabled={m.disabled || save.isPending}
-                      aria-label={formatMonth(m.value)}
-                      aria-pressed={chosen(m.value)}
-                      onClick={() => pick(m.value)}
-                      onPointerEnter={() => setHover(m.value)}
-                      onFocus={() => setHover(m.value)}
-                      className={cn(
-                        "h-7 rounded-md text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
-                        "disabled:cursor-not-allowed disabled:opacity-35",
-                        end(m.value)
-                          ? "bg-primary font-medium text-primary-foreground"
-                          : lit(m.value)
-                            ? "bg-primary/15 text-foreground"
-                            : "text-foreground hover:bg-muted"
-                      )}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="The year before" disabled={year <= firstYear} onClick={() => setYear(year - 1)}>
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium tabular-nums">{year}</span>
+            <Button variant="ghost" size="icon" className="h-7 w-7" aria-label="The year after" disabled={year >= thisYear} onClick={() => setYear(year + 1)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+          </div>
+          <div className="grid grid-cols-4 gap-1" onPointerLeave={() => setHover(null)}>
+            {yearMonths(year, f.month, f.firstMonth).map((m) => {
+              // the ends: those set, and while the last is being picked, the month under the pointer
+              const endpoint = m.value === draft.from || m.value === draft.to || (end === "to" && m.value === hover && hover >= draft.from);
+              const inside = m.value >= draft.from && m.value <= upTo;
+              return (
+                <button
+                  key={m.value}
+                  type="button"
+                  disabled={m.disabled}
+                  aria-label={formatMonth(m.value)}
+                  aria-pressed={inside}
+                  onClick={() => pick(m.value)}
+                  onPointerEnter={() => setHover(m.value)}
+                  className={cn(
+                    "h-8 rounded-md text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50",
+                    "disabled:cursor-not-allowed disabled:opacity-30",
+                    endpoint ? "bg-primary font-medium text-primary-foreground" : inside ? "bg-primary/15" : "hover:bg-muted"
+                  )}
+                >
+                  {m.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs text-muted-foreground">{draft.to ? `${formatMonthShort(draft.from)} – ${formatMonthShort(draft.to)}` : `${formatMonthShort(draft.from)} – now`}</span>
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={() => setOpen(false)}>
+                Cancel
+              </Button>
+              <Button size="sm" disabled={save.isPending} onClick={() => save.mutate({ forecastRange: "custom", forecastSince: draft.from, forecastUntil: draft.to })}>
+                Apply
+              </Button>
+            </div>
           </div>
         </div>
       </PopoverContent>
     </Popover>
+  );
+}
+
+/** One end of the range: what it is set to, and whether the next month picked sets it. */
+function EndBox({ label, value, active, onSelect, onClear }: { label: string; value: string; active: boolean; onSelect: () => void; onClear?: () => void }) {
+  return (
+    <div className={cn("relative rounded-md border transition-colors", active ? "border-primary ring-2 ring-primary/30" : "hover:bg-muted/50")}>
+      <button type="button" onClick={onSelect} aria-pressed={active} aria-label={`${label}: ${value}`} className="w-full rounded-md px-3 py-1.5 text-left">
+        <span className="block text-[11px] text-muted-foreground">{label}</span>
+        <span className="block text-sm font-medium tabular-nums">{value}</span>
+      </button>
+      {onClear ? (
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label={`${label}: back to now`}
+          className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
+        >
+          <X className="h-3.5 w-3.5" />
+        </button>
+      ) : null}
+    </div>
   );
 }

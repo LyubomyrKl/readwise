@@ -47,30 +47,37 @@ export function rangeTitle(f: Pick<ForecastResponse, "range" | "since" | "until"
 
 const monthShort = new Intl.DateTimeFormat(undefined, { month: "short", timeZone: "UTC" });
 
-/**
- * The months the range picker offers, a year a row, this year first and back to the first
- * movement's (at most five years); a month can be learned from once it is over and when it has
- * movements.
- */
-export function monthGrid(month: string, firstMonth: string | null): { year: number; months: { value: string; label: string; disabled: boolean }[] }[] {
-  const thisYear = Number(month.slice(0, 4));
-  const from = Math.max(thisYear - 4, Number((firstMonth ?? month).slice(0, 4)));
-  return Array.from({ length: thisYear - from + 1 }, (_, i) => {
-    const year = thisYear - i;
-    return {
-      year,
-      months: Array.from({ length: 12 }, (_, k) => {
-        const value = `${year}-${String(k + 1).padStart(2, "0")}`;
-        return { value, label: monthShort.format(new Date(`${value}-01T00:00:00Z`)), disabled: value >= month || (firstMonth !== null && value < firstMonth) };
-      }),
-    };
+/** A year's months for the range picker: one can be learned from once it is over, and when it has movements. */
+export function yearMonths(year: number, month: string, firstMonth: string | null): { value: string; label: string; disabled: boolean }[] {
+  return Array.from({ length: 12 }, (_, k) => {
+    const value = `${year}-${String(k + 1).padStart(2, "0")}`;
+    return { value, label: monthShort.format(new Date(`${value}-01T00:00:00Z`)), disabled: value >= month || (firstMonth !== null && value < firstMonth) };
   });
 }
 
-/** A custom range from two picked months, in either order; ending at last month it stays open, so new months join. */
-export function pickedRange(a: string, b: string, month: string): { since: string; until: string | null } {
-  const [since, end] = a <= b ? [a, b] : [b, a];
-  return { since, until: end >= shiftMonth(month, -1) ? null : end };
+/** A custom range being chosen: its first month, and its last (null: now, so new months join). */
+export interface RangeDraft {
+  from: string;
+  to: string | null;
+}
+
+/** Which end of the range the next month picked sets. */
+export type RangeEnd = "from" | "to";
+
+/** Where choosing a custom range starts: the custom range in use, else the months in use now, to now. */
+export function initialDraft(f: Pick<ForecastResponse, "range" | "since" | "until" | "basisFrom" | "month">): RangeDraft {
+  if (f.range === "custom" && f.since) return { from: f.since, to: f.until };
+  return { from: f.basisFrom ?? shiftMonth(f.month, -3), to: null };
+}
+
+/**
+ * A month picked into the end being set: the first month, then the last. A last month before the
+ * first swaps them; a first month after the last drops the last (back to now). After the last, the
+ * next pick starts again from the first.
+ */
+export function pickMonth(draft: RangeDraft, end: RangeEnd, month: string): { draft: RangeDraft; end: RangeEnd } {
+  if (end === "from") return { draft: { from: month, to: draft.to !== null && draft.to < month ? null : draft.to }, end: "to" };
+  return { draft: month < draft.from ? { from: month, to: draft.from } : { from: draft.from, to: month }, end: "from" };
 }
 
 /**

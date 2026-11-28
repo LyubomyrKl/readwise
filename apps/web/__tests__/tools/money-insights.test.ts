@@ -5,17 +5,18 @@ import {
   changeLabel,
   finishLines,
   horizon,
-  monthGrid,
+  initialDraft,
   nextMilestone,
   outlookSeries,
   paceSeries,
-  pickedRange,
+  pickMonth,
   RANGE_OPTIONS,
   rangeTitle,
   reachedAt,
   rangeWords,
   safetyLevel,
   worthSeries,
+  yearMonths,
 } from "@tools/money/lib/insights";
 import type { CategoryPace, ForecastRange, ForecastResponse, WorthMonth } from "@tools/money/types";
 
@@ -47,20 +48,29 @@ describe("insights", () => {
     expect(rangeTitle({ range: "custom", since: "2026-01", until: "2026-03" })).toBe("Jan 2026 – Mar 2026");
   });
 
-  it("lays the months out a year a row, this year first, those not over or without movements out of reach", () => {
-    const grid = monthGrid("2026-11", "2025-05");
-    expect(grid.map((y) => y.year)).toEqual([2026, 2025]);
-    expect(grid[0].months.map((m) => m.disabled).slice(9)).toEqual([false, true, true]); // October yes; November, December not yet
-    expect(grid[1].months[0]).toEqual({ value: "2025-01", label: "Jan", disabled: true }); // before the first movement
-    expect(grid[1].months[4].disabled).toBe(false); // May 2025, the first
-    // at most five years back
-    expect(monthGrid("2026-11", "2015-01").map((y) => y.year)).toEqual([2026, 2025, 2024, 2023, 2022]);
+  it("offers a year's months, those not over or without movements out of reach", () => {
+    expect(yearMonths(2026, "2026-11", "2025-05").map((m) => m.disabled).slice(9)).toEqual([false, true, true]); // October yes; November, December not yet
+    expect(yearMonths(2025, "2026-11", "2025-05").slice(3, 5)).toEqual([
+      { value: "2025-04", label: "Apr", disabled: true }, // before the first movement
+      { value: "2025-05", label: "May", disabled: false },
+    ]);
   });
 
-  it("makes a range of two picked months, either way round, open when it ends at last month", () => {
-    expect(pickedRange("2026-06", "2026-10", "2026-11")).toEqual({ since: "2026-06", until: null });
-    expect(pickedRange("2026-03", "2026-01", "2026-11")).toEqual({ since: "2026-01", until: "2026-03" });
-    expect(pickedRange("2026-04", "2026-04", "2026-11")).toEqual({ since: "2026-04", until: "2026-04" });
+  it("starts a custom range from the one in use, or from the months in use now to now", () => {
+    expect(initialDraft({ range: "custom", since: "2026-01", until: "2026-03", basisFrom: "2026-01", month: "2026-11" })).toEqual({ from: "2026-01", to: "2026-03" });
+    expect(initialDraft({ range: "last_3_months", since: null, until: null, basisFrom: "2026-08", month: "2026-11" })).toEqual({ from: "2026-08", to: null });
+  });
+
+  it("picks the first month, then the last, either way round", () => {
+    const start = { from: "2026-08", to: null };
+    // the first month, then the last
+    const first = pickMonth(start, "from", "2026-06");
+    expect(first).toEqual({ draft: { from: "2026-06", to: null }, end: "to" });
+    expect(pickMonth(first.draft, "to", "2026-09")).toEqual({ draft: { from: "2026-06", to: "2026-09" }, end: "from" });
+    // a last month before the first: swapped
+    expect(pickMonth(first.draft, "to", "2026-02").draft).toEqual({ from: "2026-02", to: "2026-06" });
+    // a first month after the last: the last goes back to now
+    expect(pickMonth({ from: "2026-01", to: "2026-03" }, "from", "2026-05").draft).toEqual({ from: "2026-05", to: null });
   });
 
   it("finds the next round figure net worth reaches at this pace", () => {

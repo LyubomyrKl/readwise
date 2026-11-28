@@ -94,10 +94,14 @@ export function formatMonth(month: string): string {
   return monthFormat.format(new Date(`${month}-01T00:00:00Z`));
 }
 
+/** "2026-10" -> "Oct 2026": short, with the whole year (never "Oct 26", which reads as a day) */
+export function formatMonthShort(month: string): string {
+  return shortMonthFormat.format(new Date(`${month}-01T00:00:00Z`));
+}
+
 /** "2025-11", "2026-10" -> "Nov 2025 – Oct 2026"; one month alone when both are the same. */
 export function formatMonthSpan(from: string, to: string): string {
-  const short = (m: string) => shortMonthFormat.format(new Date(`${m}-01T00:00:00Z`));
-  return from === to ? short(from) : `${short(from)} – ${short(to)}`;
+  return from === to ? formatMonthShort(from) : `${formatMonthShort(from)} – ${formatMonthShort(to)}`;
 }
 
 /** Today as YYYY-MM-DD in the browser's time zone. */

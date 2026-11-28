@@ -383,3 +383,9 @@ entries of posted transactions cannot be updated or deleted.
   lever, a gap and a holding-only month skipped); `money-goals.db-spec.ts` (set, smallest first,
   refused at zero, removed by its owner only, in the forecast); `money-insights.test.ts` (when a
   line is reached, how much sooner, the horizon); in the browser, a finish line set and removed.
+  Then the owner kept the card but not its place, and still found the month grid unclear: the
+  sections are back in their order (this month, categories, the year and the safety net, then where
+  net worth is heading and what moved it), Learn from back beside Show in; a custom range is picked
+  the way date pickers do it: a From and a To that say what the next month picked sets (To is
+  "Now" until a last month is picked, so new months join), one year of months at a time with arrows
+  between years, the range lit as it is chosen, and Apply. Months read "Dec 2022", never "Dec 22".
