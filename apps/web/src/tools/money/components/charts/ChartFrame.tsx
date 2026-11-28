@@ -9,6 +9,8 @@ export interface LegendEntry {
   name: string;
   /** a CSS color, e.g. "var(--viz-1)" */
   color: string;
+  /** a dot for a marker (a net value), a square for a filled series */
+  shape?: "square" | "dot";
 }
 
 /** Series identity: a swatch beside the name; the text stays in ink, never in the series color. */
@@ -17,7 +19,7 @@ export function Legend({ entries, className }: { entries: LegendEntry[]; classNa
     <ul className={cn("flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground", className)}>
       {entries.map((e) => (
         <li key={e.name} className="flex items-center gap-1.5">
-          <span aria-hidden className="h-2.5 w-2.5 shrink-0 rounded-sm" style={{ background: e.color }} />
+          <span aria-hidden className={cn("h-2.5 w-2.5 shrink-0", e.shape === "dot" ? "rounded-full" : "rounded-sm")} style={{ background: e.color }} />
           {e.name}
         </li>
       ))}

@@ -1,4 +1,4 @@
-import type { AmountJson, CategoryPace, ForecastResponse, PaceDay } from "../types";
+import type { AmountJson, CategoryPace, ForecastResponse, PaceDay, WorthMonth } from "../types";
 import { shortMonth } from "./chart";
 
 /**
@@ -59,16 +59,33 @@ export function changeLabel(change: string | null, kind: "expense" | "income"): 
   return { text, direction: up ? "up" : "down", tone: good ? "good" : "warn" };
 }
 
+/** Where a category's tick goes: the usual month, or the average one for a category that comes in lumps. */
+const reference = (c: CategoryPace) => (c.lumpy ? c.averageMonth : c.typicalMonth);
+
 /**
  * A category as a bar on a shared scale: what is spent so far, the projection beyond it, and a tick
- * where the usual month ends; percents of `max`.
+ * where the usual month ends (the average month, for one that comes in lumps); percents of `max`.
  */
 export function categoryBar(c: CategoryPace, max: number) {
   const pct = (v: number | null) => (v === null || max <= 0 ? null : Math.min(100, Math.max(0, (v / max) * 100)));
-  return { soFar: pct(num(c.soFar)) ?? 0, projected: pct(num(c.projected)) ?? 0, usual: pct(num(c.typicalMonth)) };
+  return { soFar: pct(num(c.soFar)) ?? 0, projected: pct(num(c.projected)) ?? 0, usual: pct(num(reference(c))) };
 }
 
 /** The scale every category bar shares: the largest of the figures any of them shows. */
 export function categoryScale(categories: CategoryPace[]): number {
-  return Math.max(0, ...categories.flatMap((c) => [num(c.projected) ?? 0, num(c.typicalMonth) ?? 0, num(c.soFar) ?? 0]));
+  return Math.max(0, ...categories.flatMap((c) => [num(c.projected) ?? 0, num(reference(c)) ?? 0, num(c.soFar) ?? 0]));
+}
+
+/**
+ * Each month's change of net worth as stacked parts: saved, markets and exchange rates, and one-offs
+ * with the accounts added (both are worth that was never saved), plus the net change.
+ */
+export function worthSeries(months: WorthMonth[]) {
+  return {
+    labels: months.map((m) => shortMonth(m.month)),
+    saved: months.map((m) => num(m.saved) ?? 0),
+    markets: months.map((m) => num(m.markets) ?? 0),
+    oneOffs: months.map((m) => (num(m.oneOffs) ?? 0) + (num(m.added) ?? 0)),
+    net: months.map((m) => num(m.change) ?? 0),
+  };
 }

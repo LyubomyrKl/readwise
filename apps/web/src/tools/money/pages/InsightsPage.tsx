@@ -7,19 +7,22 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { moneyApi } from "../api";
 import { Amount } from "../components/Amount";
 import { BandChart } from "../components/charts/BandChart";
 import { TooltipRows } from "../components/charts/Bars";
 import { ChartFrame, DataTable } from "../components/charts/ChartFrame";
+import { StackedBars } from "../components/charts/StackedBars";
+import { SimpleSelect } from "../components/Fields";
 import { EmptyState, MoneyPage, PageHeader } from "../components/PageHeader";
 import { useQueryParam } from "../components/useQueryParam";
 import { BasePicker } from "../components/views/BasePicker";
 import { Change } from "../components/views/Change";
 import { MissingRates } from "../components/views/NetWorthView";
 import { formatAmount, formatDate, formatMonth, isZero } from "../lib/format";
-import { categoryBar, categoryScale, outlookSeries, paceSeries } from "../lib/insights";
+import { categoryBar, categoryScale, outlookSeries, paceSeries, worthSeries } from "../lib/insights";
 import { suggestBases } from "../lib/views";
-import { useForecast, useMoneySettings } from "../queries";
+import { useForecast, useMoneyMutation, useMoneySettings } from "../queries";
 import { MONEY_ROUTES } from "../routes";
 import type { ForecastResponse, PaceFigure } from "../types";
 
@@ -28,12 +31,21 @@ const SPENDING = "var(--viz-2)";
 const NET_WORTH = "var(--viz-1)";
 /** the usual month: a reference, in ink rather than a series color */
 const USUAL = "var(--muted-foreground)";
+/** what moved net worth: saved keeps the Overview's savings color, the other two the next free slots */
+const SAVED = "var(--viz-7)";
+const MARKETS = "var(--viz-4)";
+const ONE_OFFS = "var(--viz-5)";
+/** a month's net change: a marker in ink */
+const NET = "var(--foreground)";
+/** the yearly returns offered for investments, percent */
+const RETURNS = ["0", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10"];
 
 /**
- * Where the money is heading: this month on pace against the months before (each category too),
- * the year so far and as projected, net worth ahead at last year's pace, the months of usual
- * spending the bank covers, and what is still scheduled. Every projection leans on the person's
- * own months; with too few of them, on the pace so far.
+ * Where the money is heading: this month on pace against the months before (each category too, one
+ * that comes in lumps said so), the year so far and as projected, net worth ahead from what an
+ * average month saves and where each month's change came from, the months of average spending the
+ * bank covers, and what is still scheduled. Every projection leans on the person's own months; with
+ * too few of them, on the pace so far.
  */
 export default function InsightsPage() {
   const [base, setBase] = useQueryParam<string>("base", "");
@@ -211,7 +223,7 @@ function Categories({ f }: { f: ForecastResponse }) {
         <CardTitle>Categories this month</CardTitle>
         <CardDescription>
           Each as projected, the furthest from its usual month first. In the bar: spent so far, then still expected; the tick is a usual
-          month.
+          month, or the average month for one that comes now and then (a holiday, a yearly bill).
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
@@ -229,7 +241,11 @@ function Categories({ f }: { f: ForecastResponse }) {
                   </Link>
                   <div className="text-xs text-muted-foreground">
                     so far {formatAmount(c.soFar)}
-                    {c.typicalMonth ? ` · usually ${formatAmount(c.typicalMonth)}` : ""}
+                    {c.lumpy && c.averageMonth
+                      ? ` · in ${c.monthsWith} of ${f.basisMonths} months, ${formatAmount(c.averageMonth)} a month on average`
+                      : c.typicalMonth
+                        ? ` · usually ${formatAmount(c.typicalMonth)}`
+                        : ""}
                   </div>
                 </div>
                 <div className="relative h-2.5 rounded-full bg-muted" aria-hidden>
@@ -239,7 +255,11 @@ function Categories({ f }: { f: ForecastResponse }) {
                 </div>
                 <div className="flex items-center justify-between gap-3 sm:justify-end">
                   <span className="text-sm font-medium tabular-nums">{formatAmount(c.projected)}</span>
-                  <Change change={c.change} kind="expense" />
+                  {c.lumpy ? (
+                    <span className="whitespace-nowrap rounded-full border px-2 py-0.5 text-xs text-muted-foreground">Now and then</span>
+                  ) : (
+                    <Change change={c.change} kind="expense" />
+                  )}
                 </div>
               </li>
             );
@@ -268,8 +288,8 @@ function Year({ f }: { f: ForecastResponse }) {
       <CardHeader>
         <CardTitle>{f.year.year} so far and ahead</CardTitle>
         <CardDescription>
-          Ahead: so far, the rest of this month as projected, and {f.method === "history" ? "a usual month" : "a month like this one"} for each
-          month left.
+          Ahead: so far, the rest of this month as projected, and{" "}
+          {f.method === "history" ? "an average month (a holiday or a tax included)" : "a month like this one"} for each month left.
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
@@ -298,14 +318,14 @@ function SafetyNet({ f }: { f: ForecastResponse }) {
         <CardTitle className="flex items-center gap-2">
           <LifeBuoy className="h-4 w-4" /> Safety net
         </CardTitle>
-        <CardDescription>How long bank and cash would last at your usual spending, with no income.</CardDescription>
+        <CardDescription>How long bank and cash would last at your average spending, with no income.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-1">
         <div className="text-3xl font-semibold tabular-nums">{months === null ? "—" : `${months} months`}</div>
         <p className="text-sm text-muted-foreground">
           {monthlyExpenses ? (
             <>
-              {formatAmount(liquid)} in bank and cash, against {formatAmount(monthlyExpenses)} spent in a usual month.
+              {formatAmount(liquid)} in bank and cash, against {formatAmount(monthlyExpenses)} spent in an average month.
             </>
           ) : (
             "Three months of history tell what a usual month costs."
@@ -317,45 +337,48 @@ function SafetyNet({ f }: { f: ForecastResponse }) {
 }
 
 function NetWorthAhead({ f }: { f: ForecastResponse }) {
-  const o = outlookSeries(f.netWorth);
-  const last = f.netWorth.projection.at(-1);
+  const nw = f.netWorth;
+  const o = outlookSeries(nw);
+  const last = nw.projection.at(-1);
   return (
     <Card>
       <CardHeader>
         <CardTitle>Net worth ahead</CardTitle>
         <CardDescription>
-          {f.netWorth.monthlyChange ? (
+          {nw.monthlySaving ? (
             <>
-              At the last year&apos;s pace, <Amount amount={f.netWorth.monthlyChange} signed />
-              {/* a string: SWC drops the leading space of JSX text that spans lines and holds an entity */}
-              {" a month: savings and market moves, without one-offs such as selling something you own (those stay in today's net worth, not in the pace)."}
+              From what you save: <Amount amount={nw.monthlySaving} signed />
+              {` in an average month of your last ${f.basisMonths}, income less spending. One-offs (something sold, an account added) count once, in today's net worth; markets grow only at the rate you choose.`}
             </>
           ) : (
-            "Four month ends show a pace; until then only the months behind."
+            "Three months of history tell what you save in a month; until then only the months behind."
           )}
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-6">
         {last ? (
-          <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <span className="text-sm text-muted-foreground">In 12 months, {formatDate(last.date)}</span>
-            <span className="text-2xl font-semibold tabular-nums">about {formatAmount(last.value)}</span>
-            {last.low.value !== last.high.value ? (
-              <span className="text-xs text-muted-foreground">
-                likely {formatAmount(last.low)} to {formatAmount(last.high)}
-              </span>
-            ) : null}
+          <div className="space-y-2">
+            <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span className="text-sm text-muted-foreground">In 12 months, {formatDate(last.date)}</span>
+              <span className="text-2xl font-semibold tabular-nums">about {formatAmount(last.value)}</span>
+              {last.low.value !== last.high.value ? (
+                <span className="text-xs text-muted-foreground">
+                  likely {formatAmount(last.low)} to {formatAmount(last.high)}
+                </span>
+              ) : null}
+            </div>
+            <ExpectedReturn f={f} />
           </div>
         ) : null}
         <ChartFrame
           title="Net worth by month end"
-          description="Solid: what it was. Dashed: at the last year's pace, shaded by how much a month usually varies, adding up."
+          description="Solid: what it was. Dashed: today, plus the average month saved and investments at the rate you chose; shaded by how much a month's saving usually varies, adding up."
           table={
             <DataTable
               head={["Month end", "Net worth", "Likely from", "Likely to"]}
               rows={[
-                ...f.netWorth.history.map((p) => ({ key: p.date, cells: [formatDate(p.date), formatAmount(p.total), "—", "—"] })),
-                ...f.netWorth.projection.map((p) => ({
+                ...nw.history.map((p) => ({ key: p.date, cells: [formatDate(p.date), formatAmount(p.total), "—", "—"] })),
+                ...nw.projection.map((p) => ({
                   key: p.date,
                   cells: [formatDate(p.date), `about ${formatAmount(p.value)}`, formatAmount(p.low), formatAmount(p.high)],
                 })),
@@ -368,20 +391,20 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
             labels={o.labels}
             series={[
               { key: "behind", color: NET_WORTH, values: o.history },
-              { key: "ahead", color: NET_WORTH, values: o.projection, dashed: true, endLabel: last ? "At this pace" : undefined },
+              { key: "ahead", color: NET_WORTH, values: o.projection, dashed: true, endLabel: last ? "Ahead" : undefined },
             ]}
             band={{ low: o.low, high: o.high, color: NET_WORTH }}
-            marker={o.history.length > 0 && f.netWorth.projection.length > 0 ? { index: o.today, label: "Today" } : undefined}
+            marker={o.history.length > 0 && nw.projection.length > 0 ? { index: o.today, label: "Today" } : undefined}
             tooltip={(i) => {
-              const behind = f.netWorth.history[i];
-              const ahead = f.netWorth.projection[i - f.netWorth.history.length];
+              const behind = nw.history[i];
+              const ahead = nw.projection[i - nw.history.length];
               return behind ? (
                 <TooltipRows title={formatDate(behind.date)} rows={[{ label: "Net worth", value: formatAmount(behind.total), color: NET_WORTH, strong: true }]} />
               ) : ahead ? (
                 <TooltipRows
                   title={formatDate(ahead.date)}
                   rows={[
-                    { label: "At this pace", value: formatAmount(ahead.value), color: NET_WORTH, strong: true },
+                    { label: "Ahead", value: formatAmount(ahead.value), color: NET_WORTH, strong: true },
                     { label: "Likely", value: `${formatAmount(ahead.low)} – ${formatAmount(ahead.high)}` },
                   ]}
                 />
@@ -389,8 +412,91 @@ function NetWorthAhead({ f }: { f: ForecastResponse }) {
             }}
           />
         </ChartFrame>
+        {nw.months.length > 0 ? <WorthMonths f={f} /> : null}
       </CardContent>
     </Card>
+  );
+}
+
+/** The yearly return investments are expected to earn: a setting, chosen where it shows. */
+function ExpectedReturn({ f }: { f: ForecastResponse }) {
+  const save = useMoneyMutation(moneyApi.settings.update, { success: (s) => `Investments now grow at ${s.expectedReturn}% a year` });
+  const current = f.netWorth.expectedReturn;
+  const values = RETURNS.includes(current) ? RETURNS : [...RETURNS, current].sort((a, b) => Number(a) - Number(b));
+  return (
+    <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground">
+      <label htmlFor="expected-return">
+        Investments, <Amount amount={f.netWorth.invested} /> today, grow at
+      </label>
+      <SimpleSelect
+        id="expected-return"
+        value={current}
+        onChange={(expectedReturn) => save.mutate({ expectedReturn })}
+        options={values.map((v) => ({ value: v, label: `${v}% a year` }))}
+        className="h-8 w-32"
+      />
+    </div>
+  );
+}
+
+/** Each month's change of net worth, told apart: saved, markets and exchange rates, one-offs and accounts added. */
+function WorthMonths({ f }: { f: ForecastResponse }) {
+  const months = f.netWorth.months;
+  const s = worthSeries(months);
+  const title = (month: string) => `${formatMonth(month)}${month === f.month ? ", so far" : ""}`;
+  return (
+    <ChartFrame
+      title="Where each month's change came from"
+      description="Saved: income less spending. Markets and exchange rates: what prices and rates did to what you own (and anything not recorded). One-offs: something sold, or an account added with money you already had. The dot is the month's net change."
+      legend={[
+        { name: "Saved", color: SAVED },
+        { name: "Markets and exchange rates", color: MARKETS },
+        { name: "One-offs and accounts added", color: ONE_OFFS },
+        { name: "Net change", color: NET, shape: "dot" },
+      ]}
+      table={
+        <DataTable
+          head={["Month", "Net change", "Saved", "Markets and exchange rates", "One-offs", "Accounts added"]}
+          rows={months.map((m) => ({
+            key: m.month,
+            cells: [
+              title(m.month),
+              <Amount key="c" amount={m.change} signed />,
+              <Amount key="s" amount={m.saved} signed />,
+              <Amount key="m" amount={m.markets} signed />,
+              <Amount key="o" amount={m.oneOffs} signed />,
+              <Amount key="a" amount={m.added} signed />,
+            ],
+          }))}
+        />
+      }
+    >
+      <StackedBars
+        label={`Each month's change of net worth in ${f.base}: saved, markets and exchange rates, one-offs`}
+        categories={months.map((m, i) => ({ key: m.month, label: s.labels[i] }))}
+        series={[
+          { key: "saved", color: SAVED, values: s.saved },
+          { key: "markets", color: MARKETS, values: s.markets },
+          { key: "one-offs", color: ONE_OFFS, values: s.oneOffs },
+        ]}
+        net={s.net}
+        tooltip={(i) => {
+          const m = months[i];
+          return (
+            <TooltipRows
+              title={title(m.month)}
+              rows={[
+                { label: "Net change", value: formatAmount(m.change, { signed: true }), strong: true },
+                { label: "Saved", value: formatAmount(m.saved, { signed: true }), color: SAVED },
+                { label: "Markets and exchange rates", value: formatAmount(m.markets, { signed: true }), color: MARKETS },
+                ...(isZero(m.oneOffs.value) ? [] : [{ label: "One-offs", value: formatAmount(m.oneOffs, { signed: true }), color: ONE_OFFS }]),
+                ...(isZero(m.added.value) ? [] : [{ label: "Accounts added", value: formatAmount(m.added, { signed: true }), color: ONE_OFFS }]),
+              ]}
+            />
+          );
+        }}
+      />
+    </ChartFrame>
   );
 }
 

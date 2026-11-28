@@ -1,5 +1,5 @@
-import { categoryBar, categoryScale, changeLabel, outlookSeries, paceSeries } from "@tools/money/lib/insights";
-import type { CategoryPace, ForecastResponse } from "@tools/money/types";
+import { categoryBar, categoryScale, changeLabel, outlookSeries, paceSeries, worthSeries } from "@tools/money/lib/insights";
+import type { CategoryPace, ForecastResponse, WorthMonth } from "@tools/money/types";
 
 const amount = (value: string) => ({ currency: "PLN", value, minor: value.replace(".", "") });
 const point = (date: string, total: string) => ({ date, total: amount(total), assets: amount(total), liabilities: amount("0.00") });
@@ -16,7 +16,10 @@ describe("insights", () => {
   it("joins net worth behind and ahead at today, the range starting there", () => {
     const nw: ForecastResponse["netWorth"] = {
       history: [point("2026-09-30", "100.00"), point("2026-10-31", "150.00")],
-      monthlyChange: amount("50.00"),
+      months: [],
+      monthlySaving: amount("50.00"),
+      invested: amount("0.00"),
+      expectedReturn: "0",
       projection: [{ date: "2026-11-30", value: amount("200.00"), low: amount("180.00"), high: amount("220.00") }],
     };
     const o = outlookSeries(nw);
@@ -59,5 +62,43 @@ describe("insights", () => {
     expect(categoryBar(list[0], 100)).toEqual({ soFar: 50, projected: 100, usual: 80 });
     expect(categoryBar(list[1], 100)).toEqual({ soFar: 20, projected: 40, usual: null });
     expect(categoryScale([])).toBe(0);
+  });
+
+  it("puts the tick of a category that comes in lumps at its average month", () => {
+    const holiday = {
+      categoryId: "leisure",
+      name: "Leisure",
+      soFar: amount("0.00"),
+      projected: amount("0.00"),
+      low: amount("0.00"),
+      high: amount("0.00"),
+      typicalByNow: amount("0.00"),
+      typicalMonth: amount("0.00"),
+      change: null,
+      averageMonth: amount("300.00"),
+      monthsWith: 1,
+      lumpy: true,
+    } as CategoryPace;
+    expect(categoryScale([holiday])).toBe(300);
+    expect(categoryBar(holiday, 600)).toEqual({ soFar: 0, projected: 0, usual: 50 });
+  });
+
+  it("stacks each month's change: saved, markets, one-offs with the accounts added, and the net", () => {
+    const month = (m: string, change: string, saved: string, markets: string, oneOffs: string, added: string): WorthMonth => ({
+      month: m,
+      change: amount(change),
+      saved: amount(saved),
+      markets: amount(markets),
+      oneOffs: amount(oneOffs),
+      added: amount(added),
+    });
+    const s = worthSeries([month("2026-03", "6500.00", "1500.00", "0.00", "0.00", "5000.00"), month("2026-04", "-300.00", "2500.00", "-2800.00", "0.00", "0.00")]);
+    expect([s.saved, s.markets, s.oneOffs, s.net]).toEqual([
+      [1500, 2500],
+      [0, -2800],
+      [5000, 0],
+      [6500, -300],
+    ]);
+    expect(s.labels).toHaveLength(2);
   });
 });

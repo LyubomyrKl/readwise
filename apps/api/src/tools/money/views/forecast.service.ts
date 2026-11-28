@@ -4,13 +4,15 @@ import { amountJson } from '../common/amounts';
 import { addDays, addMonths, endOfMonth, formatDate, monthKey, monthsBetween, startOfMonth } from '../core/dates';
 import {
   changePercent,
-  median,
+  habit,
+  mean,
   MIN_HISTORY,
   monthsCovered,
   netWorthOutlook,
   pace,
   runningTotals,
   usualCurve,
+  worthChanges,
   yearProjection,
   type Pace,
   type Totals,
@@ -34,13 +36,17 @@ interface Day {
   byCategory: Map<string | null, bigint>;
   /** what categories left out of the totals moved (a car sold: +), apart from income and expenses */
   oneOff: bigint;
+  /** money already owned, tracked from this day: what came from the opening balances account */
+  added: bigint;
 }
 
 /**
  * Where the money is heading: this month on pace against the months before (expenses, income, each
- * category), the year so far and as projected, net worth at last year's pace, the months of usual
- * spending the bank and cash cover, and what is still scheduled this month. Read-only; figures in
- * the base currency at each day's rate, like the other views; one-offs left out, like the totals.
+ * category, and whether a category comes in lumps), the year so far and as projected, net worth
+ * ahead from what an average month saves (and investments at the expected return of the settings),
+ * each month's change of net worth told apart, the months of average spending the bank and cash
+ * cover, and what is still scheduled this month. Read-only; figures in the base currency at each
+ * day's rate, like the other views; one-offs left out, like the totals.
  */
 @Injectable()
 export class ForecastService {
@@ -74,14 +80,16 @@ export class ForecastService {
     // and last year whole, for the year's comparison
     const yearStart = new Date(Date.UTC(today.getUTCFullYear(), 0, 1));
     const lastYearStart = new Date(Date.UTC(today.getUTCFullYear() - 1, 0, 1));
-    const { entries, missing } = await this.views.flowEntries(userId, base, lookback < lastYearStart ? lookback : lastYearStart, today);
+    const { entries, missing } = await this.views.flowEntries(userId, base, lookback < lastYearStart ? lookback : lastYearStart, today, { openings: true });
 
-    // day by day, as the month's totals count it (transfers aside, one-offs apart)
+    // day by day, as the month's totals count it (transfers aside, one-offs and opening balances apart)
     const byDate = new Map<string, FlowEntry[]>();
+    const recordedDays = new Set<string>();
     for (const e of entries) {
       const list = byDate.get(e.date!);
       if (list) list.push(e);
       else byDate.set(e.date!, [e]);
+      if (e.kind !== 'opening_balance') recordedDays.add(e.date!);
     }
     const daily = new Map<string, Day>();
     for (const [date, list] of byDate) {
@@ -92,12 +100,14 @@ export class ForecastService {
         expenses: t.expenses,
         byCategory: t.expensesByCategory,
         oneOff: total(t.leftOutIncomeByCategory) - total(t.leftOutExpensesByCategory),
+        // an account's opening balance, or a holding held before: worth that was never saved here
+        added: -list.filter((e) => e.systemRole === 'opening_balance').reduce((a, e) => a + (e.base ?? 0n), 0n),
       });
     }
     // the last day of this month with anything recorded: a statement imported up to the 12th
     // projects from the 12th; a month with nothing in it yet, as a usual month
     const monthPrefix = monthKey(today);
-    const recorded = Math.max(0, ...[...daily.keys()].filter((date) => date.startsWith(monthPrefix)).map((date) => Number(date.slice(8, 10))));
+    const recorded = Math.max(0, ...[...recordedDays].filter((date) => date.startsWith(monthPrefix)).map((date) => Number(date.slice(8, 10))));
     /** a month's running total of one figure, up to `upTo` days */
     const running = (month: Date, pick: (d: Day) => bigint, upTo = endOfMonth(month).getUTCDate()) =>
       runningTotals(
@@ -114,6 +124,8 @@ export class ForecastService {
         past.map((m) => running(m, pick)),
         day,
       );
+    /** a past month's whole total of one figure */
+    const whole = (month: Date, pick: (d: Day) => bigint) => sumMonth(running(month, pick));
     const paceJson = (p: Pace): PaceResponse => ({
       soFar: money(p.soFar),
       typicalByNow: maybe(p.typicalByNow),
@@ -139,17 +151,25 @@ export class ForecastService {
     const since = formatDate(past[0] ?? thisMonth);
     for (const [date, d] of daily) if (date >= since) for (const key of d.byCategory.keys()) keys.add(key);
     const categories = [...keys]
-      .map((key) => ({ key, p: onPace((d) => d.byCategory.get(key) ?? 0n) }))
-      .filter(({ p }) => p.soFar !== 0n || p.projected !== 0n || (p.typicalMonth ?? 0n) !== 0n)
-      .map(({ key, p }) => ({ key, p, gap: abs(p.projected - (p.typicalMonth ?? 0n)) }))
+      .map((key) => {
+        const pick = (d: Day) => d.byCategory.get(key) ?? 0n;
+        return { key, p: onPace(pick), h: habit(past.map((m) => whole(m, pick))) };
+      })
+      .filter(({ p, h }) => p.soFar !== 0n || p.projected !== 0n || (p.typicalMonth ?? 0n) !== 0n || (h.average ?? 0n) !== 0n)
+      .map((c) => ({ ...c, gap: abs(c.p.projected - (c.p.typicalMonth ?? 0n)) }))
       .sort((a, b) => (b.gap > a.gap ? 1 : b.gap < a.gap ? -1 : 0))
-      .map(({ key, p }) => ({
+      .map(({ key, p, h }) => ({
         categoryId: key,
         name: names.get(key ?? '') ?? 'Uncategorised',
         ...paceJson(p),
+        // a category that comes now and then is not unusual for coming this month
+        change: h.lumpy ? null : changePercent(p.projected, p.typicalMonth),
+        averageMonth: maybe(h.average),
+        monthsWith: h.monthsWith,
+        lumpy: h.lumpy,
       }));
 
-    // the year: so far, the rest of this month as projected, a usual month (or this one) for each month left
+    // the year: so far, the rest of this month as projected, an average month (or this one) for each month left
     const sum = (from: Date, to: Date): Totals & { months: Set<string> } => {
       const out = { income: 0n, expenses: 0n, months: new Set<string>() };
       const [a, b] = [formatDate(from), formatDate(to)];
@@ -167,12 +187,10 @@ export class ForecastService {
       savings: money(t.income - t.expenses),
       savingsRate: t.income > 0n ? percentOf(t.income - t.expenses, t.income) : null,
     });
-    const usualMonth =
+    // the average month, not the usual one: a total over months has its lumps (a holiday, a tax)
+    const averageMonth =
       past.length >= MIN_HISTORY
-        ? {
-            income: median(past.map((m) => sumMonth(running(m, (d) => d.income))))!,
-            expenses: median(past.map((m) => sumMonth(running(m, (d) => d.expenses))))!,
-          }
+        ? { income: mean(past.map((m) => whole(m, (d) => d.income)))!, expenses: mean(past.map((m) => whole(m, (d) => d.expenses)))! }
         : { income: income.projected, expenses: expenses.projected };
     const ytd = sum(yearStart, today);
     const lastYear = sum(lastYearStart, new Date(Date.UTC(today.getUTCFullYear() - 1, 11, 31)));
@@ -180,30 +198,47 @@ export class ForecastService {
       ytd,
       { income: income.projected - income.soFar, expenses: expenses.projected - expenses.soFar },
       11 - today.getUTCMonth(),
-      usualMonth,
+      averageMonth,
     );
 
-    // net worth at last year's pace, from the month ends behind
+    // net worth: the month ends behind, each recent month's change told apart, and ahead from what is saved
     const anyFirst = await this.prisma.moneyTransaction.findFirst({ where: { userId, status: 'posted' }, orderBy: { date: 'asc' }, select: { date: true } });
     const behind = addMonths(thisMonth, -(NET_WORTH_BEHIND - 1), 1);
     const nwFrom = anyFirst && startOfMonth(anyFirst.date) > behind ? startOfMonth(anyFirst.date) : behind;
     const history = await this.views.history(userId, { base, from: monthKey(nwFrom), to: monthKey(thisMonth), asOf: today });
-    const outlook = netWorthOutlook(
-      history.points.map((p) => BigInt(p.total.minor)),
-      NET_WORTH_AHEAD,
-      // each month end's one-offs, taken out of its change (in today's net worth, not in the pace)
-      history.points.map((p) => {
-        let sum = 0n;
-        for (const [date, d] of daily) if (date.startsWith(p.date.slice(0, 7)) && date <= p.date) sum += d.oneOff;
-        return sum;
-      }),
+    const ends = new Map(history.points.map((p) => [p.date.slice(0, 7), BigInt(p.total.minor)]));
+    // the months the pace reads, and this one so far; before the very first month there was nothing
+    const told = [...past, thisMonth].filter((m) => ends.has(monthKey(m)));
+    const before = told.length ? (ends.get(monthKey(addMonths(told[0], -1, 1))) ?? 0n) : 0n;
+    const inMonth = (month: Date, pick: (d: Day) => bigint) => {
+      const [key, upTo] = [monthKey(month), formatDate(month < thisMonth ? endOfMonth(month) : today)];
+      let sum = 0n;
+      for (const [date, d] of daily) if (date.startsWith(key) && date <= upTo) sum += pick(d);
+      return sum;
+    };
+    const changes = worthChanges(
+      [before, ...told.map((m) => ends.get(monthKey(m))!)],
+      told.map((m) => ({ saved: inMonth(m, (d) => d.income - d.expenses), oneOffs: inMonth(m, (d) => d.oneOff), added: inMonth(m, (d) => d.added) })),
     );
 
-    // the months of usual spending that the bank and cash cover
+    // what is invested today (holdings at their value), growing at the rate the person expects
+    const settings = await this.prisma.moneySettings.findUniqueOrThrow({ where: { userId } });
     const worth = await this.views.netWorth(userId, { base, asOf: today });
+    let invested = 0n;
+    for (const item of worth.accounts.flatMap((a) => a.items)) if (item.kind === 'asset' && item.value) invested += BigInt(item.value.minor);
+    const outlook = netWorthOutlook({
+      now: history.points.length ? BigInt(history.points[history.points.length - 1].total.minor) : 0n,
+      savings: past.map((m) => whole(m, (d) => d.income) - whole(m, (d) => d.expenses)),
+      ahead: NET_WORTH_AHEAD,
+      restOfMonth: income.projected - income.soFar - (expenses.projected - expenses.soFar),
+      invested,
+      returnBp: BigInt(settings.expectedReturn.times(100).toFixed(0)),
+    });
+
+    // the months of average spending that the bank and cash cover
     const bank = worth.types.find((t) => t.key === 'bank');
     const liquid = bank ? BigInt(bank.value.minor) : 0n;
-    const monthlyExpenses = past.length >= MIN_HISTORY ? usualMonth.expenses : null;
+    const monthlyExpenses = past.length >= MIN_HISTORY ? averageMonth.expenses : null;
 
     return {
       base,
@@ -234,7 +269,17 @@ export class ForecastService {
       },
       netWorth: {
         history: history.points,
-        monthlyChange: outlook ? money(outlook.monthlyChange) : null,
+        months: changes.map((c, i) => ({
+          month: monthKey(told[i]),
+          change: money(c.change),
+          saved: money(c.saved),
+          markets: money(c.markets),
+          oneOffs: money(c.oneOffs),
+          added: money(c.added),
+        })),
+        monthlySaving: outlook ? money(outlook.monthlySaving) : null,
+        invested: money(invested),
+        expectedReturn: settings.expectedReturn.toFixed(),
         projection: (outlook?.projection ?? []).map((p, i) => ({
           date: formatDate(endOfMonth(addMonths(thisMonth, i + 1, 1))),
           value: money(p.value),

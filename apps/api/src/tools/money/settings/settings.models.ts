@@ -6,6 +6,8 @@ export class MoneySettingsResponse {
   @ApiProperty({ example: 'PLN' }) baseCurrency!: string;
   @ApiProperty({ enum: ['fifo', 'average'] }) defaultCostBasis!: string;
   @ApiProperty({ example: 'PL' }) taxResidence!: string;
+  @ApiProperty({ example: '5', description: 'what investments are expected to earn a year, in percent; the forecast grows what is invested at it' })
+  expectedReturn!: string;
 }
 
 export class UpdateMoneySettingsDto {
@@ -23,4 +25,9 @@ export class UpdateMoneySettingsDto {
   @IsOptional()
   @Matches(/^[A-Z]{2}$/)
   taxResidence?: string;
+
+  @ApiProperty({ required: false, example: '5', description: 'percent a year, 0 to 99.99' })
+  @IsOptional()
+  @Matches(/^\d{1,2}(\.\d{1,2})?$/, { message: 'expectedReturn must be a percent from 0 to 99.99' })
+  expectedReturn?: string;
 }

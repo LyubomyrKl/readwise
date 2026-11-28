@@ -146,13 +146,18 @@ If it stops:
 - **Insights**: where the money is heading. This month on pace: spending and income projected
   as what is in so far plus what usually follows after the last day you have recorded, in your
   own months before (with a likely range), against a usual month, and day by day on a chart; each
-  category the same way, the furthest from usual first; the year so far and as projected, against
-  last year; net worth in twelve months at the last year's pace; how many months of usual spending
-  your bank and cash would cover; recurring movements still due this month. Under three months of
-  history the month is projected in a straight line; a month with nothing recorded yet shows as a
-  usual month. One-offs (a category left out of the totals, such as Sold belongings) are in none of
-  the projections, the savings rate or net worth's pace: a sale counts once in today's net worth,
-  not as saving. On the Overview the pace is under Expenses: **on pace for …** opens Insights.
+  category the same way, the furthest from usual first (one that comes now and then, like a
+  holiday, shows its average month instead); the year so far and as projected, against last year;
+  net worth in twelve months from what you save in an average month, plus your investments growing
+  at the yearly return you pick on the card (0% unless you choose one; past market moves are not
+  carried forward); where each month's change of net worth came from (saved, markets and exchange
+  rates, one-offs and accounts added); how many months of average spending your bank and cash would
+  cover; recurring movements still due this month. Totals over many months (the year, the safety
+  net) use the average month, so costs that come a few times a year are counted. Under three months
+  of history the month is projected in a straight line; a month with nothing recorded yet shows as
+  a usual month. One-offs (a category left out of the totals, such as Sold belongings) are in none
+  of the projections, the savings rate or what you save: a sale counts once in today's net worth.
+  On the Overview the pace is under Expenses: **on pace for …** opens Insights.
 - **Reports**: month by month, by category.
 - **Settings → Account**: change your password (the current one first; your other devices sign in
   again with the new one), the authenticator app, passkeys. Forgot it? **Forgot password?** on the

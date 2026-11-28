@@ -94,6 +94,8 @@ export interface MoneySettings {
   baseCurrency: string;
   defaultCostBasis: CostBasisMethod;
   taxResidence: string;
+  /** what investments are expected to earn a year, percent ("5"); Insights grows what is invested at it */
+  expectedReturn: string;
 }
 
 export type MovementKind =
@@ -655,6 +657,26 @@ export interface PaceDay {
 export interface CategoryPace extends PaceFigure {
   categoryId: string | null;
   name: string;
+  /** the average month of the months before; null under three */
+  averageMonth: AmountJson | null;
+  /** months before with any spending in it */
+  monthsWith: number;
+  /** comes now and then (spent in at most half the months before): its month is not called unusual, change is null */
+  lumpy: boolean;
+}
+
+/** A month's change of net worth, told apart. */
+export interface WorthMonth {
+  month: string;
+  change: AmountJson;
+  /** income less expenses */
+  saved: AmountJson;
+  /** prices and exchange rates (and anything never recorded) */
+  markets: AmountJson;
+  /** what categories left out of the totals moved: something sold */
+  oneOffs: AmountJson;
+  /** money already owned, tracked from this month: an opening balance, a holding held before */
+  added: AmountJson;
 }
 
 export interface YearFigures {
@@ -684,7 +706,15 @@ export interface ForecastResponse {
   year: { year: number; soFar: YearFigures; projected: YearFigures; lastYear: (YearFigures & { months: number }) | null };
   netWorth: {
     history: HistoryPoint[];
-    monthlyChange: AmountJson | null;
+    /** the months the pace reads, and this one so far */
+    months: WorthMonth[];
+    /** what an average month saved, one-offs out; null under three months */
+    monthlySaving: AmountJson | null;
+    /** holdings at their value today */
+    invested: AmountJson;
+    /** percent a year, from the settings */
+    expectedReturn: string;
+    /** today, the rest of this month, the average month saved, investments at the expected return */
     projection: { date: string; value: AmountJson; low: AmountJson; high: AmountJson }[];
   };
   runway: { liquid: AmountJson; monthlyExpenses: AmountJson | null; months: string | null };

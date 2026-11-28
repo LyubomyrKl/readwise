@@ -325,7 +325,16 @@ test.describe("Money", () => {
     const wallet = (await account(request, `Pace ${run}`, "1000.00")).id;
     const today = new Date().toISOString().slice(0, 10);
     await call(request, "post", "/money/movements", { kind: "expense", input: { date: today, accountId: wallet, currency: "PLN", amount: "12.34", note: `pace ${run}` } });
-    const forecast = await call<{ daysInMonth: number; expenses: { projected: { value: string } } }>(request, "get", "/money/views/forecast");
+    // three months behind at least, so net worth has a pace ahead
+    const back = new Date();
+    back.setUTCMonth(back.getUTCMonth() - 3, 1);
+    const before = back.toISOString().slice(0, 10);
+    await call(request, "post", "/money/movements", { kind: "expense", input: { date: before, accountId: wallet, currency: "PLN", amount: "1.00", note: `pace before ${run}` } });
+    const forecast = await call<{ daysInMonth: number; expenses: { projected: { value: string } }; netWorth: { months: unknown[]; expectedReturn: string } }>(
+      request,
+      "get",
+      "/money/views/forecast"
+    );
     const shown = (value: string) => Number(value).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
     await page.goto("/apps/money");
@@ -339,6 +348,18 @@ test.describe("Money", () => {
     const chart = page.locator("figure").filter({ hasText: "Spending, day by day" });
     await chart.getByRole("button", { name: "Table" }).click();
     await expect(chart.getByRole("row")).toHaveCount(forecast.daysInMonth + 1);
+
+    // where each month's change of net worth came from: a row a month
+    const months = page.locator("figure").filter({ hasText: "Where each month's change came from" });
+    await months.getByRole("button", { name: "Table" }).click();
+    await expect(months.getByRole("row")).toHaveCount(forecast.netWorth.months.length + 1);
+
+    // the return investments are expected to earn: chosen where it shows, kept in the settings
+    const rate = forecast.netWorth.expectedReturn === "4" ? "5" : "4";
+    await page.getByLabel(/grow at/).click();
+    await page.getByRole("option", { name: `${rate}% a year` }).click();
+    await expect(page.getByText(`Investments now grow at ${rate}% a year`)).toBeVisible();
+    expect((await call<{ expectedReturn: string }>(request, "get", "/money/settings")).expectedReturn).toBe(rate);
   });
 
   test("a category merged in settings is gone and its history counts in the other", async ({ page, request }) => {

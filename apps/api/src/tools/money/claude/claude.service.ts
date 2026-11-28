@@ -57,13 +57,26 @@ export class ClaudeService {
       income: pace(f.income),
       projectedSaved: money(f.savings),
       projectedSavingsRatePercent: f.savingsRate,
-      categories: f.categories.slice(0, 12).map((c) => ({ category: c.name, ...pace(c) })),
+      categories: f.categories
+        .slice(0, 12)
+        .map((c) => ({ category: c.name, ...pace(c), averageMonth: money(c.averageMonth), comesInLumps: c.lumpy, monthsWithSpending: c.monthsWith })),
       year: { year: f.year.year, soFar: year(f.year.soFar), projected: year(f.year.projected), lastYear: f.year.lastYear ? { ...year(f.year.lastYear), months: f.year.lastYear.months } : null },
       netWorth: {
-        monthlyChange: money(f.netWorth.monthlyChange),
+        savedInAnAverageMonth: money(f.netWorth.monthlySaving),
+        invested: money(f.netWorth.invested),
+        expectedReturnPercent: f.netWorth.expectedReturn,
         inTwelveMonths: inAYear ? { date: inAYear.date, value: money(inAYear.value), likely: { from: money(inAYear.low), to: money(inAYear.high) } } : null,
+        // each month's change told apart: saved, prices and exchange rates, one-offs, accounts added
+        months: f.netWorth.months.map((m) => ({
+          month: m.month,
+          change: money(m.change),
+          saved: money(m.saved),
+          marketsAndRates: money(m.markets),
+          oneOffs: money(m.oneOffs),
+          accountsAdded: money(m.added),
+        })),
       },
-      safetyNet: { bankAndCash: money(f.runway.liquid), usualMonthOfSpending: money(f.runway.monthlyExpenses), months: f.runway.months },
+      safetyNet: { bankAndCash: money(f.runway.liquid), averageMonthOfSpending: money(f.runway.monthlyExpenses), months: f.runway.months },
       stillScheduledThisMonth: f.upcoming.map((u) => ({ date: u.date, name: u.name, kind: u.kind, amount: money(u.amount) })),
       missingRates: f.missingRates,
     };

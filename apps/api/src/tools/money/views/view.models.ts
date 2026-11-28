@@ -215,6 +215,10 @@ export class PaceDay {
 export class CategoryPace extends PaceResponse {
   @ApiProperty({ nullable: true }) categoryId!: string | null;
   @ApiProperty() name!: string;
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'the average month of the months before; null under three' })
+  averageMonth!: AmountJson | null;
+  @ApiProperty({ example: 4, description: 'months before with any spending in it' }) monthsWith!: number;
+  @ApiProperty({ description: 'comes now and then (spent in at most half the months before): change is then null' }) lumpy!: boolean;
 }
 
 export class YearFigures {
@@ -231,7 +235,7 @@ export class LastYearFigures extends YearFigures {
 export class YearOutlook {
   @ApiProperty({ example: 2026 }) year!: number;
   @ApiProperty({ type: YearFigures }) soFar!: YearFigures;
-  @ApiProperty({ type: YearFigures, description: 'so far, the rest of this month as projected, a usual month for each month left' })
+  @ApiProperty({ type: YearFigures, description: 'so far, the rest of this month as projected, an average month for each month left' })
   projected!: YearFigures;
   @ApiProperty({ type: LastYearFigures, nullable: true }) lastYear!: LastYearFigures | null;
 }
@@ -243,17 +247,36 @@ export class OutlookPoint {
   @ApiProperty({ type: AmountJson }) high!: AmountJson;
 }
 
+export class WorthMonth {
+  @ApiProperty({ example: '2026-10' }) month!: string;
+  @ApiProperty({ type: AmountJson, description: 'net worth at its end (today for this month) less at the end of the month before' })
+  change!: AmountJson;
+  @ApiProperty({ type: AmountJson, description: 'income less expenses' }) saved!: AmountJson;
+  @ApiProperty({ type: AmountJson, description: 'the rest: prices and exchange rates (and anything never recorded)' }) markets!: AmountJson;
+  @ApiProperty({ type: AmountJson, description: 'what categories left out of the totals moved, such as a car sold' }) oneOffs!: AmountJson;
+  @ApiProperty({ type: AmountJson, description: "money already owned, tracked from this month: an account's opening balance, a holding held before" })
+  added!: AmountJson;
+}
+
 export class NetWorthOutlookResponse {
   @ApiProperty({ type: [HistoryPoint], description: 'month ends up to today' }) history!: HistoryPoint[];
-  @ApiProperty({ type: AmountJson, nullable: true, description: 'average change a month over the last year' }) monthlyChange!: AmountJson | null;
-  @ApiProperty({ type: [OutlookPoint], description: 'the next twelve month ends at that pace; empty with under four month ends' })
+  @ApiProperty({ type: [WorthMonth], description: 'the months the pace reads, and this one so far, each change told apart' })
+  months!: WorthMonth[];
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'what an average month saved, one-offs out; null under three months' })
+  monthlySaving!: AmountJson | null;
+  @ApiProperty({ type: AmountJson, description: 'holdings at their value today' }) invested!: AmountJson;
+  @ApiProperty({ example: '5', description: 'the expected yearly return of the settings, percent' }) expectedReturn!: string;
+  @ApiProperty({
+    type: [OutlookPoint],
+    description: 'the next twelve month ends: today, the rest of this month, the average month saved, investments at the expected return; empty under three months',
+  })
   projection!: OutlookPoint[];
 }
 
 export class RunwayResponse {
   @ApiProperty({ type: AmountJson, description: 'bank and cash' }) liquid!: AmountJson;
-  @ApiProperty({ type: AmountJson, nullable: true, description: 'the median month of spending' }) monthlyExpenses!: AmountJson | null;
-  @ApiProperty({ nullable: true, example: '7.4', description: 'months of usual spending it covers' }) months!: string | null;
+  @ApiProperty({ type: AmountJson, nullable: true, description: 'the average month of spending, lumps included' }) monthlyExpenses!: AmountJson | null;
+  @ApiProperty({ nullable: true, example: '7.4', description: 'months of average spending it covers' }) months!: string | null;
 }
 
 export class UpcomingMovement {

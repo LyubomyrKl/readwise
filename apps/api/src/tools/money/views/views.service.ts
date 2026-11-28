@@ -298,8 +298,11 @@ export class ViewsService {
     return { byMonth, missing };
   }
 
-  /** Every posted entry from `from` to `to` (opening balances aside), dated and in the base currency at its day's rate. */
-  async flowEntries(userId: string, base: string, from: Date, to: Date): Promise<{ entries: FlowEntry[]; missing: string[] }> {
+  /**
+   * Every posted entry from `from` to `to`, dated and in the base currency at its day's rate; opening
+   * balances only with `openings` (the month's totals skip them either way).
+   */
+  async flowEntries(userId: string, base: string, from: Date, to: Date, opts: { openings?: boolean } = {}): Promise<{ entries: FlowEntry[]; missing: string[] }> {
     const rows = await this.prisma.$queryRaw<
       {
         transactionId: string;
@@ -326,7 +329,7 @@ export class ViewsService {
         -- a merged category counts as the one it was merged into
         LEFT JOIN "money_category" cat ON cat."id" = e."categoryId"
         LEFT JOIN "money_category" target ON target."id" = cat."mergedIntoId"
-       WHERE t."userId" = ${userId} AND t."status" = 'posted' AND t."kind" <> 'opening_balance'
+       WHERE t."userId" = ${userId} AND t."status" = 'posted' ${opts.openings ? Prisma.empty : Prisma.sql`AND t."kind" <> 'opening_balance'`}
          AND t."date" >= ${formatDate(from)}::date AND t."date" <= ${formatDate(to)}::date
     `);
     const currencies = new Set(rows.filter((r) => r.commodityKind === 'currency').map((r) => r.commodityId));

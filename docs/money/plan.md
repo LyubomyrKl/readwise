@@ -313,3 +313,24 @@ entries of posted transactions cannot be updated or deleted.
   a late import, an empty month, a straight line for a first month); `get_forecast` in
   `money-m6.db-spec.ts`; `money-insights.test.ts`; in the browser, the pace under the Overview's
   expenses to Insights, showing what the forecast says.
+- **Insights: saving and lumps, Nov 28** — net worth ahead from what is saved, not from how net
+  worth moved: on the owner's data last year's +7 567 a month was about 6 600 saved and 950 of
+  markets and exchange rates that swung from -4 700 to +5 800, and the 93 000 just invested makes
+  that part bigger, not steadier. Ahead is now today, the rest of this month as projected, the
+  average month saved (income less expenses, one-offs out) for every month, and what is invested
+  growing at a return the owner chooses on the card (a setting, `expectedReturn`, 0% unless set;
+  migration `money_expected_return`), the range half the spread of the months saved, adding up.
+  Each month's change is told apart: saved, markets and exchange rates (the rest), one-offs, and
+  accounts added (what came from the opening balances account: an account's opening balance, a
+  holding held before), drawn as signed stacked bars with the net as a dot. Totals over many months
+  take the average month instead of the usual (median) one: the owner's median month was 8 272 and
+  the average 8 927, the median leaving out travel (3 months of 12), taxes (2) and the spikes of
+  health; so the year's months left and the safety net use the average, and a category spent in at
+  most half the months comes "now and then": its month is not called unusual and its tick is the
+  average (one spent every month with spikes, like transport, keeps its usual month: a first rule,
+  the average half again the usual month, called 14 of the owner's categories "now and then"). Tests: `core/forecast.spec.ts` (the average, lumps, a month
+  told apart, the outlook with the rest of the month and a return); `money-forecast.db-spec.ts` (a
+  second history: a buy whose price moves, cash tracked from March, a sale, a holiday, 6% a year:
+  each month apart to the cent, the projection, the year and the safety net on the average month,
+  a lumpy category); `money-insights.test.ts`; in the browser, the breakdown's table and the
+  return chosen on the card kept in the settings.

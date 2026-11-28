@@ -10,6 +10,10 @@ import { divRound, formatScaled } from './decimal';
  * line from the pace so far would not. Without three months of history the straight line is all
  * there is. "The same day" is the last day with anything recorded: a statement imported up to the
  * 12th projects from the 12th, and a month with nothing in it yet as a usual month.
+ *
+ * The usual month (a median) answers "is this month normal"; totals over many months (the year,
+ * the months the bank covers, net worth ahead) take the average month instead, because a holiday
+ * or a tax that comes a few times a year is usually missing from the median and never from a year.
  */
 
 /** Months of history before a projection leans on it rather than on a straight line. */
@@ -28,6 +32,33 @@ export function quantile(values: readonly bigint[], num: bigint, den: bigint): b
 }
 
 export const median = (values: readonly bigint[]): bigint | null => quantile(values, 1n, 2n);
+
+/** The average, rounded once; null without values. */
+export function mean(values: readonly bigint[]): bigint | null {
+  if (values.length === 0) return null;
+  return divRound(values.reduce((a, b) => a + b, 0n), BigInt(values.length));
+}
+
+export interface Habit {
+  /** the average month; null under three months */
+  average: bigint | null;
+  /** the months with anything in them */
+  monthsWith: number;
+  /** comes now and then: spent in at most half the months (travel, a tax paid twice a year) */
+  lumpy: boolean;
+}
+
+/**
+ * How a category spends over the months before (their whole totals): most months, or now and then.
+ * One spent every month with a spike in some (transport, a doctor) keeps its usual month: a spike
+ * is then unusual, and only totals over many months need the average.
+ */
+export function habit(totals: readonly bigint[]): Habit {
+  const monthsWith = totals.filter((t) => t !== 0n).length;
+  if (totals.length < MIN_HISTORY) return { average: null, monthsWith, lumpy: false };
+  const average = mean(totals)!;
+  return { average, monthsWith, lumpy: average > 0n && 2 * monthsWith <= totals.length };
+}
 
 /** The running total at the end of a day of the month; past a shorter month's end, its whole. */
 export function runningAt(running: readonly bigint[], day: number): bigint {
@@ -100,42 +131,68 @@ export interface Totals {
   expenses: bigint;
 }
 
-/** The year: what is in so far, the rest of this month as projected, and a usual month for each month left. */
-export function yearProjection(soFar: Totals, restOfMonth: Totals, monthsLeft: number, usualMonth: Totals | null): Totals {
-  const ahead = usualMonth ?? { income: 0n, expenses: 0n };
+/** The year: what is in so far, the rest of this month as projected, and an average month for each month left. */
+export function yearProjection(soFar: Totals, restOfMonth: Totals, monthsLeft: number, averageMonth: Totals | null): Totals {
+  const ahead = averageMonth ?? { income: 0n, expenses: 0n };
   return {
     income: soFar.income + restOfMonth.income + BigInt(monthsLeft) * ahead.income,
     expenses: soFar.expenses + restOfMonth.expenses + BigInt(monthsLeft) * ahead.expenses,
   };
 }
 
+/** What moved net worth in a month: saved (income less expenses), one-offs, accounts added, and the rest. */
+export interface WorthChange {
+  change: bigint;
+  saved: bigint;
+  /** what categories left out of the totals moved: a car sold (+) */
+  oneOffs: bigint;
+  /** money already owned, tracked from this month: an account's opening balance, a holding held before */
+  added: bigint;
+  /** whatever else moved it: prices and exchange rates (and anything never recorded) */
+  markets: bigint;
+}
+
+/** Each month's change of net worth, told apart; `parts[i]` belongs to the month ending at `ends[i + 1]`. */
+export function worthChanges(ends: readonly bigint[], parts: readonly { saved: bigint; oneOffs: bigint; added: bigint }[]): WorthChange[] {
+  return parts.map((p, i) => {
+    const change = ends[i + 1] - ends[i];
+    return { change, ...p, markets: change - p.saved - p.oneOffs - p.added };
+  });
+}
+
 export interface NetWorthOutlook {
-  /** the average change per month over the window (up to the last twelve months) */
-  monthlyChange: bigint;
-  /** one point per month ahead: the average pace, and around it how much a month usually varies, accumulated */
+  /** what an average month saves (income less expenses, one-offs out) */
+  monthlySaving: bigint;
+  /** one point per month ahead, and around it how much a month's saving usually varies, accumulated */
   projection: { value: bigint; low: bigint; high: bigint }[];
 }
 
 /**
- * Net worth ahead at the pace of the last twelve months (or fewer, from four month ends on). A
- * month's one-offs (`oneOffs[i]`, what categories left out of the totals moved in the month ending
- * at `monthEnds[i]`, such as a car sold) are taken out of its change: they stay in today's net worth
- * but are not a pace to carry forward. The range widens by half the spread of the middle months'
- * changes for every month ahead.
+ * Net worth ahead from what is saved, not from how net worth moved: today's worth, the rest of this
+ * month as projected, then the average month saved (`savings`, the months before) for every month
+ * ahead, and what is invested today growing at `returnBp` basis points a year (simple within the
+ * year, so a year ahead is exactly the rate). One-offs and accounts added are in today's worth and
+ * in no month saved; past moves of prices and exchange rates are not carried forward, only the rate
+ * the person sets. The range widens by half the spread of the middle months saved, month by month.
  */
-export function netWorthOutlook(monthEnds: readonly bigint[], ahead: number, oneOffs: readonly bigint[] = []): NetWorthOutlook | null {
-  const start = Math.max(0, monthEnds.length - 13);
-  const window = monthEnds.slice(start);
-  if (window.length < 4) return null;
-  const changes = window.slice(1).map((v, i) => v - window[i] - (oneOffs[start + i + 1] ?? 0n));
-  const monthlyChange = divRound(changes.reduce((a, b) => a + b, 0n), BigInt(changes.length));
-  const spread = divRound(quantile(changes, 3n, 4n)! - quantile(changes, 1n, 4n)!, 2n);
-  const now = window[window.length - 1];
+export function netWorthOutlook(p: {
+  now: bigint;
+  savings: readonly bigint[];
+  ahead: number;
+  restOfMonth?: bigint;
+  invested?: bigint;
+  returnBp?: bigint;
+}): NetWorthOutlook | null {
+  if (p.savings.length < MIN_HISTORY) return null;
+  const monthlySaving = mean(p.savings)!;
+  const spread = divRound(quantile(p.savings, 3n, 4n)! - quantile(p.savings, 1n, 4n)!, 2n);
+  const start = p.now + (p.restOfMonth ?? 0n);
+  const yearly = (p.invested ?? 0n) * (p.returnBp ?? 0n);
   return {
-    monthlyChange,
-    projection: Array.from({ length: ahead }, (_, i) => {
+    monthlySaving,
+    projection: Array.from({ length: p.ahead }, (_, i) => {
       const k = BigInt(i + 1);
-      const value = now + k * monthlyChange;
+      const value = start + k * monthlySaving + divRound(yearly * k, 12n * 10_000n);
       return { value, low: value - k * spread, high: value + k * spread };
     }),
   };

@@ -1,5 +1,7 @@
 import {
   changePercent,
+  habit,
+  mean,
   median,
   monthsCovered,
   netWorthOutlook,
@@ -8,6 +10,7 @@ import {
   runningAt,
   runningTotals,
   usualCurve,
+  worthChanges,
   yearProjection,
 } from './forecast';
 
@@ -24,6 +27,44 @@ describe('forecast', () => {
     expect(quantile([10n, 20n, 30n, 40n, 50n], 1n, 4n)).toBe(20n);
     expect(quantile([10n, 20n, 30n, 40n], 3n, 4n)).toBe(33n); // 32.5
     expect(quantile([-4n, -1n], 1n, 2n)).toBe(-3n); // -2.5 away from zero
+  });
+
+  it('takes the average of minor units, rounded once', () => {
+    expect(mean([])).toBeNull();
+    expect(mean([1n, 2n])).toBe(2n); // 1.5 rounds half away from zero
+    expect(mean([3n, 5n, 10n])).toBe(6n);
+    expect(mean([-1n, -2n])).toBe(-2n);
+  });
+
+  it('tells a category that comes now and then from one spent most months', () => {
+    // travel in one month of five: usually nothing, 300 a month on average
+    expect(habit([0n, 0n, 1500_00n, 0n, 0n])).toEqual({ average: 300_00n, monthsWith: 1, lumpy: true });
+    // a tax in two months of six, a car in half of them: now and then too
+    expect(habit([0n, 0n, 0n, 0n, 500_00n, 700_00n])).toMatchObject({ average: 200_00n, lumpy: true });
+    expect(habit([0n, 100_00n, 0n, 100_00n, 0n, 100_00n])).toMatchObject({ lumpy: true });
+    // a doctor's bill over small regular ones: spent every month, so its usual month stands and the
+    // bill is unusual; the average, which counts the bill, is still there for totals
+    expect(habit([170_00n, 170_00n, 2000_00n, 170_00n])).toEqual({ average: 627_50n, monthsWith: 4, lumpy: false });
+    // groceries: about the same every month
+    expect(habit([300_00n, 310_00n, 290_00n, 305_00n])).toEqual({ average: 301_25n, monthsWith: 4, lumpy: false });
+    // under three months nothing is usual yet
+    expect(habit([0n, 900_00n])).toEqual({ average: null, monthsWith: 1, lumpy: false });
+    expect(habit([0n, 0n, 0n])).toEqual({ average: 0n, monthsWith: 0, lumpy: false });
+  });
+
+  it("splits each month's net worth change into saved, one-offs, accounts added and the rest", () => {
+    const parts = (saved: bigint, oneOffs = 0n, added = 0n) => ({ saved, oneOffs, added });
+    // from nothing: 3000 saved; then 2500 saved; 1500 saved and an account of 5000 added;
+    // 2500 saved and a price up 200; 3000 saved and a car sold for 2000
+    expect(worthChanges([0n, 3000n, 5500n, 12000n, 14700n, 19700n], [parts(3000n), parts(2500n), parts(1500n, 0n, 5000n), parts(2500n), parts(3000n, 2000n)])).toEqual([
+      { change: 3000n, saved: 3000n, oneOffs: 0n, added: 0n, markets: 0n },
+      { change: 2500n, saved: 2500n, oneOffs: 0n, added: 0n, markets: 0n },
+      { change: 6500n, saved: 1500n, oneOffs: 0n, added: 5000n, markets: 0n },
+      { change: 2700n, saved: 2500n, oneOffs: 0n, added: 0n, markets: 200n },
+      { change: 5000n, saved: 3000n, oneOffs: 2000n, added: 0n, markets: 0n },
+    ]);
+    // a fall in markets bigger than what was saved
+    expect(worthChanges([1000n, 500n], [parts(200n)])[0]).toMatchObject({ change: -500n, markets: -700n });
   });
 
   it('reads a running total at a day, a shorter month standing at its end', () => {
@@ -92,31 +133,38 @@ describe('forecast', () => {
     expect(yearProjection({ income: 1n, expenses: 2n }, { income: 0n, expenses: 0n }, 3, null)).toEqual({ income: 1n, expenses: 2n });
   });
 
-  it("projects net worth at the last year's average monthly change, the range widening each month", () => {
-    const ends = [0n, 100n, 200n, 300n, 400n, 500n, 600n, 700n, 800n, 900n, 1000n, 1100n, 1200n, 1300n, 1400n];
-    const steady = netWorthOutlook(ends, 2)!;
-    expect(steady.monthlyChange).toBe(100n); // the last 12 changes
-    expect(steady.projection).toEqual([
-      { value: 1500n, low: 1500n, high: 1500n },
-      { value: 1600n, low: 1600n, high: 1600n },
-    ]);
-
-    const bumpy = netWorthOutlook([1000n, 1100n, 1000n, 1300n, 1200n], 2)!;
-    // changes +100, -100, +300, -100: average +50, quartiles -100 and +150, half the spread 125
-    expect(bumpy.monthlyChange).toBe(50n);
-    expect(bumpy.projection[1]).toEqual({ value: 1300n, low: 1050n, high: 1550n });
-    expect(netWorthOutlook([1n, 2n, 3n], 12)).toBeNull();
+  it('projects net worth from the average month saved, the range widening by how much a month varies', () => {
+    // saved 2000, 3000 and 4000: 3000 a month; quartiles 2500 and 3500, half the spread 500
+    const o = netWorthOutlook({ now: 50_000_00n, savings: [2000_00n, 3000_00n, 4000_00n], ahead: 12 })!;
+    expect(o.monthlySaving).toBe(3000_00n);
+    expect(o.projection).toHaveLength(12);
+    expect(o.projection[0]).toEqual({ value: 53_000_00n, low: 52_500_00n, high: 53_500_00n });
+    expect(o.projection[11]).toEqual({ value: 86_000_00n, low: 80_000_00n, high: 92_000_00n });
+    // under three months saved, no pace
+    expect(netWorthOutlook({ now: 1n, savings: [1n, 2n], ahead: 12 })).toBeNull();
   });
 
-  it('keeps a one-off out of the pace: a car sold stays in net worth, not in the monthly change', () => {
-    // +100 a month, and a car sold for 1000 in the third month
-    const ends = [0n, 100n, 200n, 1300n, 1400n, 1500n];
-    const oneOffs = [0n, 0n, 0n, 1000n, 0n, 0n];
-    expect(netWorthOutlook(ends, 1)!.monthlyChange).toBe(300n); // as if selling were saving
-    const kept = netWorthOutlook(ends, 2, oneOffs)!;
-    expect(kept.monthlyChange).toBe(100n);
-    expect(kept.projection.map((p) => p.value)).toEqual([1600n, 1700n]);
-    expect(kept.projection[1].low).toBe(1700n); // the sale's month is no outlier either
+  it('adds the rest of this month as projected, and investments at the expected return', () => {
+    // 500 more to save this month; 100 000 invested at 5% a year: 416.67 after a month, 5000 after a year
+    const o = netWorthOutlook({
+      now: 50_000_00n,
+      savings: [3000_00n, 3000_00n, 3000_00n],
+      ahead: 12,
+      restOfMonth: 500_00n,
+      invested: 100_000_00n,
+      returnBp: 500n,
+    })!;
+    expect(o.projection[0].value).toBe(50_000_00n + 500_00n + 3000_00n + 416_67n);
+    expect(o.projection[11].value).toBe(50_000_00n + 500_00n + 36_000_00n + 5000_00n);
+    // markets are not a pace: nothing invested or no return, no growth
+    expect(netWorthOutlook({ now: 0n, savings: [1n, 1n, 1n], ahead: 1, invested: 100_000_00n })!.projection[0].value).toBe(1n);
+  });
+
+  it('keeps a one-off out of the pace: a car sold is in net worth today, never a month saved', () => {
+    // the months saved exclude the sale by construction (it is not income); today's worth has it
+    const o = netWorthOutlook({ now: 1300n + 1000n, savings: [100n, 100n, 100n, 100n, 100n], ahead: 2 })!;
+    expect(o.monthlySaving).toBe(100n);
+    expect(o.projection.map((p) => p.value)).toEqual([2400n, 2500n]);
   });
 
   it('counts the months of usual spending an amount covers', () => {

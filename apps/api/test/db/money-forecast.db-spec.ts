@@ -2,8 +2,11 @@ import type { TestingModule } from '@nestjs/testing';
 import type { PrismaService } from '@platform/db/prisma.service';
 import { AccountsService } from '@tools/money/accounts/accounts.service';
 import { CategoriesService } from '@tools/money/categories/categories.service';
+import { AssetsService } from '@tools/money/investments/assets.service';
+import { PricesService } from '@tools/money/investments/prices.service';
 import { MovementsService } from '@tools/money/movements/movements.service';
 import { RecurringService } from '@tools/money/recurring/recurring.service';
+import { MoneySettingsService } from '@tools/money/settings/settings.service';
 import { ForecastService } from '@tools/money/views/forecast.service';
 import { moneyHarness } from './money-harness';
 
@@ -11,9 +14,12 @@ import { moneyHarness } from './money-harness';
  * Where the money is heading, on a known history: six months of rent on the 1st, groceries on the
  * 5th, 15th and 25th and salary on the 10th, then June so far. This month projects as spent so far
  * plus what usually follows after the 20th, not as a straight line; each category the same way; the
- * year as so far, the rest of June and a usual month for each month left; net worth at the pace of
- * its month ends. A one-off sale stays out of income, as in the month's totals, and out of net
- * worth's pace (it is in today's net worth). The month is read at its last recorded day.
+ * year as so far, the rest of June and an average month for each month left; net worth ahead from
+ * what is saved in an average month. A one-off sale stays out of income, as in the month's totals,
+ * and out of what is saved (it is in today's net worth). The month is read at its last recorded day.
+ * Then a second history: each month's change of net worth told apart (saved, a price, an account
+ * added, a sale), investments at the expected return of the settings, and a holiday that makes
+ * the average month dearer than the usual one.
  */
 describe('the forecast', () => {
   let app: TestingModule;
@@ -27,7 +33,7 @@ describe('the forecast', () => {
     app = h.app;
     prisma = h.prisma;
     forecasts = app.get(ForecastService);
-    for (const tag of ['history', 'new']) users.push(await h.newUser(`forecast-${tag}`));
+    for (const tag of ['history', 'new', 'worth']) users.push(await h.newUser(`forecast-${tag}`));
 
     const accounts = app.get(AccountsService);
     const movements = app.get(MovementsService);
@@ -92,7 +98,7 @@ describe('the forecast', () => {
     ]);
   });
 
-  it('projects the year from so far, the rest of June and a usual month for each month left', async () => {
+  it('projects the year from so far, the rest of June and an average month for each month left', async () => {
     const { year } = await forecasts.forecast(users[0], { base: 'PLN', asOf });
     const figures = (y: typeof year.soFar) => [y.income.value, y.expenses.value, y.savings.value, y.savingsRate];
     expect(year.year).toBe(2026);
@@ -102,15 +108,18 @@ describe('the forecast', () => {
     expect(year.lastYear).toMatchObject({ months: 1, income: { value: '5000.00' }, expenses: { value: '2300.00' }, savingsRate: '54.0' });
   });
 
-  it("projects net worth at the pace of its month ends, the sale in today's worth but not in the pace", async () => {
+  it("projects net worth from what an average month saves, the sale in today's worth but never a month saved", async () => {
     const { netWorth, runway } = await forecasts.forecast(users[0], { base: 'PLN', asOf });
     // month ends from December (2700) to today (28 800, the sale included)
     expect(netWorth.history.map((p) => p.total.value)).toEqual(['2700.00', '5400.00', '8100.00', '10800.00', '13500.00', '16200.00', '28800.00']);
-    // 2700 a month, June 2600 once the 10 000 sale is taken out (not 4350 with it)
-    expect(netWorth.monthlyChange?.value).toBe('2683.33');
+    // 5000 in, 2300 out in each of the six months before June; nothing invested, no return set
+    expect([netWorth.monthlySaving?.value, netWorth.invested.value, netWorth.expectedReturn]).toEqual(['2700.00', '0.00', '0']);
     expect(netWorth.projection).toHaveLength(12);
-    expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '31483.33' } });
-    expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '60999.96' } });
+    // today, then the 100 of June's groceries still to come, then 2700 a month
+    expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '31400.00' } });
+    expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '61100.00' } });
+    // June so far: 2600 saved and the 10 000 sale, apart
+    expect(netWorth.months.at(-1)).toMatchObject({ month: '2026-06', change: { value: '12600.00' }, saved: { value: '2600.00' }, oneOffs: { value: '10000.00' } });
     expect([runway.liquid.value, runway.monthlyExpenses?.value, runway.months]).toEqual(['28800.00', '2300.00', '12.5']);
   });
 
@@ -153,5 +162,101 @@ describe('the forecast', () => {
     // 300 + 600 more this month + 6 months like this one
     expect(f.year.projected.expenses.value).toBe('6300.00');
     expect([f.runway.months, f.netWorth.projection]).toEqual([null, []]);
+  });
+
+  describe('where net worth comes from, and costs that come in lumps', () => {
+    const at = new Date('2026-06-20T00:00:00Z');
+
+    beforeAll(async () => {
+      const userId = users[2];
+      const accounts = app.get(AccountsService);
+      const movements = app.get(MovementsService);
+      const all = await app.get(CategoriesService).list(userId);
+      const category = (name: string) => all.find((c) => c.name === name)!.id;
+      const post = (kind: Parameters<MovementsService['post']>[1]['kind'], input: Record<string, unknown>) =>
+        movements.post(userId, { kind, input }, { actor: 'user' });
+      const mbank = (await accounts.create(userId, { name: 'mBank', type: 'bank', currencies: ['PLN'] })).id;
+      const ibkr = (await accounts.create(userId, { name: 'IBKR', type: 'investment', currencies: ['PLN'] })).id;
+      const flow = (kind: 'income' | 'expense', date: string, amount: string, name: string) =>
+        post(kind, { date, accountId: mbank, currency: 'PLN', amount, categoryId: category(name) });
+
+      // a salary that moves a little, groceries of 1000 (600 so far in June)
+      for (const [month, salary] of [
+        ['01', '4000.00'],
+        ['02', '4500.00'],
+        ['03', '4000.00'],
+        ['04', '3500.00'],
+        ['05', '4000.00'],
+        ['06', '4000.00'],
+      ]) {
+        await flow('income', `2026-${month}-10`, salary, 'Salary');
+        await flow('expense', `2026-${month}-15`, month === '06' ? '600.00' : '1000.00', 'Groceries');
+      }
+      await flow('expense', '2026-03-20', '1500.00', 'Leisure'); // a holiday, once
+      await flow('income', '2026-05-20', '2000.00', 'Sold belongings');
+      // 1000 to the broker and ten ETF bought with it: 100 each then, 120 at April's end, 130 in June
+      await post('transfer', { date: '2026-02-05', fromAccountId: mbank, fromCurrency: 'PLN', amountOut: '1000.00', toAccountId: ibkr, toCurrency: 'PLN' });
+      const etf = (await app.get(AssetsService).create(userId, { code: 'ETF', name: 'World ETF', quoteCurrency: 'PLN' })).id;
+      await post('buy', { date: '2026-02-05', accountId: ibkr, assetId: etf, units: '10', total: '1000.00', currency: 'PLN' });
+      for (const [date, price] of [
+        ['2026-02-05', '100.00'],
+        ['2026-04-30', '120.00'],
+        ['2026-06-15', '130.00'],
+      ])
+        await app.get(PricesService).record(userId, { assetId: etf, date, price });
+      // cash that was there all along, tracked from the 10th of March
+      await accounts.create(userId, { name: 'Cash', type: 'bank', currencies: ['PLN'], openingBalances: [{ currency: 'PLN', amount: '5000.00', date: '2026-03-10' }] });
+      await app.get(MoneySettingsService).update(userId, { expectedReturn: '6' });
+    });
+
+    it("tells each month's change apart: saved, markets and exchange rates, one-offs, accounts added", async () => {
+      const { netWorth } = await forecasts.forecast(users[2], { base: 'PLN', asOf: at });
+      expect(netWorth.months.map((m) => [m.month, m.change.value, m.saved.value, m.markets.value, m.oneOffs.value, m.added.value])).toEqual([
+        ['2026-01', '3000.00', '3000.00', '0.00', '0.00', '0.00'],
+        ['2026-02', '3500.00', '3500.00', '0.00', '0.00', '0.00'],
+        // the holiday leaves 1500 saved; the cash account adds 5000 that was never saved here
+        ['2026-03', '6500.00', '1500.00', '0.00', '0.00', '5000.00'],
+        // the ETF at 120: +200
+        ['2026-04', '2700.00', '2500.00', '200.00', '0.00', '0.00'],
+        ['2026-05', '5000.00', '3000.00', '0.00', '2000.00', '0.00'],
+        // June so far, the ETF at 130
+        ['2026-06', '3500.00', '3400.00', '100.00', '0.00', '0.00'],
+      ]);
+    });
+
+    it('projects from the average month saved, plus what is invested at the expected return', async () => {
+      const { netWorth } = await forecasts.forecast(users[2], { base: 'PLN', asOf: at });
+      // saved 3000, 3500, 1500, 2500 and 3000: 2700 on average, quartiles 2500 and 3000
+      expect([netWorth.monthlySaving?.value, netWorth.invested.value, netWorth.expectedReturn]).toEqual(['2700.00', '1300.00', '6']);
+      // 24 200 today + 2700 + 6% of 1300 for a month (6.50); the range: half the spread, 250 a month
+      expect(netWorth.projection[0]).toMatchObject({ date: '2026-07-31', value: { value: '26906.50' }, low: { value: '26656.50' }, high: { value: '27156.50' } });
+      // + 12 months of 2700 + 6% of 1300 for a year (78)
+      expect(netWorth.projection[11]).toMatchObject({ date: '2027-06-30', value: { value: '56678.00' }, low: { value: '53678.00' }, high: { value: '59678.00' } });
+    });
+
+    it('counts the lumps in totals: the year and the safety net take the average month, not the usual one', async () => {
+      const { year, runway } = await forecasts.forecast(users[2], { base: 'PLN', asOf: at });
+      // usually 1000 spent a month, 1300 on average with the holiday; six months left of 4000 in, 1300 out
+      expect([year.projected.income.value, year.projected.expenses.value]).toEqual(['48000.00', '14900.00']);
+      // mBank and the cash: 22 900, against 1300 a month
+      expect([runway.liquid.value, runway.monthlyExpenses?.value, runway.months]).toEqual(['22900.00', '1300.00', '17.6']);
+    });
+
+    it('shows a category that comes in lumps as one, without calling its month unusual', async () => {
+      const { categories } = await forecasts.forecast(users[2], { base: 'PLN', asOf: at });
+      const row = (name: string) => categories.find((c) => c.name === name)!;
+      const groceries = row('Groceries');
+      expect([groceries.typicalMonth?.value, groceries.averageMonth?.value, groceries.monthsWith, groceries.lumpy, groceries.change]).toEqual(['1000.00', '1000.00', 5, false, '-40.0']);
+      // nothing this month, usually nothing; 300 a month on average, in one month of five
+      const leisure = row('Leisure');
+      expect([leisure.projected.value, leisure.typicalMonth?.value, leisure.averageMonth?.value, leisure.monthsWith, leisure.lumpy, leisure.change]).toEqual([
+        '0.00',
+        '0.00',
+        '300.00',
+        1,
+        true,
+        null,
+      ]);
+    });
   });
 });

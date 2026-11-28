@@ -163,6 +163,8 @@ model MoneySettings {
   defaultCostBasis MoneyCostBasisMethod @default(fifo)
   /// ISO 3166-1 alpha-2; decides the tax currency and the central bank rates of the tax report
   taxResidence     String               @default("PL")
+  /// what investments are expected to earn a year, in percent; only the forecast's net worth ahead reads it
+  expectedReturn   Decimal              @default(0) @db.Decimal(4, 2)
   updatedAt        DateTime             @updatedAt
 
   user         User           @relation(fields: [userId], references: [id], onDelete: Cascade)
